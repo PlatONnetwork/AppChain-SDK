@@ -1,0 +1,72 @@
+package module
+
+import (
+	"encoding/json"
+
+	"github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/protocols"
+	"github.com/PlatONnetwork/PlatON-Go/core"
+	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
+	"github.com/PlatONnetwork/PlatON-Go/core/types"
+	"github.com/PlatONnetwork/PlatON-Go/core/vm"
+	"github.com/PlatONnetwork/PlatON-Go/p2p"
+	"github.com/PlatONnetwork/PlatON-Go/p2p/enode"
+	"github.com/PlatONnetwork/PlatON-Go/rpc"
+	"github.com/PlatONnetwork/PlatON-Go/sdk"
+)
+
+type Module interface {
+	Name() string
+}
+
+type ContractModule interface {
+	Module
+	ContractAddress() common.Address
+	Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly bool) ([]byte, error)
+}
+
+type TxPoolModule interface {
+	Module
+	CheckTx(ctx sdk.Context, tx *types.Transaction) error
+	FilterPendingTxs(ctx sdk.Context, txs map[common.Address]types.Transactions) map[common.Address]types.Transactions
+}
+
+type RpcModule interface {
+	Module
+	Apis() []rpc.API
+}
+
+type P2PModule interface {
+	Module
+	Protocols() []p2p.Protocol
+}
+
+type ConsensusExtendModule interface {
+	Module
+	ExtendData(ctx sdk.Context, epoch, view, blockIndex uint64, header *types.Header) []byte
+	VerifyExtendData(ctx sdk.Context, epoch, view, blockIndex uint64, header *types.Header, data []byte) (common.Hash, error)
+	PrepareQC(ctx sdk.Context, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote)
+}
+
+type ElectionModule interface {
+	Module
+	NewHeader(ctx sdk.Context, header *types.Header) error
+	GetLastNumber(ctx sdk.Context, blockNumber uint64) uint64
+	GetValidator(ctx sdk.Context, blockNumber uint64) (*cbfttypes.Validators, error)
+	IsCandidateNode(ctx sdk.Context, nodeID enode.ID) bool
+	OnCommit(ctx sdk.Context, block *types.Block) error
+}
+
+type GenesisModule interface {
+	Module
+	InitGenesis(ctx sdk.Context, genesis *core.Genesis, data json.RawMessage)
+}
+
+type BlockerModule interface {
+	BeginBlock(ctx sdk.Context, header *types.Header)
+	EndBlock(ctx sdk.Context, header *types.Header)
+}
+
+type WorkerModule interface {
+	SortTxs(ctx sdk.Context, local map[common.Address]types.Transactions, remote map[common.Address]types.Transactions) (types.Transactions, error)
+}
