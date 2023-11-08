@@ -43,8 +43,8 @@ type P2PModule interface {
 
 type ConsensusExtendModule interface {
 	Module
-	ExtendData(ctx sdk.Context, epoch, view, blockIndex uint64, header *types.Header) []byte
-	VerifyExtendData(ctx sdk.Context, epoch, view, blockIndex uint64, header *types.Header, data []byte) (common.Hash, error)
+	ExtendData(ctx sdk.Context) []byte
+	VerifyExtendData(ctx sdk.Context, data []byte) (common.Hash, error)
 	PrepareQC(ctx sdk.Context, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote)
 }
 
@@ -59,12 +59,12 @@ type ElectionModule interface {
 
 type GenesisModule interface {
 	Module
-	InitGenesis(ctx sdk.Context, genesis *core.Genesis, data json.RawMessage)
+	InitGenesis(ctx sdk.Context, db sdk.StateDB, genesis *core.Genesis, data json.RawMessage)
 }
 
 type BlockerModule interface {
-	BeginBlock(ctx sdk.Context, header *types.Header)
-	EndBlock(ctx sdk.Context, header *types.Header)
+	BeginBlock(ctx sdk.Context)
+	EndBlock(ctx sdk.Context)
 }
 
 type WorkerModule interface {
