@@ -48,13 +48,17 @@ type ConsensusExtendModule interface {
 	PrepareQC(ctx sdk.Context, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote)
 }
 
+type BlockCommiter interface {
+	OnCommit(ctx sdk.Context, block *types.Block) error
+}
+
 type ElectionModule interface {
 	Module
+	BlockCommiter
 	NewHeader(ctx sdk.Context, header *types.Header) error
 	GetLastNumber(ctx sdk.Context, blockNumber uint64) uint64
 	GetValidator(ctx sdk.Context, blockNumber uint64) (*cbfttypes.Validators, error)
 	IsCandidateNode(ctx sdk.Context, nodeID enode.ID) bool
-	OnCommit(ctx sdk.Context, block *types.Block) error
 }
 
 type GenesisModule interface {
