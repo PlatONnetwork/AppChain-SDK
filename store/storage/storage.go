@@ -2,6 +2,7 @@ package storage
 
 import (
 	"github.com/PlatONnetwork/AppChain-SDK/store"
+	"github.com/PlatONnetwork/AppChain-SDK/store/kv"
 	"github.com/PlatONnetwork/PlatON-Go/ethdb/leveldb"
 )
 
@@ -42,6 +43,10 @@ func (s *Storage) Put(key, value []byte) error {
 
 func (s *Storage) Delete(key []byte) error {
 	return s.db.Delete(key)
+}
+
+func (s *Storage) NewBatch() store.Batch {
+	return s.db.NewBatch()
 }
 
 func (s *Storage) NewIterator(prefix, start []byte) store.Iterator {

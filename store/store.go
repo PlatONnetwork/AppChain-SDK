@@ -26,4 +26,5 @@ type KVStore interface {
 	Delete(key []byte) error
 
 	Iteratee
+	Batcher
 }

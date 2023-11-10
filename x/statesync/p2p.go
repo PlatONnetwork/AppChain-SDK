@@ -1,0 +1,91 @@
+package statesync
+
+import (
+	"errors"
+	sdkp2p "github.com/PlatONnetwork/AppChain-SDK/p2p"
+	"github.com/PlatONnetwork/PlatON-Go/p2p"
+	"math/big"
+	"slices"
+	"sync"
+)
+
+type Heartbeat struct {
+	sdkp2p.MessageCode
+	SyncStatus
+}
+
+type SyncStatus struct {
+	Id          *big.Int
+	BlockNumber *big.Int
+}
+
+type Peer struct {
+	*sdkp2p.DefaultPeer
+	syncStatus *SyncStatus
+}
+
+func (p *Peer) SyncId() *big.Int {
+	return p.syncStatus.Id
+}
+
+type SyncP2P struct {
+	mutex      sync.Mutex
+	syncStatus *SyncStatus
+	p2p        *sdkp2p.Protocol
+}
+
+func NewSyncP2P() *SyncP2P {
+	syncP2P := &SyncP2P{}
+	protocol := sdkp2p.NewProtocol("l1sync", 1, 10)
+	protocol.RegistryMessageType([]sdkp2p.Message{&Heartbeat{}})
+	protocol.SetNewPeer(func(p *p2p.Peer, rw p2p.MsgReadWriter) sdkp2p.Peer {
+		return Peer{
+			DefaultPeer: sdkp2p.NewDefaultPeer(p, rw),
+		}
+	})
+	protocol.SetUserHandleMsg(func(peer sdkp2p.Peer, msg sdkp2p.Message) error {
+		return syncP2P.handleMsg(peer, msg)
+	})
+	syncP2P.p2p = protocol
+	return syncP2P
+}
+func (s *SyncP2P) Protocols() []p2p.Protocol {
+	return s.p2p.Protocol()
+}
+func (s *SyncP2P) sendHeartbeat() {
+	s.p2p.Broadcast(nil, nil, &Heartbeat{
+		SyncStatus: *s.syncStatus,
+	})
+}
+
+func (s *SyncP2P) handleMsg(peer sdkp2p.Peer, msg sdkp2p.Message) error {
+	switch m := msg.(type) {
+	case *Heartbeat:
+		peer.(*Peer).syncStatus = &m.SyncStatus
+	default:
+		return errors.New("unknown message type")
+	}
+	return nil
+}
+
+func (s *SyncP2P) SetSyncStatus(status *SyncStatus) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.syncStatus = status
+}
+
+func (s *SyncP2P) GetQuorumSyncId(validPeers map[string]struct{}) *big.Int {
+	var status []*big.Int
+	for _, peer := range s.p2p.Peers() {
+		if _, ok := validPeers[peer.Id()]; ok {
+			status = append(status, peer.(*Peer).SyncId())
+		}
+	}
+	if len(status) == 0 {
+		return nil
+	}
+	slices.SortFunc(status, func(a, b *big.Int) int {
+		return a.Cmp(b)
+	})
+	return status[0]
+}

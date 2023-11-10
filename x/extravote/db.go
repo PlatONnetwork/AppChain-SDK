@@ -13,8 +13,8 @@ type ExtraDataProof struct {
 	Proof []common.Hash
 }
 
-func encodeEpochViewHash(epoch, view uint64, hash []byte) []byte {
-	return append(append(utils.EncodeUint64ToBytes(epoch), utils.EncodeUint64ToBytes(view)...), hash...)
+func encodeEpochViewHash(epoch, view uint64, index uint32, hash []byte) []byte {
+	return append(append(utils.EncodeUint64ToBytes(epoch), append(utils.EncodeUint64ToBytes(view), utils.EncodeUint32ToBytes(index)...)...), hash...)
 }
 
 type ExtraVoteDB struct {
@@ -28,31 +28,31 @@ func NewExtraVoteDB(store store.Store) *ExtraVoteDB {
 	}
 }
 
-func (db *ExtraVoteDB) InsertProof(epoch, view uint64, leave [][]byte, tree *merkle.MerkleTree) error {
-	for _, leaf := range leave {
+func (db *ExtraVoteDB) InsertProof(epoch, view uint64, index uint32, leaves [][]byte, tree *merkle.MerkleTree) error {
+	for _, leaf := range leaves {
 		proof, err := tree.GenerateProof(leaf)
 		if err != nil {
 			return err
 		}
-		index, err := tree.LeafIndex(leaf)
+		leafIndex, err := tree.LeafIndex(leaf)
 		if err != nil {
 			return err
 		}
 
 		raw, err := rlp.EncodeToBytes(&ExtraDataProof{
-			Index: index,
+			Index: leafIndex,
 			Proof: proof,
 		})
 		if err != nil {
 			return err
 		}
-		db.db.Set(encodeEpochViewHash(epoch, view, leaf), raw)
+		db.db.Set(encodeEpochViewHash(epoch, view, index, leaf), raw)
 	}
 	return nil
 }
 
-func (db *ExtraVoteDB) GetProof(epoch, view uint64, leaf []byte) (uint64, []common.Hash, error) {
-	raw, err := db.db.Get(encodeEpochViewHash(epoch, view, leaf))
+func (db *ExtraVoteDB) GetProof(epoch, view uint64, index uint32, leaf []byte) (uint64, []common.Hash, error) {
+	raw, err := db.db.Get(encodeEpochViewHash(epoch, view, index, leaf))
 	if err != nil {
 		return 0, nil, err
 	}

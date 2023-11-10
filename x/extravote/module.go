@@ -7,10 +7,8 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/protocols"
-	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
-	"github.com/hashicorp/golang-lru/simplelru"
 )
 
 const (
@@ -21,30 +19,30 @@ const (
 // TODO 处理扩展投票，对每个子模块进行扩展，生成投票 Merkle 证明
 type ExtraVote struct {
 	modules []module.ConsensusExtendModule
-	cache   simplelru.LRUCache
 	db      *ExtraVoteDB
 }
 
 func NewExtraVote(store store.Store, ms []module.ConsensusExtendModule) *ExtraVote {
 	db := NewExtraVoteDB(store)
-	cache, _ := simplelru.NewLRU(cacheSize, nil)
-	return &ExtraVote{modules: ms, cache: cache, db: db}
+	return &ExtraVote{modules: ms, db: db}
 }
 
 func (e *ExtraVote) Name() string {
 	return "extravote"
 }
 
-func (e *ExtraVote) ExtendData(ctx sdk.Context, epoch, view uint64, header *types.Header) []byte {
+func (e *ExtraVote) ExtendData(ctx sdk.Context) []byte {
 	data := make([][]byte, len(e.modules))
 	for i, m := range e.modules {
-		data[i] = m.ExtendData(ctx, epoch, view, header)
+		data[i] = m.ExtendData(ctx)
 	}
 	extraData, _ := rlp.EncodeToBytes(data)
 	return extraData
 }
 
-func (e *ExtraVote) VerifyExtendData(ctx sdk.Context, epoch, view uint64, header *types.Header, data []byte) (common.Hash, error) {
+func (e *ExtraVote) VerifyExtendData(ctx sdk.Context, data []byte) (common.Hash, error) {
+	cc := ctx.Context().(sdk.ConsensusContext)
+
 	var extraData [][]byte
 	err := rlp.DecodeBytes(data, &extraData)
 	if err != nil {
@@ -55,7 +53,7 @@ func (e *ExtraVote) VerifyExtendData(ctx sdk.Context, epoch, view uint64, header
 	}
 	var trieNodes [][]byte
 	for i, m := range e.modules {
-		leaf, err := m.VerifyExtendData(ctx, epoch, view, header, extraData[i])
+		leaf, err := m.VerifyExtendData(ctx, extraData[i])
 		if err != nil {
 			return common.Hash{}, err
 		}
@@ -65,9 +63,8 @@ func (e *ExtraVote) VerifyExtendData(ctx sdk.Context, epoch, view uint64, header
 	if err != nil {
 		return common.Hash{}, err
 	}
-	e.db.InsertProof(epoch, view, trieNodes, trie)
+	e.db.InsertProof(cc.Epoch(), cc.View(), cc.BlockIndex(), trieNodes, trie)
 
-	e.cache.Add(trie.Hash(), trie)
 	return trie.Hash(), nil
 }
 

@@ -123,7 +123,7 @@ func (p *Protocol) handleUserMsg(peer Peer) error {
 }
 
 func (p *Protocol) Peers() []Peer {
-	return p.Peers()
+	return p.peerSet.Peers()
 }
 
 func (p *Protocol) setMessageCode(msg Message) error {
