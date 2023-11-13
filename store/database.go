@@ -16,5 +16,6 @@ type Database interface {
 	Delete(key []byte) error
 
 	Iteratee
+	Batcher
 	io.Closer
 }

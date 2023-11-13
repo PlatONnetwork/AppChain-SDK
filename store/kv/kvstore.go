@@ -49,8 +49,6 @@ func (kv *KVStore) NewIterator(prefix, start []byte) store.Iterator {
 	}
 
 }
-<<<<<<< HEAD
-=======
 
 func (kv *KVStore) NewBatch() store.Batch {
 	return &batch{
@@ -108,7 +106,6 @@ func (b *batch) Write() error {
 func (b *batch) Reset() {
 	b.batch.Reset()
 }
->>>>>>> e939a5a... add db test
 
 func storePrefix(storeKey string) []byte {
 	return []byte(fmt.Sprintf(StorePrefixTpl, storeKey))
