@@ -2,6 +2,7 @@ package storage
 
 import (
 	"github.com/PlatONnetwork/AppChain-SDK/store"
+	"github.com/PlatONnetwork/AppChain-SDK/store/kv"
 	"github.com/PlatONnetwork/PlatON-Go/ethdb/leveldb"
 )
 

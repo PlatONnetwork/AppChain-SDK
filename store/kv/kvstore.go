@@ -43,8 +43,72 @@ func (kv *KVStore) Delete(key []byte) error {
 }
 
 func (kv *KVStore) NewIterator(prefix, start []byte) store.Iterator {
-	return kv.db.NewIterator(prefix, start)
+	return &kvIterator{
+		storeKey: kv.storeKey,
+		iter:     kv.db.NewIterator(prependStoreKey(kv.storeKey, prefix), start),
+	}
+
 }
+<<<<<<< HEAD
+=======
+
+func (kv *KVStore) NewBatch() store.Batch {
+	return &batch{
+		batch:    kv.db.NewBatch(),
+		storeKey: kv.storeKey,
+	}
+}
+
+type kvIterator struct {
+	storeKey string
+	iter     store.Iterator
+}
+
+func (k *kvIterator) Next() bool {
+	return k.iter.Next()
+}
+
+func (k *kvIterator) Error() error {
+	return k.iter.Error()
+}
+
+func (k *kvIterator) Key() []byte {
+	return removeStoreKey(k.iter.Key(), k.storeKey)
+}
+
+func (k *kvIterator) Value() []byte {
+	return k.iter.Value()
+}
+
+func (k *kvIterator) Release() {
+	k.iter.Release()
+}
+
+type batch struct {
+	batch    store.Batch
+	storeKey string
+}
+
+func (b *batch) Put(key []byte, value []byte) error {
+	return b.batch.Put(prependStoreKey(b.storeKey, key), value)
+}
+
+func (b *batch) Delete(key []byte) error {
+	return b.batch.Delete(prependStoreKey(b.storeKey, key))
+}
+
+func (b *batch) ValueSize() int {
+	return b.batch.ValueSize()
+}
+
+func (b *batch) Write() error {
+	return b.batch.Write()
+}
+
+func (b *batch) Reset() {
+	b.batch.Reset()
+}
+>>>>>>> e939a5a... add db test
 
 func storePrefix(storeKey string) []byte {
 	return []byte(fmt.Sprintf(StorePrefixTpl, storeKey))
@@ -52,4 +116,7 @@ func storePrefix(storeKey string) []byte {
 
 func prependStoreKey(storeKey string, key []byte) []byte {
 	return append(storePrefix(storeKey), key...)
+}
+func removeStoreKey(key []byte, storeKey string) []byte {
+	return key[len(storePrefix(storeKey)):]
 }
