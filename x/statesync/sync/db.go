@@ -1,6 +1,7 @@
 package sync
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/store"
@@ -93,15 +94,15 @@ func (l *L1SyncDB) ClearStateSenderHistory(target *big.Int) error {
 
 func (l *L1SyncDB) FindStateSenderEvent(start *big.Int, end *big.Int) ([]*StateSender, error) {
 	var events []*StateSender
-	it := l.db.NewIterator(nil, start.Bytes())
+	it := l.db.NewIterator(eventKey, math.PaddedBigBytes(start, 32))
 	next := new(big.Int).SetBytes(start.Bytes())
 	for it.Next() {
 		if len(events) == 0 {
-			if new(big.Int).SetBytes(it.Key()).Cmp(next) != 0 {
-				return nil, errors.New(fmt.Sprintf("database loss of data, expect:%d", next.Uint64()))
+			if decodeEventKey(it.Key()).Cmp(next) != 0 {
+				return nil, errors.New(fmt.Sprintf("database loss of data, expect:%s acutal:%s cmp:%d", hex.EncodeToString(next.Bytes()), hex.EncodeToString(decodeEventKey(it.Key()).Bytes()), new(big.Int).SetBytes(it.Key()).Cmp(next)))
 			}
 		}
-		if new(big.Int).SetBytes(it.Key()).Cmp(end) > 0 {
+		if decodeEventKey(it.Key()).Cmp(end) > 0 {
 			break
 		}
 		var event StateSender

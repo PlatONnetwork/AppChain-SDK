@@ -13,7 +13,8 @@ import (
 )
 
 var (
-	batchSize = 1024 * 1024
+	eventProofDBName = "eventProof"
+	batchSize        = 1024 * 1024
 )
 
 func encodeEpochViewIndexHash(epoch, view uint64, index uint32) []byte {
@@ -42,6 +43,12 @@ func encodeRootBlock(root common.Hash) []byte {
 
 type EventProofDB struct {
 	db store.KVStore
+}
+
+func NewEventProofDB(store store.Store) *EventProofDB {
+	return &EventProofDB{
+		db: store.GetKVStore("eventProofDBName"),
+	}
 }
 
 func (s *EventProofDB) FindProofRoot(start *big.Int) (*contracts.StateSyncCommitment, error) {

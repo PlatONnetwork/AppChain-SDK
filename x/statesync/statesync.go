@@ -66,12 +66,12 @@ func (s *StateSync) VerifyExtendDataImpl(epoch, view uint64, index uint32, heade
 
 func (s *StateSync) PrepareQCImpl(block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote) {
 	//TODO clear history event proofs
-	root := s.stateSyncDb.GetProofRoot(block.Epoch, block.ViewNumber, block.BlockIndex)
+	root := s.eventProofDb.GetProofRoot(block.Epoch, block.ViewNumber, block.BlockIndex)
 	if root == common.ZeroHash {
 		return
 	}
 
-	s.stateSyncDb.InsertRootBlock(root, block.Block.Hash())
+	s.eventProofDb.InsertRootBlock(root, block.Block.Hash())
 }
 
 func (s *StateSync) AddTxs(ctx sdk.Context, local map[common.Address]types.Transactions, remote map[common.Address]types.Transactions) (map[common.Address]types.Transactions, map[common.Address]types.Transactions, error) {
@@ -89,11 +89,11 @@ func (s *StateSync) AddTxs(ctx sdk.Context, local map[common.Address]types.Trans
 		return local, remote, err
 	}
 	start := new(big.Int).Add(commitment.EndId, big.NewInt(1))
-	match, err := s.stateSyncDb.FindProofRoot(start)
+	match, err := s.eventProofDb.FindProofRoot(start)
 	if err != nil {
 		return local, remote, err
 	}
-	blockHash := s.stateSyncDb.GetRootBlock(match.Root)
+	blockHash := s.eventProofDb.GetRootBlock(match.Root)
 
 	block := s.backend.GetBlockByHash(blockHash)
 	_, qc, err := types2.DecodeExtra(block.ExtraData())
@@ -115,11 +115,11 @@ func (s *StateSync) AddTxs(ctx sdk.Context, local map[common.Address]types.Trans
 	var events []*sync.StateSender
 	var proofs [][]common.Hash
 	for {
-		event, err := s.l1SyncDb.GetStateSenderEvent(eventId)
+		event, err := s.l1Sync.SyncDB().GetStateSenderEvent(eventId)
 		if event == nil || err != nil {
 			break
 		}
-		proof, err := s.stateSyncDb.GetProof(match.Root, eventId)
+		proof, err := s.eventProofDb.GetProof(match.Root, eventId)
 		if event == nil || err != nil {
 			break
 		}
@@ -139,15 +139,15 @@ func (s *StateSync) AddTxs(ctx sdk.Context, local map[common.Address]types.Trans
 }
 
 func (s *StateSync) MaxSyncId() *big.Int {
-	id, _ := s.l1SyncDb.GetMaxSyncId()
+	id, _ := s.l1Sync.SyncDB().GetMaxSyncId()
 	return id
 }
 
 func (s *StateSync) GenProof(epoch, view uint64, index uint32, start, end *big.Int) (common.Hash, error) {
-	if root := s.stateSyncDb.GetProofRoot(epoch, view, index); root != common.ZeroHash {
+	if root := s.eventProofDb.GetProofRoot(epoch, view, index); root != common.ZeroHash {
 		return root, nil
 	}
-	events, err := s.l1SyncDb.FindStateSenderEvent(start, end)
+	events, err := s.l1Sync.SyncDB().FindStateSenderEvent(start, end)
 	if err != nil {
 		return common.Hash{}, nil
 	}
@@ -163,7 +163,7 @@ func (s *StateSync) GenProof(epoch, view uint64, index uint32, start, end *big.I
 		leafId[event.Id] = hash
 	}
 	trie, err := merkle.NewMerkleTree(trieNodes)
-	if err := s.stateSyncDb.InsertProof(epoch, view, index, start, end, leafId, trie); err != nil {
+	if err := s.eventProofDb.InsertProof(epoch, view, index, start, end, leafId, trie); err != nil {
 		return common.Hash{}, nil
 	}
 	return trie.Hash(), nil
