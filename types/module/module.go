@@ -49,6 +49,7 @@ type ConsensusExtendModule interface {
 }
 
 type BlockCommiter interface {
+	Module
 	OnCommit(ctx sdk.Context, block *types.Block) error
 }
 

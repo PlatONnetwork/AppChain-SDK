@@ -6,13 +6,13 @@ import (
 	"math/big"
 	"reflect"
 	"strconv"
-	"strings"
 
+	"github.com/PlatONnetwork/AppChain-SDK/merkle"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
-	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint/contractapi"
+	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint/contractsapi"
+	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint/contractsapi/checkpoint_manager"
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint/storage"
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint/types"
-	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/protocols"
 	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/utils"
@@ -25,12 +25,12 @@ import (
 var (
 	_ module.Module                = (*Module)(nil)
 	_ module.ConsensusExtendModule = (*Module)(nil)
-
-	checkpointAbi, _ = abi.JSON(strings.NewReader(contractapi.ContractapiABI))
+	_ types.EventSubscriber        = (*Module)(nil)
 )
 
 type Module struct {
 	checkpointManagerAddr common.Address
+	l2StateSenderAddr     common.Address
 
 	logger log.Logger
 	store  *storage.Storage
@@ -43,13 +43,16 @@ type Module struct {
 
 func NewModule(
 	checkpointManagerAddr common.Address,
+	l2StateSenderAddr common.Address,
 	store *storage.Storage,
 	staking types.Staking,
 	signer types.Signer,
 	txRealyer types.TxRelayer,
-	extraVote types.ExtraVote) *Module {
-	return &Module{
+	extraVote types.ExtraVote,
+	stateEvent types.StateEvent) *Module {
+	m := &Module{
 		checkpointManagerAddr: checkpointManagerAddr,
+		l2StateSenderAddr:     l2StateSenderAddr,
 		logger:                log.New("module", types.ModuleName),
 		store:                 store,
 		staking:               staking,
@@ -57,10 +60,40 @@ func NewModule(
 		txRealyer:             txRealyer,
 		extraVote:             extraVote,
 	}
+
+	stateEvent.Subscribe(m)
+	return m
 }
 
 func (m *Module) Name() string {
 	return types.ModuleName
+}
+
+func (m *Module) GetLogFilters() map[common.Address][]common.Hash {
+	return map[common.Address][]common.Hash{
+		m.l2StateSenderAddr: {contractsapi.L2StateSenderABI.Events["L2StateSynced"].ID},
+	}
+}
+
+func (m *Module) ProcessLog(header *coretypes.Header, log *coretypes.Log) error {
+	checkpoint, err := m.store.GetCheckpoint(header.Number.Uint64())
+	if err != nil {
+		m.logger.Error("Failed to get checkpoint", "number", header.Number, "err", err)
+		return err
+	}
+
+	//  exit events that happened in epoch ending blocks,
+	// should be added to the tree of the next epoch
+	epoch := checkpoint.EpochNumber + 1
+	number := checkpoint.BlockNumber + 1
+
+	exitEvent, err := contractsapi.DecodeExitEvent(log, epoch, number)
+	if err != nil {
+		m.logger.Error("Failed to decode exit event", "err", err)
+		return err
+	}
+
+	return m.store.InsertExitEvent(exitEvent)
 }
 
 func (m *Module) ExtendData(ctx sdk.Context) []byte {
@@ -92,6 +125,12 @@ func (m *Module) ExtendData(ctx sdk.Context) []byte {
 			return []byte{}
 		}
 
+		eventRoot, err := m.BuildEventRoot(epoch)
+		if err != nil {
+			m.logger.Error("Failed to build event root", "epoch", epoch, "err", err)
+			return []byte{}
+		}
+
 		checkpoint := &types.CheckpointData{
 			ViewNumber:            view,
 			EpochNumber:           epoch,
@@ -100,7 +139,7 @@ func (m *Module) ExtendData(ctx sdk.Context) []byte {
 			BlockHash:             header.Hash(),
 			CurrentValidatorsHash: currentValidatorHash,
 			NextValidatorsHash:    nextValidatorHash,
-			EventRoot:             common.ZeroHash, // TODO: get event root
+			EventRoot:             eventRoot,
 		}
 		m.logger.Info("Make checkpoint data",
 			"blockNumber", header.Number,
@@ -124,6 +163,9 @@ func (m *Module) VerifyExtendData(ctx sdk.Context, data []byte) (common.Hash, er
 	header := sdkCtx.Header()
 	view := sdkCtx.View()
 	epoch := sdkCtx.Epoch()
+
+	m.logger.Debug("Verify extend data", "epoch", epoch, "view", view,
+		"number", "index", sdkCtx.BlockIndex(), header.Number, "hash", header.Hash())
 
 	if m.staking.IsEndOfEpoch(header.Number.Uint64()) {
 		var checkpoint types.CheckpointData
@@ -169,12 +211,22 @@ func (m *Module) VerifyExtendData(ctx sdk.Context, data []byte) (common.Hash, er
 			return common.ZeroHash, fmt.Errorf("mismatch nextValidatorsHash(checkpoint:%s,actual:%s)", checkpoint.NextValidatorsHash.TerminalString(), nextValidatorHash.TerminalString())
 		}
 
-		// TODO: check event root
-		if err := m.store.SetCheckpoint(header.Number.Uint64(),
+		eventRoot, err := m.BuildEventRoot(sdkCtx.Epoch())
+		if err != nil {
+			m.logger.Error("Failed to build event root", "epoch", sdkCtx.Epoch(), "err", err)
+			return common.ZeroHash, err
+		}
+
+		if eventRoot != checkpoint.EventRoot {
+			m.logger.Error("Event root dismatch", "checkpoint.EventRoot", checkpoint.EventRoot, "actual", eventRoot)
+			return common.ZeroHash, fmt.Errorf("mismatch event root(checkpoint:%s,acutal:%s)", checkpoint.EventRoot.TerminalString(), eventRoot.TerminalString())
+		}
+
+		if err := m.store.InsertCheckpoint(header.Number.Uint64(),
 			&types.StorageCheckpointData{
 				CheckpointData: &checkpoint,
 			}); err != nil {
-			m.logger.Error("Failed to set checkpoint",
+			m.logger.Error("Failed to insert checkpoint",
 				"epoch", epoch,
 				"view", view,
 				"blockIndex", checkpoint.BlockIndex,
@@ -222,7 +274,7 @@ func (m *Module) PrepareQC(ctx sdk.Context, block *protocols.PrepareBlock, votes
 		checkpoint.ExtendRoot = extendRoot
 		checkpoint.Signature = signature
 		checkpoint.Bitmap = bitmap
-		m.store.SetCheckpoint(block.BlockNum(), checkpoint)
+		m.store.InsertCheckpoint(block.BlockNum(), checkpoint)
 		return
 	}
 
@@ -279,15 +331,15 @@ func (m *Module) submitCheckpoint(latestHeader *coretypes.Header) error {
 }
 
 func (m *Module) encodeAndSendCheckpoint(checkpoint *types.StorageCheckpointData) error {
-	submitAbiType := checkpointAbi.Methods["submit"]
+	submitAbiType := contractsapi.CheckpointManagerABI.Methods["submit"]
 
-	checkpointMetadata := contractapi.ICheckpointManagerCheckpointMetadata{
+	checkpointMetadata := checkpoint_manager.ICheckpointManagerCheckpointMetadata{
 		BlockHash:               checkpoint.BlockHash,
 		BlockIndex:              checkpoint.BlockIndex,
 		CurrentValidatorSetHash: checkpoint.CurrentValidatorsHash,
 	}
 
-	cp := contractapi.ICheckpointManagerCheckpoint{
+	cp := checkpoint_manager.ICheckpointManagerCheckpoint{
 		Epoch:       checkpoint.EpochNumber,
 		ViewNumber:  checkpoint.ViewNumber,
 		BlockNumber: checkpoint.BlockNumber,
@@ -297,13 +349,13 @@ func (m *Module) encodeAndSendCheckpoint(checkpoint *types.StorageCheckpointData
 
 	nextValidators := m.staking.GetValidator(checkpoint.BlockNumber + 1)
 	accountSet := types.NewAccountSet(nextValidators)
-	newValidatorSet := make([]contractapi.ICheckpointManagerValidator, len(accountSet))
+	newValidatorSet := make([]checkpoint_manager.ICheckpointManagerValidator, len(accountSet))
 	for i, account := range accountSet {
 		var blsKey [2]*big.Int
 		b := account.BlsKey.Serialize()
 		blsKey[0] = big.NewInt(0).SetBytes(b[:16])
 		blsKey[1] = big.NewInt(0).SetBytes(b[16:])
-		newValidatorSet[i] = contractapi.ICheckpointManagerValidator{
+		newValidatorSet[i] = checkpoint_manager.ICheckpointManagerValidator{
 			Address: account.Address,
 			BlsKey:  blsKey,
 		}
@@ -321,7 +373,7 @@ func (m *Module) encodeAndSendCheckpoint(checkpoint *types.StorageCheckpointData
 	}
 
 	receipt, err := m.txRealyer.SendTransaction(coretypes.NewTransaction(0, m.checkpointManagerAddr, nil, 0, nil, data), m.signer)
-	if  err != nil {
+	if err != nil {
 		return err
 	}
 
@@ -332,8 +384,25 @@ func (m *Module) encodeAndSendCheckpoint(checkpoint *types.StorageCheckpointData
 	return nil
 }
 
+func (m *Module) BuildEventRoot(epoch uint64) (common.Hash, error) {
+	exitEvents, err := m.store.GetExitEventsByEpoch(epoch)
+	if err != nil {
+		return common.ZeroHash, err
+	}
+
+	if len(exitEvents) == 0 {
+		return common.ZeroHash, nil
+	}
+
+	tree, err := createEventTree(exitEvents)
+	if err != nil {
+		return common.ZeroHash, err
+	}
+	return tree.Hash(), nil
+}
+
 func getCurrentCheckpointBlock(relayer types.TxRelayer, checkpointManagerAddr common.Address) (uint64, error) {
-	input := checkpointAbi.Methods["currentCheckpointBlockNumber"].ID
+	input := contractsapi.CheckpointManagerABI.Methods["currentCheckpointBlockNumber"].ID
 	currentCheckpointBlockRaw, err := relayer.Call(common.ZeroAddr, checkpointManagerAddr, input)
 	if err != nil {
 		return 0, fmt.Errorf("invoke currentCheckpointBlockNumber on rootchain: %w", err)
@@ -365,4 +434,18 @@ func aggSignatures(votes map[uint32]*protocols.PrepareVote) (signature []byte, b
 	signature = aggSig.Serialize()
 	bitmap = sets.Bytes()
 	return
+}
+
+func createExitTree(exitEvents []*contractsapi.ExitEvent) (*merkle.MerkleTree, error) {
+	numOfEvents := len(exitEvents)
+	data := make([][]byte, numOfEvents)
+
+	for i := 0; i < numOfEvents; i++ {
+		b, err := exitEvents[i].Encode()
+		if err != nil {
+			return nil, err
+		}
+		data = append(data, b)
+	}
+	return merkle.NewMerkleTree(data)
 }

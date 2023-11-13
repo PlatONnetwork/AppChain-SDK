@@ -44,9 +44,11 @@ func (s *Storage) Put(key, value []byte) error {
 func (s *Storage) Delete(key []byte) error {
 	return s.db.Delete(key)
 }
+
 func (s *Storage) NewBatch() store.Batch {
 	return s.db.NewBatch()
 }
+
 func (s *Storage) NewIterator(prefix, start []byte) store.Iterator {
 	return s.db.NewIterator(prefix, start)
 }
