@@ -1,7 +1,10 @@
 package contracts
 
 import (
+	"encoding/hex"
 	"errors"
+	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
+	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
@@ -15,6 +18,7 @@ import (
 
 // Reference imports to suppress errors if they are not otherwise used.
 var (
+	_ = typesdk.RevertError{}
 	_ = vm.EVM{}
 	_ = errors.New
 	_ = big.NewInt
@@ -24,6 +28,10 @@ var (
 	_ = common.Big1
 	_ = types.BloomLookup
 	_ = event.NewSubscription
+)
+
+var (
+	initialized, _ = hex.DecodeString("8129fc1c")
 )
 
 type Upgrade struct {
@@ -46,10 +54,13 @@ func NewUpgrade(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*Upgrade, er
 	s.initMethodEntry()
 	return s, nil
 }
+
 func (c *Upgrade) Fallback(input []byte) ([]byte, error) {
-	//TODO 调用implement合约
-	panic("")
+	addr := c.getImplement()
+	ret, err := contracts.DelegateCall(c.evm, c.contract, addr, input, c.contract.Gas)
+	return ret, err
 }
+
 func (c *Upgrade) Implement() (common.Address, error) {
 	return c.getImplement(), nil
 }
@@ -58,7 +69,7 @@ func (c *Upgrade) CommitUpgrade(commitment UpgradeCommitment, index uint64, proo
 	//TODO 验证签名，默克尔树
 	origin := c.getImplement()
 	if commitment.Origin != origin {
-		return newRevertError("UPGRADE: ORIGIN_INVALID")
+		return typesdk.NewRevertError("UPGRADE: ORIGIN_INVALID")
 	}
 	c.setImplement(commitment.Upgrade)
 	if len(commitment.Data) > 0 {
@@ -67,12 +78,16 @@ func (c *Upgrade) CommitUpgrade(commitment UpgradeCommitment, index uint64, proo
 	return nil
 }
 
-func (c *Upgrade) Initialized(implement common.Address) error {
-	if c.getInit() {
-		return newRevertError("UPGRADE: HAD_Initialized")
+func (c *Upgrade) Initialize(implement common.Address) error {
+	if c.getInitialized() {
+		return typesdk.NewRevertError("UPGRADE: HAD_INITIALIZED")
 	}
-	c.setInit()
+	c.setInitializing()
 	c.setImplement(implement)
-	//TODO 调用实现合约
+	ret, err := contracts.DelegateCall(c.evm, c.contract, implement, initialized, c.contract.Gas)
+	if err != nil {
+		return typesdk.NewRevertError(string(ret))
+	}
+	c.setInitialized()
 	return nil
 }

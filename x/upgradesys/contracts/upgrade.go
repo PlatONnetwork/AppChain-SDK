@@ -3,6 +3,7 @@ package contracts
 import (
 	"encoding/hex"
 	"errors"
+	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
@@ -26,20 +27,6 @@ var (
 	_ = types.BloomLookup
 	_ = event.NewSubscription
 )
-
-type revertError struct {
-	error
-	returnData []byte
-}
-
-func (e *revertError) Error() string {
-	return string(e.returnData)
-}
-func newRevertError(data string) *revertError {
-	return &revertError{
-		returnData: []byte(data),
-	}
-}
 
 // BitArray is an auto generated low-level Go binding around an user-defined struct.
 type BitArray struct {
@@ -67,7 +54,7 @@ type UpgradeCommitment struct {
 }
 
 var (
-	ABI    = "[{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"origin\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"upgrade\",\"type\":\"address\"}],\"name\":\"Upgraded\",\"type\":\"event\"},{\"inputs\":[{\"components\":[{\"internalType\":\"address\",\"name\":\"origin\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"upgrade\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"internalType\":\"structUpgradeCommitment\",\"name\":\"commitment\",\"type\":\"tuple\"},{\"internalType\":\"uint64\",\"name\":\"index\",\"type\":\"uint64\"},{\"internalType\":\"bytes32[]\",\"name\":\"proof\",\"type\":\"bytes32[]\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"epoch\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"viewNumber\",\"type\":\"uint64\"},{\"internalType\":\"bytes32\",\"name\":\"blockHash\",\"type\":\"bytes32\"},{\"internalType\":\"uint64\",\"name\":\"blockNumber\",\"type\":\"uint64\"},{\"internalType\":\"uint32\",\"name\":\"blockIndex\",\"type\":\"uint32\"},{\"internalType\":\"bytes32\",\"name\":\"extendHash\",\"type\":\"bytes32\"},{\"internalType\":\"bytes\",\"name\":\"signature\",\"type\":\"bytes\"},{\"components\":[{\"internalType\":\"uint32\",\"name\":\"bits\",\"type\":\"uint32\"},{\"internalType\":\"uint64[]\",\"name\":\"Elems\",\"type\":\"uint64[]\"}],\"internalType\":\"structBitArray\",\"name\":\"validatorSet\",\"type\":\"tuple\"}],\"internalType\":\"structQuorumCert\",\"name\":\"qc\",\"type\":\"tuple\"}],\"name\":\"commitUpgrade\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"implement\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"implement\",\"type\":\"address\"}],\"name\":\"initialized\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
+	ABI    = "[{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"origin\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"upgrade\",\"type\":\"address\"}],\"name\":\"Upgraded\",\"type\":\"event\"},{\"inputs\":[{\"components\":[{\"internalType\":\"address\",\"name\":\"origin\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"upgrade\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"internalType\":\"structUpgradeCommitment\",\"name\":\"commitment\",\"type\":\"tuple\"},{\"internalType\":\"uint64\",\"name\":\"index\",\"type\":\"uint64\"},{\"internalType\":\"bytes32[]\",\"name\":\"proof\",\"type\":\"bytes32[]\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"epoch\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"viewNumber\",\"type\":\"uint64\"},{\"internalType\":\"bytes32\",\"name\":\"blockHash\",\"type\":\"bytes32\"},{\"internalType\":\"uint64\",\"name\":\"blockNumber\",\"type\":\"uint64\"},{\"internalType\":\"uint32\",\"name\":\"blockIndex\",\"type\":\"uint32\"},{\"internalType\":\"bytes32\",\"name\":\"extendHash\",\"type\":\"bytes32\"},{\"internalType\":\"bytes\",\"name\":\"signature\",\"type\":\"bytes\"},{\"components\":[{\"internalType\":\"uint32\",\"name\":\"bits\",\"type\":\"uint32\"},{\"internalType\":\"uint64[]\",\"name\":\"Elems\",\"type\":\"uint64[]\"}],\"internalType\":\"structBitArray\",\"name\":\"validatorSet\",\"type\":\"tuple\"}],\"internalType\":\"structQuorumCert\",\"name\":\"qc\",\"type\":\"tuple\"}],\"name\":\"commitUpgrade\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"implement\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"implement\",\"type\":\"address\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
 	Abi, _ = abi.JSON(strings.NewReader(ABI))
 )
 
@@ -91,7 +78,7 @@ func (c *Upgrade) initMethodEntry() {
 		"aa254851": c.ImplementEntry,
 
 		"d302f799": c.CommitUpgradeEntry,
-		"cbca47db": c.InitializedEntry,
+		"c4d66de8": c.InitializeEntry,
 	}
 
 }
@@ -104,8 +91,8 @@ func (c *Upgrade) ImplementEntry(input []byte) ([]byte, error) {
 
 	res0, err := c.Implement()
 	if err != nil {
-		if r := err.(*revertError); r != nil {
-			return r.returnData, vm.ErrExecutionReverted
+		if r := err.(*typesdk.RevertError); r != nil {
+			return r.ReturnData, vm.ErrExecutionReverted
 		}
 		return nil, err
 	}
@@ -132,8 +119,8 @@ func (c *Upgrade) CommitUpgradeEntry(input []byte) ([]byte, error) {
 
 	err = c.CommitUpgrade(*abi.ConvertType(args[0], new(UpgradeCommitment)).(*UpgradeCommitment), *abi.ConvertType(args[1], new(uint64)).(*uint64), *abi.ConvertType(args[2], new([][32]byte)).(*[][32]byte), *abi.ConvertType(args[3], new(QuorumCert)).(*QuorumCert))
 	if err != nil {
-		if r := err.(*revertError); r != nil {
-			return r.returnData, vm.ErrExecutionReverted
+		if r := err.(*typesdk.RevertError); r != nil {
+			return r.ReturnData, vm.ErrExecutionReverted
 		}
 		return nil, err
 	}
@@ -142,9 +129,9 @@ func (c *Upgrade) CommitUpgradeEntry(input []byte) ([]byte, error) {
 	return output, err
 }
 
-func (c *Upgrade) InitializedEntry(input []byte) ([]byte, error) {
+func (c *Upgrade) InitializeEntry(input []byte) ([]byte, error) {
 
-	method := c.abi.Methods["initialized"]
+	method := c.abi.Methods["initialize"]
 
 	var err error
 
@@ -153,10 +140,10 @@ func (c *Upgrade) InitializedEntry(input []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	err = c.Initialized(*abi.ConvertType(args[0], new(common.Address)).(*common.Address))
+	err = c.Initialize(*abi.ConvertType(args[0], new(common.Address)).(*common.Address))
 	if err != nil {
-		if r := err.(*revertError); r != nil {
-			return r.returnData, vm.ErrExecutionReverted
+		if r := err.(*typesdk.RevertError); r != nil {
+			return r.ReturnData, vm.ErrExecutionReverted
 		}
 		return nil, err
 	}
