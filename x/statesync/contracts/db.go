@@ -39,7 +39,7 @@ func (c *StateReceiver) SetExecutedId(id *big.Int) {
 	c.evm.StateDB.SetState(c.contract.Address(), executedIdKey, id.Bytes())
 }
 
-func (c *StateReceiver) GetExecutedId() *big.Int {
+func (c *StateReceiver) getExecutedId() *big.Int {
 	id := big.NewInt(0)
 	value := c.evm.StateDB.GetState(c.contract.Address(), executedIdKey)
 	if len(value) != 0 {
@@ -59,10 +59,10 @@ func (c *StateReceiver) GetCommitment(end *big.Int) *StateSyncCommitment {
 	if len(value) != 0 {
 		id.SetBytes(value)
 	}
-	var sc StateSyncCommitment
+	var sc *StateSyncCommitment
 	rlp.DecodeBytes(value, &sc)
 
-	return &sc
+	return sc
 }
 
 func (c *StateReceiver) FindCommitment(id *big.Int) *StateSyncCommitment {
@@ -73,7 +73,7 @@ func (c *StateReceiver) FindCommitment(id *big.Int) *StateSyncCommitment {
 	for {
 		cm := c.GetCommitment(end)
 		if cm != nil {
-			if cm.StartId.Cmp(id) >= 0 {
+			if cm.StartId.Cmp(id) <= 0 {
 				return cm
 			}
 			end = new(big.Int).Sub(cm.StartId, big.NewInt(1))

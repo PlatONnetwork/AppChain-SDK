@@ -126,7 +126,7 @@ func (c *StateReceiver) Execute(proof [][32]byte, obj StateSync) error {
 		return err
 	}
 
-	execId := c.GetExecutedId()
+	execId := c.getExecutedId()
 	if execId.Cmp(new(big.Int).Add(obj.Id, big.NewInt(1))) != 0 {
 		return typesdk.NewRevertError("StateReceiver: INVALID_EXEC_ID")
 	}
@@ -143,7 +143,9 @@ func (c *StateReceiver) Execute(proof [][32]byte, obj StateSync) error {
 	c.SetExecutedId(obj.Id)
 	return nil
 }
-
+func (c *StateReceiver) GetExecutedId() (*big.Int, error) {
+	return c.getExecutedId(), nil
+}
 func (c *StateReceiver) GetStateSyncId() (*big.Int, error) {
 	return c.GetLastCommittedId(), nil
 }
