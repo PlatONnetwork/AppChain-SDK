@@ -5,6 +5,7 @@ go 1.20
 require (
 	github.com/PlatONnetwork/PlatON-Go v1.5.0
 	github.com/stretchr/testify v1.7.0
+	github.com/test-go/testify v1.1.4
 	github.com/umbracle/ethgo v0.1.3
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
 	gopkg.in/urfave/cli.v1 v1.20.0

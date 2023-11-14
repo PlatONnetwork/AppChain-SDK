@@ -3,7 +3,7 @@ package types
 import (
 	"math/big"
 
-	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint/contractapi"
+	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint/contractsapi"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
@@ -41,14 +41,14 @@ func (as AccountSet) Hash() (common.Hash, error) {
 	return crypto.Keccak256Hash(abiEncoded), nil
 }
 
-func (as AccountSet) ToAPIBinding() []*contractapi.Validator {
-	apiBinding := make([]*contractapi.Validator, len(as))
+func (as AccountSet) ToAPIBinding() []*contractsapi.Validator {
+	apiBinding := make([]*contractsapi.Validator, len(as))
 	for i, v := range as {
 		var blsKey [2]*big.Int
 		b := v.BlsKey.Serialize()
 		blsKey[0] = big.NewInt(0).SetBytes(b[:16])
 		blsKey[1] = big.NewInt(0).SetBytes(b[16:])
-		apiBinding[i] = &contractapi.Validator{
+		apiBinding[i] = &contractsapi.Validator{
 			Address: v.Address,
 			BlsKey:  blsKey,
 		}

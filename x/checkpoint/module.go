@@ -372,7 +372,10 @@ func (m *Module) encodeAndSendCheckpoint(checkpoint *types.StorageCheckpointData
 		return err
 	}
 
-	receipt, err := m.txRealyer.SendTransaction(coretypes.NewTransaction(0, m.checkpointManagerAddr, nil, 0, nil, data), m.signer)
+	receipt, err := m.txRealyer.SendTransaction(coretypes.NewTx(&coretypes.LegacyTx{
+		To:   &m.checkpointManagerAddr,
+		Data: data,
+	}), m.signer)
 	if err != nil {
 		return err
 	}
@@ -394,7 +397,7 @@ func (m *Module) BuildEventRoot(epoch uint64) (common.Hash, error) {
 		return common.ZeroHash, nil
 	}
 
-	tree, err := createEventTree(exitEvents)
+	tree, err := createExitTree(exitEvents)
 	if err != nil {
 		return common.ZeroHash, err
 	}
@@ -408,13 +411,13 @@ func getCurrentCheckpointBlock(relayer types.TxRelayer, checkpointManagerAddr co
 		return 0, fmt.Errorf("invoke currentCheckpointBlockNumber on rootchain: %w", err)
 	}
 
-	currentCheckpointBlock, err := strconv.ParseUint(currentCheckpointBlockRaw, 0, 64)
+	currentCheckpointBlock := big.NewInt(0).SetBytes(currentCheckpointBlockRaw)
 	if err != nil {
 		return 0, fmt.Errorf("convert current checkpoint block number '%s' to number: %w",
 			currentCheckpointBlockRaw, err)
 	}
 
-	return currentCheckpointBlock, nil
+	return currentCheckpointBlock.Uint64(), nil
 }
 
 func aggSignatures(votes map[uint32]*protocols.PrepareVote) (signature []byte, bitmap []byte, extendHash common.Hash, err error) {
