@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math/big"
 	"reflect"
-	"strconv"
 
 	"github.com/PlatONnetwork/AppChain-SDK/merkle"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
