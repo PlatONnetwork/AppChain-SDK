@@ -1,0 +1,296 @@
+package contracts
+
+import (
+	"encoding/hex"
+	"errors"
+	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
+	platon "github.com/PlatONnetwork/PlatON-Go"
+	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
+	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
+	"github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/core/types"
+	"github.com/PlatONnetwork/PlatON-Go/core/vm"
+	"github.com/PlatONnetwork/PlatON-Go/event"
+	"math/big"
+	"strings"
+)
+
+// Reference imports to suppress errors if they are not otherwise used.
+var (
+	_ = vm.EVM{}
+	_ = errors.New
+	_ = big.NewInt
+	_ = strings.NewReader
+	_ = platon.NotFound
+	_ = bind.Bind
+	_ = common.Big1
+	_ = types.BloomLookup
+	_ = event.NewSubscription
+)
+
+// BitArray is an auto generated low-level Go binding around an user-defined struct.
+type BitArray struct {
+	Bits  uint32
+	Elems []uint64
+}
+
+// QuorumCert is an auto generated low-level Go binding around an user-defined struct.
+type QuorumCert struct {
+	Epoch        uint64
+	ViewNumber   uint64
+	BlockHash    [32]byte
+	BlockNumber  uint64
+	BlockIndex   uint32
+	ExtendHash   [32]byte
+	Signature    []byte
+	ValidatorSet BitArray
+}
+
+// StateSync is an auto generated low-level Go binding around an user-defined struct.
+type StateSync struct {
+	Id       *big.Int
+	Sender   common.Address
+	Receiver common.Address
+	Data     []byte
+}
+
+// StateSyncCommitment is an auto generated low-level Go binding around an user-defined struct.
+type StateSyncCommitment struct {
+	StartId *big.Int
+	EndId   *big.Int
+	Root    [32]byte
+}
+
+var (
+	ABI    = "[{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"startId\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"endId\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"bytes32\",\"name\":\"root\",\"type\":\"bytes32\"}],\"name\":\"NewCommitment\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"counter\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"bool\",\"name\":\"status\",\"type\":\"bool\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"message\",\"type\":\"bytes\"}],\"name\":\"StateSyncResult\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"bytes32[][]\",\"name\":\"proofs\",\"type\":\"bytes32[][]\"},{\"components\":[{\"internalType\":\"uint256\",\"name\":\"id\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"sender\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"receiver\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"internalType\":\"structStateSync[]\",\"name\":\"objs\",\"type\":\"tuple[]\"}],\"name\":\"batchExecute\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"uint256\",\"name\":\"startId\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"endId\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"root\",\"type\":\"bytes32\"}],\"internalType\":\"structStateSyncCommitment\",\"name\":\"commitment\",\"type\":\"tuple\"},{\"internalType\":\"uint64\",\"name\":\"index\",\"type\":\"uint64\"},{\"internalType\":\"bytes32[]\",\"name\":\"proof\",\"type\":\"bytes32[]\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"epoch\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"viewNumber\",\"type\":\"uint64\"},{\"internalType\":\"bytes32\",\"name\":\"blockHash\",\"type\":\"bytes32\"},{\"internalType\":\"uint64\",\"name\":\"blockNumber\",\"type\":\"uint64\"},{\"internalType\":\"uint32\",\"name\":\"blockIndex\",\"type\":\"uint32\"},{\"internalType\":\"bytes32\",\"name\":\"extendHash\",\"type\":\"bytes32\"},{\"internalType\":\"bytes\",\"name\":\"signature\",\"type\":\"bytes\"},{\"components\":[{\"internalType\":\"uint32\",\"name\":\"bits\",\"type\":\"uint32\"},{\"internalType\":\"uint64[]\",\"name\":\"Elems\",\"type\":\"uint64[]\"}],\"internalType\":\"structBitArray\",\"name\":\"validatorSet\",\"type\":\"tuple\"}],\"internalType\":\"structQuorumCert\",\"name\":\"qc\",\"type\":\"tuple\"}],\"name\":\"commit\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32[]\",\"name\":\"proof\",\"type\":\"bytes32[]\"},{\"components\":[{\"internalType\":\"uint256\",\"name\":\"id\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"sender\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"receiver\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"internalType\":\"structStateSync\",\"name\":\"obj\",\"type\":\"tuple\"}],\"name\":\"execute\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"id\",\"type\":\"uint256\"}],\"name\":\"getCommitmentByStateSyncId\",\"outputs\":[{\"components\":[{\"internalType\":\"uint256\",\"name\":\"startId\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"endId\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"root\",\"type\":\"bytes32\"}],\"internalType\":\"structStateSyncCommitment\",\"name\":\"\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"id\",\"type\":\"uint256\"}],\"name\":\"getRootByStateSyncId\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getStateSyncId\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
+	Abi, _ = abi.JSON(strings.NewReader(ABI))
+)
+
+func (c *StateReceiver) Run(input []byte) ([]byte, error) {
+	if len(input) < 4 {
+		return nil, errors.New("input too short")
+	}
+	id := input[0:4]
+	entry, ok := c.methodEntry[hex.EncodeToString(id)]
+	if !ok {
+		if c.fallback != nil {
+			return c.fallback(input)
+		}
+		return nil, errors.New("methods not found")
+	}
+	return entry(input[4:])
+}
+func (c *StateReceiver) initMethodEntry() {
+
+	c.methodEntry = map[string]func([]byte) ([]byte, error){
+		"eb70ef44": c.GetCommitmentByStateSyncIdEntry,
+		"196f1b2d": c.GetRootByStateSyncIdEntry,
+
+		"9017c127": c.BatchExecuteEntry,
+		"22a704a8": c.CommitEntry,
+		"50d5b95b": c.ExecuteEntry,
+		"d1673d87": c.GetStateSyncIdEntry,
+		"8129fc1c": c.InitializeEntry,
+	}
+
+}
+
+func (c *StateReceiver) GetCommitmentByStateSyncIdEntry(input []byte) ([]byte, error) {
+
+	method := c.abi.Methods["getCommitmentByStateSyncId"]
+
+	var err error
+
+	args, err := method.Inputs.Unpack(input)
+	if err != nil {
+		return nil, err
+	}
+
+	res0, err := c.GetCommitmentByStateSyncId(*abi.ConvertType(args[0], new(*big.Int)).(**big.Int))
+	if err != nil {
+		if r := err.(*typesdk.RevertError); r != nil {
+			return r.ReturnData, vm.ErrExecutionReverted
+		}
+		return nil, err
+	}
+	var output []byte
+
+	output, err = method.Outputs.Pack(res0)
+	if err != nil {
+		return nil, err
+	}
+
+	return output, err
+}
+
+func (c *StateReceiver) GetRootByStateSyncIdEntry(input []byte) ([]byte, error) {
+
+	method := c.abi.Methods["getRootByStateSyncId"]
+
+	var err error
+
+	args, err := method.Inputs.Unpack(input)
+	if err != nil {
+		return nil, err
+	}
+
+	res0, err := c.GetRootByStateSyncId(*abi.ConvertType(args[0], new(*big.Int)).(**big.Int))
+	if err != nil {
+		if r := err.(*typesdk.RevertError); r != nil {
+			return r.ReturnData, vm.ErrExecutionReverted
+		}
+		return nil, err
+	}
+	var output []byte
+
+	output, err = method.Outputs.Pack(res0)
+	if err != nil {
+		return nil, err
+	}
+
+	return output, err
+}
+
+func (c *StateReceiver) BatchExecuteEntry(input []byte) ([]byte, error) {
+
+	method := c.abi.Methods["batchExecute"]
+
+	var err error
+
+	args, err := method.Inputs.Unpack(input)
+	if err != nil {
+		return nil, err
+	}
+
+	err = c.BatchExecute(*abi.ConvertType(args[0], new([][][32]byte)).(*[][][32]byte), *abi.ConvertType(args[1], new([]StateSync)).(*[]StateSync))
+	if err != nil {
+		if r := err.(*typesdk.RevertError); r != nil {
+			return r.ReturnData, vm.ErrExecutionReverted
+		}
+		return nil, err
+	}
+	var output []byte
+
+	return output, err
+}
+
+func (c *StateReceiver) CommitEntry(input []byte) ([]byte, error) {
+
+	method := c.abi.Methods["commit"]
+
+	var err error
+
+	args, err := method.Inputs.Unpack(input)
+	if err != nil {
+		return nil, err
+	}
+
+	err = c.Commit(*abi.ConvertType(args[0], new(StateSyncCommitment)).(*StateSyncCommitment), *abi.ConvertType(args[1], new(uint64)).(*uint64), *abi.ConvertType(args[2], new([][32]byte)).(*[][32]byte), *abi.ConvertType(args[3], new(QuorumCert)).(*QuorumCert))
+	if err != nil {
+		if r := err.(*typesdk.RevertError); r != nil {
+			return r.ReturnData, vm.ErrExecutionReverted
+		}
+		return nil, err
+	}
+	var output []byte
+
+	return output, err
+}
+
+func (c *StateReceiver) ExecuteEntry(input []byte) ([]byte, error) {
+
+	method := c.abi.Methods["execute"]
+
+	var err error
+
+	args, err := method.Inputs.Unpack(input)
+	if err != nil {
+		return nil, err
+	}
+
+	err = c.Execute(*abi.ConvertType(args[0], new([][32]byte)).(*[][32]byte), *abi.ConvertType(args[1], new(StateSync)).(*StateSync))
+	if err != nil {
+		if r := err.(*typesdk.RevertError); r != nil {
+			return r.ReturnData, vm.ErrExecutionReverted
+		}
+		return nil, err
+	}
+	var output []byte
+
+	return output, err
+}
+
+func (c *StateReceiver) GetStateSyncIdEntry(input []byte) ([]byte, error) {
+
+	method := c.abi.Methods["getStateSyncId"]
+
+	var err error
+
+	res0, err := c.GetStateSyncId()
+	if err != nil {
+		if r := err.(*typesdk.RevertError); r != nil {
+			return r.ReturnData, vm.ErrExecutionReverted
+		}
+		return nil, err
+	}
+	var output []byte
+
+	output, err = method.Outputs.Pack(res0)
+	if err != nil {
+		return nil, err
+	}
+
+	return output, err
+}
+
+func (c *StateReceiver) InitializeEntry(input []byte) ([]byte, error) {
+
+	var err error
+
+	err = c.Initialize()
+	if err != nil {
+		if r := err.(*typesdk.RevertError); r != nil {
+			return r.ReturnData, vm.ErrExecutionReverted
+		}
+		return nil, err
+	}
+	var output []byte
+
+	return output, err
+}
+
+func (c *StateReceiver) EmitNewCommitmentEvent(startId *big.Int, endId *big.Int, root [32]byte) (*types.Log, error) {
+	event := c.abi.Events["NewCommitment"]
+	hashes, err := abi.PackTopics(event.Inputs, startId, endId, root)
+	if err != nil {
+		return nil, err
+	}
+	data, err := event.Inputs.Pack(startId, endId, root)
+	if err != nil {
+		return nil, err
+	}
+	return &types.Log{
+		Address:     c.contract.Address(),
+		Topics:      hashes,
+		Data:        data,
+		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
+	}, nil
+}
+
+func (c *StateReceiver) EmitStateSyncResultEvent(counter *big.Int, status bool, message []byte) (*types.Log, error) {
+	event := c.abi.Events["StateSyncResult"]
+	hashes, err := abi.PackTopics(event.Inputs, counter, status, message)
+	if err != nil {
+		return nil, err
+	}
+	data, err := event.Inputs.Pack(counter, status, message)
+	if err != nil {
+		return nil, err
+	}
+	return &types.Log{
+		Address:     c.contract.Address(),
+		Topics:      hashes,
+		Data:        data,
+		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
+	}, nil
+}
