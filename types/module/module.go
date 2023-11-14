@@ -63,10 +63,17 @@ type GenesisModule interface {
 }
 
 type BlockerModule interface {
+	Module
 	BeginBlock(ctx sdk.Context)
 	EndBlock(ctx sdk.Context)
 }
 
 type WorkerModule interface {
+	Module
 	SortTxs(ctx sdk.Context, local map[common.Address]types.Transactions, remote map[common.Address]types.Transactions) (types.Transactions, error)
+}
+
+type TransactionModule interface {
+	Module
+	AddTxs(ctx sdk.Context, local, remote map[common.Address]types.Transactions) (map[common.Address]types.Transactions, map[common.Address]types.Transactions)
 }
