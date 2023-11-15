@@ -80,6 +80,7 @@ func (c *StateReceiver) Run(input []byte) ([]byte, error) {
 	}
 	return entry(input[4:])
 }
+
 func (c *StateReceiver) initMethodEntry() {
 
 	c.methodEntry = map[string]func([]byte) ([]byte, error){

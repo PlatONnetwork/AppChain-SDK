@@ -2,7 +2,6 @@ package contracts
 
 import (
 	"github.com/PlatONnetwork/AppChain-SDK/merkle"
-	"github.com/PlatONnetwork/AppChain-SDK/x/upgradesys/contracts"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core"
 	"github.com/PlatONnetwork/PlatON-Go/core/rawdb"
@@ -18,22 +17,11 @@ import (
 )
 
 var (
-	from      = common.BigToAddress(big.NewInt(101))
-	to        = common.BigToAddress(big.NewInt(103))
-	implement = common.BigToAddress(big.NewInt(102))
+	from   = common.BigToAddress(big.NewInt(101))
+	to     = common.BigToAddress(big.NewInt(102))
+	events []*StateSync
+	tree   *merkle.MerkleTree
 )
-
-type upgradeContract struct {
-}
-
-func (c upgradeContract) Address() common.Address {
-	return common.BigToAddress(big.NewInt(103))
-}
-
-func (c upgradeContract) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly bool) ([]byte, error) {
-	upgrade, _ := contracts.NewUpgrade(evm, contract, readOnly)
-	return upgrade.Run(input)
-}
 
 type stateReceiverContract struct {
 }
@@ -44,6 +32,9 @@ func (c stateReceiverContract) Address() common.Address {
 
 func (c stateReceiverContract) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly bool) ([]byte, error) {
 	stateReceiver, _ := NewStateReceiver(evm, contract, readOnly)
+	stateReceiver.verifyQCFunc = func(qc *QuorumCert) error {
+		return nil
+	}
 	return stateReceiver.Run(input)
 }
 
@@ -53,7 +44,6 @@ type contractsApp struct {
 func (c contractsApp) Contracts() []sdk.SDKContract {
 	return []sdk.SDKContract{
 		stateReceiverContract{},
-		upgradeContract{},
 	}
 }
 
@@ -62,26 +52,16 @@ func TestStateReceiver(t *testing.T) {
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(db), nil)
 	statedb.CreateAccount(from)
 	statedb.CreateAccount(to)
-	statedb.CreateAccount(implement)
 	evm := newEVM(statedb, vm.Config{}, vm.TxContext{}, new(contractsApp))
-	//stateReceiver, err := NewStateReceiver(evm, vm.NewContract(vm.AccountRef(from), vm.AccountRef(to), nil, 1000), false)
-	//require.Nil(t, err)
-	//upgrade, err := contracts.NewUpgrade(evm, vm.NewContract(vm.AccountRef(from), vm.AccountRef(to), nil, 1000), false)
-	//require.Nil(t, err)
-	input, err := contracts.Abi.Pack("initialize", implement)
-	require.Nil(t, err)
-	ret, _, err := evm.Call(vm.AccountRef(from), to, input, 1000, big.NewInt(0))
-	require.Nil(t, err)
-	require.Nil(t, ret)
 	testCommit(t, evm)
 	testExecutedId(t, evm)
 	testStateSyncId(t, evm)
 	testRootByStateSyncId(t, evm)
 	testCommitmentByStateSyncId(t, evm)
+	testExecute(t, evm)
 }
 
 func testCommit(t *testing.T, evm *vm.EVM) {
-	var events []*StateSync
 	for i := 1; i <= 10; i++ {
 		events = append(events, &StateSync{
 			Id:       big.NewInt(int64(i)),
@@ -99,7 +79,8 @@ func testCommit(t *testing.T, evm *vm.EVM) {
 		leaves[big.NewInt(int64(i))] = hash
 		trieNodes = append(trieNodes, hash.Bytes())
 	}
-	tree, err := merkle.NewMerkleTree(trieNodes)
+	var err error
+	tree, err = merkle.NewMerkleTree(trieNodes)
 	require.Nil(t, err)
 
 	commitment := StateSyncCommitment{StartId: big.NewInt(1), EndId: big.NewInt(10), Root: tree.Hash()}
@@ -121,6 +102,27 @@ func testCommit(t *testing.T, evm *vm.EVM) {
 	_, _, err = evm.Call(vm.AccountRef(from), to, input, 1000, big.NewInt(0))
 	require.Nil(t, err)
 }
+
+func testExecute(t *testing.T, evm *vm.EVM) {
+	for _, event := range events {
+		raw, _ := rlp.EncodeToBytes(event)
+		hash := crypto.Keccak256Hash(raw)
+		proof, err := tree.GenerateProof(hash.Bytes())
+		require.Nil(t, err)
+		input, err := Abi.Pack("execute", proof, event)
+		require.Nil(t, err)
+		_, _, err = evm.Call(vm.AccountRef(from), to, input, 1000, big.NewInt(0))
+		require.Nil(t, err)
+
+		input, err = Abi.Pack("getExecutedId")
+		require.Nil(t, err)
+		ret, _, err := evm.Call(vm.AccountRef(from), to, input, 1000, big.NewInt(0))
+		res, err := Abi.Methods["getExecutedId"].Outputs.UnpackValues(ret)
+		require.True(t, res[0].(*big.Int).Cmp(event.Id) == 0)
+		require.Nil(t, err)
+	}
+}
+
 func testExecutedId(t *testing.T, evm *vm.EVM) {
 	input, err := Abi.Pack("getExecutedId")
 	require.Nil(t, err)
