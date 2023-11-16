@@ -91,7 +91,7 @@ func (c *Upgrade) ImplementEntry(input []byte) ([]byte, error) {
 
 	res0, err := c.Implement()
 	if err != nil {
-		if r := err.(*typesdk.RevertError); r != nil {
+		if r, ok := err.(*typesdk.RevertError); ok {
 			return r.ReturnData, vm.ErrExecutionReverted
 		}
 		return nil, err
@@ -119,7 +119,7 @@ func (c *Upgrade) CommitUpgradeEntry(input []byte) ([]byte, error) {
 
 	err = c.CommitUpgrade(*abi.ConvertType(args[0], new(UpgradeCommitment)).(*UpgradeCommitment), *abi.ConvertType(args[1], new(uint64)).(*uint64), *abi.ConvertType(args[2], new([][32]byte)).(*[][32]byte), *abi.ConvertType(args[3], new(QuorumCert)).(*QuorumCert))
 	if err != nil {
-		if r := err.(*typesdk.RevertError); r != nil {
+		if r, ok := err.(*typesdk.RevertError); ok {
 			return r.ReturnData, vm.ErrExecutionReverted
 		}
 		return nil, err
@@ -142,7 +142,7 @@ func (c *Upgrade) InitializeEntry(input []byte) ([]byte, error) {
 
 	err = c.Initialize(*abi.ConvertType(args[0], new(common.Address)).(*common.Address))
 	if err != nil {
-		if r := err.(*typesdk.RevertError); r != nil {
+		if r, ok := err.(*typesdk.RevertError); ok {
 			return r.ReturnData, vm.ErrExecutionReverted
 		}
 		return nil, err

@@ -144,10 +144,3 @@ func (c *StateReceiver) GetExecutedId() (*big.Int, error) {
 func (c *StateReceiver) GetStateSyncId() (*big.Int, error) {
 	return c.GetLastCommittedId(), nil
 }
-
-func (c *StateReceiver) Initialize() error {
-	if err := contracts.Initializer(c.evm.StateDB, c.contract.Address()); err != nil {
-		return err
-	}
-	return nil
-}
