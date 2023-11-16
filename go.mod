@@ -11,8 +11,6 @@ require (
 )
 
 require (
-	github.com/AlayaNetwork/Alaya-Go v0.16.2 // indirect
-	github.com/AlayaNetwork/graphql-go v1.2.1-0.20211227063951-8d66eefcb4e3 // indirect
 	github.com/PlatONnetwork/wagon v0.6.1-0.20201026015350-67507c2a7b96 // indirect
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/VictoriaMetrics/fastcache v1.6.0 // indirect
