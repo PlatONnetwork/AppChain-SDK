@@ -75,7 +75,7 @@ func (m *Module) GetLogFilters() map[common.Address][]common.Hash {
 }
 
 func (m *Module) ProcessLog(header *coretypes.Header, log *coretypes.Log) error {
-	exitEvent, err := contractsapi.DecodeExitEvent(log, epoch, number)
+	exitEvent, err := contractsapi.DecodeExitEvent(log, header.Number.Uint64())
 	if err != nil {
 		m.logger.Error("Failed to decode exit event", "err", err)
 		return err
