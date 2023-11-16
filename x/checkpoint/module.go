@@ -75,17 +75,6 @@ func (m *Module) GetLogFilters() map[common.Address][]common.Hash {
 }
 
 func (m *Module) ProcessLog(header *coretypes.Header, log *coretypes.Log) error {
-	checkpoint, err := m.store.GetCheckpoint(header.Number.Uint64())
-	if err != nil {
-		m.logger.Error("Failed to get checkpoint", "number", header.Number, "err", err)
-		return err
-	}
-
-	//  exit events that happened in epoch ending blocks,
-	// should be added to the tree of the next epoch
-	epoch := checkpoint.EpochNumber + 1
-	number := checkpoint.BlockNumber + 1
-
 	exitEvent, err := contractsapi.DecodeExitEvent(log, epoch, number)
 	if err != nil {
 		m.logger.Error("Failed to decode exit event", "err", err)
@@ -124,7 +113,21 @@ func (m *Module) ExtendData(ctx sdk.Context) []byte {
 			return []byte{}
 		}
 
-		eventRoot, err := m.BuildEventRoot(epoch)
+		lastCheckpointBlockNumber, err := getCurrentCheckpointBlock(m.txRealyer, m.checkpointManagerAddr)
+		if err != nil {
+			return []byte{}
+		}
+
+		// ExitEvent insert store when block committing.
+		// Block consensus sequence: qc -> locked -> committed
+		// The checkpoint number is qcblock,
+		// so the range is [commitblock, qcblock-2]
+		if lastCheckpointBlockNumber > types.CheckpointCommitDis {
+			lastCheckpointBlockNumber = lastCheckpointBlockNumber - types.CheckpointCommitDis
+		}
+		end := header.Number.Uint64()-types.CheckpointCommitDis
+
+		eventRoot, err := m.BuildEventRoot(lastCheckpointBlockNumber, end)
 		if err != nil {
 			m.logger.Error("Failed to build event root", "epoch", epoch, "err", err)
 			return []byte{}
@@ -210,7 +213,21 @@ func (m *Module) VerifyExtendData(ctx sdk.Context, data []byte) (common.Hash, er
 			return common.ZeroHash, fmt.Errorf("mismatch nextValidatorsHash(checkpoint:%s,actual:%s)", checkpoint.NextValidatorsHash.TerminalString(), nextValidatorHash.TerminalString())
 		}
 
-		eventRoot, err := m.BuildEventRoot(sdkCtx.Epoch())
+		lastCheckpointBlockNumber, err := getCurrentCheckpointBlock(m.txRealyer, m.checkpointManagerAddr)
+		if err != nil {
+			return common.ZeroHash, err
+		}
+
+		// ExitEvent insert store when block committing.
+		// Block consensus sequence: qc -> locked -> committed
+		// The checkpoint number is qcblock,
+		// so the range is [commitblock, qcblock-2]
+		if lastCheckpointBlockNumber > types.CheckpointCommitDis {
+			lastCheckpointBlockNumber = lastCheckpointBlockNumber - types.CheckpointCommitDis
+		}
+		end := header.Number.Uint64()-types.CheckpointCommitDis
+
+		eventRoot, err := m.BuildEventRoot(lastCheckpointBlockNumber, end)
 		if err != nil {
 			m.logger.Error("Failed to build event root", "epoch", sdkCtx.Epoch(), "err", err)
 			return common.ZeroHash, err
@@ -386,8 +403,8 @@ func (m *Module) encodeAndSendCheckpoint(checkpoint *types.StorageCheckpointData
 	return nil
 }
 
-func (m *Module) BuildEventRoot(epoch uint64) (common.Hash, error) {
-	exitEvents, err := m.store.GetExitEventsByEpoch(epoch)
+func (m *Module) BuildEventRoot(start, end uint64) (common.Hash, error) {
+	exitEvents, err := m.store.GetExitEventsByNumberRange(start, end)
 	if err != nil {
 		return common.ZeroHash, err
 	}

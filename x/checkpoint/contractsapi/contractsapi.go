@@ -29,7 +29,6 @@ func (v *Validator) EncodeAbi() ([]byte, error) {
 }
 
 type ExitEvent struct {
-	Epoch              uint64
 	BlockNumber        uint64
 	L2StateSyncedEvent *l2_state_sender.L2StateSenderL2StateSynced
 }
@@ -39,9 +38,8 @@ func (e *ExitEvent) Encode() ([]byte, error) {
 	return L2StateSenderABI.Events["L2StateSynced"].Inputs.Pack(ev.Id, ev.Sender, ev.Receiver, ev.Data)
 }
 
-func DecodeExitEvent(log *coretypes.Log, epoch, number uint64) (*ExitEvent, error) {
+func DecodeExitEvent(log *coretypes.Log, number uint64) (*ExitEvent, error) {
 	exitEvent := &ExitEvent{
-		Epoch:              epoch,
 		BlockNumber:        number,
 		L2StateSyncedEvent: new(l2_state_sender.L2StateSenderL2StateSynced),
 	}
