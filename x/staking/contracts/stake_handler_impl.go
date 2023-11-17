@@ -3,6 +3,7 @@ package contracts
 import (
 	"errors"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
+	"github.com/PlatONnetwork/AppChain-SDK/x/upgradesys/contracts"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
@@ -73,14 +74,25 @@ func (c *StakeHandler) OnStateReceive(id *big.Int, sender common.Address, data [
 }
 
 func (c *StakeHandler) Slash(validators []common.Address) error {
+	if err := contracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
+		return err
+	}
 	panic("implement")
 }
 
 func (c *StakeHandler) Undelegate(validator common.Address, amount *big.Int) error {
+	if err := contracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
+		return err
+	}
+
 	panic("implement")
 }
 
 func (c *StakeHandler) Unstake(amount *big.Int) error {
+	if err := contracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
+		return err
+	}
+
 	panic("implement")
 }
 

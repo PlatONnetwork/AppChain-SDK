@@ -14,7 +14,7 @@ type Protocol struct {
 	peerSet             *PeerSet
 	registryMessageType []Message
 	messageMap          map[reflect.Type]uint64
-	dialCandidates      enode.Iterator
+	dialvalidators      enode.Iterator
 	newPeer             func(p *p2p.Peer, rw p2p.MsgReadWriter) Peer
 	handshake           func(p Peer, rw p2p.MsgReadWriter) error
 
@@ -47,13 +47,13 @@ func (p *Protocol) Protocol() []p2p.Protocol {
 			Run:            p.handleMsg,
 			NodeInfo:       p.nodeInfo,
 			PeerInfo:       p.peerInfo,
-			DialCandidates: p.dialCandidates,
+			Dialvalidators: p.dialvalidators,
 		},
 	}
 }
 
-func (p *Protocol) SetDialCandidates(iterator enode.Iterator) {
-	p.dialCandidates = iterator
+func (p *Protocol) SetDialvalidators(iterator enode.Iterator) {
+	p.dialvalidators = iterator
 }
 
 func (p *Protocol) handleMsg(peer *p2p.Peer, rw p2p.MsgReadWriter) error {

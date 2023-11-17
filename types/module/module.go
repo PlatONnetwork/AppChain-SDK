@@ -53,7 +53,7 @@ type ElectionModule interface {
 	NewHeader(ctx sdk.Context, header *types.Header) error
 	GetLastNumber(ctx sdk.Context, blockNumber uint64) uint64
 	GetValidator(ctx sdk.Context, blockNumber uint64) (*cbfttypes.Validators, error)
-	IsCandidateNode(ctx sdk.Context, nodeID enode.ID) bool
+	IsvalidatorNode(ctx sdk.Context, nodeID enode.ID) bool
 	OnCommit(ctx sdk.Context, block *types.Block) error
 }
 
