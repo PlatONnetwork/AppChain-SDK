@@ -80,7 +80,7 @@ func (c *StakeHandler) OnStateReceive(id *big.Int, sender common.Address, data [
 		return typesdk.NewRevertError("StakeHandler: INVALID_SENDER")
 	}
 	if bytes.Compare(data[:METHODID_SIZE], _STAKE_SIG.Bytes()) == 0 {
-
+		return c.onStake(data[METHODID_SIZE:])
 	} else if bytes.Compare(data[:METHODID_SIZE], _ADDSTAKE_SIG.Bytes()) == 0 {
 
 	} else if bytes.Compare(data[:METHODID_SIZE], _SLASH_SIG.Bytes()) == 0 {
