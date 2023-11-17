@@ -291,45 +291,90 @@ type Epoch struct {
 	End   uint64
 }
 
-type StakeWithdrawBound struct {
+type StakeWithdrawalBound struct {
 	Head uint64
 	Tail uint64
 }
 
-func NewStakeWithdrawBound(head, tail uint64) *StakeWithdrawBound {
-	return &StakeWithdrawBound{
+func NewStakeWithdrawalBound(head, tail uint64) *StakeWithdrawalBound {
+	return &StakeWithdrawalBound{
 		Head: head,
 		Tail: tail,
 	}
 }
 
-func (bound *StakeWithdrawBound) UpdateHead(newHead uint64) {
+func (bound *StakeWithdrawalBound) UpdateHead(newHead uint64) {
 	bound.Head = newHead
 }
 
-func (bound *StakeWithdrawBound) UpdateTail(newTail uint64) {
+func (bound *StakeWithdrawalBound) UpdateTail(newTail uint64) {
 	bound.Tail = newTail
 }
 
-func (bound *StakeWithdrawBound) IncrementHead(increment uint64) {
+func (bound *StakeWithdrawalBound) IncrementHead(increment uint64) {
 	bound.Head += increment
 }
 
-func (bound *StakeWithdrawBound) IncrementTail(increment uint64) {
+func (bound *StakeWithdrawalBound) IncrementTail(increment uint64) {
 	bound.Tail += increment
 }
 
-type StakeWithdrawItem struct {
+type StakeWithdrawalItem struct {
 	Epoch  uint64   // release epoch
 	Amount *big.Int // withdraw amount
 }
 
-func NewStakeWithdrawItem(epoch uint64, amount *big.Int) *StakeWithdrawItem {
-	return &StakeWithdrawItem{
+func NewStakeWithdrawalItem(epoch uint64, amount *big.Int) *StakeWithdrawalItem {
+	return &StakeWithdrawalItem{
 		Epoch:  epoch,
 		Amount: amount,
 	}
 }
-func (item *StakeWithdrawItem) IncrementAmount(increment *big.Int) {
+func (item *StakeWithdrawalItem) IncrementAmount(increment *big.Int) {
+	item.Amount = new(big.Int).Add(item.Amount, increment)
+}
+
+// -------------
+
+type DelegateWithdrawalBound struct {
+	Head uint64
+	Tail uint64
+}
+
+func NewDelegateWithdrawalBound(head, tail uint64) *DelegateWithdrawalBound {
+	return &DelegateWithdrawalBound{
+		Head: head,
+		Tail: tail,
+	}
+}
+
+func (bound *DelegateWithdrawalBound) UpdateHead(newHead uint64) {
+	bound.Head = newHead
+}
+
+func (bound *DelegateWithdrawalBound) UpdateTail(newTail uint64) {
+	bound.Tail = newTail
+}
+
+func (bound *DelegateWithdrawalBound) IncrementHead(increment uint64) {
+	bound.Head += increment
+}
+
+func (bound *DelegateWithdrawalBound) IncrementTail(increment uint64) {
+	bound.Tail += increment
+}
+
+type DelegateWithdrawalItem struct {
+	Epoch  uint64   // release epoch
+	Amount *big.Int // withdraw amount
+}
+
+func NewDelegateWithdrawalItem(epoch uint64, amount *big.Int) *DelegateWithdrawalItem {
+	return &DelegateWithdrawalItem{
+		Epoch:  epoch,
+		Amount: amount,
+	}
+}
+func (item *DelegateWithdrawalItem) IncrementAmount(increment *big.Int) {
 	item.Amount = new(big.Int).Add(item.Amount, increment)
 }
