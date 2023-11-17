@@ -25,7 +25,7 @@ func TestDB(t *testing.T) {
 	stateReceiver.SetCommitment(&StateSyncCommitment{
 		StartId: big.NewInt(1),
 		EndId:   big.NewInt(11),
-		Root:    [32]byte{},
+		Root:    common.Hash{},
 	})
 	stateReceiver.SetLastCommittedId(big.NewInt(11))
 	cm := stateReceiver.GetCommitment(big.NewInt(11))
