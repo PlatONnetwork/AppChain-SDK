@@ -1,8 +1,10 @@
 package contracts
 
 import (
+	"bytes"
 	"errors"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
+	"github.com/PlatONnetwork/AppChain-SDK/x/address"
 	"github.com/PlatONnetwork/AppChain-SDK/x/upgradesys/contracts"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
@@ -70,6 +72,23 @@ func (c *StakeHandler) CommitEpoch(id *big.Int, epoch Epoch, epochSize *big.Int)
 }
 
 func (c *StakeHandler) OnStateReceive(id *big.Int, sender common.Address, data []byte) error {
+	if err := contracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
+		return err
+	}
+	// todo change the address
+	if c.contract.Caller() != address.StateReceiverAddress || sender != address.RootchainStakeManagerAddress {
+		return typesdk.NewRevertError("StakeHandler: INVALID_SENDER")
+	}
+	if bytes.Compare(data[:METHODID_SIZE], _STAKE_SIG.Bytes()) == 0 {
+
+	} else if bytes.Compare(data[:METHODID_SIZE], _ADDSTAKE_SIG.Bytes()) == 0 {
+
+	} else if bytes.Compare(data[:METHODID_SIZE], _SLASH_SIG.Bytes()) == 0 {
+
+	} else if bytes.Compare(data[:METHODID_SIZE], _DELEGATE_SIG.Bytes()) == 0 {
+
+	}
+
 	panic("implement")
 }
 

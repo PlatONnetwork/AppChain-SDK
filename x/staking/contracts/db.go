@@ -212,6 +212,14 @@ func (c *StakeHandler) GetValidator(validatorAddr common.Address) *types.Validat
 	return nil
 }
 
+func (c *StakeHandler) hasValidator(validatorAddr common.Address) bool {
+	value := c.evm.StateDB.GetState(c.contract.Address(), encodeValidatorKey(validatorAddr))
+	if len(value) == 0 {
+		return false
+	}
+	return true
+}
+
 func (c *StakeHandler) removeValidator(validatorAddr common.Address) {
 	c.evm.StateDB.SetState(c.contract.Address(), encodeValidatorKey(validatorAddr), []byte{})
 }

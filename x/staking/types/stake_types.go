@@ -96,13 +96,13 @@ type Validator struct {
 	StakeIndex uint64
 }
 
-func NewValidator(benefit common.Address, stakeAmount, delegateAmount *big.Int, pubKey *ecdsa.PublicKey, blsKey *bls.PublicKey) *Validator {
+func NewValidator(benefit common.Address, stakeAmount, delegateAmount *big.Int, blsKey *bls.PublicKey, pubKey *ecdsa.PublicKey) *Validator {
 	return &Validator{
 		Benefit:        benefit,
 		StakeAmount:    stakeAmount,
 		DelegateAmount: delegateAmount,
-		PubKey:         pubKey,
 		BlsKey:         blsKey,
+		PubKey:         pubKey,
 	}
 }
 
