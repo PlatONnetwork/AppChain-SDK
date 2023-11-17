@@ -1,8 +1,8 @@
 package contracts
 
 import (
-	"errors"
 	"fmt"
+	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 )
@@ -17,14 +17,14 @@ var (
 
 func Initializer(statedb vm.StateDB, address common.Address) error {
 	if !GetInitializing(statedb, address) {
-		return errors.New("UPGRADE: contract is already initialized")
+		return typesdk.NewRevertError("UPGRADE: contract is already initialized")
 	}
 	return nil
 }
 
 func OnlyInitialized(statedb vm.StateDB, address common.Address) error {
 	if !GetInitialized(statedb, address) {
-		return errors.New("UPGRADE: contract is not initializing")
+		return typesdk.NewRevertError("UPGRADE: contract is not initializing")
 	}
 	return nil
 }

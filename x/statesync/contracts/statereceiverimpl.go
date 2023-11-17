@@ -32,12 +32,13 @@ var (
 )
 
 type StateReceiver struct {
-	abi         *abi.ABI
-	methodEntry map[string]func([]byte) ([]byte, error)
-	readOnly    bool
-	contract    *vm.Contract
-	evm         *vm.EVM
-	fallback    func(input []byte) ([]byte, error)
+	abi          *abi.ABI
+	methodEntry  map[string]func([]byte) ([]byte, error)
+	readOnly     bool
+	contract     *vm.Contract
+	evm          *vm.EVM
+	fallback     func(input []byte) ([]byte, error)
+	verifyQCFunc func(qc *QuorumCert) error
 }
 
 func NewStateReceiver(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*StateReceiver, error) {
@@ -47,6 +48,7 @@ func NewStateReceiver(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*State
 		contract: contract,
 		readOnly: readOnly,
 	}
+	s.verifyQCFunc = s.verifySignature
 	s.initMethodEntry()
 	return s, nil
 }
@@ -84,9 +86,6 @@ func (c *StateReceiver) BatchExecute(proofs [][][32]byte, objs []StateSync) erro
 }
 
 func (c *StateReceiver) Commit(commitment StateSyncCommitment, index uint64, voteProof [][32]byte, qc QuorumCert) error {
-	if err := contracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
-		return err
-	}
 	end := c.GetLastCommittedId()
 	if commitment.StartId.Cmp(new(big.Int).Add(end, big.NewInt(1))) != 0 {
 		return typesdk.NewRevertError("StateReceiver: INVALID_START_ID")
@@ -94,7 +93,7 @@ func (c *StateReceiver) Commit(commitment StateSyncCommitment, index uint64, vot
 	if commitment.StartId.Cmp(commitment.EndId) > 0 {
 		return typesdk.NewRevertError("StateReceiver: INVALID_END_ID")
 	}
-	if err := c.verifySignature(&qc); err != nil {
+	if err := c.verifyQCFunc(&qc); err != nil {
 		return typesdk.NewRevertError("StateReceiver: SIGNATURE_VERIFICATION_FAILED")
 	}
 
@@ -122,12 +121,8 @@ func (c *StateReceiver) verifySignature(qc *QuorumCert) error {
 }
 
 func (c *StateReceiver) Execute(proof [][32]byte, obj StateSync) error {
-	if err := contracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
-		return err
-	}
-
-	execId := c.GetExecutedId()
-	if execId.Cmp(new(big.Int).Add(obj.Id, big.NewInt(1))) != 0 {
+	execId := c.getExecutedId()
+	if obj.Id.Cmp(new(big.Int).Add(execId, big.NewInt(1))) != 0 {
 		return typesdk.NewRevertError("StateReceiver: INVALID_EXEC_ID")
 	}
 	sm := c.FindCommitment(obj.Id)
@@ -143,14 +138,9 @@ func (c *StateReceiver) Execute(proof [][32]byte, obj StateSync) error {
 	c.SetExecutedId(obj.Id)
 	return nil
 }
-
+func (c *StateReceiver) GetExecutedId() (*big.Int, error) {
+	return c.getExecutedId(), nil
+}
 func (c *StateReceiver) GetStateSyncId() (*big.Int, error) {
 	return c.GetLastCommittedId(), nil
-}
-
-func (c *StateReceiver) Initialize() error {
-	if err := contracts.Initializer(c.evm.StateDB, c.contract.Address()); err != nil {
-		return err
-	}
-	return nil
 }

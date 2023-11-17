@@ -74,43 +74,45 @@ func (s *StateSync) PrepareQCImpl(block *protocols.PrepareBlock, votes map[uint3
 	s.eventProofDb.InsertRootBlock(root, block.Block.Hash())
 }
 
-func (s *StateSync) AddTxs(ctx sdk.Context, local map[common.Address]types.Transactions, remote map[common.Address]types.Transactions) (map[common.Address]types.Transactions, map[common.Address]types.Transactions, error) {
+func (s *StateSync) AddTxs(ctx sdk.Context, local map[common.Address]types.Transactions, remote map[common.Address]types.Transactions) (map[common.Address]types.Transactions, map[common.Address]types.Transactions) {
 	cc := ctx.(sdk.WorkerContext)
+	//创建commitment
 	receiver, err := s.newStateSyncCallContract(cc.Header().ParentHash)
 	if err != nil {
-		return local, remote, err
+		return local, remote
 	}
 	syncId, err := receiver.GetStateSyncId()
 	if err != nil {
-		return local, remote, err
+		return local, remote
 	}
 	commitment, err := receiver.GetCommitmentByStateSyncId(syncId)
 	if err != nil {
-		return local, remote, err
+		return local, remote
 	}
 	start := new(big.Int).Add(commitment.EndId, big.NewInt(1))
 	match, err := s.eventProofDb.FindProofRoot(start)
 	if err != nil {
-		return local, remote, err
+		return local, remote
 	}
 	blockHash := s.eventProofDb.GetRootBlock(match.Root)
 
 	block := s.backend.GetBlockByHash(blockHash)
 	_, qc, err := types2.DecodeExtra(block.ExtraData())
 	if err != nil {
-		return local, remote, err
+		return local, remote
 	}
 	index, voteProof, err := s.extraDb.GetProof(qc.Epoch, qc.ViewNumber, qc.BlockIndex, match.Root[:])
 	from := crypto.PubkeyToAddress(s.privateKey.PublicKey)
 	nonce, err := s.backend.GetPoolNonce(from)
 	if err != nil {
-		return local, remote, err
+		return local, remote
 	}
 	cmtx, err := s.createCommitTx(match, index, qc, voteProof, nonce)
 	if err != nil {
-		return local, remote, err
+		return local, remote
 	}
 
+	//创建 event proof
 	eventId := new(big.Int).Add(syncId, big.NewInt(1))
 	var events []*sync.StateSender
 	var proofs [][]common.Hash
@@ -128,18 +130,23 @@ func (s *StateSync) AddTxs(ctx sdk.Context, local map[common.Address]types.Trans
 	}
 	exTxs, err := s.createExecuteTxs(proofs, events, nonce+1)
 	if err != nil {
-		return local, remote, err
+		return local, remote
 	}
 	if local[from] == nil {
 		local[from] = types.Transactions{}
 	}
 	local[from] = append(local[from], cmtx)
 	local[from] = append(local[from], exTxs...)
-	return local, remote, nil
+	return local, remote
 }
 
 func (s *StateSync) MaxSyncId() *big.Int {
+	//TODO 获取验证人列表
+	quorumId := s.p2p.GetQuorumSyncId(nil)
 	id, _ := s.l1Sync.SyncDB().GetMaxSyncId()
+	if id.Cmp(quorumId) > 0 {
+		return quorumId
+	}
 	return id
 }
 

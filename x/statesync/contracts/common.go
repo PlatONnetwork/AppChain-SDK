@@ -3,5 +3,6 @@ package contracts
 import "github.com/PlatONnetwork/PlatON-Go/common"
 
 var (
-	StateSyncAddress = common.HexToAddress("")
+	StateSyncAddress          = common.HexToAddress("")
+	StateSyncImplementAddress = common.HexToAddress("")
 )
