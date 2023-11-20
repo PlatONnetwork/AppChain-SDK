@@ -19,6 +19,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/crypto/bls"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
+	"gopkg.in/urfave/cli.v1"
 )
 
 var (
@@ -26,6 +27,10 @@ var (
 	_ module.ConsensusExtendModule = (*Module)(nil)
 	_ types.EventSubscriber        = (*Module)(nil)
 )
+
+func AddModuleInitFlags(app *cli.App) {
+
+}
 
 type Module struct {
 	checkpointManagerAddr common.Address

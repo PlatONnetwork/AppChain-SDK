@@ -38,10 +38,10 @@ type BitArray struct {
 type QuorumCert struct {
 	Epoch        uint64
 	ViewNumber   uint64
-	BlockHash    [32]byte
+	BlockHash    common.Hash
 	BlockNumber  uint64
 	BlockIndex   uint32
-	ExtendHash   [32]byte
+	ExtendHash   common.Hash
 	Signature    []byte
 	ValidatorSet BitArray
 }
@@ -58,7 +58,7 @@ type StateSync struct {
 type StateSyncCommitment struct {
 	StartId *big.Int
 	EndId   *big.Int
-	Root    [32]byte
+	Root    common.Hash
 }
 
 var (
@@ -162,7 +162,7 @@ func (c *StateReceiver) BatchExecuteEntry(input []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	err = c.BatchExecute(*abi.ConvertType(args[0], new([][][32]byte)).(*[][][32]byte), *abi.ConvertType(args[1], new([]StateSync)).(*[]StateSync))
+	err = c.BatchExecute(*abi.ConvertType(args[0], new([][]common.Hash)).(*[][]common.Hash), *abi.ConvertType(args[1], new([]StateSync)).(*[]StateSync))
 	if err != nil {
 		if r, ok := err.(*typesdk.RevertError); ok {
 			return r.ReturnData, vm.ErrExecutionReverted
@@ -185,7 +185,7 @@ func (c *StateReceiver) CommitEntry(input []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	err = c.Commit(*abi.ConvertType(args[0], new(StateSyncCommitment)).(*StateSyncCommitment), *abi.ConvertType(args[1], new(uint64)).(*uint64), *abi.ConvertType(args[2], new([][32]byte)).(*[][32]byte), *abi.ConvertType(args[3], new(QuorumCert)).(*QuorumCert))
+	err = c.Commit(*abi.ConvertType(args[0], new(StateSyncCommitment)).(*StateSyncCommitment), *abi.ConvertType(args[1], new(uint64)).(*uint64), *abi.ConvertType(args[2], new([]common.Hash)).(*[]common.Hash), *abi.ConvertType(args[3], new(QuorumCert)).(*QuorumCert))
 	if err != nil {
 		if r, ok := err.(*typesdk.RevertError); ok {
 			return r.ReturnData, vm.ErrExecutionReverted
@@ -208,7 +208,7 @@ func (c *StateReceiver) ExecuteEntry(input []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	err = c.Execute(*abi.ConvertType(args[0], new([][32]byte)).(*[][32]byte), *abi.ConvertType(args[1], new(StateSync)).(*StateSync))
+	err = c.Execute(*abi.ConvertType(args[0], new([]common.Hash)).(*[]common.Hash), *abi.ConvertType(args[1], new(StateSync)).(*StateSync))
 	if err != nil {
 		if r, ok := err.(*typesdk.RevertError); ok {
 			return r.ReturnData, vm.ErrExecutionReverted
@@ -266,7 +266,7 @@ func (c *StateReceiver) GetStateSyncIdEntry(input []byte) ([]byte, error) {
 	return output, err
 }
 
-func (c *StateReceiver) EmitNewCommitmentEvent(startId *big.Int, endId *big.Int, root [32]byte) (*types.Log, error) {
+func (c *StateReceiver) EmitNewCommitmentEvent(startId *big.Int, endId *big.Int, root common.Hash) (*types.Log, error) {
 	event := c.abi.Events["NewCommitment"]
 	hashes, err := abi.PackTopics(event.Inputs, startId, endId, root)
 	if err != nil {

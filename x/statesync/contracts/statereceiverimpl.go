@@ -60,7 +60,7 @@ func (c *StateReceiver) GetCommitmentByStateSyncId(id *big.Int) (StateSyncCommit
 	return *sm, nil
 }
 
-func (c *StateReceiver) GetRootByStateSyncId(id *big.Int) ([32]byte, error) {
+func (c *StateReceiver) GetRootByStateSyncId(id *big.Int) (common.Hash, error) {
 	sm := c.FindCommitment(id)
 	if sm == nil {
 		return common.Hash{}, typesdk.NewRevertError("StateReceiver: NO_ROOT_FOR_ID")
@@ -68,7 +68,7 @@ func (c *StateReceiver) GetRootByStateSyncId(id *big.Int) ([32]byte, error) {
 	return sm.Root, nil
 }
 
-func (c *StateReceiver) BatchExecute(proofs [][][32]byte, objs []StateSync) error {
+func (c *StateReceiver) BatchExecute(proofs [][]common.Hash, objs []StateSync) error {
 	if len(proofs) != len(objs) {
 		return typesdk.NewRevertError("StateReceiver: UNMATCHED_LENGTH_PARAMETERS")
 	}
@@ -80,7 +80,7 @@ func (c *StateReceiver) BatchExecute(proofs [][][32]byte, objs []StateSync) erro
 	return nil
 }
 
-func (c *StateReceiver) Commit(commitment StateSyncCommitment, index uint64, voteProof [][32]byte, qc QuorumCert) error {
+func (c *StateReceiver) Commit(commitment StateSyncCommitment, index uint64, voteProof []common.Hash, qc QuorumCert) error {
 	end := c.GetLastCommittedId()
 	if commitment.StartId.Cmp(new(big.Int).Add(end, big.NewInt(1))) != 0 {
 		return typesdk.NewRevertError("StateReceiver: INVALID_START_ID")
@@ -94,7 +94,7 @@ func (c *StateReceiver) Commit(commitment StateSyncCommitment, index uint64, vot
 
 	value, _ := rlp.EncodeToBytes(&commitment)
 
-	if err := merkle.VerifyProof(index, crypto.Keccak256Hash(value).Bytes(), c.toProof(voteProof), qc.ExtendHash); err != nil {
+	if err := merkle.VerifyProof(index, crypto.Keccak256Hash(value).Bytes(), voteProof, qc.ExtendHash); err != nil {
 		return typesdk.NewRevertError("StateReceiver: MERKLE_VERIFICATION_FAILED")
 	}
 
@@ -104,18 +104,12 @@ func (c *StateReceiver) Commit(commitment StateSyncCommitment, index uint64, vot
 
 	return nil
 }
-func (c *StateReceiver) toProof(proof [][32]byte) []common.Hash {
-	path := make([]common.Hash, len(proof), len(proof))
-	for i := 0; i < len(proof); i++ {
-		path[i] = proof[i]
-	}
-	return path
-}
+
 func (c *StateReceiver) verifySignature(qc *QuorumCert) error {
 	return nil
 }
 
-func (c *StateReceiver) Execute(proof [][32]byte, obj StateSync) error {
+func (c *StateReceiver) Execute(proof []common.Hash, obj StateSync) error {
 	execId := c.getExecutedId()
 	if obj.Id.Cmp(new(big.Int).Add(execId, big.NewInt(1))) != 0 {
 		return typesdk.NewRevertError("StateReceiver: INVALID_EXEC_ID")
@@ -126,8 +120,7 @@ func (c *StateReceiver) Execute(proof [][32]byte, obj StateSync) error {
 	}
 	bytes, _ := rlp.EncodeToBytes(obj)
 	hash := crypto.Keccak256Hash(bytes)
-	path := c.toProof(proof)
-	if err := merkle.VerifyProof(new(big.Int).Sub(obj.Id, sm.StartId).Uint64(), hash[:], path, sm.Root); err != nil {
+	if err := merkle.VerifyProof(new(big.Int).Sub(obj.Id, sm.StartId).Uint64(), hash[:], proof, sm.Root); err != nil {
 		return typesdk.NewRevertError("StateReceiver: MERKLE_VERIFICATION_FAILED")
 	}
 	c.SetExecutedId(obj.Id)
