@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"reflect"
 
+	sdkcom "github.com/PlatONnetwork/AppChain-SDK/common"
 	"github.com/PlatONnetwork/AppChain-SDK/merkle"
 	"github.com/PlatONnetwork/AppChain-SDK/store"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
@@ -30,7 +31,6 @@ var (
 )
 
 func AddModuleInitFlags(app *cli.App) {
-	app.Flags = append(app.Flags, RootchainNodeRPCFlag)
 	app.Flags = append(app.Flags, KeystoreFlag)
 	app.Flags = append(app.Flags, PasswordFlag)
 }
@@ -45,25 +45,24 @@ type Module struct {
 	store  *storage.Storage
 
 	staking   types.Staking
-	txRealyer types.TxRelayer
+	txRelayer types.TxRelayer
 	extraVote types.ExtraVote
 	l1        types.L1
 }
 
 func NewModule(
-	key *keystore.Key,
+	cliCtx *cli.Context,
 	store store.Store,
 	staking types.Staking,
-	txRealyer types.TxRelayer,
+	txRelayer types.TxRelayer,
 	extraVote types.ExtraVote,
 	stateEvent types.StateEvent,
 	l1 types.L1) (*Module, error) {
 	m := &Module{
-		key:       key,
 		logger:    log.New("module", types.ModuleName),
 		store:     storage.NewStorage(store),
 		staking:   staking,
-		txRealyer: txRealyer,
+		txRelayer: txRelayer,
 		extraVote: extraVote,
 		l1:        l1,
 	}
@@ -78,6 +77,22 @@ func NewModule(
 	}
 	m.l2StateSenderAddr = stateAddr
 	m.checkpointManagerAddr = checkpointAddr
+
+	ksFile := cliCtx.GlobalString(KeystoreFlag.Name)
+	if ksFile == "" {
+		return nil, fmt.Errorf("checkpoint.keystore not set")
+	}
+
+	pwdFile := cliCtx.GlobalString(PasswordFlag.Name)
+	if pwdFile == "" {
+		return nil, fmt.Errorf("checkpoint.password not set")
+	}
+
+	key, err := sdkcom.DecryptKey(ksFile, pwdFile)
+	if err != nil {
+		return nil, err
+	}
+	m.key = key
 
 	stateEvent.Subscribe(m)
 	return m, nil
@@ -116,7 +131,10 @@ func (m *Module) ExtendData(ctx sdk.Context) []byte {
 	blockIndex := sdkCtx.BlockIndex()
 
 	if m.staking.IsEndOfEpoch(header.Number.Uint64()) {
-		currentValidators := m.staking.GetValidator(header.Number.Uint64())
+		currentValidators, err := m.staking.GetValidator(ctx, header.Number.Uint64())
+		if err != nil {
+			return []byte{}
+		}
 		currentAccountSet := types.NewAccountSet(currentValidators)
 		currentValidatorHash, err := currentAccountSet.Hash()
 		if err != nil {
@@ -124,7 +142,10 @@ func (m *Module) ExtendData(ctx sdk.Context) []byte {
 			return []byte{}
 		}
 
-		nextValidators := m.staking.GetValidator(header.Number.Uint64() + 1)
+		nextValidators, err := m.staking.GetValidator(ctx, header.Number.Uint64()+1)
+		if err != nil {
+			return []byte{}
+		}
 		nextAccountSet := types.NewAccountSet(nextValidators)
 		nextValidatorHash, err := nextAccountSet.Hash()
 		if err != nil {
@@ -132,7 +153,7 @@ func (m *Module) ExtendData(ctx sdk.Context) []byte {
 			return []byte{}
 		}
 
-		lastCheckpointBlockNumber, err := getCurrentCheckpointBlock(m.txRealyer, m.checkpointManagerAddr)
+		lastCheckpointBlockNumber, err := getCurrentCheckpointBlock(m.txRelayer, m.checkpointManagerAddr)
 		if err != nil {
 			return []byte{}
 		}
@@ -200,7 +221,10 @@ func (m *Module) VerifyExtendData(ctx sdk.Context, data []byte) (common.Hash, er
 			return common.ZeroHash, fmt.Errorf("mismatch view(checkpoint:%d,actual:%d)", checkpoint.ViewNumber, view)
 		}
 
-		currentValidators := m.staking.GetValidator(header.Number.Uint64())
+		currentValidators, err := m.staking.GetValidator(ctx, header.Number.Uint64())
+		if err != nil {
+			return common.ZeroHash, err
+		}
 		currentAccountSet := types.NewAccountSet(currentValidators)
 		currentValidatorHash, err := currentAccountSet.Hash()
 		if err != nil {
@@ -217,7 +241,10 @@ func (m *Module) VerifyExtendData(ctx sdk.Context, data []byte) (common.Hash, er
 				currentValidatorHash.TerminalString())
 		}
 
-		nextValidators := m.staking.GetValidator(header.Number.Uint64() + 1)
+		nextValidators, err := m.staking.GetValidator(ctx, header.Number.Uint64()+1)
+		if err != nil {
+			return common.Hash{}, err
+		}
 		nextAccountSet := types.NewAccountSet(nextValidators)
 		nextValidatorHash, err := nextAccountSet.Hash()
 		if err != nil {
@@ -232,7 +259,7 @@ func (m *Module) VerifyExtendData(ctx sdk.Context, data []byte) (common.Hash, er
 			return common.ZeroHash, fmt.Errorf("mismatch nextValidatorsHash(checkpoint:%s,actual:%s)", checkpoint.NextValidatorsHash.TerminalString(), nextValidatorHash.TerminalString())
 		}
 
-		lastCheckpointBlockNumber, err := getCurrentCheckpointBlock(m.txRealyer, m.checkpointManagerAddr)
+		lastCheckpointBlockNumber, err := getCurrentCheckpointBlock(m.txRelayer, m.checkpointManagerAddr)
 		if err != nil {
 			return common.ZeroHash, err
 		}
@@ -321,7 +348,7 @@ func (m *Module) PrepareQC(ctx sdk.Context, block *protocols.PrepareBlock, votes
 			return
 		}
 		go func(header *coretypes.Header, epoch uint64) {
-			if err := m.submitCheckpoint(header); err != nil {
+			if err := m.submitCheckpoint(ctx, header); err != nil {
 				m.logger.Error("Failed to submit checkpoint",
 					"checkpoint number", header.Number,
 					"epoch", epoch,
@@ -331,8 +358,8 @@ func (m *Module) PrepareQC(ctx sdk.Context, block *protocols.PrepareBlock, votes
 	}
 }
 
-func (m *Module) submitCheckpoint(latestHeader *coretypes.Header) error {
-	lastCheckpointBlockNumber, err := getCurrentCheckpointBlock(m.txRealyer, m.checkpointManagerAddr)
+func (m *Module) submitCheckpoint(ctx sdk.Context, latestHeader *coretypes.Header) error {
+	lastCheckpointBlockNumber, err := getCurrentCheckpointBlock(m.txRelayer, m.checkpointManagerAddr)
 	if err != nil {
 		return err
 	}
@@ -356,7 +383,7 @@ func (m *Module) submitCheckpoint(latestHeader *coretypes.Header) error {
 			return err
 		}
 
-		if err := m.encodeAndSendCheckpoint(checkpoint); err != nil {
+		if err := m.encodeAndSendCheckpoint(ctx, checkpoint); err != nil {
 			return err
 		}
 
@@ -365,7 +392,7 @@ func (m *Module) submitCheckpoint(latestHeader *coretypes.Header) error {
 	return nil
 }
 
-func (m *Module) encodeAndSendCheckpoint(checkpoint *types.StorageCheckpointData) error {
+func (m *Module) encodeAndSendCheckpoint(ctx sdk.Context, checkpoint *types.StorageCheckpointData) error {
 	submitAbiType := contractsapi.CheckpointManagerABI.Methods["submit"]
 
 	checkpointMetadata := checkpoint_manager.ICheckpointManagerCheckpointMetadata{
@@ -382,7 +409,7 @@ func (m *Module) encodeAndSendCheckpoint(checkpoint *types.StorageCheckpointData
 		ExtendRoot:  checkpoint.ExtendRoot,
 	}
 
-	nextValidators := m.staking.GetValidator(checkpoint.BlockNumber + 1)
+	nextValidators, err := m.staking.GetValidator(ctx, checkpoint.BlockNumber+1)
 	accountSet := types.NewAccountSet(nextValidators)
 	newValidatorSet := make([]checkpoint_manager.ICheckpointManagerValidator, len(accountSet))
 	for i, account := range accountSet {
@@ -407,7 +434,7 @@ func (m *Module) encodeAndSendCheckpoint(checkpoint *types.StorageCheckpointData
 		return err
 	}
 
-	receipt, err := m.txRealyer.SendTransaction(coretypes.NewTx(&coretypes.LegacyTx{
+	receipt, err := m.txRelayer.SendTransaction(coretypes.NewTx(&coretypes.LegacyTx{
 		To:   &m.checkpointManagerAddr,
 		Data: data,
 	}), m.key)
