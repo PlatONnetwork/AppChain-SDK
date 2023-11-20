@@ -64,7 +64,7 @@ type ElectionModule interface {
 
 type GenesisModule interface {
 	Module
-	InitGenesis(ctx sdk.Context, db sdk.StateDB, chainChain *params.ChainConfig, data json.RawMessage)
+	InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage)
 }
 
 type BlockerModule interface {
