@@ -1,15 +1,9 @@
 package types
 
 import (
-	"github.com/PlatONnetwork/PlatON-Go/common"
-	coretypes "github.com/PlatONnetwork/PlatON-Go/core/types"
+	stateevent "github.com/PlatONnetwork/AppChain-SDK/x/state_event"
 )
 
-type EventSubscriber interface {
-	GetLogFilters() map[common.Address][]common.Hash
-	ProcessLog(header *coretypes.Header, log *coretypes.Log) error
-}
-
 type StateEvent interface {
-	Subscribe(subscriber EventSubscriber)
+	Subscribe(subscriber stateevent.EventSubscriber)
 }

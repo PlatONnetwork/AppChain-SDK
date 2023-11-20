@@ -9,6 +9,7 @@ import (
 
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	platon "github.com/PlatONnetwork/PlatON-Go"
+	"github.com/PlatONnetwork/PlatON-Go/accounts/keystore"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/ethclient"
@@ -26,11 +27,6 @@ const (
 var (
 	_ module.Module = (*Module)(nil)
 )
-
-type Signer interface {
-	SignTx(txn *types.Transaction) (*types.Transaction, error)
-	Address() common.Address
-}
 
 type Module struct {
 	rpcAddress     string
@@ -70,15 +66,15 @@ func (m *Module) Call(from common.Address, to common.Address, data []byte) ([]by
 	return result, err
 }
 
-func (m *Module) SendTransaction(txn *types.Transaction, signer Signer) (*types.Receipt, error) {
-	txnHash, err := m.sendTransactionLocked(txn, signer)
+func (m *Module) SendTransaction(txn *types.Transaction, key *keystore.Key) (*types.Receipt, error) {
+	txnHash, err := m.sendTransactionLocked(txn, key)
 	if err != nil {
 		return nil, err
 	}
 	return m.waitForReceipt(txnHash)
 }
 
-func (m *Module) sendTransactionLocked(txn *types.Transaction, signer Signer) (common.Hash, error) {
+func (m *Module) sendTransactionLocked(txn *types.Transaction, key *keystore.Key) (common.Hash, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
@@ -94,7 +90,7 @@ func (m *Module) sendTransactionLocked(txn *types.Transaction, signer Signer) (c
 	gasLimit = txn.Gas()
 
 	if nonce == 0 {
-		nonce, err = m.client.NonceAt(context.Background(), signer.Address(), big.NewInt(-1))
+		nonce, err = m.client.NonceAt(context.Background(), key.Address, big.NewInt(-1))
 		if err != nil {
 			return common.ZeroHash, err
 		}
@@ -107,7 +103,7 @@ func (m *Module) sendTransactionLocked(txn *types.Transaction, signer Signer) (c
 	}
 	if gasLimit == 0 {
 		gasLimit, err = m.client.EstimateGas(context.Background(), platon.CallMsg{
-			From: signer.Address(),
+			From: key.Address,
 			To:   txn.To(),
 			Data: txn.Data(),
 		})
@@ -116,6 +112,12 @@ func (m *Module) sendTransactionLocked(txn *types.Transaction, signer Signer) (c
 		}
 	}
 
+	chainId, err := m.client.ChainID(context.Background())
+	if err != nil {
+		return common.ZeroHash, err
+	}
+	signer := types.NewEIP155Signer(chainId)
+
 	newTxn := types.NewTx(&types.LegacyTx{
 		Nonce:    nonce,
 		GasPrice: gasPrice,
@@ -123,12 +125,12 @@ func (m *Module) sendTransactionLocked(txn *types.Transaction, signer Signer) (c
 		To:       txn.To(),
 		Value:    txn.Value(),
 		Data:     txn.Data()})
-	signedTxn, err := signer.SignTx(newTxn)
+	signedTxn, err := types.SignTx(newTxn, signer, key.PrivateKey)
 	if err != nil {
 		return common.ZeroHash, err
 	}
 
-	log.Info("Send transaction", "module", m.Name(), "from", signer.Address(), "to", signedTxn.To(), "gasPrice", gasPrice, "gasLimit", gasLimit, "txnHash", signedTxn.Hash())
+	log.Info("Send transaction", "module", m.Name(), "from", key.Address, "to", signedTxn.To(), "gasPrice", gasPrice, "gasLimit", gasLimit, "txnHash", signedTxn.Hash())
 	if err = m.client.SendTransaction(context.Background(), signedTxn); err != nil {
 		return common.ZeroHash, err
 	}

@@ -1,18 +1,19 @@
 package checkpoint
 
 import (
-	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"math/big"
 	"reflect"
 
 	"github.com/PlatONnetwork/AppChain-SDK/merkle"
+	"github.com/PlatONnetwork/AppChain-SDK/store"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint/contractsapi"
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint/contractsapi/checkpoint_manager"
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint/storage"
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint/types"
+	"github.com/PlatONnetwork/PlatON-Go/accounts/keystore"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/protocols"
 	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/utils"
@@ -26,7 +27,6 @@ import (
 var (
 	_ module.Module                = (*Module)(nil)
 	_ module.ConsensusExtendModule = (*Module)(nil)
-	_ types.EventSubscriber        = (*Module)(nil)
 )
 
 func AddModuleInitFlags(app *cli.App) {
@@ -39,35 +39,48 @@ type Module struct {
 	checkpointManagerAddr common.Address
 	l2StateSenderAddr     common.Address
 
+	key *keystore.Key
+
 	logger log.Logger
 	store  *storage.Storage
 
 	staking   types.Staking
-	signer    types.Signer
 	txRealyer types.TxRelayer
 	extraVote types.ExtraVote
-	l1 types.L1
+	l1        types.L1
 }
 
 func NewModule(
-	privateKey *ecdsa.PrivateKey,
-	store *storage.Storage,
+	key *keystore.Key,
+	store store.Store,
 	staking types.Staking,
-	signer types.Signer,
 	txRealyer types.TxRelayer,
 	extraVote types.ExtraVote,
-	stateEvent types.StateEvent) *Module {
+	stateEvent types.StateEvent,
+	l1 types.L1) (*Module, error) {
 	m := &Module{
+		key:       key,
 		logger:    log.New("module", types.ModuleName),
-		store:     store,
+		store:     storage.NewStorage(store),
 		staking:   staking,
-		signer:    signer,
 		txRealyer: txRealyer,
 		extraVote: extraVote,
+		l1:        l1,
 	}
 
+	stateAddr, err := l1.GetStateAddress()
+	if err != nil {
+		return nil, err
+	}
+	checkpointAddr, err := l1.GetCheckpointAddress()
+	if err != nil {
+		return nil, err
+	}
+	m.l2StateSenderAddr = stateAddr
+	m.checkpointManagerAddr = checkpointAddr
+
 	stateEvent.Subscribe(m)
-	return m
+	return m, nil
 }
 
 func (m *Module) Name() string {
@@ -384,7 +397,7 @@ func (m *Module) encodeAndSendCheckpoint(checkpoint *types.StorageCheckpointData
 	}
 
 	leaf, _ := checkpoint.CheckpointData.Hash()
-	leafIndex, proof, err := m.extraVote.GetProof(checkpoint.EpochNumber, checkpoint.ViewNumber, leaf)
+	leafIndex, proof, err := m.extraVote.GetProof(checkpoint.EpochNumber, checkpoint.ViewNumber, checkpoint.BlockIndex, leaf.Bytes())
 	if err != nil {
 		return err
 	}
@@ -397,7 +410,7 @@ func (m *Module) encodeAndSendCheckpoint(checkpoint *types.StorageCheckpointData
 	receipt, err := m.txRealyer.SendTransaction(coretypes.NewTx(&coretypes.LegacyTx{
 		To:   &m.checkpointManagerAddr,
 		Data: data,
-	}), m.signer)
+	}), m.key)
 	if err != nil {
 		return err
 	}

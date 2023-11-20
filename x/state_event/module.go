@@ -39,7 +39,7 @@ type Module struct {
 	allFilters  map[common.Address]map[common.Hash][]uint64
 }
 
-func NewModule(kvStore store.KVStore) *Module {
+func NewModule(kvStore store.Store) *Module {
 	return &Module{
 		logger:      log.New("module", types.ModuleName),
 		store:       storage.NewStorage(kvStore),

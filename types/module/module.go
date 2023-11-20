@@ -398,12 +398,12 @@ func (m *Manager) SortTxs(ctx sdk.Context, local, remote map[common.Address]type
 
 	allTxs := make(types.Transactions, 0)
 	for _, txs := range local {
-		allTxs = append(allTxs, txs)
+		allTxs = append(allTxs, txs...)
 	}
 	for _, txs := range remote {
-		allTxs = append(allTxs, txs)
+		allTxs = append(allTxs, txs...)
 	}
-	return allTxs
+	return allTxs, nil
 }
 
 func (m *Manager) assertNoForgottenModules(setOrderFnName string, moduleNames []string, pass func(moduleName string) bool) {

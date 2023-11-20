@@ -1,0 +1,29 @@
+package main
+
+import (
+	"fmt"
+	"os"
+
+	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint"
+	"github.com/PlatONnetwork/PlatON-Go/sdk"
+	"github.com/PlatONnetwork/PlatON-Go/sdk/app"
+	"gopkg.in/urfave/cli.v1"
+)
+
+func main() {
+	cliApp := cli.NewApp()
+	checkpoint.AddModuleInitFlags(cliApp)
+
+	app.InitApp(cliApp, func(ctx *cli.Context) sdk.App {
+		simApp, err := NewSimApp(ctx)
+		if err != nil {
+			panic(fmt.Sprintf("Create simple app error: %v", err))
+		}
+		return simApp
+	}, nil, nil)
+
+	if err := cliApp.Run(os.Args); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}

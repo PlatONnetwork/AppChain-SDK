@@ -11,9 +11,9 @@ type Storage struct {
 	store store.KVStore
 }
 
-func NewStorage(store store.KVStore) *Storage {
+func NewStorage(store store.Store) *Storage {
 	return &Storage{
-		store: store,
+		store: store.GetKVStore(types.ModuleName),
 	}
 }
 

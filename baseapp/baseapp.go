@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"math/big"
 
+	"github.com/PlatONnetwork/AppChain-SDK/store"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/protocols"
 	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
-	"github.com/PlatONnetwork/PlatON-Go/ethdb"
 	basep2p "github.com/PlatONnetwork/PlatON-Go/p2p"
 	"github.com/PlatONnetwork/PlatON-Go/p2p/enode"
 	"github.com/PlatONnetwork/PlatON-Go/params"
@@ -26,11 +26,11 @@ type BaseApp struct {
 	version string
 	chainID *big.Int
 
-	store   ethdb.KeyValueStore
+	store   store.Store
 	manager *module.Manager
 }
 
-func NewBaseApp(name string, store ethdb.KeyValueStore, manager *module.Manager) (*BaseApp, error) {
+func NewBaseApp(name string, store store.Store, manager *module.Manager) (*BaseApp, error) {
 	return &BaseApp{
 		name:    name,
 		store:   store,
@@ -99,7 +99,7 @@ func (app *BaseApp) NewHeader(ctx sdk.Context, header *types.Header) error {
 	return app.manager.NewHeader(ctx, header)
 }
 
-func (app *BaseApp) GatLastNumber(ctx sdk.Context, blockNumber uint64) uint64 {
+func (app *BaseApp) GetLastNumber(ctx sdk.Context, blockNumber uint64) uint64 {
 	return app.manager.GetLastNumber(ctx, blockNumber)
 }
 
