@@ -13,6 +13,6 @@ var (
 	}
 	PasswordFlag = cli.StringFlag{
 		Name:  "checkpoint.password",
-		Usage: "",
+		Usage: "Password for keystore",
 	}
 )

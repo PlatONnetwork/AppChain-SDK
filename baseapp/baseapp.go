@@ -3,7 +3,6 @@ package baseapp
 import (
 	"encoding/json"
 	"math/big"
-	"path/filepath"
 
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -117,6 +116,7 @@ func (app *BaseApp) OnCommit(ctx sdk.Context, block *types.Block) error {
 }
 
 func (app *BaseApp) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
+	app.chainID = chainConfig.ChainID
 	return app.manager.InitGenesis(ctx, db, chainConfig, data)
 }
 
@@ -130,8 +130,4 @@ func (app *BaseApp) EndBlock(ctx sdk.Context) {
 
 func (app *BaseApp) SortTxs(ctx sdk.Context, local, remote map[common.Address]types.Transactions) (types.Transactions, error) {
 	return app.manager.SortTxs(ctx, local, remote)
-}
-
-func dbPath(path string) string {
-	return filepath.Join(path, datadirSDKDatabase)
 }

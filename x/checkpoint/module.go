@@ -1,6 +1,7 @@
 package checkpoint
 
 import (
+	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"math/big"
@@ -29,7 +30,9 @@ var (
 )
 
 func AddModuleInitFlags(app *cli.App) {
-
+	app.Flags = append(app.Flags, RootchainNodeRPCFlag)
+	app.Flags = append(app.Flags, KeystoreFlag)
+	app.Flags = append(app.Flags, PasswordFlag)
 }
 
 type Module struct {
@@ -43,11 +46,11 @@ type Module struct {
 	signer    types.Signer
 	txRealyer types.TxRelayer
 	extraVote types.ExtraVote
+	l1 types.L1
 }
 
 func NewModule(
-	checkpointManagerAddr common.Address,
-	l2StateSenderAddr common.Address,
+	privateKey *ecdsa.PrivateKey,
 	store *storage.Storage,
 	staking types.Staking,
 	signer types.Signer,
@@ -55,14 +58,12 @@ func NewModule(
 	extraVote types.ExtraVote,
 	stateEvent types.StateEvent) *Module {
 	m := &Module{
-		checkpointManagerAddr: checkpointManagerAddr,
-		l2StateSenderAddr:     l2StateSenderAddr,
-		logger:                log.New("module", types.ModuleName),
-		store:                 store,
-		staking:               staking,
-		signer:                signer,
-		txRealyer:             txRealyer,
-		extraVote:             extraVote,
+		logger:    log.New("module", types.ModuleName),
+		store:     store,
+		staking:   staking,
+		signer:    signer,
+		txRealyer: txRealyer,
+		extraVote: extraVote,
 	}
 
 	stateEvent.Subscribe(m)
@@ -130,7 +131,7 @@ func (m *Module) ExtendData(ctx sdk.Context) []byte {
 		if lastCheckpointBlockNumber > types.CheckpointCommitDis {
 			lastCheckpointBlockNumber = lastCheckpointBlockNumber - types.CheckpointCommitDis
 		}
-		end := header.Number.Uint64()-types.CheckpointCommitDis
+		end := header.Number.Uint64() - types.CheckpointCommitDis
 
 		eventRoot, err := m.BuildEventRoot(lastCheckpointBlockNumber, end)
 		if err != nil {
@@ -230,7 +231,7 @@ func (m *Module) VerifyExtendData(ctx sdk.Context, data []byte) (common.Hash, er
 		if lastCheckpointBlockNumber > types.CheckpointCommitDis {
 			lastCheckpointBlockNumber = lastCheckpointBlockNumber - types.CheckpointCommitDis
 		}
-		end := header.Number.Uint64()-types.CheckpointCommitDis
+		end := header.Number.Uint64() - types.CheckpointCommitDis
 
 		eventRoot, err := m.BuildEventRoot(lastCheckpointBlockNumber, end)
 		if err != nil {
