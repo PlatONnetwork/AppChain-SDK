@@ -12,12 +12,13 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
+	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"math/big"
 )
 
-func (s *StateSync) ExtendDataImpl(epoch, view uint64, index uint32, header *types.Header) []byte {
+func (s *StateSync) ExtendDataImpl(ctx sdk.Context, epoch, view uint64, index uint32, header *types.Header) []byte {
 
-	receiver, err := s.newStateSyncCallContract(header.Hash())
+	receiver, err := s.newStateSyncCallContract(ctx, header.Hash())
 	if err != nil {
 		return nil
 	}
@@ -109,7 +110,7 @@ func (s *StateSync) GenProof(epoch, view uint64, index uint32, start, end *big.I
 	return trie.Hash(), nil
 }
 
-func (s *StateSync) createCommitTx(cm *contracts.StateSyncCommitment, index uint64, qc *types2.QuorumCert, voteProof []common.Hash, nonce uint64) (*types.Transaction, error) {
+func (s *StateSync) createCommitTx(ctx sdk.Context, cm *contracts.StateSyncCommitment, index uint64, qc *types2.QuorumCert, voteProof []common.Hash, nonce uint64) (*types.Transaction, error) {
 	input, err := contracts.Abi.Methods["commit"].Inputs.Pack(cm, index, voteProof, &contracts.QuorumCert{
 		Epoch:       qc.Epoch,
 		ViewNumber:  qc.ViewNumber,
@@ -122,7 +123,7 @@ func (s *StateSync) createCommitTx(cm *contracts.StateSyncCommitment, index uint
 		return nil, err
 	}
 	tx := types.NewTransaction(nonce, contracts.StateSyncAddress, nil, 100000, big.NewInt(0), input)
-	chainId, _ := s.backend.ChainId()
+	chainId, _ := ctx.Backend().ChainId()
 	signer := types.NewEIP155Signer(chainId)
 	tx, err = types.SignTx(tx, signer, s.privateKey)
 	if err != nil {
@@ -132,7 +133,7 @@ func (s *StateSync) createCommitTx(cm *contracts.StateSyncCommitment, index uint
 	return tx, nil
 }
 
-func (s *StateSync) createExecuteTxs(proofs [][]common.Hash, events []*sync.StateSender, nonce uint64) ([]*types.Transaction, error) {
+func (s *StateSync) createExecuteTxs(ctx sdk.Context, proofs [][]common.Hash, events []*sync.StateSender, nonce uint64) ([]*types.Transaction, error) {
 	var txs []*types.Transaction
 	for i, proof := range proofs {
 		input, err := contracts.Abi.Methods["execute"].Inputs.Pack(proof, events[i])
@@ -140,7 +141,7 @@ func (s *StateSync) createExecuteTxs(proofs [][]common.Hash, events []*sync.Stat
 			return nil, err
 		}
 		tx := types.NewTransaction(nonce, contracts.StateSyncAddress, nil, 100000, big.NewInt(0), input)
-		chainId, _ := s.backend.ChainId()
+		chainId, _ := ctx.Backend().ChainId()
 		signer := types.NewEIP155Signer(chainId)
 		tx, err = types.SignTx(tx, signer, s.privateKey)
 		if err != nil {
@@ -151,8 +152,8 @@ func (s *StateSync) createExecuteTxs(proofs [][]common.Hash, events []*sync.Stat
 	return txs, nil
 }
 
-func (s *StateSync) newStateSyncCallContract(hash common.Hash) (*contracts.StateReceiver, error) {
+func (s *StateSync) newStateSyncCallContract(ctx sdk.Context, hash common.Hash) (*contracts.StateReceiver, error) {
 	from := crypto.PubkeyToAddress(s.privateKey.PublicKey)
-	evm, _, _ := s.backend.GetEVM(NewOnlyCallMessage(from), hash)
+	evm, _, _ := ctx.Backend().GetEVM(NewOnlyCallMessage(from), hash)
 	return contracts.NewStateReceiver(evm, vm.NewContract(vm.AccountRef(from), vm.AccountRef(contracts.StateSyncAddress), big.NewInt(0), 1000000), true)
 }

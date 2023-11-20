@@ -35,7 +35,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		return nil, err
 	}
 
-	stateSync, err := statesync.NewStateSync("", nil, store, nil, extravote.NewExtraVoteDB(store), nil)
+	stateSync, err := statesync.NewStateSync(ctx, store, extravote.NewExtraVoteDB(store))
 	if err != nil {
 		return nil, err
 	}
