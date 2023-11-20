@@ -36,7 +36,7 @@ type Epoch struct {
 }
 
 var (
-	ABI    = "[{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"id\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"startBlock\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"endBlock\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"bytes32\",\"name\":\"epochRoot\",\"type\":\"bytes32\"}],\"name\":\"NewEpoch\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"exitId\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"address[]\",\"name\":\"validators\",\"type\":\"address[]\"}],\"name\":\"Slashed\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"validator\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"delegater\",\"type\":\"address\"}],\"name\":\"UnDelegated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"validator\",\"type\":\"address\"}],\"name\":\"UnStaked\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"Withdrawal\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"WithdrawalRegistered\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"id\",\"type\":\"uint256\"},{\"components\":[{\"internalType\":\"uint256\",\"name\":\"startBlock\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"endBlock\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"epochRoot\",\"type\":\"bytes32\"}],\"internalType\":\"structEpoch\",\"name\":\"epoch\",\"type\":\"tuple\"},{\"internalType\":\"uint256\",\"name\":\"epochSize\",\"type\":\"uint256\"}],\"name\":\"commitEpoch\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"id\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"sender\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"name\":\"onStateReceive\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"}],\"name\":\"pendingWithdrawalsOfDelegate\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"}],\"name\":\"pendingWithdrawalsOfStake\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address[]\",\"name\":\"validators\",\"type\":\"address[]\"}],\"name\":\"slash\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"validator\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"undelegate\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"unstake\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"withdrawUndelegate\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"withdrawUnstake\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"}],\"name\":\"withdrawableOfDelegate\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"}],\"name\":\"withdrawableOfStake\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]"
+	ABI    = "[{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"validator\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"DelegateWithdrawal\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"validator\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"DelegateWithdrawalRegistered\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"id\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"startBlock\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"endBlock\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"bytes32\",\"name\":\"epochRoot\",\"type\":\"bytes32\"}],\"name\":\"NewEpoch\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"exitId\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"address[]\",\"name\":\"validators\",\"type\":\"address[]\"},{\"indexed\":false,\"internalType\":\"uint256[]\",\"name\":\"amounts\",\"type\":\"uint256[]\"}],\"name\":\"Slashed\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"StakeWithdrawal\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"StakeWithdrawalRegistered\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"validator\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"delegater\",\"type\":\"address\"}],\"name\":\"UnDelegated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"validator\",\"type\":\"address\"}],\"name\":\"UnStaked\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"id\",\"type\":\"uint256\"},{\"components\":[{\"internalType\":\"uint256\",\"name\":\"startBlock\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"endBlock\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"epochRoot\",\"type\":\"bytes32\"}],\"internalType\":\"structEpoch\",\"name\":\"epoch\",\"type\":\"tuple\"},{\"internalType\":\"uint256\",\"name\":\"epochSize\",\"type\":\"uint256\"}],\"name\":\"commitEpoch\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"id\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"sender\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"name\":\"onStateReceive\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"}],\"name\":\"pendingWithdrawalsOfDelegate\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"}],\"name\":\"pendingWithdrawalsOfStake\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address[]\",\"name\":\"validators\",\"type\":\"address[]\"}],\"name\":\"slash\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"validator\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"undelegate\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"unstake\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"withdrawUndelegate\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"withdrawUnstake\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"}],\"name\":\"withdrawableOfDelegate\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"}],\"name\":\"withdrawableOfStake\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]"
 	Abi, _ = abi.JSON(strings.NewReader(ABI))
 )
 
@@ -332,6 +332,42 @@ func (c *StakeHandler) WithdrawUnstakeEntry(input []byte) ([]byte, error) {
 	return output, err
 }
 
+func (c *StakeHandler) EmitDelegateWithdrawalEvent(account common.Address, validator common.Address, amount *big.Int) (*types.Log, error) {
+	event := c.abi.Events["DelegateWithdrawal"]
+	hashes, err := abi.PackTopics(event.Inputs, account, validator, amount)
+	if err != nil {
+		return nil, err
+	}
+	data, err := event.Inputs.Pack(account, validator, amount)
+	if err != nil {
+		return nil, err
+	}
+	return &types.Log{
+		Address:     c.contract.Address(),
+		Topics:      hashes,
+		Data:        data,
+		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
+	}, nil
+}
+
+func (c *StakeHandler) EmitDelegateWithdrawalRegisteredEvent(account common.Address, validator common.Address, amount *big.Int) (*types.Log, error) {
+	event := c.abi.Events["DelegateWithdrawalRegistered"]
+	hashes, err := abi.PackTopics(event.Inputs, account, validator, amount)
+	if err != nil {
+		return nil, err
+	}
+	data, err := event.Inputs.Pack(account, validator, amount)
+	if err != nil {
+		return nil, err
+	}
+	return &types.Log{
+		Address:     c.contract.Address(),
+		Topics:      hashes,
+		Data:        data,
+		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
+	}, nil
+}
+
 func (c *StakeHandler) EmitNewEpochEvent(id *big.Int, startBlock *big.Int, endBlock *big.Int, epochRoot [32]byte) (*types.Log, error) {
 	event := c.abi.Events["NewEpoch"]
 	hashes, err := abi.PackTopics(event.Inputs, id, startBlock, endBlock, epochRoot)
@@ -350,13 +386,49 @@ func (c *StakeHandler) EmitNewEpochEvent(id *big.Int, startBlock *big.Int, endBl
 	}, nil
 }
 
-func (c *StakeHandler) EmitSlashedEvent(exitId *big.Int, validators []common.Address) (*types.Log, error) {
+func (c *StakeHandler) EmitSlashedEvent(exitId *big.Int, validators []common.Address, amounts []*big.Int) (*types.Log, error) {
 	event := c.abi.Events["Slashed"]
-	hashes, err := abi.PackTopics(event.Inputs, exitId, validators)
+	hashes, err := abi.PackTopics(event.Inputs, exitId, validators, amounts)
 	if err != nil {
 		return nil, err
 	}
-	data, err := event.Inputs.Pack(exitId, validators)
+	data, err := event.Inputs.Pack(exitId, validators, amounts)
+	if err != nil {
+		return nil, err
+	}
+	return &types.Log{
+		Address:     c.contract.Address(),
+		Topics:      hashes,
+		Data:        data,
+		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
+	}, nil
+}
+
+func (c *StakeHandler) EmitStakeWithdrawalEvent(account common.Address, amount *big.Int) (*types.Log, error) {
+	event := c.abi.Events["StakeWithdrawal"]
+	hashes, err := abi.PackTopics(event.Inputs, account, amount)
+	if err != nil {
+		return nil, err
+	}
+	data, err := event.Inputs.Pack(account, amount)
+	if err != nil {
+		return nil, err
+	}
+	return &types.Log{
+		Address:     c.contract.Address(),
+		Topics:      hashes,
+		Data:        data,
+		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
+	}, nil
+}
+
+func (c *StakeHandler) EmitStakeWithdrawalRegisteredEvent(account common.Address, amount *big.Int) (*types.Log, error) {
+	event := c.abi.Events["StakeWithdrawalRegistered"]
+	hashes, err := abi.PackTopics(event.Inputs, account, amount)
+	if err != nil {
+		return nil, err
+	}
+	data, err := event.Inputs.Pack(account, amount)
 	if err != nil {
 		return nil, err
 	}
@@ -393,42 +465,6 @@ func (c *StakeHandler) EmitUnStakedEvent(validator common.Address) (*types.Log, 
 		return nil, err
 	}
 	data, err := event.Inputs.Pack(validator)
-	if err != nil {
-		return nil, err
-	}
-	return &types.Log{
-		Address:     c.contract.Address(),
-		Topics:      hashes,
-		Data:        data,
-		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
-	}, nil
-}
-
-func (c *StakeHandler) EmitWithdrawalEvent(account common.Address, amount *big.Int) (*types.Log, error) {
-	event := c.abi.Events["Withdrawal"]
-	hashes, err := abi.PackTopics(event.Inputs, account, amount)
-	if err != nil {
-		return nil, err
-	}
-	data, err := event.Inputs.Pack(account, amount)
-	if err != nil {
-		return nil, err
-	}
-	return &types.Log{
-		Address:     c.contract.Address(),
-		Topics:      hashes,
-		Data:        data,
-		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
-	}, nil
-}
-
-func (c *StakeHandler) EmitWithdrawalRegisteredEvent(account common.Address, amount *big.Int) (*types.Log, error) {
-	event := c.abi.Events["WithdrawalRegistered"]
-	hashes, err := abi.PackTopics(event.Inputs, account, amount)
-	if err != nil {
-		return nil, err
-	}
-	data, err := event.Inputs.Pack(account, amount)
 	if err != nil {
 		return nil, err
 	}

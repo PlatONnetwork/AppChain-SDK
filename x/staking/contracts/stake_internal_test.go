@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
+	"github.com/umbracle/ethgo"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -56,9 +57,19 @@ func TestDecodeData(t *testing.T) {
 	if !ok {
 		t.Error("err......")
 	}
+
 	b, e := json.Marshal(res)
 	if e != nil {
 		t.Error(e)
 	}
-	fmt.Printf("%s", string(b))
+	fmt.Printf("%s \n", string(b))
+
+	addr, ok := res["addr"].(ethgo.Address)
+	if !ok {
+		t.Error("failed......")
+	}
+	fmt.Printf("%s \n", addr.String())
+	addr1 := common.Address(addr)
+
+	fmt.Printf("%s \n", addr1.Hex())
 }

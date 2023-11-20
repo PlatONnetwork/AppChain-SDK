@@ -5,7 +5,7 @@ import (
 	"errors"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/x/address"
-	"github.com/PlatONnetwork/AppChain-SDK/x/upgradesys/contracts"
+	upgradecontracts "github.com/PlatONnetwork/AppChain-SDK/x/upgradesys/contracts"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
@@ -13,6 +13,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/event"
+	"github.com/PlatONnetwork/PlatON-Go/log"
 	"math/big"
 	"strings"
 )
@@ -72,53 +73,76 @@ func (c *StakeHandler) CommitEpoch(id *big.Int, epoch Epoch, epochSize *big.Int)
 }
 
 func (c *StakeHandler) OnStateReceive(id *big.Int, sender common.Address, data []byte) error {
-	if err := contracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
+	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
 		return err
 	}
-	// todo change the address
+	// todo need to change the inner contract address file path
 	if c.contract.Caller() != address.StateReceiverAddress || sender != address.RootchainStakeManagerAddress {
 		return typesdk.NewRevertError("StakeHandler: INVALID_SENDER")
 	}
 	if bytes.Compare(data[:METHODID_SIZE], _STAKE_SIG.Bytes()) == 0 {
 		return c.onStake(data[METHODID_SIZE:])
 	} else if bytes.Compare(data[:METHODID_SIZE], _ADDSTAKE_SIG.Bytes()) == 0 {
-
+		return c.onAddStake(data[METHODID_SIZE:])
 	} else if bytes.Compare(data[:METHODID_SIZE], _SLASH_SIG.Bytes()) == 0 {
-
+		return c.onSlash(data[METHODID_SIZE:])
 	} else if bytes.Compare(data[:METHODID_SIZE], _DELEGATE_SIG.Bytes()) == 0 {
-
+		return c.onDelegate(data[METHODID_SIZE:])
+	} else {
+		return typesdk.NewRevertError("StakeHandler: INVALID_METHOD_SIGN")
 	}
-
-	panic("implement")
 }
 
 func (c *StakeHandler) Slash(validators []common.Address) error {
-	if err := contracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
+	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
 		return err
 	}
 	panic("implement")
 }
 
 func (c *StakeHandler) Undelegate(validator common.Address, amount *big.Int) error {
-	if err := contracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
+	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
 		return err
 	}
 
-	panic("implement")
+	// c.contract.Caller(): msg.sender
+	return c.registerDelegateWithdrawal(c.contract.Caller(), validator, amount)
 }
 
 func (c *StakeHandler) Unstake(amount *big.Int) error {
-	if err := contracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
+	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
 		return err
 	}
-
-	panic("implement")
+	// c.contract.Caller(): msg.sender
+	return c.registerStakeWithdrawal(c.contract.Caller(), amount)
 }
 
 func (c *StakeHandler) WithdrawUndelegate() error {
-	panic("implement")
+	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *StakeHandler) WithdrawUnstake() error {
-	panic("implement")
+	currentEpoch := c.GetCurrentEpoch()
+	validatorAddr := c.contract.Caller()
+	amount, newHead := c.GetStakeWithdrawable(validatorAddr, currentEpoch)
+	if err := c.updateStakeWithdrawQueueBoundHead(validatorAddr, newHead); nil != err {
+		log.Error("Failed to withdraw unstake", "validatorAddr", validatorAddr.Hex(),
+			"currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber, "amount", amount, "error", err)
+		return typesdk.NewRevertError("StakeHandler: UPDATE STAKE WITHDRAW PENDDING HEAD FAILED")
+	}
+
+	if err := c.addLogStakeWithdrawalEvent(validatorAddr, amount); nil != err {
+		return err
+	}
+
+	//  stateSender.syncState(CustomChildChainManager, abi.encode(_UNSTAKE_SIG, msg.sender, amount));
+	//corecontracts.Call(c.evm)
+
+	log.Info("Withdraw unstake for", "delegater", "validator", validatorAddr.Hex(), "amount", amount, "blockNumber", c.evm.Context.BlockNumber)
+	return nil
+
 }

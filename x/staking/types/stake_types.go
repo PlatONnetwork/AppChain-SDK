@@ -92,17 +92,19 @@ type Validator struct {
 	PubKey         *ecdsa.PublicKey
 	BlsKey         *bls.PublicKey
 	Status         ValidatorStatus
-
-	StakeIndex uint64
+	BlockNumber    uint64
+	StakeIndex     uint64
 }
 
-func NewValidator(benefit common.Address, stakeAmount, delegateAmount *big.Int, blsKey *bls.PublicKey, pubKey *ecdsa.PublicKey) *Validator {
+func NewValidator(benefit common.Address, stakeAmount, delegateAmount *big.Int, blsKey *bls.PublicKey, pubKey *ecdsa.PublicKey, blockNumber, stakeIndex uint64) *Validator {
 	return &Validator{
 		Benefit:        benefit,
 		StakeAmount:    stakeAmount,
 		DelegateAmount: delegateAmount,
 		BlsKey:         blsKey,
 		PubKey:         pubKey,
+		BlockNumber:    blockNumber,
+		StakeIndex:     stakeIndex,
 	}
 }
 
@@ -156,6 +158,22 @@ func (v *Validator) SubStakeAmount(amount *big.Int) error {
 	}
 	v.StakeAmount = new(big.Int).Sub(v.StakeAmount, amount)
 	return nil
+}
+
+func (v *Validator) AddDelegateAmount(amount *big.Int) {
+	v.DelegateAmount = new(big.Int).Add(v.DelegateAmount, amount)
+}
+
+func (v *Validator) SubDelegateAmount(amount *big.Int) error {
+	if v.DelegateAmount.Cmp(amount) == -1 {
+		return errors.New("amount exceeds delegate amount of validator")
+	}
+	v.DelegateAmount = new(big.Int).Sub(v.DelegateAmount, amount)
+	return nil
+}
+
+func (v *Validator) Shares() *big.Int {
+	return new(big.Int).Add(v.StakeAmount, v.DelegateAmount)
 }
 
 func (v *Validator) IsValid() bool {
