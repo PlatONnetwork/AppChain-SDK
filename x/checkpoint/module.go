@@ -67,15 +67,13 @@ func NewModule(
 		l1:        l1,
 	}
 
-	stateAddr, err := l1.GetStateAddress()
-	if err != nil {
-		return nil, err
-	}
 	checkpointAddr, err := l1.GetCheckpointAddress()
 	if err != nil {
 		return nil, err
 	}
-	m.l2StateSenderAddr = stateAddr
+
+	// FIXME: set L2StateSender contract address
+	m.l2StateSenderAddr = common.ZeroAddr
 	m.checkpointManagerAddr = checkpointAddr
 
 	ksFile := cliCtx.GlobalString(KeystoreFlag.Name)

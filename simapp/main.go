@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/PlatONnetwork/AppChain-SDK/x"
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"github.com/PlatONnetwork/PlatON-Go/sdk/app"
@@ -12,6 +13,7 @@ import (
 
 func main() {
 	cliApp := cli.NewApp()
+	x.AddModuleInitFlags(cliApp)
 	checkpoint.AddModuleInitFlags(cliApp)
 
 	app.InitApp(cliApp, func(ctx *cli.Context) sdk.App {

@@ -351,13 +351,13 @@ func (m *Manager) OnCommit(ctx sdk.Context, block *types.Block) error {
 	return nil
 }
 
-func (m *Manager) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
+func (m *Manager) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data map[string]json.RawMessage) error {
 	log.Info("Init blockchain state from genesis.json")
 	for _, moduleName := range m.OrderGenesis {
 		mod := m.Modules[moduleName]
 		if module, ok := mod.(GenesisModule); ok {
 			log.Debug("Running initialization for module ", "module", moduleName)
-			module.InitGenesis(ctx, db, chainConfig, data)
+			module.InitGenesis(ctx, db, chainConfig, data[moduleName])
 		}
 	}
 	return nil
