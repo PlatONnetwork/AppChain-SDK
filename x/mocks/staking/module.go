@@ -1,0 +1,155 @@
+package staking
+
+import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/PlatONnetwork/AppChain-SDK/store"
+	"github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
+	"github.com/PlatONnetwork/PlatON-Go/core/types"
+	"github.com/PlatONnetwork/PlatON-Go/crypto"
+	"github.com/PlatONnetwork/PlatON-Go/crypto/bls"
+	"github.com/PlatONnetwork/PlatON-Go/log"
+	"github.com/PlatONnetwork/PlatON-Go/p2p/enode"
+	"github.com/PlatONnetwork/PlatON-Go/params"
+	"github.com/PlatONnetwork/PlatON-Go/rlp"
+	"github.com/PlatONnetwork/PlatON-Go/sdk"
+)
+
+const (
+	ModuleName   = "staking"
+	ValidatorKey = "validator"
+
+	NumberBlocksOfEpoch = 250
+)
+
+type ValidatorNode struct {
+	Index     uint32
+	Address   common.NodeAddress
+	Node      []byte
+	BlsPubKey []byte
+}
+
+type ValidatorNodes struct {
+	Nodes []ValidatorNode
+}
+
+type Module struct {
+	store      store.KVStore
+	validators *cbfttypes.Validators
+}
+
+func NewModule(store store.Store) *Module {
+	return &Module{
+		store: store.GetKVStore(ModuleName),
+	}
+}
+
+func (m *Module) Name() string {
+	return ModuleName
+}
+
+func (m *Module) IsEndOfEpoch(blockNumber uint64) bool {
+	return blockNumber % NumberBlocksOfEpoch == 0
+}
+
+func (m *Module) BlocksOfEpoch() uint64 {
+	return NumberBlocksOfEpoch
+}
+
+func (m *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
+	nodes := convertToValidatorNodes(chainConfig.Cbft.InitialNodes)
+	val, err := rlp.EncodeToBytes(nodes)
+	if err != nil {
+		panic(fmt.Sprintf("validators rlp error: %v", err))
+	}
+
+	m.store.Set([]byte(ValidatorKey), val)
+}
+
+func (m *Module) NewHeader(ctx sdk.Context, header *types.Header) error {
+	return nil
+}
+
+func (m *Module) GetLastNumber(ctx sdk.Context, blockNumber uint64) uint64 {
+	return 0
+}
+
+func (m *Module) GetValidator(ctx sdk.Context, blockNumber uint64) (*cbfttypes.Validators, error) {
+	if m.validators == nil {
+		val, err := m.store.Get([]byte(ValidatorKey))
+		if err != nil {
+			return nil, err
+		}
+
+		var nodes ValidatorNodes
+		if err := rlp.DecodeBytes(val, &nodes); err != nil {
+			return nil, err
+		}
+
+		m.validators = newValidators(&nodes, 0)
+	}
+	return m.validators, nil
+}
+
+func (m *Module) IsCandidateNode(ctx sdk.Context, nodeID enode.IDv0) bool {
+	return false
+}
+
+func newValidators(nodes *ValidatorNodes, validBlockNumber uint64) *cbfttypes.Validators {
+	vds := &cbfttypes.Validators{
+		Nodes:            make(cbfttypes.ValidateNodeMap, len(nodes.Nodes)),
+		ValidBlockNumber: validBlockNumber,
+	}
+
+	for i, node := range nodes.Nodes {
+		var p2pNode enode.Node
+
+		if err := p2pNode.UnmarshalText(node.Node); err != nil {
+			panic(err)
+		}
+
+		var blsPubKey bls.PublicKey
+		if err := blsPubKey.Deserialize(node.BlsPubKey); err != nil {
+			panic(err)
+		}
+
+		log.Info("validator", "index", node.Index, "enode", p2pNode.String())
+
+		vds.Nodes[p2pNode.ID()] = &cbfttypes.ValidateNode{
+			Index:     uint32(i),
+			Address:   node.Address,
+			PubKey:    p2pNode.Pubkey(),
+			NodeID:    p2pNode.ID(),
+			BlsPubKey: &blsPubKey,
+		}
+	}
+	return vds
+}
+
+func convertToValidatorNodes(nodes []params.CbftNode) *ValidatorNodes {
+	var vds ValidatorNodes
+
+	for i, node := range nodes {
+		pubkey := node.Node.Pubkey()
+		if pubkey == nil {
+			panic("pubkey should not nil")
+		}
+
+		blsPubKey := node.BlsPubKey
+
+		nodeBuf, err := node.Node.MarshalText()
+		if err != nil {
+			panic(err)
+		}
+
+		vds.Nodes = append(vds.Nodes, ValidatorNode{
+			Index:     uint32(i),
+			Address:   crypto.PubkeyToNodeAddress(*pubkey),
+			Node:      nodeBuf,
+			BlsPubKey: blsPubKey.Serialize(),
+		})
+	}
+	return &vds
+}

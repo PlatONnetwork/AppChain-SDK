@@ -1,9 +1,10 @@
 package extravote
 
 import (
+	utils "github.com/PlatONnetwork/AppChain-SDK/common"
 	"github.com/PlatONnetwork/AppChain-SDK/merkle"
 	"github.com/PlatONnetwork/AppChain-SDK/store"
-	"github.com/PlatONnetwork/AppChain-SDK/utils"
+
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
 )

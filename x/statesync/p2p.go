@@ -2,11 +2,12 @@ package statesync
 
 import (
 	"errors"
-	sdkp2p "github.com/PlatONnetwork/AppChain-SDK/p2p"
-	"github.com/PlatONnetwork/PlatON-Go/p2p"
 	"math/big"
 	"slices"
 	"sync"
+
+	sdkp2p "github.com/PlatONnetwork/AppChain-SDK/p2p"
+	"github.com/PlatONnetwork/PlatON-Go/p2p"
 )
 
 type Heartbeat struct {

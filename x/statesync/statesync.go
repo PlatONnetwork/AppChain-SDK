@@ -16,9 +16,9 @@ import (
 	"math/big"
 )
 
-func (s *StateSync) ExtendDataImpl(epoch, view uint64, index uint32, header *types.Header) []byte {
+func (s *StateSync) ExtendDataImpl(ctx sdk.Context, epoch, view uint64, index uint32, header *types.Header) []byte {
 
-	receiver, err := s.newStateSyncCallContract(header.Hash())
+	receiver, err := s.newStateSyncCallContract(ctx, header.Hash())
 	if err != nil {
 		return nil
 	}
@@ -74,72 +74,6 @@ func (s *StateSync) PrepareQCImpl(block *protocols.PrepareBlock, votes map[uint3
 	s.eventProofDb.InsertRootBlock(root, block.Block.Hash())
 }
 
-func (s *StateSync) AddTxs(ctx sdk.Context, local map[common.Address]types.Transactions, remote map[common.Address]types.Transactions) (map[common.Address]types.Transactions, map[common.Address]types.Transactions) {
-	cc := ctx.(sdk.WorkerContext)
-	//创建commitment
-	receiver, err := s.newStateSyncCallContract(cc.Header().ParentHash)
-	if err != nil {
-		return local, remote
-	}
-	syncId, err := receiver.GetStateSyncId()
-	if err != nil {
-		return local, remote
-	}
-	commitment, err := receiver.GetCommitmentByStateSyncId(syncId)
-	if err != nil {
-		return local, remote
-	}
-	start := new(big.Int).Add(commitment.EndId, big.NewInt(1))
-	match, err := s.eventProofDb.FindProofRoot(start)
-	if err != nil {
-		return local, remote
-	}
-	blockHash := s.eventProofDb.GetRootBlock(match.Root)
-
-	block := s.backend.GetBlockByHash(blockHash)
-	_, qc, err := types2.DecodeExtra(block.ExtraData())
-	if err != nil {
-		return local, remote
-	}
-	index, voteProof, err := s.extraDb.GetProof(qc.Epoch, qc.ViewNumber, qc.BlockIndex, match.Root[:])
-	from := crypto.PubkeyToAddress(s.privateKey.PublicKey)
-	nonce, err := s.backend.GetPoolNonce(from)
-	if err != nil {
-		return local, remote
-	}
-	cmtx, err := s.createCommitTx(match, index, qc, voteProof, nonce)
-	if err != nil {
-		return local, remote
-	}
-
-	//创建 event proof
-	eventId := new(big.Int).Add(syncId, big.NewInt(1))
-	var events []*sync.StateSender
-	var proofs [][]common.Hash
-	for {
-		event, err := s.l1Sync.SyncDB().GetStateSenderEvent(eventId)
-		if event == nil || err != nil {
-			break
-		}
-		proof, err := s.eventProofDb.GetProof(match.Root, eventId)
-		if event == nil || err != nil {
-			break
-		}
-		events = append(events, event)
-		proofs = append(proofs, proof)
-	}
-	exTxs, err := s.createExecuteTxs(proofs, events, nonce+1)
-	if err != nil {
-		return local, remote
-	}
-	if local[from] == nil {
-		local[from] = types.Transactions{}
-	}
-	local[from] = append(local[from], cmtx)
-	local[from] = append(local[from], exTxs...)
-	return local, remote
-}
-
 func (s *StateSync) MaxSyncId() *big.Int {
 	//TODO 获取验证人列表
 	quorumId := s.p2p.GetQuorumSyncId(nil)
@@ -176,7 +110,7 @@ func (s *StateSync) GenProof(epoch, view uint64, index uint32, start, end *big.I
 	return trie.Hash(), nil
 }
 
-func (s *StateSync) createCommitTx(cm *contracts.StateSyncCommitment, index uint64, qc *types2.QuorumCert, voteProof []common.Hash, nonce uint64) (*types.Transaction, error) {
+func (s *StateSync) createCommitTx(ctx sdk.Context, cm *contracts.StateSyncCommitment, index uint64, qc *types2.QuorumCert, voteProof []common.Hash, nonce uint64) (*types.Transaction, error) {
 	input, err := contracts.Abi.Methods["commit"].Inputs.Pack(cm, index, voteProof, &contracts.QuorumCert{
 		Epoch:       qc.Epoch,
 		ViewNumber:  qc.ViewNumber,
@@ -189,7 +123,7 @@ func (s *StateSync) createCommitTx(cm *contracts.StateSyncCommitment, index uint
 		return nil, err
 	}
 	tx := types.NewTransaction(nonce, contracts.StateSyncAddress, nil, 100000, big.NewInt(0), input)
-	chainId, _ := s.backend.ChainId()
+	chainId, _ := ctx.Backend().ChainId()
 	signer := types.NewEIP155Signer(chainId)
 	tx, err = types.SignTx(tx, signer, s.privateKey)
 	if err != nil {
@@ -199,7 +133,7 @@ func (s *StateSync) createCommitTx(cm *contracts.StateSyncCommitment, index uint
 	return tx, nil
 }
 
-func (s *StateSync) createExecuteTxs(proofs [][]common.Hash, events []*sync.StateSender, nonce uint64) ([]*types.Transaction, error) {
+func (s *StateSync) createExecuteTxs(ctx sdk.Context, proofs [][]common.Hash, events []*sync.StateSender, nonce uint64) ([]*types.Transaction, error) {
 	var txs []*types.Transaction
 	for i, proof := range proofs {
 		input, err := contracts.Abi.Methods["execute"].Inputs.Pack(proof, events[i])
@@ -207,7 +141,7 @@ func (s *StateSync) createExecuteTxs(proofs [][]common.Hash, events []*sync.Stat
 			return nil, err
 		}
 		tx := types.NewTransaction(nonce, contracts.StateSyncAddress, nil, 100000, big.NewInt(0), input)
-		chainId, _ := s.backend.ChainId()
+		chainId, _ := ctx.Backend().ChainId()
 		signer := types.NewEIP155Signer(chainId)
 		tx, err = types.SignTx(tx, signer, s.privateKey)
 		if err != nil {
@@ -218,8 +152,8 @@ func (s *StateSync) createExecuteTxs(proofs [][]common.Hash, events []*sync.Stat
 	return txs, nil
 }
 
-func (s *StateSync) newStateSyncCallContract(hash common.Hash) (*contracts.StateReceiver, error) {
+func (s *StateSync) newStateSyncCallContract(ctx sdk.Context, hash common.Hash) (*contracts.StateReceiver, error) {
 	from := crypto.PubkeyToAddress(s.privateKey.PublicKey)
-	evm, _, _ := s.backend.GetEVM(NewOnlyCallMessage(from), hash)
+	evm, _, _ := ctx.Backend().GetEVM(NewOnlyCallMessage(from), hash)
 	return contracts.NewStateReceiver(evm, vm.NewContract(vm.AccountRef(from), vm.AccountRef(contracts.StateSyncAddress), big.NewInt(0), 1000000), true)
 }

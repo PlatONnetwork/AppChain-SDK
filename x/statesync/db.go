@@ -2,9 +2,9 @@ package statesync
 
 import (
 	"errors"
+	utils "github.com/PlatONnetwork/AppChain-SDK/common"
 	"github.com/PlatONnetwork/AppChain-SDK/merkle"
 	"github.com/PlatONnetwork/AppChain-SDK/store"
-	"github.com/PlatONnetwork/AppChain-SDK/utils"
 	"github.com/PlatONnetwork/AppChain-SDK/x/statesync/contracts"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/common/math"

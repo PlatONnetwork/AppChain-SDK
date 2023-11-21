@@ -47,7 +47,6 @@ func (kv *KVStore) NewIterator(prefix, start []byte) store.Iterator {
 		storeKey: kv.storeKey,
 		iter:     kv.db.NewIterator(prependStoreKey(kv.storeKey, prefix), start),
 	}
-
 }
 
 func (kv *KVStore) NewBatch() store.Batch {

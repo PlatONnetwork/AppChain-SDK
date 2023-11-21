@@ -1,0 +1,140 @@
+package stateevent
+
+import (
+	"errors"
+	"fmt"
+
+	"github.com/PlatONnetwork/AppChain-SDK/store"
+	"github.com/PlatONnetwork/AppChain-SDK/types/module"
+	"github.com/PlatONnetwork/AppChain-SDK/x/state_event/storage"
+	"github.com/PlatONnetwork/AppChain-SDK/x/state_event/types"
+	"github.com/PlatONnetwork/PlatON-Go/common"
+	coretypes "github.com/PlatONnetwork/PlatON-Go/core/types"
+	"github.com/PlatONnetwork/PlatON-Go/log"
+	"github.com/PlatONnetwork/PlatON-Go/sdk"
+)
+
+var (
+	_ module.Module        = (*Module)(nil)
+	_ module.BlockCommiter = (*Module)(nil)
+)
+
+// EventSubscriber specifies functions needed for a component to subscribe to stateEvent
+type EventSubscriber interface {
+	// GetLogFilters returns a map of log filters for getting desired events,
+	// where the key is the address of contract that emits desired events,
+	// and the value is a slice of signatures of events we want to get.
+	GetLogFilters() map[common.Address][]common.Hash
+
+	// ProcessLog is used to handle a log defined in GetLogFilters, provid
+	ProcessLog(header *coretypes.Header, log *coretypes.Log) error
+}
+
+type Module struct {
+	logger              log.Logger
+	store               *storage.Storage
+	subscriberIDCounter uint64
+
+	subscribers map[uint64]EventSubscriber
+	allFilters  map[common.Address]map[common.Hash][]uint64
+}
+
+func NewModule(kvStore store.Store) *Module {
+	return &Module{
+		logger:      log.New("module", types.ModuleName),
+		store:       storage.NewStorage(kvStore),
+		subscribers: make(map[uint64]EventSubscriber),
+		allFilters:  make(map[common.Address]map[common.Hash][]uint64, 0),
+	}
+}
+
+func (m *Module) Name() string {
+	return types.ModuleName
+}
+
+func (m *Module) OnCommit(ctx sdk.Context, block *coretypes.Block) error {
+	m.logger.Debug("OnCommit", "number", block.Number(), "hash", block.Hash())
+	if ctx.Backend() == nil {
+		m.logger.Error("Empty backend")
+		return errors.New("empty backend")
+	}
+	lastProcessedBlock, err := m.store.GetLastProcessedEventsBlock()
+	if err != nil {
+		m.logger.Error("Failed to get last proccessed events block", "number", block.Number(), "hash", block.Hash(), "err", err)
+		return err
+	}
+
+	if err := m.getEventsFromBlocks(ctx, lastProcessedBlock, block); err != nil {
+		m.logger.Error("Failed to get events from blocks", "lastProcessedBlock", lastProcessedBlock, "latestBlock", block.Number(), "err", err)
+		return err
+	}
+	if err := m.store.InsertLastProcessedEventBlock(block.NumberU64()); err != nil {
+		m.logger.Error("Failed to insert last processed event block", "number", block.Number(), "err", err)
+		return err
+	}
+	return nil
+}
+
+func (m *Module) Subscribe(subscriber EventSubscriber) {
+	m.subscriberIDCounter++
+	subscriberID := m.subscriberIDCounter
+	for address, filters := range subscriber.GetLogFilters() {
+		existingAddressFilters, exist := m.allFilters[address]
+		if !exist {
+			existingAddressFilters = make(map[common.Hash][]uint64, 0)
+			m.allFilters[address] = existingAddressFilters
+		}
+
+		for _, f := range filters {
+			existingAddressFilters[f] = append(existingAddressFilters[f], subscriberID)
+		}
+	}
+}
+
+func (m *Module) getEventsFromBlocks(ctx sdk.Context, lastProcessedBlock uint64, latestBlock *coretypes.Block) error {
+	if err := m.getEventsFromBlocksRange(ctx, lastProcessedBlock+1, latestBlock.NumberU64()-1); err != nil {
+		return err
+	}
+	return m.getEventsFromReceipts(ctx, latestBlock.Header(), ctx.Backend().ReadReceipts(latestBlock.Header().SealHash()))
+}
+
+func (m *Module) getEventsFromBlocksRange(ctx sdk.Context, from, to uint64) error {
+	for i := from; i <= to; i++ {
+		blockHeader := ctx.Backend().GetHeaderByNumber(i)
+		if blockHeader == nil {
+			return fmt.Errorf("block header not found(number: %d)", i)
+		}
+
+		receipts := ctx.Backend().GetReceiptsByHash(blockHeader.Hash())
+		if err := m.getEventsFromReceipts(ctx, blockHeader, receipts); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (m *Module) getEventsFromReceipts(ctx sdk.Context, blockHeader *coretypes.Header, receipts coretypes.Receipts) error {
+	for _, receipt := range receipts {
+		if receipt.Status != coretypes.ReceiptStatusSuccessful {
+			continue
+		}
+
+		for _, log := range receipt.Logs {
+			logFilters, isRelevantLog := m.allFilters[log.Address]
+			if !isRelevantLog {
+				continue
+			}
+
+			for logFilter, subscribers := range logFilters {
+				if log.Topics[0] == logFilter {
+					for _, subscriber := range subscribers {
+						if err := m.subscribers[subscriber].ProcessLog(blockHeader, log); err != nil {
+							return err
+						}
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
