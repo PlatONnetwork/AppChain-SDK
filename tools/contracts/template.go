@@ -316,9 +316,9 @@ type {{$contract.Type}}Caller struct {
 func New{{$contract.Type}}Caller(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*{{$contract.Type}}Caller, error) {
     s := &{{$contract.Type}}Caller{
 		contracts.BoundContract{
-			abi:      &Abi,
-			evm:      evm,
-			contract: contract,
+			Abi:      &Abi,
+			Evm:      evm,
+			Contract: contract,
 		},
     }
     return s, nil
@@ -383,9 +383,9 @@ type {{$contract.Type}}DelegateCaller struct {
 func New{{$contract.Type}}DelegateCaller(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*{{$contract.Type}}DelegateCaller, error) {
     s := &{{$contract.Type}}DelegateCaller{
 		contracts.BoundContract{
-			abi:      &Abi,
-			evm:      evm,
-			contract: contract,
+			Abi:      &Abi,
+			Evm:      evm,
+			Contract: contract,
 		},
     }
     return s, nil

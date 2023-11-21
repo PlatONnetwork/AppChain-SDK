@@ -94,13 +94,14 @@ func contract(ctx *cli.Context) error {
 		types = ctx.String(pkgFlag.Name)
 	}
 
-	frame, impl, _, err := Bind(string(abiJson), types, ctx.String(pkgFlag.Name), aliases)
+	frame, impl, caller, err := Bind(string(abiJson), types, ctx.String(pkgFlag.Name), aliases)
 	if err != nil {
 		return err
 	}
 	if !ctx.IsSet(outputFlag.Name) {
 		fmt.Printf("%s\n", frame)
 		fmt.Printf("%s\n", impl)
+		fmt.Printf("%s\n", caller)
 		return nil
 	}
 
@@ -114,7 +115,7 @@ func contract(ctx *cli.Context) error {
 		os.Exit(1)
 	}
 
-	if err := os.WriteFile(filepath.Join(ctx.String(outputFlag.Name), strings.ToLower(types)+"caller.go"), []byte(impl), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(ctx.String(outputFlag.Name), strings.ToLower(types)+"caller.go"), []byte(caller), 0600); err != nil {
 		fmt.Printf("Failed to write ABI binding: %v", err)
 		os.Exit(1)
 	}

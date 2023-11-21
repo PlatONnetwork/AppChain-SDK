@@ -8,9 +8,9 @@ import (
 )
 
 type BoundContract struct {
-	abi      *abi.ABI
-	contract *vm.Contract
-	evm      *vm.EVM
+	Abi      *abi.ABI
+	Contract *vm.Contract
+	Evm      *vm.EVM
 }
 
 func (c *BoundContract) Caller(to common.Address, results *[]interface{}, method string, params ...interface{}) error {
@@ -18,21 +18,21 @@ func (c *BoundContract) Caller(to common.Address, results *[]interface{}, method
 		results = new([]interface{})
 	}
 	// Pack the input, call and unpack the results
-	input, err := c.abi.Pack(method, params...)
+	input, err := c.Abi.Pack(method, params...)
 	if err != nil {
 		return err
 	}
-	output, err := contracts.Call(c.evm, c.contract, to, input, c.contract.Gas, c.contract.Value())
+	output, err := contracts.Call(c.Evm, c.Contract, to, input, c.Contract.Gas, c.Contract.Value())
 	if err != nil {
 		return err
 	}
 	if len(*results) == 0 {
-		res, err := c.abi.Unpack(method, output)
+		res, err := c.Abi.Unpack(method, output)
 		*results = res
 		return err
 	}
 	res := *results
-	return c.abi.UnpackIntoInterface(res[0], method, output)
+	return c.Abi.UnpackIntoInterface(res[0], method, output)
 }
 
 func (c *BoundContract) DelegateCaller(to common.Address, results *[]interface{}, method string, params ...interface{}) error {
@@ -40,19 +40,19 @@ func (c *BoundContract) DelegateCaller(to common.Address, results *[]interface{}
 		results = new([]interface{})
 	}
 	// Pack the input, call and unpack the results
-	input, err := c.abi.Pack(method, params...)
+	input, err := c.Abi.Pack(method, params...)
 	if err != nil {
 		return err
 	}
-	output, err := contracts.DelegateCall(c.evm, c.contract, to, input, c.contract.Gas)
+	output, err := contracts.DelegateCall(c.Evm, c.Contract, to, input, c.Contract.Gas)
 	if err != nil {
 		return err
 	}
 	if len(*results) == 0 {
-		res, err := c.abi.Unpack(method, output)
+		res, err := c.Abi.Unpack(method, output)
 		*results = res
 		return err
 	}
 	res := *results
-	return c.abi.UnpackIntoInterface(res[0], method, output)
+	return c.Abi.UnpackIntoInterface(res[0], method, output)
 }
