@@ -217,6 +217,22 @@ func (c *StakeHandler) setValidatorByPriority(validatorAddr common.Address, vali
 	return c.setValidator(validatorAddr, validator)
 }
 
+func (c *StakeHandler) updateValidatorRemovePriority(validatorAddr common.Address, validator *types.Validator) error {
+	old := c.GetValidator(validatorAddr)
+	if nil == old { // maybe short circuit
+		return nil
+	}
+	// delete old priority
+	if c.getValidatorPriority(old.BlockNumber, old.StakeIndex, old.Shares()).ValidatorAddr != validatorAddr {
+		return ErrMisMatching
+	}
+	if err := c.removeValidatorPriority(old.BlockNumber, old.StakeIndex, old.Shares()); nil != err {
+		return err
+	}
+	// set new priority only
+	return c.setValidator(validatorAddr, validator)
+}
+
 func (c *StakeHandler) updateValidatorByPriority(validatorAddr common.Address, validator *types.Validator) error {
 
 	old := c.GetValidator(validatorAddr)

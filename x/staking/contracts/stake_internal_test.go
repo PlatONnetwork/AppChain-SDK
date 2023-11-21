@@ -73,3 +73,10 @@ func TestDecodeData(t *testing.T) {
 
 	fmt.Printf("%s \n", addr1.Hex())
 }
+
+func TestEncodeMethod(t *testing.T) {
+	SyncState := crypto.Keccak256Hash([]byte("SyncState(address, bytes)"))
+	syncState := crypto.Keccak256Hash([]byte("syncState(address, bytes)"))
+	fmt.Printf("SyncState: %s \n", SyncState.Hex())
+	fmt.Printf("syncState: %s \n", syncState.Hex())
+}

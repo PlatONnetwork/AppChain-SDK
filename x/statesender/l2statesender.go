@@ -1,0 +1,146 @@
+package contracts
+
+import (
+	"encoding/hex"
+	"errors"
+	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
+	platon "github.com/PlatONnetwork/PlatON-Go"
+	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
+	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
+	"github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/core/types"
+	"github.com/PlatONnetwork/PlatON-Go/core/vm"
+	"github.com/PlatONnetwork/PlatON-Go/event"
+	"math/big"
+	"strings"
+)
+
+// Reference imports to suppress errors if they are not otherwise used.
+var (
+	_ = vm.EVM{}
+	_ = errors.New
+	_ = big.NewInt
+	_ = strings.NewReader
+	_ = platon.NotFound
+	_ = bind.Bind
+	_ = common.Big1
+	_ = types.BloomLookup
+	_ = event.NewSubscription
+)
+
+var (
+	ABI    = "[{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"id\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"sender\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"receiver\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"callData\",\"type\":\"bytes\"}],\"name\":\"L2StateSynced\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"MAX_LENGTH\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"counter\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"receiver\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"name\":\"syncState\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
+	Abi, _ = abi.JSON(strings.NewReader(ABI))
+)
+
+func (c *L2StateSender) Run(input []byte) ([]byte, error) {
+	if len(input) < 4 {
+		return nil, errors.New("input too short")
+	}
+	id := input[0:4]
+	entry, ok := c.methodEntry[hex.EncodeToString(id)]
+	if !ok {
+		if c.fallback != nil {
+			return c.fallback(input)
+		}
+		return nil, errors.New("methods not found")
+	}
+	return entry(input[4:])
+}
+func (c *L2StateSender) initMethodEntry() {
+
+	c.methodEntry = map[string]func([]byte) ([]byte, error){
+		"a6f9885c": c.MAXLENGTHEntry,
+		"61bc221a": c.CounterEntry,
+
+		"16f19831": c.SyncStateEntry,
+	}
+
+}
+
+func (c *L2StateSender) MAXLENGTHEntry(input []byte) ([]byte, error) {
+
+	method := c.abi.Methods["MAX_LENGTH"]
+
+	var err error
+
+	res0, err := c.MAXLENGTH()
+	if err != nil {
+		if r := err.(*typesdk.RevertError); r != nil {
+			return r.ReturnData, vm.ErrExecutionReverted
+		}
+		return nil, err
+	}
+	var output []byte
+
+	output, err = method.Outputs.Pack(res0)
+	if err != nil {
+		return nil, err
+	}
+
+	return output, err
+}
+
+func (c *L2StateSender) CounterEntry(input []byte) ([]byte, error) {
+
+	method := c.abi.Methods["counter"]
+
+	var err error
+
+	res0, err := c.Counter()
+	if err != nil {
+		if r := err.(*typesdk.RevertError); r != nil {
+			return r.ReturnData, vm.ErrExecutionReverted
+		}
+		return nil, err
+	}
+	var output []byte
+
+	output, err = method.Outputs.Pack(res0)
+	if err != nil {
+		return nil, err
+	}
+
+	return output, err
+}
+
+func (c *L2StateSender) SyncStateEntry(input []byte) ([]byte, error) {
+
+	method := c.abi.Methods["syncState"]
+
+	var err error
+
+	args, err := method.Inputs.Unpack(input)
+	if err != nil {
+		return nil, err
+	}
+
+	err = c.SyncState(*abi.ConvertType(args[0], new(common.Address)).(*common.Address), *abi.ConvertType(args[1], new([]byte)).(*[]byte))
+	if err != nil {
+		if r := err.(*typesdk.RevertError); r != nil {
+			return r.ReturnData, vm.ErrExecutionReverted
+		}
+		return nil, err
+	}
+	var output []byte
+
+	return output, err
+}
+
+func (c *L2StateSender) EmitL2StateSyncedEvent(id *big.Int, sender common.Address, receiver common.Address, callData []byte) (*types.Log, error) {
+	event := c.abi.Events["L2StateSynced"]
+	hashes, err := abi.PackTopics(event.Inputs, id, sender, receiver, callData)
+	if err != nil {
+		return nil, err
+	}
+	data, err := event.Inputs.Pack(id, sender, receiver, callData)
+	if err != nil {
+		return nil, err
+	}
+	return &types.Log{
+		Address:     c.contract.Address(),
+		Topics:      hashes,
+		Data:        data,
+		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
+	}, nil
+}

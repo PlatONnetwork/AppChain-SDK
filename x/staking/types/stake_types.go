@@ -86,37 +86,40 @@ func (status ValidatorStatus) IsInvalidUnstaked() bool {
 }
 
 type Validator struct {
-	Benefit        common.Address
+	Owner          common.Address
 	StakeAmount    *big.Int
 	DelegateAmount *big.Int
 	PubKey         *ecdsa.PublicKey
 	BlsKey         *bls.PublicKey
 	Status         ValidatorStatus
+	CommissionRate uint64
 	BlockNumber    uint64
 	StakeIndex     uint64
 }
 
-func NewValidator(benefit common.Address, stakeAmount, delegateAmount *big.Int, blsKey *bls.PublicKey, pubKey *ecdsa.PublicKey, blockNumber, stakeIndex uint64) *Validator {
+func NewValidator(owner common.Address, stakeAmount, delegateAmount *big.Int, blsKey *bls.PublicKey, pubKey *ecdsa.PublicKey, commissionRate, blockNumber, stakeIndex uint64) *Validator {
 	return &Validator{
-		Benefit:        benefit,
+		Owner:          owner,
 		StakeAmount:    stakeAmount,
 		DelegateAmount: delegateAmount,
-		BlsKey:         blsKey,
 		PubKey:         pubKey,
+		BlsKey:         blsKey,
+		CommissionRate: commissionRate,
 		BlockNumber:    blockNumber,
 		StakeIndex:     stakeIndex,
 	}
 }
 
 func (v *Validator) String() string {
-	return fmt.Sprintf(`{"Benefit": "%s","StakeAmount": "%d","DelegateAmount": "%d","PubKey": %s,"BlsKey": %s,"Status": %d,"StakeIndex": "%d"}`,
-		//fmt.Sprintf("%x", v.Addr.Bytes()),
-		fmt.Sprintf("%x", v.Benefit.Bytes()),
+	return fmt.Sprintf(`{"Owner": "%s","StakeAmount": "%d","DelegateAmount": "%d","PubKey": %s,"BlsKey": %s,"Status": %d,"CommissionRate": "%d", "BlockNumber": "%d", "StakeIndex": "%d"}`,
+		fmt.Sprintf("%x", v.Owner.Bytes()),
 		v.StakeAmount,
 		v.DelegateAmount,
 		hex.EncodeToString(crypto.FromECDSAPub(v.PubKey)),
 		hex.EncodeToString(v.BlsKey.Serialize()),
 		v.Status,
+		v.CommissionRate,
+		v.BlockNumber,
 		v.StakeIndex)
 }
 

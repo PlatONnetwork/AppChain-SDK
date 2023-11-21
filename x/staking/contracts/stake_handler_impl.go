@@ -80,13 +80,13 @@ func (c *StakeHandler) OnStateReceive(id *big.Int, sender common.Address, data [
 	if c.contract.Caller() != address.StateReceiverAddress || sender != address.RootchainStakeManagerAddress {
 		return typesdk.NewRevertError("StakeHandler: INVALID_SENDER")
 	}
-	if bytes.Compare(data[:METHODID_SIZE], _STAKE_SIG.Bytes()) == 0 {
+	if bytes.Compare(data[:METHODID_SIZE], STAKE_SIG.Bytes()) == 0 {
 		return c.onStake(data[METHODID_SIZE:])
-	} else if bytes.Compare(data[:METHODID_SIZE], _ADDSTAKE_SIG.Bytes()) == 0 {
+	} else if bytes.Compare(data[:METHODID_SIZE], ADDSTAKE_SIG.Bytes()) == 0 {
 		return c.onAddStake(data[METHODID_SIZE:])
-	} else if bytes.Compare(data[:METHODID_SIZE], _SLASH_SIG.Bytes()) == 0 {
+	} else if bytes.Compare(data[:METHODID_SIZE], SLASH_SIG.Bytes()) == 0 {
 		return c.onSlash(data[METHODID_SIZE:])
-	} else if bytes.Compare(data[:METHODID_SIZE], _DELEGATE_SIG.Bytes()) == 0 {
+	} else if bytes.Compare(data[:METHODID_SIZE], DELEGATE_SIG.Bytes()) == 0 {
 		return c.onDelegate(data[METHODID_SIZE:])
 	} else {
 		return typesdk.NewRevertError("StakeHandler: INVALID_METHOD_SIGN")
@@ -100,21 +100,23 @@ func (c *StakeHandler) Slash(validators []common.Address) error {
 	panic("implement")
 }
 
-func (c *StakeHandler) Undelegate(validator common.Address, amount *big.Int) error {
+func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int) error {
 	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
 		return err
 	}
 
 	// c.contract.Caller(): msg.sender
-	return c.registerDelegateWithdrawal(c.contract.Caller(), validator, amount)
+	return c.registerDelegateWithdrawal(c.contract.Caller(), validatorAddr, amount)
 }
 
-func (c *StakeHandler) Unstake(amount *big.Int) error {
+func (c *StakeHandler) Unstake(validatorAddr common.Address, amount *big.Int) error {
 	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
 		return err
 	}
-	// c.contract.Caller(): msg.sender
-	return c.registerStakeWithdrawal(c.contract.Caller(), amount)
+	if err := c.unStake(validatorAddr, amount); nil != err {
+		return err
+	}
+	return c.registerStakeWithdrawal(validatorAddr, amount)
 }
 
 func (c *StakeHandler) WithdrawUndelegate() error {
@@ -139,8 +141,12 @@ func (c *StakeHandler) WithdrawUnstake() error {
 		return err
 	}
 
-	//  stateSender.syncState(CustomChildChainManager, abi.encode(_UNSTAKE_SIG, msg.sender, amount));
-	//corecontracts.Call(c.evm)
+	//  stateSender.syncState(CustomChildChainManager, abi.encode(UNSTAKE_SIG, msg.sender, amount));
+
+	//ret, err := corecontracts.Call(c.evm, c.contract, implement, initialized, c.contract.Gas)
+	//if err != nil {
+	//	return typesdk.NewRevertError(string(ret))
+	//}
 
 	log.Info("Withdraw unstake for", "delegater", "validator", validatorAddr.Hex(), "amount", amount, "blockNumber", c.evm.Context.BlockNumber)
 	return nil
