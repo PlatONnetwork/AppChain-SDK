@@ -115,7 +115,7 @@ func (app *BaseApp) OnCommit(ctx sdk.Context, block *types.Block) error {
 	return app.manager.OnCommit(ctx, block)
 }
 
-func (app *BaseApp) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
+func (app *BaseApp) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data map[string]json.RawMessage) error {
 	app.chainID = chainConfig.ChainID
 	return app.manager.InitGenesis(ctx, db, chainConfig, data)
 }

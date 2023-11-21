@@ -6,6 +6,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/statesync"
 	"os"
 
+	"github.com/PlatONnetwork/AppChain-SDK/x"
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"github.com/PlatONnetwork/PlatON-Go/sdk/app"
