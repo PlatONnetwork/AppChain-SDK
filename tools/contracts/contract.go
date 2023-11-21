@@ -94,7 +94,7 @@ func contract(ctx *cli.Context) error {
 		types = ctx.String(pkgFlag.Name)
 	}
 
-	frame, impl, err := Bind(string(abiJson), types, ctx.String(pkgFlag.Name), aliases)
+	frame, impl, _, err := Bind(string(abiJson), types, ctx.String(pkgFlag.Name), aliases)
 	if err != nil {
 		return err
 	}
@@ -113,23 +113,32 @@ func contract(ctx *cli.Context) error {
 		fmt.Printf("Failed to write ABI binding: %v", err)
 		os.Exit(1)
 	}
+
+	if err := os.WriteFile(filepath.Join(ctx.String(outputFlag.Name), strings.ToLower(types)+"caller.go"), []byte(impl), 0600); err != nil {
+		fmt.Printf("Failed to write ABI binding: %v", err)
+		os.Exit(1)
+	}
 	return nil
 }
 
-func Bind(abiJson string, types string, pkg string, aliases map[string]string) (string, string, error) {
+func Bind(abiJson string, types string, pkg string, aliases map[string]string) (string, string, string, error) {
 	funcs, data, err := BindData(abiJson, types, pkg, aliases)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	frameCode, err := GenerateCode(funcs, data, tmplFrameSource)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	sourceCode, err := GenerateCode(funcs, data, implSource)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
-	return frameCode, sourceCode, nil
+	callerCode, err := GenerateCode(funcs, data, tmplCaller)
+	if err != nil {
+		return "", "", "", err
+	}
+	return frameCode, sourceCode, callerCode, nil
 }
 func BindData(abiJson string, types string, pkg string, aliases map[string]string) (map[string]interface{}, *tmplData, error) {
 	evmABI, err := abi.JSON(strings.NewReader(abiJson))

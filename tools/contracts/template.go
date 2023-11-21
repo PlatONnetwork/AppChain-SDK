@@ -275,3 +275,172 @@ func (c *{{$contract.Type}}) {{.Normalized.Name}}({{range $i, $_ := .Normalized.
 }
 {{end}}
 `
+
+const tmplCaller = `
+package {{.Package}}
+
+import (
+	"errors"
+	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
+	"github.com/PlatONnetwork/AppChain-SDK/tools/contracts"
+	platon "github.com/PlatONnetwork/PlatON-Go"
+	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
+	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
+	"github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/core/types"
+	"github.com/PlatONnetwork/PlatON-Go/core/vm"
+	"github.com/PlatONnetwork/PlatON-Go/event"
+	"math/big"
+	"strings"
+)
+
+// Reference imports to suppress errors if they are not otherwise used.
+var (
+	_ = typesdk.RevertError{}
+    _ = vm.EVM{}
+	_ = errors.New
+	_ = big.NewInt
+	_ = strings.NewReader
+	_ = platon.NotFound
+	_ = bind.Bind
+	_ = common.Big1
+	_ = types.BloomLookup
+	_ = event.NewSubscription
+)
+{{$contract := .Contract}}
+{{$structs := .Structs}}
+
+type {{$contract.Type}}Caller struct {
+    contracts.BoundContract
+}
+func New{{$contract.Type}}Caller(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*{{$contract.Type}}Caller, error) {
+    s := &{{$contract.Type}}Caller{
+		contracts.BoundContract{
+			abi:      &Abi,
+			evm:      evm,
+			contract: contract,
+		},
+    }
+    return s, nil
+}
+
+
+
+{{range .Contract.Calls}}
+func (c *{{$contract.Type}}Caller) {{.Normalized.Name}}(to common.Address {{range $i, $_ := .Normalized.Inputs}}, {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
+    var out []interface{}
+	err := c.BoundContract.Caller(to, &out, "{{.Original.Name}}" {{range .Normalized.Inputs}}, {{.Name}}{{end}})
+	{{if .Structured}}
+	outstruct := new(struct{ {{range .Normalized.Outputs}} {{.Name}} {{bindtype .Type $structs}}; {{end}} })
+	if err != nil {
+		return *outstruct, err
+	}
+	{{range $i, $t := .Normalized.Outputs}} 
+	outstruct.{{.Name}} = *abi.ConvertType(out[{{$i}}], new({{bindtype .Type $structs}})).(*{{bindtype .Type $structs}}){{end}}
+
+	return *outstruct, err
+	{{else}}
+	if err != nil {
+		return {{range $i, $_ := .Normalized.Outputs}}*new({{bindtype .Type $structs}}), {{end}} err
+	}
+	{{range $i, $t := .Normalized.Outputs}}
+	out{{$i}} := *abi.ConvertType(out[{{$i}}], new({{bindtype .Type $structs}})).(*{{bindtype .Type $structs}}){{end}}
+	
+	return {{range $i, $t := .Normalized.Outputs}}out{{$i}}, {{end}} err
+	{{end}}
+}
+{{end}}
+
+
+{{range .Contract.Transacts}}
+func (c *{{$contract.Type}}Caller) {{.Normalized.Name}}(to common.Address {{range $i, $_ := .Normalized.Inputs}}, {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
+        var out []interface{}
+	err := c.BoundContract.Caller(to, &out, "{{.Original.Name}}" {{range .Normalized.Inputs}}, {{.Name}}{{end}})
+	{{if .Structured}}
+	outstruct := new(struct{ {{range .Normalized.Outputs}} {{.Name}} {{bindtype .Type $structs}}; {{end}} })
+	if err != nil {
+		return *outstruct, err
+	}
+	{{range $i, $t := .Normalized.Outputs}} 
+	outstruct.{{.Name}} = *abi.ConvertType(out[{{$i}}], new({{bindtype .Type $structs}})).(*{{bindtype .Type $structs}}){{end}}
+
+	return *outstruct, err
+	{{else}}
+	if err != nil {
+		return {{range $i, $_ := .Normalized.Outputs}}*new({{bindtype .Type $structs}}), {{end}} err
+	}
+	{{range $i, $t := .Normalized.Outputs}}
+	out{{$i}} := *abi.ConvertType(out[{{$i}}], new({{bindtype .Type $structs}})).(*{{bindtype .Type $structs}}){{end}}
+	
+	return {{range $i, $t := .Normalized.Outputs}}out{{$i}}, {{end}} err
+	{{end}}
+}
+{{end}}
+
+type {{$contract.Type}}DelegateCaller struct {
+    contracts.BoundContract
+}
+func New{{$contract.Type}}DelegateCaller(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*{{$contract.Type}}DelegateCaller, error) {
+    s := &{{$contract.Type}}DelegateCaller{
+		contracts.BoundContract{
+			abi:      &Abi,
+			evm:      evm,
+			contract: contract,
+		},
+    }
+    return s, nil
+}
+
+
+
+{{range .Contract.Calls}}
+func (c *{{$contract.Type}}DelegateCaller) {{.Normalized.Name}}(to common.Address {{range $i, $_ := .Normalized.Inputs}}, {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
+    var out []interface{}
+	err := c.BoundContract.DelegateCaller(to, &out, "{{.Original.Name}}" {{range .Normalized.Inputs}}, {{.Name}}{{end}})
+	{{if .Structured}}
+	outstruct := new(struct{ {{range .Normalized.Outputs}} {{.Name}} {{bindtype .Type $structs}}; {{end}} })
+	if err != nil {
+		return *outstruct, err
+	}
+	{{range $i, $t := .Normalized.Outputs}} 
+	outstruct.{{.Name}} = *abi.ConvertType(out[{{$i}}], new({{bindtype .Type $structs}})).(*{{bindtype .Type $structs}}){{end}}
+
+	return *outstruct, err
+	{{else}}
+	if err != nil {
+		return {{range $i, $_ := .Normalized.Outputs}}*new({{bindtype .Type $structs}}), {{end}} err
+	}
+	{{range $i, $t := .Normalized.Outputs}}
+	out{{$i}} := *abi.ConvertType(out[{{$i}}], new({{bindtype .Type $structs}})).(*{{bindtype .Type $structs}}){{end}}
+	
+	return {{range $i, $t := .Normalized.Outputs}}out{{$i}}, {{end}} err
+	{{end}}
+}
+{{end}}
+
+
+{{range .Contract.Transacts}}
+func (c *{{$contract.Type}}DelegateCaller) {{.Normalized.Name}}(to common.Address {{range $i, $_ := .Normalized.Inputs}}, {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
+        var out []interface{}
+	err := c.BoundContract.DelegateCaller(to, &out, "{{.Original.Name}}" {{range .Normalized.Inputs}}, {{.Name}}{{end}})
+	{{if .Structured}}
+	outstruct := new(struct{ {{range .Normalized.Outputs}} {{.Name}} {{bindtype .Type $structs}}; {{end}} })
+	if err != nil {
+		return *outstruct, err
+	}
+	{{range $i, $t := .Normalized.Outputs}} 
+	outstruct.{{.Name}} = *abi.ConvertType(out[{{$i}}], new({{bindtype .Type $structs}})).(*{{bindtype .Type $structs}}){{end}}
+
+	return *outstruct, err
+	{{else}}
+	if err != nil {
+		return {{range $i, $_ := .Normalized.Outputs}}*new({{bindtype .Type $structs}}), {{end}} err
+	}
+	{{range $i, $t := .Normalized.Outputs}}
+	out{{$i}} := *abi.ConvertType(out[{{$i}}], new({{bindtype .Type $structs}})).(*{{bindtype .Type $structs}}){{end}}
+	
+	return {{range $i, $t := .Normalized.Outputs}}out{{$i}}, {{end}} err
+	{{end}}
+}
+{{end}}
+`
