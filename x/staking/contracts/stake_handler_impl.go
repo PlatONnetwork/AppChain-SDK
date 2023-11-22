@@ -3,10 +3,12 @@ package contracts
 import (
 	"bytes"
 	"errors"
+
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/x/address"
 	upgradecontracts "github.com/PlatONnetwork/AppChain-SDK/x/upgradesys/contracts"
 	platon "github.com/PlatONnetwork/PlatON-Go"
+
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -52,19 +54,19 @@ func NewStakeHandler(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*StakeH
 	return s, nil
 }
 
-func (c *StakeHandler) PendingWithdrawalsOfDelegate(account common.Address) (*big.Int, error) {
+func (c *StakeHandler) PendingWithdrawalsOfDelegate(validator common.Address, account common.Address) (*big.Int, error) {
 	panic("implement")
 }
 
-func (c *StakeHandler) PendingWithdrawalsOfStake(account common.Address) (*big.Int, error) {
+func (c *StakeHandler) PendingWithdrawalsOfStake(validator common.Address, account common.Address) (*big.Int, error) {
 	panic("implement")
 }
 
-func (c *StakeHandler) WithdrawableOfDelegate(account common.Address) (*big.Int, error) {
+func (c *StakeHandler) WithdrawableOfDelegate(validator common.Address, account common.Address) (*big.Int, error) {
 	panic("implement")
 }
 
-func (c *StakeHandler) WithdrawableOfStake(account common.Address) (*big.Int, error) {
+func (c *StakeHandler) WithdrawableOfStake(validator common.Address, account common.Address) (*big.Int, error) {
 	panic("implement")
 }
 
@@ -104,7 +106,7 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
 		return err
 	}
-
+	// todo ...
 	// c.contract.Caller(): msg.sender
 	return c.registerDelegateWithdrawal(c.contract.Caller(), validatorAddr, amount)
 }
@@ -119,36 +121,53 @@ func (c *StakeHandler) Unstake(validatorAddr common.Address, amount *big.Int) er
 	return c.registerStakeWithdrawal(validatorAddr, amount)
 }
 
-func (c *StakeHandler) WithdrawUndelegate() error {
+func (c *StakeHandler) WithdrawUndelegate(validator common.Address) error {
+	//if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
+	//	return err
+	//}
+	//
+	//currentEpoch := c.GetCurrentEpoch()
+	//delegater := c.contract.Caller()
+	//amount, newHead := c.GetDelegateWithdrawable(delegater, validator, currentEpoch)
+	//if err := c.updateDelegateWithdrawQueueBoundHead(validator, newHead); nil != err {
+	//	log.Error("Failed to withdraw unstake", "validatorAddr", validator.Hex(),
+	//		"currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber, "amount", amount, "error", err)
+	//	return typesdk.NewRevertError("StakeHandler: UPDATE STAKE WITHDRAW PENDDING HEAD FAILED")
+	//}
+	//
+	//if err := c.addLogStakeWithdrawalEvent(validator, amount); nil != err {
+	//	return err
+	//}
+	//
+	//if err := c.syncStateUnStake(validator, amount); nil != err {
+	//	return err
+	//}
+	//
+	//log.Info("Withdraw unstake for", "delegater", delegater, "validator", validator.Hex(), "amount", amount, "blockNumber", c.evm.Context.BlockNumber)
+	return nil
+}
+
+func (c *StakeHandler) WithdrawUnstake(validator common.Address) error {
 	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
 		return err
 	}
 
-	return nil
-}
-
-func (c *StakeHandler) WithdrawUnstake() error {
 	currentEpoch := c.GetCurrentEpoch()
-	validatorAddr := c.contract.Caller()
-	amount, newHead := c.GetStakeWithdrawable(validatorAddr, currentEpoch)
-	if err := c.updateStakeWithdrawQueueBoundHead(validatorAddr, newHead); nil != err {
-		log.Error("Failed to withdraw unstake", "validatorAddr", validatorAddr.Hex(),
+	amount, newHead := c.GetStakeWithdrawable(validator, currentEpoch)
+	if err := c.updateStakeWithdrawalQueueBoundHead(validator, newHead); nil != err {
+		log.Error("Failed to withdraw unstake", "validatorAddr", validator.Hex(),
 			"currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber, "amount", amount, "error", err)
 		return typesdk.NewRevertError("StakeHandler: UPDATE STAKE WITHDRAW PENDDING HEAD FAILED")
 	}
 
-	if err := c.addLogStakeWithdrawalEvent(validatorAddr, amount); nil != err {
+	if err := c.addLogStakeWithdrawalEvent(validator, amount); nil != err {
 		return err
 	}
 
-	//  stateSender.syncState(CustomChildChainManager, abi.encode(UNSTAKE_SIG, msg.sender, amount));
+	if err := c.syncStateUnStake(validator, amount); nil != err {
+		return err
+	}
 
-	//ret, err := corecontracts.Call(c.evm, c.contract, implement, initialized, c.contract.Gas)
-	//if err != nil {
-	//	return typesdk.NewRevertError(string(ret))
-	//}
-
-	log.Info("Withdraw unstake for", "delegater", "validator", validatorAddr.Hex(), "amount", amount, "blockNumber", c.evm.Context.BlockNumber)
+	log.Info("Withdraw unstake for", "validator", validator.Hex(), "amount", amount, "blockNumber", c.evm.Context.BlockNumber)
 	return nil
-
 }

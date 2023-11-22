@@ -4,7 +4,9 @@ import (
 	"crypto/ecdsa"
 	"encoding/hex"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
+	"github.com/PlatONnetwork/AppChain-SDK/x/address"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
+	statesenderC "github.com/PlatONnetwork/AppChain-SDK/x/statesender/contracts"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
 	"github.com/PlatONnetwork/PlatON-Go/crypto/bls"
@@ -30,12 +32,14 @@ var (
 var (
 	STAKE_PARAMS_TYPE             = abi.MustNewType("tuple(address validatorAddr, address ownerAddr, uint256 amount, uint256 commissionRate, uint256[2] bksKey, bytes pubKey)")
 	ADDSTAKE_PARAMS_TYPE          = abi.MustNewType("tuple(address validatorAddr, uint256 amount)")
-	UNSTAKE_PARAMS_TYPE           = abi.MustNewType("tuple(address validatorAddr, uint256 amount)")
+	UNSTAKE_PARAMS_TYPE           = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, uint256 amount)")
 	ROOT_CHAIN_SLASH_PARAMS_TYPE  = abi.MustNewType("tuple(address[] validatorAddrs, uint256 slashingPercentage, uint256 slashIncentivePercentage)")
 	CHILD_CHAIN_SLASH_PARAMS_TYPE = abi.MustNewType("tuple(uint256 handleEventId, address[] validatorAddrs)")
 	DELEGATE_PARAMS_TYPE          = abi.MustNewType("tuple(address validatorAddr, address delegterAddr, uint256 amount)")
-	UNDELEGATE_PARAMS_TYPE        = abi.MustNewType("tuple(address validatorAddr, address delegterAddr, uint256 amount)")
+	UNDELEGATE_PARAMS_TYPE        = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, address delegterAddr, uint256 amount)")
 )
+
+var ()
 
 func (c *StakeHandler) onStake(input []byte) error {
 	decoded, err := abi.Decode(STAKE_PARAMS_TYPE, input)
@@ -188,12 +192,11 @@ func (c *StakeHandler) stake(validatorAddr, owner common.Address, amount *big.In
 	return nil
 }
 
+// todo 如果存在 失效的 validator 或者 不存在的 validator 应该将 stake Amount 追加到 stakeWithdrawal 中
 func (c *StakeHandler) addStake(validatorAddr common.Address, amount *big.Int) error {
 	validator := c.GetValidator(validatorAddr)
-	if nil == validator {
-		return typesdk.NewRevertError("StakeHandler: INVALID_VALIDATOR")
-	}
-	if validator.IsInvalid() {
+
+	if validator.IsEmpty() || validator.IsInvalid() {
 		return typesdk.NewRevertError("StakeHandler: INVALID_VALIDATOR")
 	}
 
@@ -210,10 +213,8 @@ func (c *StakeHandler) addStake(validatorAddr common.Address, amount *big.Int) e
 
 func (c *StakeHandler) unStake(validatorAddr common.Address, amount *big.Int) error {
 	validator := c.GetValidator(validatorAddr)
-	if nil == validator {
-		return typesdk.NewRevertError("StakeHandler: INVALID_VALIDATOR")
-	}
-	if validator.IsInvalid() {
+
+	if validator.IsEmpty() || validator.IsInvalid() {
 		return typesdk.NewRevertError("StakeHandler: INVALID_VALIDATOR")
 	}
 
@@ -251,13 +252,12 @@ func (c *StakeHandler) slash(handleEventId *big.Int, validatorAddrs []common.Add
 	return nil
 }
 
+// todo 如果存在 失效的 validator 或者 不存在的 validator 应该将 delegate Amount 追加到 delegateWithdrawal 中
 func (c *StakeHandler) delegate(validatorAddr, delegaterAddr common.Address, amount *big.Int) error {
-	if c.hasNotValidator(validatorAddr) {
-		return typesdk.NewRevertError("StakeHandler: INVALID_VALIDATOR")
-	}
 
 	validator := c.GetValidator(validatorAddr)
-	if validator.IsInvalid() {
+
+	if validator.IsEmpty() || validator.IsInvalid() {
 		return typesdk.NewRevertError("StakeHandler: INVALID_VALIDATOR")
 	}
 
@@ -273,7 +273,7 @@ func (c *StakeHandler) delegate(validatorAddr, delegaterAddr common.Address, amo
 		return typesdk.NewRevertError("StakeHandler: ADD DELEGATE AMOUNT OF VALIDATOR FAILED")
 	}
 	// update delegation
-	if err := c.updateDelegation(delegaterAddr, validatorAddr, types.NewDelegation(c.evm.Context.BlockNumber.Uint64(), amount)); nil != err {
+	if err := c.updateDelegation(delegaterAddr, validatorAddr, validator.BlockNumber, types.NewDelegation(c.evm.Context.BlockNumber.Uint64(), amount)); nil != err {
 		log.Error("Failed to set delegation", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
 		return typesdk.NewRevertError("StakeHandler: SET DELEGATION FAILED")
 	}
@@ -300,11 +300,11 @@ func (c *StakeHandler) registerStakeWithdrawal(validatorAddr common.Address, amo
 func (c *StakeHandler) registerDelegateWithdrawal(delegater, validatorAddr common.Address, amount *big.Int) error {
 	currentEpoch := c.GetCurrentEpoch()
 	releaseEpoch := currentEpoch + DELEGATE_WITHDRAWAL_WAIT_PERIOD
-	if err := c.appendDelegateWithdrawal(delegater, validatorAddr, releaseEpoch, amount); nil != err {
-		log.Error("Failed to register delegate withdraw", "delegater", delegater.Hex(), "validatorAddr", validatorAddr.Hex(),
-			"currentEpoch", currentEpoch, "releaseEpoch", releaseEpoch, "blockNumber", c.evm.Context.BlockNumber, "amount", amount, "error", err)
-		return typesdk.NewRevertError("StakeHandler: SET REGISTER DELEGATE WITHDRAW FAILED")
-	}
+	//if err := c.appendDelegateWithdrawal(delegater, validatorAddr, releaseEpoch, amount); nil != err {
+	//	log.Error("Failed to register delegate withdraw", "delegater", delegater.Hex(), "validatorAddr", validatorAddr.Hex(),
+	//		"currentEpoch", currentEpoch, "releaseEpoch", releaseEpoch, "blockNumber", c.evm.Context.BlockNumber, "amount", amount, "error", err)
+	//	return typesdk.NewRevertError("StakeHandler: SET REGISTER DELEGATE WITHDRAW FAILED")
+	//}
 
 	if err := c.addLogDelegateWithdrawalRegisteredEvent(delegater, validatorAddr, amount); nil != err {
 		return err
@@ -313,20 +313,37 @@ func (c *StakeHandler) registerDelegateWithdrawal(delegater, validatorAddr commo
 	return nil
 }
 
-//func (c *StakeHandler) syncState(destinationContract common.Address, data []byte) error {
-//
-//	_ADDSTAKE_SIG := crypto.Keccak256Hash([]byte("ADDSTAKE"))
-//	addr := common.HexToAddress("0xFA66dAa530328D0d914B6652e4B64B00d84e3a1a")
-//	amount := 99
-//	//abiType := abi.MustNewType("tuple(bytes32, address, uint256)")
-//	abiType := abi.MustNewType("tuple(bytes32 STAKE_SIG, address addr, uint256 amount)")
-//	input, err := abiType.Encode([]interface{}{_ADDSTAKE_SIG, addr, amount})
-//	if nil != err {
-//		t.Error(err)
-//	}
-//
-//	ret, err := corecontracts.Call(c.evm, c.contract, address.StakeSenderAddress, initialized, c.contract.Gas)
-//	if err != nil {
-//		return typesdk.NewRevertError(string(ret))
-//	}
-//}
+func (c *StakeHandler) syncStateUnStake(validatorAddr common.Address, amount *big.Int) error {
+
+	data, err := abi.Encode([]interface{}{UNSTAKE_SIG, validatorAddr, amount}, UNSTAKE_PARAMS_TYPE)
+	if nil != err {
+		return typesdk.NewRevertError("encode L2StateSender unstake data failed")
+	}
+
+	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, address.StakeSenderAddress)
+	if nil != err {
+		return typesdk.NewRevertError("call unstake by L2StateSender failed")
+	}
+
+	if err := l2statesender.SyncState(address.RootchainStakeManagerAddress, data); nil != err {
+		return typesdk.NewRevertError("call unstake by L2StateSender failed")
+	}
+	return nil
+}
+
+func (c *StakeHandler) syncStateUnDelegate(validatorAddr, delegaterAddr common.Address, amount *big.Int) error {
+	data, err := abi.Encode([]interface{}{UNDELEGATE_SIG, validatorAddr, delegaterAddr, amount}, UNDELEGATE_PARAMS_TYPE)
+	if nil != err {
+		return typesdk.NewRevertError("encode L2StateSender undelegate data failed")
+	}
+
+	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, address.StakeSenderAddress)
+	if nil != err {
+		return typesdk.NewRevertError("call undelegate by L2StateSender failed")
+	}
+
+	if err := l2statesender.SyncState(address.RootchainStakeManagerAddress, data); nil != err {
+		return typesdk.NewRevertError("call undelegate by L2StateSender failed")
+	}
+	return nil
+}

@@ -341,16 +341,27 @@ func (bound *StakeWithdrawalBound) IncrementTail(increment uint64) {
 }
 
 type StakeWithdrawalItem struct {
-	Epoch  uint64   // release epoch
-	Amount *big.Int // withdraw amount
+	PreEpoch  uint64   // pre release epoch
+	NextEpoch uint64   // next release epoch
+	Amount    *big.Int // withdraw amount
 }
 
-func NewStakeWithdrawalItem(epoch uint64, amount *big.Int) *StakeWithdrawalItem {
+func NewStakeWithdrawalItem(preEpoch, nextEpoch uint64, amount *big.Int) *StakeWithdrawalItem {
 	return &StakeWithdrawalItem{
-		Epoch:  epoch,
-		Amount: amount,
+		PreEpoch:  preEpoch,
+		NextEpoch: nextEpoch,
+		Amount:    amount,
 	}
 }
+
+func (item *StakeWithdrawalItem) UpdatePreEpoch(epoch uint64) {
+	item.PreEpoch = epoch
+}
+
+func (item *StakeWithdrawalItem) UpdateNextEpoch(epoch uint64) {
+	item.NextEpoch = epoch
+}
+
 func (item *StakeWithdrawalItem) IncrementAmount(increment *big.Int) {
 	item.Amount = new(big.Int).Add(item.Amount, increment)
 }
@@ -398,4 +409,55 @@ func NewDelegateWithdrawalItem(epoch uint64, amount *big.Int) *DelegateWithdrawa
 }
 func (item *DelegateWithdrawalItem) IncrementAmount(increment *big.Int) {
 	item.Amount = new(big.Int).Add(item.Amount, increment)
+}
+
+type UnStakeRcBound struct {
+	Head uint64
+	Tail uint64
+}
+
+func NewUnStakeRcBound(head, tail uint64) *UnStakeRcBound {
+	return &UnStakeRcBound{
+		Head: head,
+		Tail: tail,
+	}
+}
+
+func (bound *UnStakeRcBound) UpdateHead(newHead uint64) {
+	bound.Head = newHead
+}
+
+func (bound *UnStakeRcBound) UpdateTail(newTail uint64) {
+	bound.Tail = newTail
+}
+
+func (bound *UnStakeRcBound) IncrementHead(increment uint64) {
+	bound.Head += increment
+}
+
+func (bound *UnStakeRcBound) IncrementTail(increment uint64) {
+	bound.Tail += increment
+}
+
+type UnStakeRcItem struct {
+	// This means how many delegates in the current `staceBlock` have not been fully withdrawn
+	// eg. delegaterA:validatorA:stakeBlock(100)、 ...、 delegaterN:validatorA:stakeBlock(100)
+	Rc uint64
+	// The uniqueness flag of a stack is: validator: staceBlock
+	StakeBlock uint64
+}
+
+func NewUnStakeRcItem(rc, stakeBlock uint64) *UnStakeRcItem {
+	return &UnStakeRcItem{
+		Rc:         rc,
+		StakeBlock: stakeBlock,
+	}
+}
+
+func (item *UnStakeRcItem) DecrementRc(decrement uint64) {
+	if item.Rc < decrement {
+		item.Rc = 0
+	} else {
+		item.Rc -= decrement
+	}
 }

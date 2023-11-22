@@ -66,7 +66,7 @@ func (c *L2StateSender) MAXLENGTHEntry(input []byte) ([]byte, error) {
 
 	res0, err := c.MAXLENGTH()
 	if err != nil {
-		if r := err.(*typesdk.RevertError); r != nil {
+		if r, ok := err.(*typesdk.RevertError); ok {
 			return r.ReturnData, vm.ErrExecutionReverted
 		}
 		return nil, err
@@ -89,7 +89,7 @@ func (c *L2StateSender) CounterEntry(input []byte) ([]byte, error) {
 
 	res0, err := c.Counter()
 	if err != nil {
-		if r := err.(*typesdk.RevertError); r != nil {
+		if r, ok := err.(*typesdk.RevertError); ok {
 			return r.ReturnData, vm.ErrExecutionReverted
 		}
 		return nil, err
@@ -117,7 +117,7 @@ func (c *L2StateSender) SyncStateEntry(input []byte) ([]byte, error) {
 
 	err = c.SyncState(*abi.ConvertType(args[0], new(common.Address)).(*common.Address), *abi.ConvertType(args[1], new([]byte)).(*[]byte))
 	if err != nil {
-		if r := err.(*typesdk.RevertError); r != nil {
+		if r, ok := err.(*typesdk.RevertError); ok {
 			return r.ReturnData, vm.ErrExecutionReverted
 		}
 		return nil, err

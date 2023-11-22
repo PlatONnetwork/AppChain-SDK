@@ -80,3 +80,37 @@ func TestEncodeMethod(t *testing.T) {
 	fmt.Printf("SyncState: %s \n", SyncState.Hex())
 	fmt.Printf("syncState: %s \n", syncState.Hex())
 }
+
+func TestInsertItem(t *testing.T) {
+
+	a := []uint64{1, 2, 4, 5, 6}
+
+	//a := []uint64{}
+
+	size := len(a)
+
+	item := uint64(2)
+
+	if size != 0 {
+		if a[size-1] < item {
+			a = append(a, item)
+		} else {
+			for i := 0; i < size; i++ {
+				if a[i] == item {
+					break
+				}
+
+				if a[i] > item {
+					a = append(a, 0)
+					copy(a[i+1:], a[i:])
+					a[i] = item
+					break
+				}
+			}
+		}
+	} else {
+		a = []uint64{item}
+	}
+
+	fmt.Printf("a len : %d, \n a: %+v \n", len(a), a)
+}
