@@ -252,7 +252,7 @@ func (c *StakeHandler) slash(handleEventId *big.Int, validatorAddrs []common.Add
 	return nil
 }
 
-// todo 如果存在 失效的 validator 或者 不存在的 validator 应该将 delegate Amount 追加到 delegateWithdrawal 中
+// TODO  如果存在 失效的 validator 或者 不存在的 validator 应该将 delegate Amount 追加到 delegateWithdrawal 中
 func (c *StakeHandler) delegate(validatorAddr, delegaterAddr common.Address, amount *big.Int) error {
 
 	validator := c.GetValidator(validatorAddr)

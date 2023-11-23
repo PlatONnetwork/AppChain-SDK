@@ -122,28 +122,28 @@ func (c *StakeHandler) Unstake(validatorAddr common.Address, amount *big.Int) er
 }
 
 func (c *StakeHandler) WithdrawUndelegate(validator common.Address) error {
-	//if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
-	//	return err
-	//}
-	//
-	//currentEpoch := c.GetCurrentEpoch()
-	//delegater := c.contract.Caller()
-	//amount, newHead := c.GetDelegateWithdrawable(delegater, validator, currentEpoch)
-	//if err := c.updateDelegateWithdrawQueueBoundHead(validator, newHead); nil != err {
-	//	log.Error("Failed to withdraw unstake", "validatorAddr", validator.Hex(),
-	//		"currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber, "amount", amount, "error", err)
-	//	return typesdk.NewRevertError("StakeHandler: UPDATE STAKE WITHDRAW PENDDING HEAD FAILED")
-	//}
-	//
-	//if err := c.addLogStakeWithdrawalEvent(validator, amount); nil != err {
-	//	return err
-	//}
-	//
-	//if err := c.syncStateUnStake(validator, amount); nil != err {
-	//	return err
-	//}
-	//
-	//log.Info("Withdraw unstake for", "delegater", delegater, "validator", validator.Hex(), "amount", amount, "blockNumber", c.evm.Context.BlockNumber)
+	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
+		return err
+	}
+
+	currentEpoch := c.GetCurrentEpoch()
+	delegater := c.contract.Caller()
+	amount, err := c.applyDelegateWithdrawable(delegater, validator, currentEpoch)
+	if nil != err {
+		log.Error("Failed to withdraw undelegate", "validatorAddr", validator.Hex(),
+			"currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber, "amount", amount, "error", err)
+		return typesdk.NewRevertError("StakeHandler: UPDATE STAKE WITHDRAW PENDDING HEAD FAILED")
+	}
+
+	if err := c.addLogDelegateWithdrawalEvent(delegater, validator, amount); nil != err {
+		return err
+	}
+
+	if err := c.syncStateUnDelegate(validator, delegater, amount); nil != err {
+		return err
+	}
+
+	log.Info("Withdraw undelegate for", "delegater", delegater, "validator", validator.Hex(), "amount", amount, "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }
 
@@ -153,8 +153,8 @@ func (c *StakeHandler) WithdrawUnstake(validator common.Address) error {
 	}
 
 	currentEpoch := c.GetCurrentEpoch()
-	amount, newHead := c.GetStakeWithdrawable(validator, currentEpoch)
-	if err := c.updateStakeWithdrawalQueueBoundHead(validator, newHead); nil != err {
+	amount, err := c.applyStakeWithdrawable(validator, currentEpoch)
+	if nil != err {
 		log.Error("Failed to withdraw unstake", "validatorAddr", validator.Hex(),
 			"currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber, "amount", amount, "error", err)
 		return typesdk.NewRevertError("StakeHandler: UPDATE STAKE WITHDRAW PENDDING HEAD FAILED")

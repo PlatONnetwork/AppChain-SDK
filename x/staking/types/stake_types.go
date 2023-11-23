@@ -236,25 +236,25 @@ func (v *Validator) IsInvalidUnstaked() bool {
 }
 
 type PriorityValidator struct {
-	Previous      []byte // previous priority validator key in statedb
-	Next          []byte // next priority validator key in statedb
+	PreKey        []byte // previous priority validator key in statedb
+	NextKey       []byte // next priority validator key in statedb
 	ValidatorAddr common.Address
 }
 
-func NewPriorityValidator(previous, next []byte, addr common.Address) *PriorityValidator {
+func NewPriorityValidator(preKey, nextKey []byte, addr common.Address) *PriorityValidator {
 	return &PriorityValidator{
-		Previous:      previous,
-		Next:          next,
+		PreKey:        preKey,
+		NextKey:       nextKey,
 		ValidatorAddr: addr,
 	}
 }
 
-func (pv *PriorityValidator) UpdatePrevious(previous []byte) {
-	pv.Previous = previous
+func (pv *PriorityValidator) UpdatePreKey(key []byte) {
+	pv.PreKey = key
 }
 
-func (pv *PriorityValidator) UpdateNext(next []byte) {
-	pv.Next = next
+func (pv *PriorityValidator) UpdateNextKey(key []byte) {
+	pv.NextKey = key
 }
 
 type ValidatorIds []common.Address
@@ -312,34 +312,6 @@ type Epoch struct {
 	End   uint64
 }
 
-type StakeWithdrawalBound struct {
-	Head uint64
-	Tail uint64
-}
-
-func NewStakeWithdrawalBound(head, tail uint64) *StakeWithdrawalBound {
-	return &StakeWithdrawalBound{
-		Head: head,
-		Tail: tail,
-	}
-}
-
-func (bound *StakeWithdrawalBound) UpdateHead(newHead uint64) {
-	bound.Head = newHead
-}
-
-func (bound *StakeWithdrawalBound) UpdateTail(newTail uint64) {
-	bound.Tail = newTail
-}
-
-func (bound *StakeWithdrawalBound) IncrementHead(increment uint64) {
-	bound.Head += increment
-}
-
-func (bound *StakeWithdrawalBound) IncrementTail(increment uint64) {
-	bound.Tail += increment
-}
-
 type StakeWithdrawalItem struct {
 	PreEpoch  uint64   // pre release epoch
 	NextEpoch uint64   // next release epoch
@@ -368,93 +340,61 @@ func (item *StakeWithdrawalItem) IncrementAmount(increment *big.Int) {
 
 // -------------
 
-type DelegateWithdrawalBound struct {
-	Head uint64
-	Tail uint64
-}
-
-func NewDelegateWithdrawalBound(head, tail uint64) *DelegateWithdrawalBound {
-	return &DelegateWithdrawalBound{
-		Head: head,
-		Tail: tail,
-	}
-}
-
-func (bound *DelegateWithdrawalBound) UpdateHead(newHead uint64) {
-	bound.Head = newHead
-}
-
-func (bound *DelegateWithdrawalBound) UpdateTail(newTail uint64) {
-	bound.Tail = newTail
-}
-
-func (bound *DelegateWithdrawalBound) IncrementHead(increment uint64) {
-	bound.Head += increment
-}
-
-func (bound *DelegateWithdrawalBound) IncrementTail(increment uint64) {
-	bound.Tail += increment
-}
-
 type DelegateWithdrawalItem struct {
-	Epoch  uint64   // release epoch
-	Amount *big.Int // withdraw amount
+	PreEpoch  uint64   // pre release epoch
+	NextEpoch uint64   // next release epoch
+	Amount    *big.Int // withdraw amount
 }
 
-func NewDelegateWithdrawalItem(epoch uint64, amount *big.Int) *DelegateWithdrawalItem {
+func NewDelegateWithdrawalItem(preEpoch, nextEpoch uint64, amount *big.Int) *DelegateWithdrawalItem {
 	return &DelegateWithdrawalItem{
-		Epoch:  epoch,
-		Amount: amount,
+		PreEpoch:  preEpoch,
+		NextEpoch: nextEpoch,
+		Amount:    amount,
 	}
 }
+
+func (item *DelegateWithdrawalItem) UpdatePreEpoch(epoch uint64) {
+	item.PreEpoch = epoch
+}
+
+func (item *DelegateWithdrawalItem) UpdateNextEpoch(epoch uint64) {
+	item.NextEpoch = epoch
+}
+
 func (item *DelegateWithdrawalItem) IncrementAmount(increment *big.Int) {
 	item.Amount = new(big.Int).Add(item.Amount, increment)
 }
 
-type UnStakeRcBound struct {
-	Head uint64
-	Tail uint64
-}
-
-func NewUnStakeRcBound(head, tail uint64) *UnStakeRcBound {
-	return &UnStakeRcBound{
-		Head: head,
-		Tail: tail,
-	}
-}
-
-func (bound *UnStakeRcBound) UpdateHead(newHead uint64) {
-	bound.Head = newHead
-}
-
-func (bound *UnStakeRcBound) UpdateTail(newTail uint64) {
-	bound.Tail = newTail
-}
-
-func (bound *UnStakeRcBound) IncrementHead(increment uint64) {
-	bound.Head += increment
-}
-
-func (bound *UnStakeRcBound) IncrementTail(increment uint64) {
-	bound.Tail += increment
-}
-
-type UnStakeRcItem struct {
+type UnStakeDelegationRcItem struct {
+	PreStakeBlock  uint64
+	NextStakeBlock uint64
 	// This means how many delegates in the current `staceBlock` have not been fully withdrawn
 	// eg. delegaterA:validatorA:stakeBlock(100)、 ...、 delegaterN:validatorA:stakeBlock(100)
 	Rc uint64
-	// The uniqueness flag of a stack is: validator: staceBlock
-	StakeBlock uint64
 }
 
-func NewUnStakeRcItem(rc, stakeBlock uint64) *UnStakeRcItem {
-	return &UnStakeRcItem{
-		Rc:         rc,
-		StakeBlock: stakeBlock,
+func NewUnStakeDelegationRcItem(preStakeBlock, nextStakeBlock, delegationRc uint64) *UnStakeDelegationRcItem {
+	return &UnStakeDelegationRcItem{
+		PreStakeBlock:  preStakeBlock,
+		NextStakeBlock: nextStakeBlock,
+		Rc:             delegationRc,
 	}
 }
 
-func (item *UnStakeRcItem) DecrementRc(decrement uint64) {
+func (item *UnStakeDelegationRcItem) UpdatePreStakeBlock(stakeBlock uint64) {
+	item.PreStakeBlock = stakeBlock
+}
+
+func (item *UnStakeDelegationRcItem) UpdateNextStakeBlock(stakeBlock uint64) {
+	item.NextStakeBlock = stakeBlock
+}
+
+func (item *UnStakeDelegationRcItem) IncrementRc(increment uint64) {
+	item.Rc += increment
+}
+
+func (item *UnStakeDelegationRcItem) DecrementRc(decrement uint64) {
 	if item.Rc < decrement {
 		item.Rc = 0
 	} else {

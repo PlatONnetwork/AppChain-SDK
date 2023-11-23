@@ -114,3 +114,16 @@ func TestInsertItem(t *testing.T) {
 
 	fmt.Printf("a len : %d, \n a: %+v \n", len(a), a)
 }
+
+func TestInsertSlice(t *testing.T) {
+
+	a := []uint64{1, 2, 6, 7, 8}
+
+	b := []uint64{3, 4, 5}
+
+	a = append(a, b...)
+
+	copy(a[2+len(b):], a[2:])
+	copy(a[2:], b)
+	fmt.Printf("a len : %d, \n a: %+v \n", len(a), a)
+}
