@@ -2,26 +2,26 @@ package contractsapi
 
 import (
 	"fmt"
+	"github.com/PlatONnetwork/PlatON-Go/common"
 	"math/big"
 	"strings"
 
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint/contractsapi/checkpoint_manager"
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint/contractsapi/l2_state_sender"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
-	"github.com/PlatONnetwork/PlatON-Go/common"
 	coretypes "github.com/PlatONnetwork/PlatON-Go/core/types"
 	ethgoabi "github.com/umbracle/ethgo/abi"
 )
 
 type Validator struct {
 	Address common.Address `abi:"_address"`
-	BlsKey  [2]*big.Int    `abi:"blsKey"`
+	BlsKey  [2]*big.Int    `abi:"blskey"`
 }
 
 var (
-	ValidatorABIType        = ethgoabi.MustNewType("tuple(address _address,uint256[2] blsKey)")
-	CheckpointManagerABI, _ = abi.JSON(strings.NewReader(checkpoint_manager.CheckpointManagerABI))
-	L2StateSenderABI, _     = abi.JSON(strings.NewReader(l2_state_sender.L2StateSenderABI))
+	ValidatorABIType        = ethgoabi.MustNewType("tuple(address _address,uint256[2] blskey)")
+	CheckpointManagerABI, _ = abi.JSON(strings.NewReader(checkpoint_manager.CheckpointManagerMetaData.ABI))
+	L2StateSenderABI, _     = abi.JSON(strings.NewReader(l2_state_sender.L2StateSenderMetaData.ABI))
 )
 
 func (v *Validator) EncodeAbi() ([]byte, error) {

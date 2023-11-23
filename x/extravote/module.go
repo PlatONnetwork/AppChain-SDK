@@ -2,11 +2,13 @@ package extravote
 
 import (
 	"errors"
+
 	"github.com/PlatONnetwork/AppChain-SDK/merkle"
 	"github.com/PlatONnetwork/AppChain-SDK/store"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/protocols"
+	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 )
@@ -35,13 +37,14 @@ func (e *ExtraVote) ExtendData(ctx sdk.Context) []byte {
 	data := make([][]byte, len(e.modules))
 	for i, m := range e.modules {
 		data[i] = m.ExtendData(ctx)
+		log.Info("Extend data for module", "module", m.Name(), "data", len(data[i]))
 	}
 	extraData, _ := rlp.EncodeToBytes(data)
 	return extraData
 }
 
 func (e *ExtraVote) VerifyExtendData(ctx sdk.Context, data []byte) (common.Hash, error) {
-	cc := ctx.Context().(sdk.ConsensusContext)
+	cc := ctx.(sdk.ConsensusContext)
 
 	var extraData [][]byte
 	err := rlp.DecodeBytes(data, &extraData)
@@ -55,6 +58,7 @@ func (e *ExtraVote) VerifyExtendData(ctx sdk.Context, data []byte) (common.Hash,
 	for i, m := range e.modules {
 		leaf, err := m.VerifyExtendData(ctx, extraData[i])
 		if err != nil {
+			log.Error("Failed to verify extend data", "i", i, "module", m.Name(), "err", err)
 			return common.Hash{}, err
 		}
 		trieNodes = append(trieNodes, leaf.Bytes())

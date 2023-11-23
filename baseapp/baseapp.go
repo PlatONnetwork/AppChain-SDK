@@ -51,7 +51,7 @@ func (app *BaseApp) ChainID() *big.Int {
 }
 
 func (app *BaseApp) Start() error {
-	return nil
+	return app.manager.Init()
 }
 
 func (app *BaseApp) Stop() error {

@@ -15,6 +15,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/statesync"
 	"github.com/PlatONnetwork/AppChain-SDK/x/txrelayer"
 	"github.com/PlatONnetwork/PlatON-Go/cmd/utils"
+	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/node"
 	"gopkg.in/urfave/cli.v1"
 )
@@ -28,10 +29,18 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 	if ctx.GlobalIsSet(utils.DataDirFlag.Name) {
 		datadir = ctx.GlobalString(utils.DataDirFlag.Name)
 	}
+	if datadir != "" {
+		absdatadir, err := filepath.Abs(datadir)
+		if err != nil {
+			return nil, err
+		}
+		datadir = absdatadir
+	}
 
 	dbfile := filepath.Join(datadir, "sdk")
-	store, err := storage.NewStorage(dbfile, 256, 1024, "sdk")
+	store, err := storage.NewStorage(dbfile, 256, 512, "sdk")
 	if err != nil {
+		log.Error("failed to new storage", "err", err)
 		return nil, err
 	}
 
@@ -45,10 +54,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 	staking := staking.NewModule(store)
 
 	rootchainRpc := ctx.GlobalString(x.RootchainNodeRPCFlag.Name)
-	rootchainTxRelayer, err := txrelayer.NewModule(rootchainRpc, txrelayer.DefaultReceiptTimeout, txrelayer.DefaultNumRetries)
-	if err != nil {
-		return nil, err
-	}
+	rootchainTxRelayer := txrelayer.NewModule(rootchainRpc, txrelayer.DefaultReceiptTimeout, txrelayer.DefaultNumRetries)
 
 	checkpoint, err := checkpoint.NewModule(
 		ctx,
@@ -64,8 +70,9 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 	manager := module.NewManager(stateSync, stateEvent, l1Module, extraVote, checkpoint, staking)
 	manager.SetElection(staking.Name())
 	manager.SetConsensusExtend(extraVote.Name())
-	manager.SetWorker(stateSync.Name())
-	manager.SetOrderGenesis(l1Module.Name())
+	//manager.SetWorker(stateSync.Name())
+	manager.SetOrderInit(stateSync.Name(), checkpoint.Name())
+	manager.SetOrderGenesis(l1Module.Name(), staking.Name())
 
 	app := &SimApp{}
 	baseApp, err := baseapp.NewBaseApp("simapp", store, manager)

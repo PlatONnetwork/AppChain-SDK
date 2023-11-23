@@ -2,6 +2,8 @@ package statesync
 
 import (
 	"errors"
+	"math/big"
+
 	"github.com/PlatONnetwork/AppChain-SDK/merkle"
 	"github.com/PlatONnetwork/AppChain-SDK/x/statesync/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/x/statesync/sync"
@@ -11,15 +13,15 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
+	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
-	"math/big"
 )
 
 func (s *StateSync) ExtendDataImpl(ctx sdk.Context, epoch, view uint64, index uint32, header *types.Header) []byte {
-
-	receiver, err := s.newStateSyncCallContract(ctx, header.Hash())
+	receiver, err := s.newStateSyncCallContract(ctx, header)
 	if err != nil {
+		log.Error("Failed to new state sync call contract", "err", err)
 		return nil
 	}
 	syncId, err := receiver.GetStateSyncId()
@@ -152,8 +154,11 @@ func (s *StateSync) createExecuteTxs(ctx sdk.Context, proofs [][]common.Hash, ev
 	return txs, nil
 }
 
-func (s *StateSync) newStateSyncCallContract(ctx sdk.Context, hash common.Hash) (*contracts.StateReceiver, error) {
+func (s *StateSync) newStateSyncCallContract(ctx sdk.Context, header *types.Header) (*contracts.StateReceiver, error) {
 	from := crypto.PubkeyToAddress(s.privateKey.PublicKey)
-	evm, _, _ := ctx.Backend().GetEVM(NewOnlyCallMessage(from), hash)
+	evm, _, err := ctx.Backend().GetEVM(NewOnlyCallMessage(from), header)
+	if err != nil {
+		return nil, err
+	}
 	return contracts.NewStateReceiver(evm, vm.NewContract(vm.AccountRef(from), vm.AccountRef(contracts.StateSyncAddress), big.NewInt(0), 1000000), true)
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/PlatONnetwork/AppChain-SDK/store"
+	"github.com/syndtr/goleveldb/leveldb/errors"
 )
 
 const StorePrefixTpl = "s/k:%s/"
@@ -31,7 +32,11 @@ func (kv *KVStore) Has(key []byte) (bool, error) {
 }
 
 func (kv *KVStore) Get(key []byte) ([]byte, error) {
-	return kv.db.Get(prependStoreKey(kv.storeKey, key))
+	val, err := kv.db.Get(prependStoreKey(kv.storeKey, key))
+	if err != nil && err != errors.ErrNotFound {
+		return []byte{}, err
+	}
+	return val, nil
 }
 
 func (kv *KVStore) Set(key, value []byte) error {
