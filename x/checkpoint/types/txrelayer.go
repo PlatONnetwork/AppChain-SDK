@@ -8,6 +8,8 @@ import (
 )
 
 type TxRelayer interface {
+	// Init initializing TxRelayer module
+	Init() error
 	// Call executes a message call immediately without creating a transaction on the blockchain
 	Call(from common.Address, to common.Address, data []byte) ([]byte, error)
 	// SendTransaction signs given transaction by provided key and sends it to the blockchain

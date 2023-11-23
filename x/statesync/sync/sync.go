@@ -3,6 +3,10 @@ package sync
 import (
 	"context"
 	"errors"
+	"math/big"
+	"strings"
+	"time"
+
 	"github.com/PlatONnetwork/AppChain-SDK/store"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
@@ -10,9 +14,6 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/ethclient"
 	"github.com/PlatONnetwork/PlatON-Go/log"
-	"math/big"
-	"strings"
-	"time"
 )
 
 var (
@@ -47,12 +48,7 @@ type L1Sync struct {
 func NewL1Sync(stateSenderAddr common.Address, url string, start *big.Int, db store.Store) (*L1Sync, error) {
 	syncdb := NewL1SyncDB(db)
 	log := log.New("l1sync")
-	if url == "" {
-		return &L1Sync{
-			log: log,
-			db:  syncdb,
-		}, nil
-	}
+
 	cli, err := ethclient.Dial(url)
 	if err != nil {
 		return nil, err
