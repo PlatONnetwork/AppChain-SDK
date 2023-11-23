@@ -21,6 +21,10 @@ type Module interface {
 	Name() string
 }
 
+type InitModule interface {
+	Init() error
+}
+
 type ContractModule interface {
 	Module
 	sdk.SDKContract
@@ -89,6 +93,7 @@ type Manager struct {
 	ConsensusExtend    string
 	Election           string
 	Worker             string
+	OrderInit          []string
 	OrderTxPool        []string
 	OrderBlockCommiter []string
 	OrderGenesis       []string
@@ -105,12 +110,22 @@ func NewManager(modules ...Module) *Manager {
 	}
 	return &Manager{
 		Modules:            moduleMap,
+		OrderInit:          moduleStr,
 		OrderTxPool:        moduleStr,
 		OrderBlockCommiter: moduleStr,
 		OrderGenesis:       moduleStr,
 		OrderBlocker:       moduleStr,
 		OrderTransaction:   moduleStr,
 	}
+}
+
+func (m *Manager) SetOrderInit(moduleNames ...string) {
+	m.assertNoForgottenModules("SetOrderInit", moduleNames, func(moduleName string) bool {
+		module := m.Modules[moduleName]
+		_, hasInit := module.(InitModule)
+		return !hasInit
+	})
+	m.OrderInit = moduleNames
 }
 
 func (m *Manager) SetOrderTxPool(moduleNames ...string) {
@@ -180,6 +195,21 @@ func (m *Manager) SetOrderTransaction(moduleNames ...string) {
 		return !has
 	})
 	m.OrderTransaction = moduleNames
+}
+
+func (m *Manager) Init() error {
+	log.Info("Init modules for sdk")
+	for _, moduleName := range m.OrderInit {
+		mod := m.Modules[moduleName]
+		if module, ok := mod.(InitModule); ok {
+			log.Info("Init for module", "module", moduleName)
+			if err := module.Init(); err != nil {
+				log.Error("Failed to init module", "module", moduleName, "err", err)
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (m *Manager) Contracts() []sdk.SDKContract {
@@ -356,7 +386,7 @@ func (m *Manager) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *para
 	for _, moduleName := range m.OrderGenesis {
 		mod := m.Modules[moduleName]
 		if module, ok := mod.(GenesisModule); ok {
-			log.Debug("Running initialization for module ", "module", moduleName)
+			log.Info("Running initialization for module ", "module", moduleName)
 			module.InitGenesis(ctx, db, chainConfig, data[moduleName])
 		}
 	}

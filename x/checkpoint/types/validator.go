@@ -11,7 +11,7 @@ import (
 	"github.com/umbracle/ethgo/abi"
 )
 
-var accountSetABIType = abi.MustNewType(`tuple(tuple(address _address, uint256[2] blsKey)[])`)
+var accountSetABIType = abi.MustNewType(`tuple(tuple(address _address, uint256[2] blskey)[])`)
 
 type ValidatorMetadata struct {
 	Address common.Address
