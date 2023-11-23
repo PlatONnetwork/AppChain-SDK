@@ -50,11 +50,11 @@ func (m *Module) Name() string {
 	return ModuleName
 }
 
-func (m *Module) IsEndOfEpoch(blockNumber uint64) bool {
-	return blockNumber % NumberBlocksOfEpoch == 0
+func (m *Module) IsEndOfRound(blockNumber uint64) bool {
+	return blockNumber%NumberBlocksOfEpoch == 0
 }
 
-func (m *Module) BlocksOfEpoch() uint64 {
+func (m *Module) BlocksOfRound() uint64 {
 	return NumberBlocksOfEpoch
 }
 

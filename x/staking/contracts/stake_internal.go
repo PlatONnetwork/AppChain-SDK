@@ -39,7 +39,10 @@ var (
 	UNDELEGATE_PARAMS_TYPE        = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, address delegterAddr, uint256 amount)")
 )
 
-var ()
+func (c *StakeHandler) Initialize() error {
+
+	return nil
+}
 
 func (c *StakeHandler) onStake(input []byte) error {
 	decoded, err := abi.Decode(STAKE_PARAMS_TYPE, input)
@@ -176,10 +179,6 @@ func (c *StakeHandler) stake(validatorAddr, owner common.Address, amount *big.In
 		return typesdk.NewRevertError("StakeHandler: VALIDATOR ALREADY STAKE")
 	}
 
-	if amount.Cmp(MIN_STAKE) < 0 {
-		return typesdk.NewRevertError("StakeHandler: NOT ENOUGH STAKE")
-	}
-
 	blockNumber := c.evm.Context.BlockNumber.Uint64()
 	stakeIndex := c.incrementValidatorNonce()
 
@@ -259,10 +258,6 @@ func (c *StakeHandler) delegate(validatorAddr, delegaterAddr common.Address, amo
 
 	if validator.IsEmpty() || validator.IsInvalid() {
 		return typesdk.NewRevertError("StakeHandler: INVALID_VALIDATOR")
-	}
-
-	if amount.Cmp(MIN_DELEGATE) < 0 {
-		return typesdk.NewRevertError("StakeHandler: NOT ENOUGH DELEGATE")
 	}
 
 	// update validator priority

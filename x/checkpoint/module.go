@@ -140,7 +140,7 @@ func (m *Module) ExtendData(ctx sdk.Context) []byte {
 
 	logger.Debug("Extend data")
 
-	if m.staking.IsEndOfEpoch(header.Number.Uint64()) {
+	if m.staking.IsEndOfRound(header.Number.Uint64()) {
 		currentValidators, err := m.staking.GetValidator(ctx, header.Number.Uint64())
 		if err != nil {
 			logger.Error("Failed to get current round valdiators", "err", err)
@@ -219,7 +219,7 @@ func (m *Module) VerifyExtendData(ctx sdk.Context, data []byte) (common.Hash, er
 
 	logger.Debug("Verify extend data")
 
-	if m.staking.IsEndOfEpoch(header.Number.Uint64()) {
+	if m.staking.IsEndOfRound(header.Number.Uint64()) {
 		var checkpoint types.CheckpointData
 		if err := checkpoint.UnmarshalRLP(data); err != nil {
 			logger.Error("Failed to unmarshal rlp", "data", fmt.Sprintf("%x", data), "err", err)
@@ -320,7 +320,7 @@ func (m *Module) PrepareQC(ctx sdk.Context, block *protocols.PrepareBlock, votes
 	logger := m.logger.New("epoch", sdkCtx.Epoch(), "view", sdkCtx.View(), "index", sdkCtx.BlockIndex(), "number", sdkCtx.Header().Number, "hash", sdkCtx.Header().Hash())
 	logger.Debug("Prepare QC")
 
-	if m.staking.IsEndOfEpoch(block.BlockNum()) {
+	if m.staking.IsEndOfRound(block.BlockNum()) {
 		checkpoint, err := m.store.GetCheckpoint(block.BlockNum())
 		if err != nil {
 			m.logger.Error("Failed to get checkpoint from store", "err", err)
@@ -339,7 +339,7 @@ func (m *Module) PrepareQC(ctx sdk.Context, block *protocols.PrepareBlock, votes
 	}
 
 	latestNumber := block.Block.NumberU64() - types.CheckpointCommitDis
-	if m.staking.IsEndOfEpoch(latestNumber) && sdkCtx.IsProposer() {
+	if m.staking.IsEndOfRound(latestNumber) && sdkCtx.IsProposer() {
 		go func(number uint64, epoch uint64) {
 			if err := m.submitCheckpoint(ctx, number); err != nil {
 				logger.Error("Failed to submit checkpoint", "checkpoint number", number, "err", err)
@@ -364,7 +364,7 @@ func (m *Module) submitCheckpoint(ctx sdk.Context, latestNumber uint64) error {
 		"latest checkpoint block", lastCheckpointBlockNumber,
 		"checkpoint block", latestNumber)
 
-	blocksOfEpoch := m.staking.BlocksOfEpoch()
+	blocksOfEpoch := m.staking.BlocksOfRound()
 	initialBlockNumber := lastCheckpointBlockNumber + blocksOfEpoch
 
 	for blockNumber := initialBlockNumber; blockNumber <= latestNumber; {
