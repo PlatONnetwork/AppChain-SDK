@@ -93,11 +93,11 @@ type Validator struct {
 	BlsKey         *bls.PublicKey
 	Status         ValidatorStatus
 	CommissionRate uint64
-	BlockNumber    uint64
+	Epoch          uint64
 	StakeIndex     uint64
 }
 
-func NewValidator(owner common.Address, stakeAmount, delegateAmount *big.Int, blsKey *bls.PublicKey, pubKey *ecdsa.PublicKey, commissionRate, blockNumber, stakeIndex uint64) *Validator {
+func NewValidator(owner common.Address, stakeAmount, delegateAmount *big.Int, blsKey *bls.PublicKey, pubKey *ecdsa.PublicKey, commissionRate, epoch, stakeIndex uint64) *Validator {
 	return &Validator{
 		Owner:          owner,
 		StakeAmount:    stakeAmount,
@@ -105,13 +105,13 @@ func NewValidator(owner common.Address, stakeAmount, delegateAmount *big.Int, bl
 		PubKey:         pubKey,
 		BlsKey:         blsKey,
 		CommissionRate: commissionRate,
-		BlockNumber:    blockNumber,
+		Epoch:          epoch,
 		StakeIndex:     stakeIndex,
 	}
 }
 
 func (v *Validator) String() string {
-	return fmt.Sprintf(`{"Owner": "%s","StakeAmount": "%d","DelegateAmount": "%d","PubKey": %s,"BlsKey": %s,"Status": %d,"CommissionRate": "%d", "BlockNumber": "%d", "StakeIndex": "%d"}`,
+	return fmt.Sprintf(`{"Owner": "%s","StakeAmount": "%d","DelegateAmount": "%d","PubKey": %s,"BlsKey": %s,"Status": %d,"CommissionRate": "%d", "Epoch": "%d", "StakeIndex": "%d"}`,
 		fmt.Sprintf("%x", v.Owner.Bytes()),
 		v.StakeAmount,
 		v.DelegateAmount,
@@ -119,7 +119,7 @@ func (v *Validator) String() string {
 		hex.EncodeToString(v.BlsKey.Serialize()),
 		v.Status,
 		v.CommissionRate,
-		v.BlockNumber,
+		v.Epoch,
 		v.StakeIndex)
 }
 
@@ -267,11 +267,6 @@ func (eids ValidatorIds) String() string {
 	return "[" + strings.Join(arr, ",") + "]"
 }
 
-func (eids ValidatorIds) Append(validatorId common.Address) ValidatorIds {
-	eids = append(eids, validatorId)
-	return eids
-}
-
 func (eids ValidatorIds) Has(validatorId common.Address) bool {
 	for _, id := range eids {
 		if id == validatorId {
@@ -280,17 +275,6 @@ func (eids ValidatorIds) Has(validatorId common.Address) bool {
 	}
 	return false
 }
-
-//
-//func (eids ValidatorIds) remove(validatorId common.Address) ValidatorIds {
-//	for i := 0; i < len(eids); i++ {
-//		if eids[i] == validatorId {
-//			eids = append(eids[:i], eids[i+1:]...)
-//			break
-//		}
-//	}
-//	return eids
-//}
 
 func (eids ValidatorIds) Remove(validatorIds ...common.Address) ValidatorIds {
 	cache := make(map[common.Address]struct{}, 0)
@@ -307,9 +291,28 @@ func (eids ValidatorIds) Remove(validatorIds ...common.Address) ValidatorIds {
 	return eids
 }
 
-type Epoch struct {
-	Start uint64
-	End   uint64
+type EpochItem struct {
+	PreEpoch   uint64
+	NextEpoch  uint64
+	StartBlock uint64
+	EndBlock   uint64
+}
+
+func NewEpochItem(preEpoch, nextEpoch, startBlock, endBlock uint64) *EpochItem {
+	return &EpochItem{
+		PreEpoch:   preEpoch,
+		NextEpoch:  nextEpoch,
+		StartBlock: startBlock,
+		EndBlock:   endBlock,
+	}
+}
+
+func (item *EpochItem) UpdatePreEpoch(epoch uint64) {
+	item.PreEpoch = epoch
+}
+
+func (item *EpochItem) UpdateNextEpoch(epoch uint64) {
+	item.NextEpoch = epoch
 }
 
 type StakeWithdrawalItem struct {
@@ -336,6 +339,14 @@ func (item *StakeWithdrawalItem) UpdateNextEpoch(epoch uint64) {
 
 func (item *StakeWithdrawalItem) IncrementAmount(increment *big.Int) {
 	item.Amount = new(big.Int).Add(item.Amount, increment)
+}
+
+func (item *StakeWithdrawalItem) IsEmpty() bool {
+	return nil == item
+}
+
+func (item *StakeWithdrawalItem) IsNotEmpty() bool {
+	return !item.IsEmpty()
 }
 
 // -------------
@@ -367,27 +378,27 @@ func (item *DelegateWithdrawalItem) IncrementAmount(increment *big.Int) {
 }
 
 type UnStakeDelegationRcItem struct {
-	PreStakeBlock  uint64
-	NextStakeBlock uint64
-	// This means how many delegates in the current `staceBlock` have not been fully withdrawn
-	// eg. delegaterA:validatorA:stakeBlock(100)、 ...、 delegaterN:validatorA:stakeBlock(100)
+	PreStakeEpoch  uint64
+	NextStakeEpoch uint64
+	// This means how many delegates in the current `stakeEpoch` have not been fully withdrawn
+	// eg. delegaterA:validatorA:stakeEpoch(100)、 ...、 delegaterN:validatorA:stakeEpoch(100)
 	Rc uint64
 }
 
-func NewUnStakeDelegationRcItem(preStakeBlock, nextStakeBlock, delegationRc uint64) *UnStakeDelegationRcItem {
+func NewUnStakeDelegationRcItem(preStakeEpoch, nextStakeEpoch, delegationRc uint64) *UnStakeDelegationRcItem {
 	return &UnStakeDelegationRcItem{
-		PreStakeBlock:  preStakeBlock,
-		NextStakeBlock: nextStakeBlock,
+		PreStakeEpoch:  preStakeEpoch,
+		NextStakeEpoch: nextStakeEpoch,
 		Rc:             delegationRc,
 	}
 }
 
-func (item *UnStakeDelegationRcItem) UpdatePreStakeBlock(stakeBlock uint64) {
-	item.PreStakeBlock = stakeBlock
+func (item *UnStakeDelegationRcItem) UpdatePreStakeEpoch(stakeEpoch uint64) {
+	item.PreStakeEpoch = stakeEpoch
 }
 
-func (item *UnStakeDelegationRcItem) UpdateNextStakeBlock(stakeBlock uint64) {
-	item.NextStakeBlock = stakeBlock
+func (item *UnStakeDelegationRcItem) UpdateNextStakeEpoch(stakeEpoch uint64) {
+	item.NextStakeEpoch = stakeEpoch
 }
 
 func (item *UnStakeDelegationRcItem) IncrementRc(increment uint64) {
@@ -400,4 +411,19 @@ func (item *UnStakeDelegationRcItem) DecrementRc(decrement uint64) {
 	} else {
 		item.Rc -= decrement
 	}
+}
+
+type UnStakeDelegationRcQueue []*UnStakeDelegationRcItem
+
+func NewUnStakeDelegationRcQueue(size uint64) UnStakeDelegationRcQueue {
+	queue := make(UnStakeDelegationRcQueue, size)
+	return queue
+}
+
+func (queue UnStakeDelegationRcQueue) IsEmpty() bool {
+	return len(queue) == 0
+}
+
+func (queue UnStakeDelegationRcQueue) IsNotEmpty() bool {
+	return !queue.IsEmpty()
 }

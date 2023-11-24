@@ -3,19 +3,19 @@ package types
 import "math/big"
 
 type Delegation struct {
-	BlockNumber uint64
-	Amount      *big.Int
+	Epoch  uint64
+	Amount *big.Int
 }
 
-func NewDelegation(blockNumber uint64, amount *big.Int) *Delegation {
+func NewDelegation(epoch uint64, amount *big.Int) *Delegation {
 	return &Delegation{
-		BlockNumber: blockNumber,
-		Amount:      amount,
+		Epoch:  epoch,
+		Amount: amount,
 	}
 }
 
-func (d *Delegation) UpdateBlockNumber(blockNumber uint64) {
-	d.BlockNumber = blockNumber
+func (d *Delegation) UpdateEpoch(epoch uint64) {
+	d.Epoch = epoch
 }
 
 func (d *Delegation) AddAmount(amount *big.Int) {

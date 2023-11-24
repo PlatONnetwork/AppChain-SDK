@@ -11,58 +11,59 @@ import (
 )
 
 var (
-	ErrStoreFailed = errors.New("store failed")
-	ErrRlpEncode   = errors.New("rlp encode failed")
-	ErrRlpDecode   = errors.New("rlp decode failed")
-	ErrNotFound    = errors.New("not found")
-	ErrMisMatching = errors.New("mismatching")
+	ErrStoreFailed  = errors.New("store failed")
+	ErrRlpEncode    = errors.New("rlp encode failed")
+	ErrRlpDecode    = errors.New("rlp decode failed")
+	ErrNotFound     = errors.New("not found")
+	ErrMisMatching  = errors.New("mismatching")
+	ErrInvalidValue = errors.New("invalid value")
 )
 
 var (
 	//validatorDelegaterCountKeyPrefix    = []byte("validatorDelegaterCount")
 	validatorNonceKey          = []byte("validatorNonce")        // "validatorNonce" => nonce (It is a self increasing stake index number)
 	validatorKeyPrefix         = []byte("validator")             // "validator":validatorAddr => validator
-	delegationKeyPrefix        = []byte("delegation")            // "delegater":delegaterAddr:validatorAddr:stakeBlockNumber => delegation
+	delegationKeyPrefix        = []byte("delegation")            // "delegater":delegaterAddr:validatorAddr:stakeEpoch => delegation
 	currentEpochKey            = []byte("currentEpoch")          // "currentEpoch" => currentEpoch (It is a number)
 	currentRoundKey            = []byte("currentRound")          // "currentRound" => currentRound (It is a number)
 	epochValidatorIdsKeyPrefix = []byte("epochValidatorIds")     // "epochValidatorIds":epochId => []validatorAddr  (For settlement epoch)
 	roundValidatorIdsKeyPrefix = []byte("roundValidatorIds")     // "roundValidatorIds":roundId => []validatorAddr  (For consensus round)
 	PriorityValidatorHeadKey   = []byte("priorityValidatorHead") // "priorityValidatorHead" => priorityValidator(head)
 	PriorityValidatorTailKey   = []byte("priorityValidatorTail") // "priorityValidatorTail" => priorityValidator(tail)
-	priorityValidatorKeyPrefix = []byte("priorityValidator")     // "priorityValidator":shares(stakeAmount+delegataionAmount):blockNumber:stakeIndex => priorityValidator{preKey, nextKey, validatorAddr}
+	priorityValidatorKeyPrefix = []byte("priorityValidator")     // "priorityValidator":shares(stakeAmount+delegataionAmount):stakeEpoch:stakeIndex => priorityValidator{preKey, nextKey, validatorAddr}
 
 	stakeWithdrawalQueueItemKeyPrefix = []byte("stakeWithdrawalQueueItem") // "stakeWithdrawalQueueItem":validatorAddr:(unlock)epoch => {preEpoch, nextEpoch, amount}
 
 	delegateWithdrawalQueueItemKeyPrefix = []byte("delegateWithdrawalQueueItem") // "delegateWithdrawalQueueItem":delegaterAddr:validatorAddr:(unlock)epoch => {preEpoch, nextEpoch, amount}
 
-	validatorRcKeyPrefix         = []byte("validatorRc")         // "validatorRc":validatorAddr:stakeBlockNumber => delegation count
-	unStakeDelegationRcKeyPrefix = []byte("unStakeDelegationRc") // "unStakeDelegationRc":validatorAddr:stakeBlockNumber => unStakeDelegationRcItem{preStakeBlock, nextStakeBlock, delegation count}
+	validatorRcKeyPrefix         = []byte("validatorRc")         // "validatorRc":validatorAddr:stakeEpoch => delegation count
+	unStakeDelegationRcKeyPrefix = []byte("unStakeDelegationRc") // "unStakeDelegationRc":validatorAddr:stakeEpoch => unStakeDelegationRcItem{preStakeEpoch, nextStakeEpoch, delegation count}
 
-	epochBoundKeyPrefix      = []byte("epochBound")      // "epochBound":epochId => {start, end}  maybe add block root range start and end ??????
-	blockRangeEpochKeyPrefix = []byte("blockRangeEpoch") // "blockRangeEpoch":start:end => epoch
-	slashProcessedKeyPrefix  = []byte("slashProcessed")  // "slashProcessed":handleEventId => []SlashValidatorWithdrawItem{validatorAddr, amount}
+	epochItemKeyPrefix = []byte("epochItem") // "epochItem":epochId => {preEpoch, nextEpoch, startBlock, endBlock}    todo maybe add block root range start and end
+
+	slashProcessedKeyPrefix = []byte("slashProcessed") // "slashProcessed":handleEventId => []SlashValidatorWithdrawItem{validatorAddr, amount}
 )
 
 func EncodeValidatorKey(validatorAddr common.Address) []byte {
 	return append(validatorKeyPrefix, validatorAddr.Bytes()...)
 }
 
-func EncodeDelegaterKey(delegaterAddr, validatorAddr common.Address, stakeBlock uint64) []byte {
+func EncodeDelegaterKey(delegaterAddr, validatorAddr common.Address, stakeEpoch uint64) []byte {
 	delegaterAddrBytes := delegaterAddr.Bytes()
 	validatorAddrBytes := validatorAddr.Bytes()
-	stakeBlockBytes := common.Uint64ToBytes(stakeBlock)
+	stakeEpochBytes := common.Uint64ToBytes(stakeEpoch)
 
 	keyPrefixSize := len(delegationKeyPrefix)
 	appendDelegaterSize := keyPrefixSize + len(delegaterAddrBytes)
 	appendVlidatorAddrSize := appendDelegaterSize + len(validatorAddrBytes)
-	size := appendVlidatorAddrSize + len(stakeBlockBytes)
+	size := appendVlidatorAddrSize + len(stakeEpochBytes)
 
 	key := make([]byte, size)
 
 	copy(key[:keyPrefixSize], delegationKeyPrefix)
 	copy(key[keyPrefixSize:appendDelegaterSize], delegaterAddrBytes)
 	copy(key[appendDelegaterSize:appendVlidatorAddrSize], validatorAddrBytes)
-	copy(key[appendVlidatorAddrSize:], stakeBlockBytes)
+	copy(key[appendVlidatorAddrSize:], stakeEpochBytes)
 
 	return key
 }
@@ -75,27 +76,27 @@ func EncodeRoundValidatorIdsKey(round uint64) []byte {
 	return append(roundValidatorIdsKeyPrefix, common.Uint64ToBytes(round)...)
 }
 
-func EncodePriorityValidatorKey(blockNumber, stakeIndex uint64, shares *big.Int) []byte {
+func EncodePriorityValidatorKey(epoch, stakeIndex uint64, shares *big.Int) []byte {
 
 	sharesSub := new(big.Int).Sub(math.MaxBig104, shares)
 	zeros := make([]byte, len(math.MaxBig104.Bytes()))
 	sharesPriority := append(zeros, sharesSub.Bytes()...)
 
-	stakeBlock := common.Uint64ToBytes(blockNumber)
+	stakeEpoch := common.Uint64ToBytes(epoch)
 	index := common.Uint64ToBytes(stakeIndex)
 
 	// some index of pivots
 	keyPrefixSize := len(priorityValidatorKeyPrefix)
 	appendSharePrioritySize := keyPrefixSize + len(sharesPriority)
-	appendstakeBlockSize := appendSharePrioritySize + len(stakeBlock)
-	size := appendstakeBlockSize + len(index)
+	appendStakeEpochSize := appendSharePrioritySize + len(stakeEpoch)
+	size := appendStakeEpochSize + len(index)
 
 	// build key
 	key := make([]byte, size)
 	copy(key[:keyPrefixSize], priorityValidatorKeyPrefix)
 	copy(key[keyPrefixSize:appendSharePrioritySize], sharesPriority)
-	copy(key[appendSharePrioritySize:appendstakeBlockSize], stakeBlock)
-	copy(key[appendstakeBlockSize:], index)
+	copy(key[appendSharePrioritySize:appendStakeEpochSize], stakeEpoch)
+	copy(key[appendStakeEpochSize:], index)
 
 	return key
 }
@@ -139,10 +140,10 @@ func EncodeDelegateWithdrawalQueueItemKey(delegaterAddr, validatorAddr common.Ad
 	return key
 }
 
-func EncodeValidatorRcKey(validatorAddr common.Address, stakeBlock uint64) []byte {
+func EncodeValidatorRcKey(validatorAddr common.Address, stakeEpoch uint64) []byte {
 
 	validatorAddrBytes := validatorAddr.Bytes()
-	indexBytes := common.Uint64ToBytes(stakeBlock)
+	indexBytes := common.Uint64ToBytes(stakeEpoch)
 
 	keyPrefixSize := len(validatorRcKeyPrefix)
 	appendValidatorAddrSize := keyPrefixSize + len(validatorAddrBytes)
@@ -157,42 +158,25 @@ func EncodeValidatorRcKey(validatorAddr common.Address, stakeBlock uint64) []byt
 	return key
 }
 
-func EncodeUnStakeDelegationRcKey(validatorAddr common.Address, stakeBlock uint64) []byte {
+func EncodeUnStakeDelegationRcKey(validatorAddr common.Address, stakeEpoch uint64) []byte {
 	validatorAddrBytes := validatorAddr.Bytes()
-	stakeBlockBytes := common.Uint64ToBytes(stakeBlock)
+	stakeEpochBytes := common.Uint64ToBytes(stakeEpoch)
 
 	keyPrefixSize := len(unStakeDelegationRcKeyPrefix)
 	appendValidatorAddrSize := keyPrefixSize + len(validatorAddrBytes)
-	size := appendValidatorAddrSize + len(stakeBlockBytes)
+	size := appendValidatorAddrSize + len(stakeEpochBytes)
 
 	key := make([]byte, size)
 
 	copy(key[:keyPrefixSize], unStakeDelegationRcKeyPrefix)
 	copy(key[keyPrefixSize:appendValidatorAddrSize], validatorAddrBytes)
-	copy(key[appendValidatorAddrSize:], stakeBlockBytes)
+	copy(key[appendValidatorAddrSize:], stakeEpochBytes)
 
 	return key
 }
 
-func EncodeEpochBoundKey(epoch uint64) []byte {
-	return append(epochBoundKeyPrefix, common.Uint64ToBytes(epoch)...)
-}
-
-func EncodeBlockRangeEpochKey(startBlock, endBlock uint64) []byte {
-	startBlockBytes := common.Uint64ToBytes(startBlock)
-	endBlockBytes := common.Uint64ToBytes(endBlock)
-
-	keyPrefixSize := len(blockRangeEpochKeyPrefix)
-	appendStartBlockSize := keyPrefixSize + len(startBlockBytes)
-	size := appendStartBlockSize + len(endBlockBytes)
-
-	key := make([]byte, size)
-
-	copy(key[:keyPrefixSize], blockRangeEpochKeyPrefix)
-	copy(key[keyPrefixSize:appendStartBlockSize], startBlockBytes)
-	copy(key[appendStartBlockSize:], endBlockBytes)
-
-	return key
+func EncodeEpochItemKey(epoch uint64) []byte {
+	return append(epochItemKeyPrefix, common.Uint64ToBytes(epoch)...)
 }
 
 func EncodeSlashProcessedKey(handleEventId *big.Int) []byte {
@@ -231,7 +215,7 @@ func (c *StakeHandler) setValidator(validatorAddr common.Address, validator *typ
 }
 
 func (c *StakeHandler) setValidatorByPriority(validatorAddr common.Address, validator *types.Validator) error {
-	if err := c.setValidatorPriority(validatorAddr, validator.BlockNumber, validator.StakeIndex, validator.Shares()); nil != err {
+	if err := c.setValidatorPriority(validatorAddr, validator.Epoch, validator.StakeIndex, validator.Shares()); nil != err {
 		return err
 	}
 	return c.setValidator(validatorAddr, validator)
@@ -243,10 +227,10 @@ func (c *StakeHandler) updateValidatorRemovePriority(validatorAddr common.Addres
 		return nil
 	}
 	// delete old priority
-	if c.getValidatorPriority(old.BlockNumber, old.StakeIndex, old.Shares()).ValidatorAddr != validatorAddr {
+	if c.getValidatorPriority(old.Epoch, old.StakeIndex, old.Shares()).ValidatorAddr != validatorAddr {
 		return ErrMisMatching
 	}
-	if err := c.removeValidatorPriority(old.BlockNumber, old.StakeIndex, old.Shares()); nil != err {
+	if err := c.removeValidatorPriority(old.Epoch, old.StakeIndex, old.Shares()); nil != err {
 		return err
 	}
 	// set new priority only
@@ -260,10 +244,10 @@ func (c *StakeHandler) updateValidatorByPriority(validatorAddr common.Address, v
 		return nil
 	}
 	// delete old priority
-	if c.getValidatorPriority(old.BlockNumber, old.StakeIndex, old.Shares()).ValidatorAddr != validatorAddr {
+	if c.getValidatorPriority(old.Epoch, old.StakeIndex, old.Shares()).ValidatorAddr != validatorAddr {
 		return ErrMisMatching
 	}
-	if err := c.removeValidatorPriority(old.BlockNumber, old.StakeIndex, old.Shares()); nil != err {
+	if err := c.removeValidatorPriority(old.Epoch, old.StakeIndex, old.Shares()); nil != err {
 		return err
 	}
 	// set new priority and validator
@@ -297,29 +281,29 @@ func (c *StakeHandler) removeValidator(validatorAddr common.Address) {
 	c.evm.StateDB.SetState(c.contract.Address(), EncodeValidatorKey(validatorAddr), []byte{})
 }
 
-func (c *StakeHandler) setDelegation(delegaterAddr, validatorAddr common.Address, stakeBlock uint64, delegation *types.Delegation) error {
+func (c *StakeHandler) setDelegation(delegaterAddr, validatorAddr common.Address, stakeEpoch uint64, delegation *types.Delegation) error {
 	value, err := rlp.EncodeToBytes(delegation)
 	if nil != err {
 		return ErrRlpEncode
 	}
-	c.evm.StateDB.SetState(c.contract.Address(), EncodeDelegaterKey(delegaterAddr, validatorAddr, stakeBlock), value)
+	c.evm.StateDB.SetState(c.contract.Address(), EncodeDelegaterKey(delegaterAddr, validatorAddr, stakeEpoch), value)
 	return nil
 }
 
-func (c *StakeHandler) updateDelegation(delegaterAddr, validatorAddr common.Address, stakeBlock uint64, delegation *types.Delegation) error {
-	del := c.GetDelegation(delegaterAddr, validatorAddr, stakeBlock)
+func (c *StakeHandler) updateDelegation(delegaterAddr, validatorAddr common.Address, stakeEpoch uint64, delegation *types.Delegation) error {
+	del := c.GetDelegation(delegaterAddr, validatorAddr, stakeEpoch)
 	if nil != del {
-		del.UpdateBlockNumber(delegation.BlockNumber)
+		del.UpdateEpoch(delegation.Epoch)
 		del.AddAmount(delegation.Amount)
 	} else {
 		del = delegation
-		c.incrementValidatorRc(validatorAddr, stakeBlock, 1)
+		c.incrementValidatorRc(validatorAddr, stakeEpoch, 1)
 	}
-	return c.setDelegation(delegaterAddr, validatorAddr, stakeBlock, del)
+	return c.setDelegation(delegaterAddr, validatorAddr, stakeEpoch, del)
 }
 
-func (c *StakeHandler) GetDelegation(delegaterAddr, validatorAddr common.Address, stakeBlock uint64) *types.Delegation {
-	value := c.evm.StateDB.GetState(c.contract.Address(), EncodeDelegaterKey(delegaterAddr, validatorAddr, stakeBlock))
+func (c *StakeHandler) GetDelegation(delegaterAddr, validatorAddr common.Address, stakeEpoch uint64) *types.Delegation {
+	value := c.evm.StateDB.GetState(c.contract.Address(), EncodeDelegaterKey(delegaterAddr, validatorAddr, stakeEpoch))
 	if len(value) == 0 {
 		return nil
 	}
@@ -330,13 +314,13 @@ func (c *StakeHandler) GetDelegation(delegaterAddr, validatorAddr common.Address
 	return nil
 }
 
-func (c *StakeHandler) removeDelegation(delegaterAddr, validatorAddr common.Address, stakeBlock uint64) {
-	del := c.GetDelegation(delegaterAddr, validatorAddr, stakeBlock)
+func (c *StakeHandler) removeDelegation(delegaterAddr, validatorAddr common.Address, stakeEpoch uint64) {
+	del := c.GetDelegation(delegaterAddr, validatorAddr, stakeEpoch)
 	if nil != del {
-		c.decrementValidatorRc(validatorAddr, stakeBlock, 1)
+		c.decrementValidatorRc(validatorAddr, stakeEpoch, 1)
 		// todo unstakeRC --
 	}
-	c.evm.StateDB.SetState(c.contract.Address(), EncodeDelegaterKey(delegaterAddr, validatorAddr, stakeBlock), []byte{})
+	c.evm.StateDB.SetState(c.contract.Address(), EncodeDelegaterKey(delegaterAddr, validatorAddr, stakeEpoch), []byte{})
 }
 
 func (c *StakeHandler) setCurrentEpoch(epoch uint64) {
@@ -405,8 +389,8 @@ func (c *StakeHandler) GetRoundValidatorIds(round uint64) types.ValidatorIds {
 	return nil
 }
 
-func (c *StakeHandler) getValidatorPriority(blockNumber, stakeIndex uint64, shares *big.Int) *types.PriorityValidator {
-	return c.getValidatorPriorityByKey(EncodePriorityValidatorKey(blockNumber, stakeIndex, shares))
+func (c *StakeHandler) getValidatorPriority(epoch, stakeIndex uint64, shares *big.Int) *types.PriorityValidator {
+	return c.getValidatorPriorityByKey(EncodePriorityValidatorKey(epoch, stakeIndex, shares))
 }
 
 func (c *StakeHandler) getValidatorPriorityByKey(key []byte) *types.PriorityValidator {
@@ -431,90 +415,119 @@ func (c *StakeHandler) setValidatorPriorityByKey(key []byte, priority *types.Pri
 	return nil
 }
 
-func (c *StakeHandler) setValidatorPriority(validatorAddr common.Address, blockNumber, stakeIndex uint64, shares *big.Int) error {
+func (c *StakeHandler) setValidatorPriority(validatorAddr common.Address, epoch, stakeIndex uint64, shares *big.Int) error {
 
-	// ---------------------------------------------------------------------------------------------------------------------------------------------------------------
+	indexKey := PriorityValidatorHeadKey
+	indexItem := c.getValidatorPriorityByKey(PriorityValidatorHeadKey)
 
-	preKey := PriorityValidatorHeadKey
-	nextKey := PriorityValidatorTailKey
-	pre := c.getValidatorPriorityByKey(PriorityValidatorHeadKey)
-	next := c.getValidatorPriorityByKey(PriorityValidatorTailKey)
-
-	priorityKey := EncodePriorityValidatorKey(blockNumber, stakeIndex, shares)
+	priorityKey := EncodePriorityValidatorKey(epoch, stakeIndex, shares)
 	priority := types.NewPriorityValidator(
 		[]byte{},
 		[]byte{},
 		validatorAddr,
 	)
 	// first insert
-	if bytes.Compare(pre.PreKey, pre.NextKey) == 0 && bytes.Compare(next.PreKey, next.NextKey) == 0 {
-		priority.UpdatePreKey(preKey)
-		priority.UpdateNextKey(nextKey)
-		pre.UpdateNextKey(priorityKey)
+	if bytes.Compare(indexItem.PreKey, indexItem.NextKey) == 0 && bytes.Compare(indexItem.PreKey, PriorityValidatorTailKey) == 0 {
+
+		// if  tail -> head -> tail -> head
+		//
+		// then: tail -> head -> priority -> tail -> head
+
+		next := c.getValidatorPriorityByKey(indexItem.NextKey)
+
+		priority.UpdatePreKey(indexKey)
+		priority.UpdateNextKey(indexItem.NextKey)
+		indexItem.UpdateNextKey(priorityKey)
 		next.UpdatePreKey(priorityKey)
-	} else {
 
-		// TODO 感觉这里会有 bug 啊
-		if bytes.Compare(priorityKey, pre.NextKey) < 0 { // add on head
-
-			next = c.getValidatorPriorityByKey(pre.NextKey)
-
-			// head<pre> -> priority -> next -> ... -> tail -> head
-			next.UpdatePreKey(priorityKey)
-			priority.UpdatePreKey(preKey)
-			priority.UpdateNextKey(pre.NextKey)
-			pre.UpdateNextKey(priorityKey)
-
-		} else if bytes.Compare(priorityKey, next.NextKey) > 0 { // add on tail
-
-			pre = c.getValidatorPriorityByKey(next.PreKey)
-
-			// head -> ... -> pre -> priority -> tail<next> -> head
-			pre.UpdateNextKey(priorityKey)
-			priority.UpdatePreKey(next.PreKey)
-			priority.UpdateNextKey(nextKey)
-			next.UpdatePreKey(priorityKey)
-
-		} else { // start from head
-			nextKey = pre.NextKey
-			next = c.getValidatorPriorityByKey(nextKey)
-			for bytes.Compare(next.NextKey, PriorityValidatorHeadKey) != 0 && bytes.Compare(priorityKey, nextKey) < 0 { // if next is not tail && priorityKey < next(key)
-				preKey = nextKey
-				nextKey = next.NextKey
-				pre = next
-				next = c.getValidatorPriorityByKey(nextKey)
-			}
-			// insert front of next
-			priority.UpdatePreKey(next.PreKey)
-			priority.UpdateNextKey(pre.NextKey)
-			pre.UpdateNextKey(priorityKey)
-			next.UpdatePreKey(priorityKey)
-
+		if err := c.setValidatorPriorityByKey(indexKey, indexItem); nil != err {
+			return err
 		}
+		if err := c.setValidatorPriorityByKey(priorityKey, priority); nil != err {
+			return err
+		}
+		if err := c.setValidatorPriorityByKey(priority.NextKey, next); nil != err {
+			return err
+		}
+
+		return nil
 	}
 
-	pvalue, err := rlp.EncodeToBytes(pre)
-	if nil != err {
-		return ErrRlpEncode
-	}
-	nvalue, err := rlp.EncodeToBytes(next)
-	if nil != err {
-		return ErrRlpEncode
-	}
-	value, err := rlp.EncodeToBytes(priority)
-	if nil != err {
-		return ErrRlpEncode
+	for bytes.Compare(indexItem.NextKey, PriorityValidatorHeadKey) != 0 { // not as  tail
+		if bytes.Compare(indexItem.PreKey, PriorityValidatorTailKey) != 0 { // not as head
+
+			if bytes.Compare(indexKey, priorityKey) == 0 {
+				return ErrInvalidValue
+			}
+
+			if bytes.Compare(indexKey, priorityKey) < 0 {
+				if bytes.Compare(indexItem.NextKey, PriorityValidatorTailKey) == 0 {
+					// if  tail -> head -> index -> tail -> head
+					// and index < priority
+					//
+					// then:  tail -> head -> index -> priority -> tail -> head
+
+					next := c.getValidatorPriorityByKey(indexItem.NextKey) // tail
+
+					priority.UpdatePreKey(indexKey)
+					priority.UpdateNextKey(indexItem.NextKey)
+					indexItem.UpdateNextKey(priorityKey)
+					next.UpdatePreKey(priorityKey)
+
+					if err := c.setValidatorPriorityByKey(indexKey, indexItem); nil != err {
+						return err
+					}
+					if err := c.setValidatorPriorityByKey(priorityKey, priority); nil != err {
+						return err
+					}
+					if err := c.setValidatorPriorityByKey(priority.NextKey, next); nil != err {
+						return err
+					}
+					break
+				}
+
+				// if  tail -> head -> index -> next -> ... tail -> head
+				// and index < priority
+				// maybe next < priority
+				//
+				// then:  continue next become new index
+			} else {
+				// if  tail -> head -> index -> (next) tail -> head
+				// and index > priority
+				//
+				// then:  tail -> head -> priority -> index -> (next)  tail -> head
+
+				pre := c.getValidatorPriorityByKey(indexItem.PreKey)
+
+				priority.UpdatePreKey(indexItem.PreKey)
+				priority.UpdateNextKey(indexKey)
+				indexItem.UpdatePreKey(priorityKey)
+				pre.UpdateNextKey(priorityKey)
+
+				if err := c.setValidatorPriorityByKey(priority.PreKey, pre); nil != err {
+					return err
+				}
+				if err := c.setValidatorPriorityByKey(priorityKey, priority); nil != err {
+					return err
+				}
+				if err := c.setValidatorPriorityByKey(indexKey, indexItem); nil != err {
+					return err
+				}
+
+				break
+			}
+		}
+
+		indexKey = indexItem.NextKey
+		indexItem = c.getValidatorPriorityByKey(indexKey)
 	}
 
-	c.evm.StateDB.SetState(c.contract.Address(), preKey, pvalue)
-	c.evm.StateDB.SetState(c.contract.Address(), nextKey, nvalue)
-	c.evm.StateDB.SetState(c.contract.Address(), priorityKey, value)
 	return nil
 }
 
-func (c *StakeHandler) removeValidatorPriority(blockNumber, stakeIndex uint64, shares *big.Int) error {
+func (c *StakeHandler) removeValidatorPriority(epoch, stakeIndex uint64, shares *big.Int) error {
 
-	priorityKey := EncodePriorityValidatorKey(blockNumber, stakeIndex, shares)
+	priorityKey := EncodePriorityValidatorKey(epoch, stakeIndex, shares)
 	priority := c.getValidatorPriorityByKey(priorityKey)
 
 	preKey := priority.PreKey
@@ -550,7 +563,7 @@ func (c *StakeHandler) rankPriorityValidatorIds(size uint64) types.ValidatorIds 
 	itemKey := headItem.NextKey
 	item := c.getValidatorPriorityByKey(itemKey)
 
-	for bytes.Compare(item.NextKey, PriorityValidatorHeadKey) != 0 && count < size {
+	for bytes.Compare(item.NextKey, PriorityValidatorHeadKey) != 0 && count < size { // not as tail  and count less size
 		arr[count] = item.ValidatorAddr
 		itemKey = item.NextKey
 		item = c.getValidatorPriorityByKey(itemKey)
@@ -561,66 +574,107 @@ func (c *StakeHandler) rankPriorityValidatorIds(size uint64) types.ValidatorIds 
 
 func (c *StakeHandler) appendStakeWithdrawal(validatorAddr common.Address, epoch uint64, amount *big.Int) error {
 
-	indexEpoch := uint64(0)
+	indexEpoch := uint64(math.MaxUint64)
 	indexItem := c.getStakeWithdrawalQueueItem(validatorAddr, indexEpoch)
 
 	// first insert
 	if nil == indexItem {
 
-		nextEpoch := uint64(math.MaxUint64)
+		preEpoch := uint64(0)
 		// tail -> head -> epoch -> tail -> head
 
-		indexItem = types.NewStakeWithdrawalItem(nextEpoch, epoch, common.Big0)
-		epochItem := types.NewStakeWithdrawalItem(indexEpoch, nextEpoch, amount)
-		nextItem := types.NewStakeWithdrawalItem(epoch, indexEpoch, common.Big0)
+		preItem := types.NewStakeWithdrawalItem(indexEpoch, epoch, common.Big0) // head
+		epochItem := types.NewStakeWithdrawalItem(preEpoch, indexEpoch, amount) // item
+		indexItem = types.NewStakeWithdrawalItem(epoch, preEpoch, common.Big0)  // tail
 
-		if err := c.setStakeWithdrawalQueueItem(validatorAddr, indexEpoch, indexItem); nil != err {
+		if err := c.setStakeWithdrawalQueueItem(validatorAddr, preEpoch, preItem); nil != err {
 			return err
 		}
 		if err := c.setStakeWithdrawalQueueItem(validatorAddr, epoch, epochItem); nil != err {
 			return err
 		}
-		if err := c.setStakeWithdrawalQueueItem(validatorAddr, nextEpoch, nextItem); nil != err {
+		if err := c.setStakeWithdrawalQueueItem(validatorAddr, indexEpoch, indexItem); nil != err {
 			return err
 		}
-	} else {
-		// range from head to tail
-		for indexItem.NextEpoch != uint64(0) {
 
-			if indexEpoch == epoch { // pre -> index(epoch) -> next
+		return nil
+	}
 
-				indexItem.IncrementAmount(amount)
-				if err := c.setStakeWithdrawalQueueItem(validatorAddr, indexEpoch, indexItem); nil != err {
-					return err
-				}
-				break
-			} else if indexEpoch > epoch { // pre -> epoch -> index -> ... -> max
+	// range from tail to head
+	for indexItem.PreEpoch != uint64(math.MaxUint64) { // not as head
+		if indexEpoch == epoch {
+			// pre -> index(epoch) -> next
+			// index == epoch
 
-				pre := c.getStakeWithdrawalQueueItem(validatorAddr, indexItem.PreEpoch)
-				epochItem := types.NewStakeWithdrawalItem(indexItem.PreEpoch, indexEpoch, amount)
+			indexItem.IncrementAmount(amount)
+			if err := c.setStakeWithdrawalQueueItem(validatorAddr, indexEpoch, indexItem); nil != err {
+				return err
+			}
+			break
+		} else if indexEpoch < epoch {
+			// pre -> index -> epoch -> next... -> tail(max)
+			// pre < index < epoch < next ... < tail(max)
+
+			next := c.getStakeWithdrawalQueueItem(validatorAddr, indexItem.NextEpoch)
+			epochItem := types.NewStakeWithdrawalItem(indexEpoch, indexItem.NextEpoch, amount)
+
+			indexItem.UpdateNextEpoch(epoch)
+			next.UpdatePreEpoch(epoch)
+
+			if err := c.setStakeWithdrawalQueueItem(validatorAddr, indexEpoch, indexItem); nil != err {
+				return err
+			}
+			if err := c.setStakeWithdrawalQueueItem(validatorAddr, epoch, epochItem); nil != err {
+				return err
+			}
+			if err := c.setStakeWithdrawalQueueItem(validatorAddr, epochItem.NextEpoch, next); nil != err {
+				return err
+			}
+
+			break
+
+		} else {
+
+			if indexItem.PreEpoch == uint64(0) {
+				// if  head(min) -> index -> tail(max)
+				// and epoch < index
+				//
+				// then: head(min) -> epoch -> index<last one> -> ... -> tail(max)
+				// head < epoch < index < ... < tail
+
+				pre := c.getStakeWithdrawalQueueItem(validatorAddr, indexItem.PreEpoch) // head
+				epochItem := types.NewStakeWithdrawalItem(indexItem.PreEpoch, epoch, amount)
 
 				pre.UpdateNextEpoch(epoch)
-				if err := c.setStakeWithdrawalQueueItem(validatorAddr, indexItem.PreEpoch, pre); nil != err {
-					return err
-				}
-
 				indexItem.UpdatePreEpoch(epoch)
-				if err := c.setStakeWithdrawalQueueItem(validatorAddr, indexEpoch, indexItem); nil != err {
+
+				if err := c.setStakeWithdrawalQueueItem(validatorAddr, epochItem.PreEpoch, pre); nil != err {
 					return err
 				}
-
 				if err := c.setStakeWithdrawalQueueItem(validatorAddr, epoch, epochItem); nil != err {
 					return err
 				}
+				if err := c.setStakeWithdrawalQueueItem(validatorAddr, indexEpoch, indexItem); nil != err {
+					return err
+				}
 
 				break
-			} else { // index -> epoch -> next -> ... -> max | index -> epoch -> max
-				indexEpoch = indexItem.NextEpoch
-				indexItem = c.getStakeWithdrawalQueueItem(validatorAddr, indexEpoch)
-			}
-		}
-	}
 
+			}
+
+			// if  head -> ... -> pre -> index -> ... -> max
+			// (head < ... <  pre < index < ... < tail(max) )
+			// and epoch < index
+			// maybe epoch < pre
+			//
+			// then: continue pre become new index
+			//
+
+		}
+
+		indexEpoch = indexItem.PreEpoch
+		indexItem = c.getStakeWithdrawalQueueItem(validatorAddr, indexEpoch)
+	}
 	return nil
 }
 
@@ -631,7 +685,7 @@ func (c *StakeHandler) GetStakeWithdrawal(validatorAddr common.Address) *big.Int
 	indexEpoch := uint64(0)
 	indexItem := c.getStakeWithdrawalQueueItem(validatorAddr, indexEpoch)
 
-	for indexItem.NextEpoch != uint64(0) {
+	for indexItem.NextEpoch != uint64(0) { // not as tail
 		amount = new(big.Int).Add(amount, indexItem.Amount)
 		indexEpoch = indexItem.NextEpoch
 		indexItem = c.getStakeWithdrawalQueueItem(validatorAddr, indexEpoch)
@@ -645,6 +699,19 @@ func (c *StakeHandler) GetStakeWithdrawalByEpoch(validatorAddr common.Address, e
 		return item.Amount
 	}
 	return common.Big0
+}
+
+func (c *StakeHandler) getStakeWithdrawalLastEpoch(validatorAddr common.Address) uint64 {
+
+	indexEpoch := uint64(math.MaxUint64)
+	indexItem := c.getStakeWithdrawalQueueItem(validatorAddr, indexEpoch)
+
+	// empty queue
+	if nil == indexItem {
+		return 0
+	}
+
+	return indexItem.PreEpoch
 }
 
 // Total of all rewards until epoch
@@ -770,66 +837,107 @@ func (c *StakeHandler) getStakeWithdrawalQueueItem(validatorAddr common.Address,
 
 func (c *StakeHandler) appendDelegateWithdrawal(delegaterAddr, validatorAddr common.Address, epoch uint64, amount *big.Int) error {
 
-	indexEpoch := uint64(0)
+	indexEpoch := uint64(math.MaxUint64)
 	indexItem := c.getDelegateWithdrawalQueueItem(delegaterAddr, validatorAddr, indexEpoch)
 
 	// first insert
 	if nil == indexItem {
 
-		nextEpoch := uint64(math.MaxUint64)
+		preEpoch := uint64(0)
 		// tail -> head -> epoch -> tail -> head
 
-		indexItem = types.NewDelegateWithdrawalItem(nextEpoch, epoch, common.Big0)
-		epochItem := types.NewDelegateWithdrawalItem(indexEpoch, nextEpoch, amount)
-		nextItem := types.NewDelegateWithdrawalItem(epoch, indexEpoch, common.Big0)
+		preItem := types.NewDelegateWithdrawalItem(indexEpoch, epoch, common.Big0) // head
+		epochItem := types.NewDelegateWithdrawalItem(preEpoch, indexEpoch, amount) // item
+		indexItem = types.NewDelegateWithdrawalItem(epoch, preEpoch, common.Big0)  // tail
 
-		if err := c.setDelegateWithdrawalQueueItem(delegaterAddr, validatorAddr, indexEpoch, indexItem); nil != err {
+		if err := c.setDelegateWithdrawalQueueItem(delegaterAddr, validatorAddr, preEpoch, preItem); nil != err {
 			return err
 		}
 		if err := c.setDelegateWithdrawalQueueItem(delegaterAddr, validatorAddr, epoch, epochItem); nil != err {
 			return err
 		}
-		if err := c.setDelegateWithdrawalQueueItem(delegaterAddr, validatorAddr, nextEpoch, nextItem); nil != err {
+		if err := c.setDelegateWithdrawalQueueItem(delegaterAddr, validatorAddr, indexEpoch, indexItem); nil != err {
 			return err
 		}
-	} else {
-		// range from head to tail
-		for indexItem.NextEpoch != uint64(0) {
 
-			if indexEpoch == epoch { // pre -> index(epoch) -> next
+		return nil
+	}
 
-				indexItem.IncrementAmount(amount)
-				if err := c.setDelegateWithdrawalQueueItem(delegaterAddr, validatorAddr, indexEpoch, indexItem); nil != err {
-					return err
-				}
-				break
-			} else if indexEpoch > epoch { // pre -> epoch -> index -> ... -> max
+	// range from tail to head
+	for indexItem.PreEpoch != uint64(math.MaxUint64) { // not as head
+		if indexEpoch == epoch {
+			// pre -> index(epoch) -> next
+			// index == epoch
 
-				pre := c.getDelegateWithdrawalQueueItem(delegaterAddr, validatorAddr, indexItem.PreEpoch)
-				epochItem := types.NewDelegateWithdrawalItem(indexItem.PreEpoch, indexEpoch, amount)
+			indexItem.IncrementAmount(amount)
+			if err := c.setDelegateWithdrawalQueueItem(delegaterAddr, validatorAddr, indexEpoch, indexItem); nil != err {
+				return err
+			}
+			break
+		} else if indexEpoch < epoch {
+			// pre -> index -> epoch -> next... -> tail(max)
+			// pre < index < epoch < next ... < tail(max)
+
+			next := c.getDelegateWithdrawalQueueItem(delegaterAddr, validatorAddr, indexItem.NextEpoch)
+			epochItem := types.NewDelegateWithdrawalItem(indexEpoch, indexItem.NextEpoch, amount)
+
+			indexItem.UpdateNextEpoch(epoch)
+			next.UpdatePreEpoch(epoch)
+
+			if err := c.setDelegateWithdrawalQueueItem(delegaterAddr, validatorAddr, indexEpoch, indexItem); nil != err {
+				return err
+			}
+			if err := c.setDelegateWithdrawalQueueItem(delegaterAddr, validatorAddr, epoch, epochItem); nil != err {
+				return err
+			}
+			if err := c.setDelegateWithdrawalQueueItem(delegaterAddr, validatorAddr, epochItem.NextEpoch, next); nil != err {
+				return err
+			}
+
+			break
+
+		} else {
+
+			if indexItem.PreEpoch == uint64(0) {
+				// if  head(min) -> index -> tail(max)
+				// and epoch < index
+				//
+				// then: head(min) -> epoch -> index<last one> -> ... -> tail(max)
+				// head < epoch < index < ... < tail
+
+				pre := c.getDelegateWithdrawalQueueItem(delegaterAddr, validatorAddr, indexItem.PreEpoch) // head
+				epochItem := types.NewDelegateWithdrawalItem(indexItem.PreEpoch, epoch, amount)
 
 				pre.UpdateNextEpoch(epoch)
-				if err := c.setDelegateWithdrawalQueueItem(delegaterAddr, validatorAddr, indexItem.PreEpoch, pre); nil != err {
-					return err
-				}
-
 				indexItem.UpdatePreEpoch(epoch)
-				if err := c.setDelegateWithdrawalQueueItem(delegaterAddr, validatorAddr, indexEpoch, indexItem); nil != err {
+
+				if err := c.setDelegateWithdrawalQueueItem(delegaterAddr, validatorAddr, epochItem.PreEpoch, pre); nil != err {
 					return err
 				}
-
 				if err := c.setDelegateWithdrawalQueueItem(delegaterAddr, validatorAddr, epoch, epochItem); nil != err {
 					return err
 				}
+				if err := c.setDelegateWithdrawalQueueItem(delegaterAddr, validatorAddr, indexEpoch, indexItem); nil != err {
+					return err
+				}
 
 				break
-			} else { // index -> epoch -> next -> ... -> max | index -> epoch -> max
-				indexEpoch = indexItem.NextEpoch
-				indexItem = c.getDelegateWithdrawalQueueItem(delegaterAddr, validatorAddr, indexEpoch)
-			}
-		}
-	}
 
+			}
+
+			// if  head -> ... -> pre -> index -> ... -> max
+			// (head < ... <  pre < index < ... < tail(max) )
+			// and epoch < index
+			// maybe epoch < pre
+			//
+			// then: continue pre become new index
+			//
+
+		}
+
+		indexEpoch = indexItem.PreEpoch
+		indexItem = c.getDelegateWithdrawalQueueItem(delegaterAddr, validatorAddr, indexEpoch)
+	}
 	return nil
 }
 
@@ -839,7 +947,7 @@ func (c *StakeHandler) GetDelegateWithdrawal(delegaterAddr, validatorAddr common
 	indexEpoch := uint64(0)
 	indexItem := c.getDelegateWithdrawalQueueItem(delegaterAddr, validatorAddr, indexEpoch)
 
-	for indexItem.NextEpoch != uint64(0) {
+	for indexItem.NextEpoch != uint64(0) { // not as tail
 		amount = new(big.Int).Add(amount, indexItem.Amount)
 		indexEpoch = indexItem.NextEpoch
 		indexItem = c.getDelegateWithdrawalQueueItem(delegaterAddr, validatorAddr, indexEpoch)
@@ -974,18 +1082,18 @@ func (c *StakeHandler) getDelegateWithdrawalQueueItem(delegaterAddr, validatorAd
 
 // ---
 
-func (c *StakeHandler) incrementValidatorRc(validatorAddr common.Address, stakeBlock, increment uint64) {
-	value := c.evm.StateDB.GetState(c.contract.Address(), EncodeValidatorRcKey(validatorAddr, stakeBlock))
+func (c *StakeHandler) incrementValidatorRc(validatorAddr common.Address, stakeEpoch, increment uint64) {
+	value := c.evm.StateDB.GetState(c.contract.Address(), EncodeValidatorRcKey(validatorAddr, stakeEpoch))
 	var rc uint64
 	if len(value) != 0 {
 		rc = common.BytesToUint64(value)
 	}
 	rc += increment
-	c.evm.StateDB.SetState(c.contract.Address(), EncodeValidatorRcKey(validatorAddr, stakeBlock), common.Uint64ToBytes(rc))
+	c.evm.StateDB.SetState(c.contract.Address(), EncodeValidatorRcKey(validatorAddr, stakeEpoch), common.Uint64ToBytes(rc))
 }
 
-func (c *StakeHandler) decrementValidatorRc(validatorAddr common.Address, stakeBlock, decrement uint64) {
-	value := c.evm.StateDB.GetState(c.contract.Address(), EncodeValidatorRcKey(validatorAddr, stakeBlock))
+func (c *StakeHandler) decrementValidatorRc(validatorAddr common.Address, stakeEpoch, decrement uint64) {
+	value := c.evm.StateDB.GetState(c.contract.Address(), EncodeValidatorRcKey(validatorAddr, stakeEpoch))
 	var rc uint64
 	if len(value) != 0 {
 		rc = common.BytesToUint64(value)
@@ -1000,78 +1108,138 @@ func (c *StakeHandler) decrementValidatorRc(validatorAddr common.Address, stakeB
 	} else {
 		value = common.Uint64ToBytes(rc)
 	}
-	c.evm.StateDB.SetState(c.contract.Address(), EncodeValidatorRcKey(validatorAddr, stakeBlock), value)
+	c.evm.StateDB.SetState(c.contract.Address(), EncodeValidatorRcKey(validatorAddr, stakeEpoch), value)
 }
 
 // ------- encodeUnStakeRcBoundKey
 
-func (c *StakeHandler) appendUnStakeDelegationRc(validatorAddr common.Address, stakeBlock, rc uint64) error {
+func (c *StakeHandler) appendUnStakeDelegationRc(validatorAddr common.Address, epoch, rc uint64) error {
 
-	indexStakeBlock := uint64(0)
-	indexItem := c.getUnStakeDelegationRcItem(validatorAddr, indexStakeBlock)
+	indexEpoch := uint64(math.MaxUint64)
+	indexItem := c.getUnStakeDelegationRcItem(validatorAddr, indexEpoch)
 
 	// first insert
 	if nil == indexItem {
 
-		nextStakeBlock := uint64(math.MaxUint64)
-		// tail -> head -> stakeBlock -> tail -> head
+		preEpoch := uint64(0)
+		// tail -> head -> epoch -> tail -> head
 
-		indexItem = types.NewUnStakeDelegationRcItem(nextStakeBlock, stakeBlock, 0)
-		stakeBlockItem := types.NewUnStakeDelegationRcItem(indexStakeBlock, nextStakeBlock, rc)
-		nextItem := types.NewUnStakeDelegationRcItem(stakeBlock, indexStakeBlock, 0)
+		preItem := types.NewUnStakeDelegationRcItem(indexEpoch, epoch, 0)       // head
+		epochItem := types.NewUnStakeDelegationRcItem(preEpoch, indexEpoch, rc) // item
+		indexItem = types.NewUnStakeDelegationRcItem(epoch, preEpoch, 0)        // tail
 
-		if err := c.setUnStakeDelegationRcItem(validatorAddr, indexStakeBlock, indexItem); nil != err {
+		if err := c.setUnStakeDelegationRcItem(validatorAddr, preEpoch, preItem); nil != err {
 			return err
 		}
-		if err := c.setUnStakeDelegationRcItem(validatorAddr, stakeBlock, stakeBlockItem); nil != err {
+		if err := c.setUnStakeDelegationRcItem(validatorAddr, epoch, epochItem); nil != err {
 			return err
 		}
-		if err := c.setUnStakeDelegationRcItem(validatorAddr, nextStakeBlock, nextItem); nil != err {
+		if err := c.setUnStakeDelegationRcItem(validatorAddr, indexEpoch, indexItem); nil != err {
 			return err
 		}
-	} else {
-		// range from head to tail
-		for indexItem.NextStakeBlock != uint64(0) {
 
-			if indexStakeBlock == stakeBlock { // pre -> index(stakeBlock) -> next
-
-				indexItem.IncrementRc(rc)
-				if err := c.setUnStakeDelegationRcItem(validatorAddr, indexStakeBlock, indexItem); nil != err {
-					return err
-				}
-				break
-			} else if indexStakeBlock > stakeBlock { // pre -> stakeBlock -> index -> ... -> max
-
-				pre := c.getUnStakeDelegationRcItem(validatorAddr, indexItem.PreStakeBlock)
-				epochItem := types.NewUnStakeDelegationRcItem(indexItem.PreStakeBlock, indexStakeBlock, rc)
-
-				pre.UpdateNextStakeBlock(stakeBlock)
-				if err := c.setUnStakeDelegationRcItem(validatorAddr, indexItem.PreStakeBlock, pre); nil != err {
-					return err
-				}
-
-				indexItem.UpdatePreStakeBlock(stakeBlock)
-				if err := c.setUnStakeDelegationRcItem(validatorAddr, indexStakeBlock, indexItem); nil != err {
-					return err
-				}
-
-				if err := c.setUnStakeDelegationRcItem(validatorAddr, stakeBlock, epochItem); nil != err {
-					return err
-				}
-
-				break
-			} else { // index -> stakeBlock -> next -> ... -> max | index -> stakeBlock -> max
-				indexStakeBlock = indexItem.NextStakeBlock
-				indexItem = c.getUnStakeDelegationRcItem(validatorAddr, indexStakeBlock)
-			}
-		}
+		return nil
 	}
 
+	// range from tail to head
+	for indexItem.PreStakeEpoch != uint64(math.MaxUint64) { // not as head
+		if indexEpoch == epoch {
+			// pre -> index(epoch) -> next
+			// index == epoch
+
+			indexItem.IncrementRc(rc)
+			if err := c.setUnStakeDelegationRcItem(validatorAddr, indexEpoch, indexItem); nil != err {
+				return err
+			}
+			break
+		} else if indexEpoch < epoch {
+			// pre -> index -> epoch -> next... -> tail(max)
+			// pre < index < epoch < next ... < tail(max)
+
+			next := c.getUnStakeDelegationRcItem(validatorAddr, indexItem.NextStakeEpoch)
+			epochItem := types.NewUnStakeDelegationRcItem(indexEpoch, indexItem.NextStakeEpoch, rc)
+
+			indexItem.UpdateNextStakeEpoch(epoch)
+			next.UpdatePreStakeEpoch(epoch)
+
+			if err := c.setUnStakeDelegationRcItem(validatorAddr, indexEpoch, indexItem); nil != err {
+				return err
+			}
+			if err := c.setUnStakeDelegationRcItem(validatorAddr, epoch, epochItem); nil != err {
+				return err
+			}
+			if err := c.setUnStakeDelegationRcItem(validatorAddr, epochItem.NextStakeEpoch, next); nil != err {
+				return err
+			}
+
+			break
+
+		} else {
+
+			if indexItem.PreStakeEpoch == uint64(0) {
+				// if  head(min) -> index -> tail(max)
+				// and epoch < index
+				//
+				// then: head(min) -> epoch -> index<last one> -> ... -> tail(max)
+				// head < epoch < index < ... < tail
+
+				pre := c.getUnStakeDelegationRcItem(validatorAddr, indexItem.PreStakeEpoch) // head
+				epochItem := types.NewUnStakeDelegationRcItem(indexItem.PreStakeEpoch, epoch, rc)
+
+				pre.UpdateNextStakeEpoch(epoch)
+				indexItem.UpdatePreStakeEpoch(epoch)
+
+				if err := c.setUnStakeDelegationRcItem(validatorAddr, epochItem.PreStakeEpoch, pre); nil != err {
+					return err
+				}
+				if err := c.setUnStakeDelegationRcItem(validatorAddr, epoch, epochItem); nil != err {
+					return err
+				}
+				if err := c.setUnStakeDelegationRcItem(validatorAddr, indexEpoch, indexItem); nil != err {
+					return err
+				}
+
+				break
+
+			}
+
+			// if  head -> ... -> pre -> index -> ... -> max
+			// (head < ... <  pre < index < ... < tail(max) )
+			// and epoch < index
+			// maybe epoch < pre
+			//
+			// then: continue pre become new index
+			//
+
+		}
+
+		indexEpoch = indexItem.PreStakeEpoch
+		indexItem = c.getUnStakeDelegationRcItem(validatorAddr, indexEpoch)
+	}
 	return nil
 }
 
-func (c *StakeHandler) getUnStakeDelegationRcItem(validatorAddr common.Address, stakeBlock uint64) *types.UnStakeDelegationRcItem {
-	value := c.evm.StateDB.GetState(c.contract.Address(), EncodeUnStakeDelegationRcKey(validatorAddr, stakeBlock))
+func (c *StakeHandler) getUnStakeDelegationRcPending(validatorAddr common.Address) types.UnStakeDelegationRcQueue {
+	indexStakeEpoch := uint64(0)
+	indexItem := c.getUnStakeDelegationRcItem(validatorAddr, indexStakeEpoch)
+
+	if nil == indexItem {
+		return nil
+	}
+	queue := types.NewUnStakeDelegationRcQueue(0)
+	for indexItem.NextStakeEpoch != uint64(0) { // not tail
+		if indexItem.PreStakeEpoch != uint64(math.MaxUint64) { // not head
+			queue = append(queue, indexItem)
+		}
+		indexStakeEpoch = indexItem.NextStakeEpoch
+		indexItem = c.getUnStakeDelegationRcItem(validatorAddr, indexStakeEpoch)
+
+	}
+	return queue
+}
+
+func (c *StakeHandler) getUnStakeDelegationRcItem(validatorAddr common.Address, stakeEpoch uint64) *types.UnStakeDelegationRcItem {
+	value := c.evm.StateDB.GetState(c.contract.Address(), EncodeUnStakeDelegationRcKey(validatorAddr, stakeEpoch))
 
 	if len(value) != 0 {
 		return nil
@@ -1083,30 +1251,30 @@ func (c *StakeHandler) getUnStakeDelegationRcItem(validatorAddr common.Address, 
 	return nil
 }
 
-func (c *StakeHandler) setUnStakeDelegationRcItem(validatorAddr common.Address, stakeBlock uint64, item *types.UnStakeDelegationRcItem) error {
+func (c *StakeHandler) setUnStakeDelegationRcItem(validatorAddr common.Address, stakeEpoch uint64, item *types.UnStakeDelegationRcItem) error {
 	value, err := rlp.EncodeToBytes(item)
 	if nil != err {
 		return ErrRlpEncode
 	}
-	c.evm.StateDB.SetState(c.contract.Address(), EncodeUnStakeDelegationRcKey(validatorAddr, stakeBlock), value)
+	c.evm.StateDB.SetState(c.contract.Address(), EncodeUnStakeDelegationRcKey(validatorAddr, stakeEpoch), value)
 	return nil
 }
 
-func (c *StakeHandler) removeUnStakeDelegationRcItem(validatorAddr common.Address, stakeBlock uint64) {
-	c.evm.StateDB.SetState(c.contract.Address(), EncodeUnStakeDelegationRcKey(validatorAddr, stakeBlock), []byte{})
+func (c *StakeHandler) removeUnStakeDelegationRcItem(validatorAddr common.Address, stakeEpoch uint64) {
+	c.evm.StateDB.SetState(c.contract.Address(), EncodeUnStakeDelegationRcKey(validatorAddr, stakeEpoch), []byte{})
 }
 
-func (c *StakeHandler) incrementUnStakeDelegationRc(validatorAddr common.Address, stakeBlock, increment uint64) error {
-	item := c.getUnStakeDelegationRcItem(validatorAddr, stakeBlock)
+func (c *StakeHandler) incrementUnStakeDelegationRc(validatorAddr common.Address, stakeEpoch, increment uint64) error {
+	item := c.getUnStakeDelegationRcItem(validatorAddr, stakeEpoch)
 	if nil == item {
 		return ErrNotFound
 	}
 	item.IncrementRc(increment)
-	return c.setUnStakeDelegationRcItem(validatorAddr, stakeBlock, item)
+	return c.setUnStakeDelegationRcItem(validatorAddr, stakeEpoch, item)
 }
 
-func (c *StakeHandler) decrementUnStakeDelegationRc(validatorAddr common.Address, stakeBlock, decrement uint64) error {
-	item := c.getUnStakeDelegationRcItem(validatorAddr, stakeBlock)
+func (c *StakeHandler) decrementUnStakeDelegationRc(validatorAddr common.Address, stakeEpoch, decrement uint64) error {
+	item := c.getUnStakeDelegationRcItem(validatorAddr, stakeEpoch)
 	if nil == item {
 		return ErrNotFound
 	}
@@ -1115,38 +1283,147 @@ func (c *StakeHandler) decrementUnStakeDelegationRc(validatorAddr common.Address
 
 	// change index
 	if item.Rc == 0 {
-		pre := c.getUnStakeDelegationRcItem(validatorAddr, item.PreStakeBlock)
-		next := c.getUnStakeDelegationRcItem(validatorAddr, item.NextStakeBlock)
+		pre := c.getUnStakeDelegationRcItem(validatorAddr, item.PreStakeEpoch)
+		next := c.getUnStakeDelegationRcItem(validatorAddr, item.NextStakeEpoch)
 
 		// remove the last one   tail -> head -> lastone(remove) -> tail -> head
-		if pre.PreStakeBlock == uint64(math.MaxUint64) && next.NextStakeBlock == uint64(0) {
-			c.removeUnStakeDelegationRcItem(validatorAddr, item.PreStakeBlock)
-			c.removeUnStakeDelegationRcItem(validatorAddr, item.NextStakeBlock)
+		if pre.PreStakeEpoch == uint64(math.MaxUint64) && next.NextStakeEpoch == uint64(0) {
+			c.removeUnStakeDelegationRcItem(validatorAddr, item.PreStakeEpoch)
+			c.removeUnStakeDelegationRcItem(validatorAddr, item.NextStakeEpoch)
 		} else {
-			pre.UpdateNextStakeBlock(item.NextStakeBlock)
-			next.UpdatePreStakeBlock(item.PreStakeBlock)
-			if err := c.setUnStakeDelegationRcItem(validatorAddr, item.PreStakeBlock, pre); nil != err {
+			pre.UpdateNextStakeEpoch(item.NextStakeEpoch)
+			next.UpdatePreStakeEpoch(item.PreStakeEpoch)
+			if err := c.setUnStakeDelegationRcItem(validatorAddr, item.PreStakeEpoch, pre); nil != err {
 				return err
 			}
-			if err := c.setUnStakeDelegationRcItem(validatorAddr, item.NextStakeBlock, next); nil != err {
+			if err := c.setUnStakeDelegationRcItem(validatorAddr, item.NextStakeEpoch, next); nil != err {
 				return err
 			}
 		}
-		c.removeUnStakeDelegationRcItem(validatorAddr, stakeBlock)
+		c.removeUnStakeDelegationRcItem(validatorAddr, stakeEpoch)
 	} else {
-		if err := c.setUnStakeDelegationRcItem(validatorAddr, stakeBlock, item); nil != err {
+		if err := c.setUnStakeDelegationRcItem(validatorAddr, stakeEpoch, item); nil != err {
 			return err
 		}
 	}
 	return nil
 }
 
-func (c *StakeHandler) getUnStakeDelegationRc(validatorAddr common.Address, stakeBlock uint64) uint64 {
-	item := c.getUnStakeDelegationRcItem(validatorAddr, stakeBlock)
+func (c *StakeHandler) getUnStakeDelegationRc(validatorAddr common.Address, stakeEpoch uint64) uint64 {
+	item := c.getUnStakeDelegationRcItem(validatorAddr, stakeEpoch)
 	if nil == item {
 		return 0
 	}
 	return item.Rc
+}
+
+// ----
+
+func (c *StakeHandler) appendEpochItem(epoch uint64, startBlock, endBlock uint64) error {
+
+	indexEpoch := uint64(math.MaxUint64)
+	indexItem := c.getEpochItem(indexEpoch)
+
+	// range from tail to head
+	for indexItem.PreEpoch != uint64(math.MaxUint64) { // not as head
+		if indexEpoch == epoch {
+			// pre -> index(epoch) -> next
+			// index == epoch
+
+			return ErrInvalidValue
+		}
+
+		if indexEpoch < epoch {
+			// pre -> index -> epoch -> next... -> tail(max)
+			// pre < index < epoch < next ... < tail(max)
+
+			next := c.getEpochItem(indexItem.NextEpoch)
+			epochItem := types.NewEpochItem(indexEpoch, indexItem.NextEpoch, startBlock, endBlock)
+
+			indexItem.UpdateNextEpoch(epoch)
+			next.UpdatePreEpoch(epoch)
+
+			if err := c.setEpochItem(indexEpoch, indexItem); nil != err {
+				return err
+			}
+			if err := c.setEpochItem(epoch, epochItem); nil != err {
+				return err
+			}
+			if err := c.setEpochItem(epochItem.NextEpoch, next); nil != err {
+				return err
+			}
+
+			break
+
+		} else {
+
+			if indexItem.PreEpoch == uint64(0) {
+				// if  head(min) -> index -> tail(max)
+				// and epoch < index
+				//
+				// then: head(min) -> epoch -> index<last one> -> ... -> tail(max)
+				// head < epoch < index < ... < tail
+
+				pre := c.getEpochItem(indexItem.PreEpoch) // head
+				epochItem := types.NewEpochItem(indexItem.PreEpoch, epoch, startBlock, endBlock)
+
+				pre.UpdateNextEpoch(epoch)
+				indexItem.UpdatePreEpoch(epoch)
+
+				if err := c.setEpochItem(epochItem.PreEpoch, pre); nil != err {
+					return err
+				}
+				if err := c.setEpochItem(epoch, epochItem); nil != err {
+					return err
+				}
+				if err := c.setEpochItem(indexEpoch, indexItem); nil != err {
+					return err
+				}
+
+				break
+
+			}
+
+			// if  head -> ... -> pre -> index -> ... -> max
+			// (head < ... <  pre < index < ... < tail(max) )
+			// and epoch < index
+			// maybe epoch < pre
+			//
+			// then: continue pre become new index
+			//
+
+		}
+
+		indexEpoch = indexItem.PreEpoch
+		indexItem = c.getEpochItem(indexEpoch)
+	}
+	return nil
+}
+
+func (c *StakeHandler) getLastEpoch() *types.EpochItem {
+	return nil
+}
+
+func (c *StakeHandler) setEpochItem(epoch uint64, item *types.EpochItem) error {
+	value, err := rlp.EncodeToBytes(item)
+	if nil != err {
+		return ErrRlpEncode
+	}
+	c.evm.StateDB.SetState(c.contract.Address(), EncodeEpochItemKey(epoch), value)
+	return nil
+}
+
+func (c *StakeHandler) getEpochItem(epoch uint64) *types.EpochItem {
+	value := c.evm.StateDB.GetState(c.contract.Address(), EncodeEpochItemKey(epoch))
+	if len(value) == 0 {
+		return nil
+	}
+
+	var item types.EpochItem
+	if err := rlp.DecodeBytes(value, &item); nil == err {
+		return &item
+	}
+	return nil
 }
 
 // ----

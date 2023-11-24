@@ -106,9 +106,22 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
 		return err
 	}
-	// todo ...
+	//// todo ...
+	//delegaterAddr := c.contract.Caller()
+	//validator := c.GetValidator(validatorAddr)
+	//// todo 先查询出所有 stakeBlock
+	//
+	//queue := c.getUnStakeDelegationRcPending(validatorAddr)
+	//
+	//if (validator.IsEmpty() || validator.IsInvalid()) && queue.IsNotEmpty() {
+	//	for _, item := range queue {
+	//		delegation := c.GetDelegation(delegaterAddr, validatorAddr, )
+	//	}
+	//
+	//}
+
 	// c.contract.Caller(): msg.sender
-	return c.registerDelegateWithdrawal(c.contract.Caller(), validatorAddr, amount)
+	return c.registerDelegateWithdrawal(c.contract.Caller(), validatorAddr, amount, true)
 }
 
 func (c *StakeHandler) Unstake(validatorAddr common.Address, amount *big.Int) error {
@@ -118,7 +131,7 @@ func (c *StakeHandler) Unstake(validatorAddr common.Address, amount *big.Int) er
 	if err := c.unStake(validatorAddr, amount); nil != err {
 		return err
 	}
-	return c.registerStakeWithdrawal(validatorAddr, amount)
+	return c.registerStakeWithdrawal(validatorAddr, amount, true)
 }
 
 func (c *StakeHandler) WithdrawUndelegate(validator common.Address) error {
