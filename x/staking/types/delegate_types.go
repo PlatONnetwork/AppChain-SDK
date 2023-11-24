@@ -1,6 +1,9 @@
 package types
 
-import "math/big"
+import (
+	"github.com/PlatONnetwork/PlatON-Go/common"
+	"math/big"
+)
 
 type Delegation struct {
 	Epoch  uint64
@@ -18,10 +21,14 @@ func (d *Delegation) UpdateEpoch(epoch uint64) {
 	d.Epoch = epoch
 }
 
-func (d *Delegation) AddAmount(amount *big.Int) {
+func (d *Delegation) IncrementAmount(amount *big.Int) {
 	d.Amount = new(big.Int).Add(d.Amount, amount)
 }
 
-func (d *Delegation) SubAmount(amount *big.Int) {
-	d.Amount = new(big.Int).Sub(d.Amount, amount)
+func (d *Delegation) DecrementAmount(amount *big.Int) {
+	if d.Amount.Cmp(amount) < 0 {
+		d.Amount = common.Big0
+	} else {
+		d.Amount = new(big.Int).Sub(d.Amount, amount)
+	}
 }

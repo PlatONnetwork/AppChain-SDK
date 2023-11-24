@@ -290,16 +290,40 @@ func (c *StakeHandler) setDelegation(delegaterAddr, validatorAddr common.Address
 	return nil
 }
 
-func (c *StakeHandler) updateDelegation(delegaterAddr, validatorAddr common.Address, stakeEpoch uint64, delegation *types.Delegation) error {
+func (c *StakeHandler) removeDelegation(delegaterAddr, validatorAddr common.Address, stakeEpoch uint64) {
+	c.evm.StateDB.SetState(c.contract.Address(), EncodeDelegaterKey(delegaterAddr, validatorAddr, stakeEpoch), []byte{})
+}
+
+func (c *StakeHandler) incrementDelegation(delegaterAddr, validatorAddr common.Address, stakeEpoch, delegateEpoch uint64, amount *big.Int) error {
 	del := c.GetDelegation(delegaterAddr, validatorAddr, stakeEpoch)
 	if nil != del {
-		del.UpdateEpoch(delegation.Epoch)
-		del.AddAmount(delegation.Amount)
+		del.UpdateEpoch(delegateEpoch)
+		del.IncrementAmount(amount)
 	} else {
-		del = delegation
+		del = types.NewDelegation(delegateEpoch, amount)
 		c.incrementValidatorRc(validatorAddr, stakeEpoch, 1)
 	}
 	return c.setDelegation(delegaterAddr, validatorAddr, stakeEpoch, del)
+}
+
+// TODO 不能简单的删掉， 应该查看 validator 是否有效 ...
+func (c *StakeHandler) decrementDelegation(delegaterAddr, validatorAddr common.Address, stakeEpoch, delegateEpoch uint64, amount *big.Int) error {
+	del := c.GetDelegation(delegaterAddr, validatorAddr, stakeEpoch)
+	if nil == del {
+		return ErrNotFound
+	}
+	del.UpdateEpoch(delegateEpoch)
+	del.DecrementAmount(amount)
+
+	if del.Amount.Cmp(common.Big0) == 0 {
+
+		c.removeDelegation(delegaterAddr, validatorAddr, stakeEpoch)
+		c.decrementValidatorRc(validatorAddr, stakeEpoch, 1)
+		return nil
+	} else {
+		return c.setDelegation(delegaterAddr, validatorAddr, stakeEpoch, del)
+	}
+
 }
 
 func (c *StakeHandler) GetDelegation(delegaterAddr, validatorAddr common.Address, stakeEpoch uint64) *types.Delegation {
@@ -560,13 +584,11 @@ func (c *StakeHandler) rankPriorityValidatorIds(size uint64) types.ValidatorIds 
 	var count uint64 = 0
 
 	headItem := c.getValidatorPriorityByKey(PriorityValidatorHeadKey)
-	itemKey := headItem.NextKey
-	item := c.getValidatorPriorityByKey(itemKey)
+	item := c.getValidatorPriorityByKey(headItem.NextKey)
 
 	for bytes.Compare(item.NextKey, PriorityValidatorHeadKey) != 0 && count < size { // not as tail  and count less size
 		arr[count] = item.ValidatorAddr
-		itemKey = item.NextKey
-		item = c.getValidatorPriorityByKey(itemKey)
+		item = c.getValidatorPriorityByKey(item.NextKey)
 		count++
 	}
 	return arr[:count]
@@ -1400,8 +1422,46 @@ func (c *StakeHandler) appendEpochItem(epoch uint64, startBlock, endBlock uint64
 	return nil
 }
 
-func (c *StakeHandler) getLastEpoch() *types.EpochItem {
-	return nil
+func (c *StakeHandler) getLastEpochItem() *types.EpochItem {
+	tail := c.getEpochItem(math.MaxUint64)
+	item := c.getEpochItem(tail.PreEpoch)
+	return item
+}
+
+func (c *StakeHandler) getLastEpoch() uint64 {
+	tail := c.getEpochItem(math.MaxUint64)
+	return tail.PreEpoch
+}
+
+func (c *StakeHandler) getEpochQueueFromHead(size uint64) types.EpochQueue {
+	queue := types.NewEpochQueue(size)
+
+	var count uint64 = 0
+
+	item := c.getEpochItem(1)
+
+	for item.NextEpoch != math.MaxUint64 && count < size { // not as tail  and count less size
+		queue[count] = item
+		item = c.getEpochItem(item.NextEpoch)
+		count++
+	}
+	return queue[:count]
+}
+
+func (c *StakeHandler) getEpochQueueFromTail(size uint64) types.EpochQueue {
+	queue := types.NewEpochQueue(size)
+
+	var count uint64 = 0
+
+	tail := c.getEpochItem(math.MaxUint64)
+	item := c.getEpochItem(tail.PreEpoch)
+
+	for item.PreEpoch != 0 && count < size { // not as head  and count less size
+		queue[count] = item
+		item = c.getEpochItem(item.PreEpoch)
+		count++
+	}
+	return queue[:count]
 }
 
 func (c *StakeHandler) setEpochItem(epoch uint64, item *types.EpochItem) error {

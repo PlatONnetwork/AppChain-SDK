@@ -315,6 +315,29 @@ func (item *EpochItem) UpdateNextEpoch(epoch uint64) {
 	item.NextEpoch = epoch
 }
 
+func (item *EpochItem) IsEmpty() bool {
+	return nil == item
+}
+
+func (item *EpochItem) IsNotEmpty() bool {
+	return !item.IsEmpty()
+}
+
+type EpochQueue []*EpochItem
+
+func NewEpochQueue(size uint64) EpochQueue {
+	queue := make(EpochQueue, size)
+	return queue
+}
+
+func (queue EpochQueue) IsEmpty() bool {
+	return len(queue) == 0
+}
+
+func (queue EpochQueue) IsNotEmpty() bool {
+	return !queue.IsEmpty()
+}
+
 type StakeWithdrawalItem struct {
 	PreEpoch  uint64   // pre release epoch
 	NextEpoch uint64   // next release epoch

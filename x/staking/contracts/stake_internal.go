@@ -289,7 +289,7 @@ func (c *StakeHandler) delegate(validatorAddr, delegaterAddr common.Address, amo
 		return typesdk.NewRevertError("StakeHandler: ADD DELEGATE AMOUNT OF VALIDATOR FAILED")
 	}
 	// update delegation
-	if err := c.updateDelegation(delegaterAddr, validatorAddr, validator.Epoch, types.NewDelegation(c.GetCurrentEpoch(), amount)); nil != err {
+	if err := c.incrementDelegation(delegaterAddr, validatorAddr, validator.Epoch, types.NewDelegation(c.GetCurrentEpoch(), amount)); nil != err {
 		log.Error("Failed to set delegation", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
 		return typesdk.NewRevertError("StakeHandler: SET DELEGATION FAILED")
 	}
