@@ -2,6 +2,9 @@ package statesync
 
 import (
 	"crypto/ecdsa"
+	"fmt"
+	"math/big"
+
 	"github.com/PlatONnetwork/AppChain-SDK/store"
 	"github.com/PlatONnetwork/AppChain-SDK/x"
 	"github.com/PlatONnetwork/AppChain-SDK/x/extravote"
@@ -16,11 +19,15 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/p2p"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"gopkg.in/urfave/cli.v1"
-	"math/big"
 )
 
 // 同步 L1 事件， 提供 ExtraData，验证 ExtraData
 type StateSync struct {
+	rpcAddress   string
+	keystoreFile string
+	passwordFile string
+	startBlock   *big.Int
+	store        store.Store
 	privateKey   *ecdsa.PrivateKey
 	extraDb      *extravote.ExtraVoteDB
 	l1Sync       *sync.L1Sync
@@ -32,24 +39,18 @@ type StateSync struct {
 // TODO 启动查询合约执行的ID序号，定位同步的起始点
 // TODO 动态的清理数据库数据
 func NewStateSync(ctx *cli.Context, store store.Store, extraDb *extravote.ExtraVoteDB) (*StateSync, error) {
-	url := ctx.GlobalString(x.RootchainNodeRPCFlag.Name)
 	var start *big.Int
 	if ctx.GlobalIsSet(StartBlockFlag.Name) {
 		start = new(big.Int).SetUint64(ctx.GlobalUint64(StartBlockFlag.Name))
 	}
-	key, err := decodePrivateKey(ctx)
-	if err != nil {
-		return nil, err
-	}
-	l1Sync, err := sync.NewL1Sync(contracts.StateSyncAddress, url, start, store)
-	if err != nil {
-		return nil, err
-	}
 	eventProofDb := NewEventProofDB(store)
 	return &StateSync{
-		l1Sync:       l1Sync,
+		rpcAddress:   ctx.GlobalString(x.RootchainNodeRPCFlag.Name),
+		keystoreFile: ctx.GlobalString(KeystoreFlag.Name),
+		passwordFile: ctx.GlobalString(PasswordFlag.Name),
+		startBlock:   start,
+		store:        store,
 		eventProofDb: eventProofDb,
-		privateKey:   key.PrivateKey,
 		extraDb:      extraDb,
 		p2p:          NewSyncP2P(),
 	}, nil
@@ -58,9 +59,31 @@ func NewStateSync(ctx *cli.Context, store store.Store, extraDb *extravote.ExtraV
 func (s *StateSync) Name() string {
 	return "statesync"
 }
-func (s *StateSync) ContractAddress() common.Address {
+
+func (s *StateSync) Init() error {
+	if s.rpcAddress == "" {
+		return fmt.Errorf("node rpc address not set")
+	}
+
+	key, err := decodePrivateKey(s.keystoreFile, s.passwordFile)
+	if err != nil {
+		return err
+	}
+	s.privateKey = key.PrivateKey
+
+	l1Sync, err := sync.NewL1Sync(contracts.StateSyncAddress, s.rpcAddress, s.startBlock, s.store)
+	if err != nil {
+		return err
+	}
+	s.l1Sync = l1Sync
+
+	return nil
+}
+
+func (s *StateSync) Address() common.Address {
 	return contracts.StateSyncAddress
 }
+
 func (s *StateSync) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly bool) ([]byte, error) {
 	stateReceiver, _ := contracts.NewStateReceiver(evm, contract, readOnly)
 	return stateReceiver.Run(input)
@@ -71,12 +94,12 @@ func (s *StateSync) Protocols() []p2p.Protocol {
 }
 
 func (s *StateSync) ExtendData(ctx sdk.Context) []byte {
-	cc := ctx.Context().(sdk.ConsensusContext)
-	return s.ExtendDataImpl(ctx, cc.Epoch(), cc.View(), cc.BlockIndex(), cc.Header())
+	cc := ctx.(sdk.ConsensusContext)
+	return s.ExtendDataImpl(cc, cc.Epoch(), cc.View(), cc.BlockIndex(), cc.Header())
 }
 
 func (s *StateSync) VerifyExtendData(ctx sdk.Context, data []byte) (common.Hash, error) {
-	cc := ctx.Context().(sdk.ConsensusContext)
+	cc := ctx.(sdk.ConsensusContext)
 	return s.VerifyExtendDataImpl(cc.Epoch(), cc.View(), cc.BlockIndex(), cc.Header(), data)
 }
 
@@ -86,7 +109,7 @@ func (s *StateSync) PrepareQC(ctx sdk.Context, block *protocols.PrepareBlock, vo
 func (s *StateSync) AddTxs(ctx sdk.Context, local, remote map[common.Address]types.Transactions) (map[common.Address]types.Transactions, map[common.Address]types.Transactions) {
 	cc := ctx.(sdk.WorkerContext)
 	//创建commitment
-	receiver, err := s.newStateSyncCallContract(ctx, cc.Header().ParentHash)
+	receiver, err := s.newStateSyncCallContract(ctx, cc.Header())
 	if err != nil {
 		return local, remote
 	}

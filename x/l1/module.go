@@ -2,17 +2,19 @@ package l1
 
 import (
 	"encoding/json"
+	"math/big"
+
 	"github.com/PlatONnetwork/AppChain-SDK/store"
 	"github.com/PlatONnetwork/PlatON-Go/common"
-	"github.com/PlatONnetwork/PlatON-Go/core"
+	"github.com/PlatONnetwork/PlatON-Go/log"
+	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
-	"math/big"
 )
 
 type Genesis struct {
 	ChainID    *big.Int       `json:"chainId"`
 	State      common.Address `json:"state"`
-	CheckPoint common.Address `json:"checkpoint"`
+	Checkpoint common.Address `json:"checkpoint"`
 }
 
 type L1 struct {
@@ -29,11 +31,12 @@ func (l *L1) Name() string {
 	return "l1"
 }
 
-func (l *L1) InitGenesis(ctx sdk.Context, db sdk.StateDB, genesis *core.Genesis, data json.RawMessage) {
+func (l *L1) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
 	var g Genesis
 	raw, _ := data.MarshalJSON()
 	json.Unmarshal(raw, &g)
+	log.Info("Init genesis", "module", "l1", "chainId", g.ChainID, "state", g.State.Hex(), "checkpoint", g.Checkpoint.Hex())
 	l.db.SetChainID(g.ChainID)
 	l.db.SetStateAddress(g.State)
-	l.db.SetCheckpointAddress(g.CheckPoint)
+	l.db.SetCheckpointAddress(g.Checkpoint)
 }

@@ -1,6 +1,8 @@
 package types
 
 import (
+	"fmt"
+
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
@@ -22,6 +24,18 @@ type StorageCheckpointData struct {
 	ExtendRoot common.Hash
 	Signature  []byte
 	Bitmap     []byte
+}
+
+func (s *StorageCheckpointData) String() string {
+	return fmt.Sprintf("{epoch:%d,view:%d,index:%d,number:%d,hash:%s,current:%s,next:%s,root:%s}",
+		s.EpochNumber,
+		s.ViewNumber,
+		s.BlockIndex,
+		s.BlockNumber,
+		s.BlockHash.TerminalString(),
+		s.CurrentValidatorsHash.TerminalString(),
+		s.NextValidatorsHash.TerminalString(),
+		s.EventRoot.TerminalString())
 }
 
 func (cd *CheckpointData) MarshalRLP() []byte {

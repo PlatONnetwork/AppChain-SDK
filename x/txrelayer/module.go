@@ -37,24 +37,36 @@ type Module struct {
 	lock sync.Mutex
 }
 
-func NewModule(rpcAddress string, receiptTimeout time.Duration, numRetries int) (*Module, error) {
-	m := &Module{
+func NewModule(rpcAddress string, receiptTimeout time.Duration, numRetries int) *Module {
+	return &Module{
 		rpcAddress:     rpcAddress,
 		receiptTimeout: receiptTimeout,
 		numRetries:     numRetries,
 	}
-
-	client, err := ethclient.Dial(rpcAddress)
-	if err != nil {
-		return nil, err
-	}
-
-	m.client = client
-	return m, nil
 }
 
 func (m *Module) Name() string {
 	return ModuleName
+}
+
+func (m *Module) Init() error {
+	if m.rpcAddress == "" {
+		return fmt.Errorf("node rpc address not set")
+	}
+
+	if m.receiptTimeout == 0 {
+		m.receiptTimeout = DefaultReceiptTimeout
+	}
+	if m.numRetries == 0 {
+		m.numRetries = DefaultNumRetries
+	}
+
+	client, err := ethclient.Dial(m.rpcAddress)
+	if err != nil {
+		return err
+	}
+	m.client = client
+	return nil
 }
 
 func (m *Module) Call(from common.Address, to common.Address, data []byte) ([]byte, error) {
