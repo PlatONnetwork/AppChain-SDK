@@ -33,8 +33,8 @@ var (
 	STAKE_PARAMS_TYPE             = abi.MustNewType("tuple(address validatorAddr, address ownerAddr, uint256 amount, uint256 commissionRate, uint256[2] bksKey, bytes pubKey)")
 	ADDSTAKE_PARAMS_TYPE          = abi.MustNewType("tuple(address validatorAddr, uint256 amount)")
 	UNSTAKE_PARAMS_TYPE           = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, uint256 amount)")
-	ROOT_CHAIN_SLASH_PARAMS_TYPE  = abi.MustNewType("tuple(address[] validatorAddrs, uint256 slashingPercentage, uint256 slashIncentivePercentage)")
-	CHILD_CHAIN_SLASH_PARAMS_TYPE = abi.MustNewType("tuple(uint256 handleEventId, address[] validatorAddrs)")
+	ROOT_CHAIN_SLASH_PARAMS_TYPE  = abi.MustNewType("tuple(bytes32 sig, address[] validatorAddrs, uint256 slashingPercentage, uint256 slashIncentivePercentage)")
+	CHILD_CHAIN_SLASH_PARAMS_TYPE = abi.MustNewType("tuple(bytes32 sig, uint256 handleEventId, address[] validatorAddrs, uint256[] amounts)")
 	DELEGATE_PARAMS_TYPE          = abi.MustNewType("tuple(address validatorAddr, address delegterAddr, uint256 amount)")
 	UNDELEGATE_PARAMS_TYPE        = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, address delegterAddr, uint256 amount)")
 )
@@ -137,13 +137,18 @@ func (c *StakeHandler) onSlash(input []byte) error {
 	if !ok {
 		return typesdk.NewRevertError("StakeHandler: INVALID_VALIDATORADDRS")
 	}
-	addrs := make([]common.Address, len(validatorAddrs))
 
+	addrs := make([]common.Address, len(validatorAddrs))
 	for i, v := range validatorAddrs {
 		addrs[i] = common.Address(v)
 	}
 
-	return c.slash(handleEventId, addrs)
+	amounts, ok := res["amounts"].([]*big.Int)
+	if !ok {
+		return typesdk.NewRevertError("StakeHandler: INVALID_AMOUNTS")
+	}
+
+	return c.slash(handleEventId, addrs, amounts)
 }
 
 func (c *StakeHandler) onDelegate(input []byte) error {
@@ -252,7 +257,9 @@ func (c *StakeHandler) unStake(validatorAddr common.Address, amount *big.Int) er
 	var err error
 	if validator.StakeAmount.Cmp(common.Big0) == 0 {
 		validator.AppendStatus(types.Invalided | types.Unstaked)
-		err = c.updateValidatorRemovePriority(validatorAddr, validator)
+		if err = c.updateValidatorRemovePriority(validatorAddr, validator); nil != err {
+			return err
+		}
 	} else {
 		err = c.updateValidatorByPriority(validatorAddr, validator)
 	}
@@ -262,38 +269,68 @@ func (c *StakeHandler) unStake(validatorAddr common.Address, amount *big.Int) er
 	return err
 }
 
-func (c *StakeHandler) slash(handleEventId *big.Int, validatorAddrs []common.Address) error {
+func (c *StakeHandler) slash(handleEventId *big.Int, validatorAddrs []common.Address, amounts []*big.Int) error {
 	if c.hasSlashProcessed(handleEventId) {
 		return typesdk.NewRevertError("StakeHandler: SLASH_ALREADY_PROCESSED")
 	}
+	if len(validatorAddrs) != len(amounts) {
+		return typesdk.NewRevertError("StakeHandler: INVALID_PARAMS")
+	}
 
-	// TODO
+	queue := types.NewSlashValidatorWithdrawItemQueue(uint64(len(validatorAddrs)))
+	for i, v := range validatorAddrs {
 
+		queue[i] = types.NewSlashValidatorWithdrawItem(v, amounts[i])
+
+		// unstake short circuit
+		c.removeValidator(v)
+		c.cleanStakeWithdrawable(v)
+
+	}
+	if err := c.setSlashProcessed(handleEventId, queue); nil != err {
+		return err
+	}
+
+	if err := c.addLogSlashedEvent(handleEventId, validatorAddrs, amounts); nil != err {
+		return err
+	}
+
+	log.Info("Slash for", "handleEventId", handleEventId, "validator size", len(validatorAddrs), "epoch", c.GetCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }
 
-// TODO  如果存在 失效的 validator 或者 不存在的 validator 应该将 delegate Amount 追加到 delegateWithdrawal 中
 func (c *StakeHandler) delegate(validatorAddr, delegaterAddr common.Address, amount *big.Int) error {
 
 	validator := c.GetValidator(validatorAddr)
 
+	var err error
 	if validator.IsEmpty() || validator.IsInvalid() {
-		return typesdk.NewRevertError("StakeHandler: INVALID_VALIDATOR")
-	}
+		if err = c.registerDelegateWithdrawal(delegaterAddr, validatorAddr, amount, false); nil != err {
+			return err
+		}
+	} else {
+		// update validator priority
+		validator.AddDelegateAmount(amount)
 
-	// update validator priority
-	validator.AddDelegateAmount(amount)
+		if err = c.updateValidatorByPriority(validatorAddr, validator); nil != err {
+			log.Error("Failed to add validator delegate amount", "validatorAddr", validatorAddr.Hex(), "error", err)
+			return typesdk.NewRevertError("StakeHandler: ADD DELEGATE AMOUNT OF VALIDATOR FAILED")
+		}
 
-	if err := c.updateValidatorByPriority(validatorAddr, validator); nil != err {
-		log.Error("Failed to add validator delegate amount", "validatorAddr", validatorAddr.Hex(), "error", err)
-		return typesdk.NewRevertError("StakeHandler: ADD DELEGATE AMOUNT OF VALIDATOR FAILED")
+		// update delegation
+		build, err := c.incrementDelegation(delegaterAddr, validatorAddr, validator.Epoch, c.GetCurrentEpoch(), amount)
+		if nil != err {
+			log.Error("Failed to set delegation", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
+			return typesdk.NewRevertError("StakeHandler: SET DELEGATION FAILED")
+		}
+		// append validator delegation rc
+		if build {
+			if err = c.appendValidatorDelegationRc(validatorAddr, validator.Epoch, 1); nil != err {
+
+			}
+		}
+		log.Info("Delegate for", "delegaterAddr", delegaterAddr.Hex(), "validator", validatorAddr.Hex(), "amount", amount, "epoch", c.GetCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
 	}
-	// update delegation
-	if err := c.incrementDelegation(delegaterAddr, validatorAddr, validator.Epoch, types.NewDelegation(c.GetCurrentEpoch(), amount)); nil != err {
-		log.Error("Failed to set delegation", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
-		return typesdk.NewRevertError("StakeHandler: SET DELEGATION FAILED")
-	}
-	log.Info("Delegate for", "delegaterAddr", delegaterAddr.Hex(), "validator", validatorAddr.Hex(), "amount", amount, "epoch", c.GetCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }
 
@@ -390,6 +427,24 @@ func (c *StakeHandler) syncStateUnDelegate(validatorAddr, delegaterAddr common.A
 
 	if err := l2statesender.SyncState(address.RootchainStakeManagerAddress, data); nil != err {
 		return typesdk.NewRevertError("call undelegate by L2StateSender failed")
+	}
+	return nil
+}
+
+func (c *StakeHandler) syncStateSlash(validators []common.Address) error {
+
+	data, err := abi.Encode([]interface{}{SLASH_SIG, validators, SLASHING_PERCENTAGE, SLASH_INCENTIVE_PERCENTAGE}, ROOT_CHAIN_SLASH_PARAMS_TYPE)
+	if nil != err {
+		return typesdk.NewRevertError("encode L2StateSender slash data failed")
+	}
+
+	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, address.StakeSenderAddress)
+	if nil != err {
+		return typesdk.NewRevertError("call slash by L2StateSender failed")
+	}
+
+	if err := l2statesender.SyncState(address.RootchainStakeManagerAddress, data); nil != err {
+		return typesdk.NewRevertError("call slash by L2StateSender failed")
 	}
 	return nil
 }

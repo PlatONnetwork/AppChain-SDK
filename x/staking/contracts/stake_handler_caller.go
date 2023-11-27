@@ -46,9 +46,9 @@ func NewStakeHandlerCaller(evm *vm.EVM, contract *vm.Contract, to common.Address
 	return s, nil
 }
 
-func (c *StakeHandlerCaller) PendingWithdrawalsOfDelegate(validator common.Address, account common.Address) (*big.Int, error) {
+func (c *StakeHandlerCaller) PendingWithdrawalsOfDelegate(validator common.Address, delegater common.Address) (*big.Int, error) {
 	var out []interface{}
-	err := c.BoundContract.Caller(c.to, &out, "pendingWithdrawalsOfDelegate", validator, account)
+	err := c.BoundContract.Caller(c.to, &out, "pendingWithdrawalsOfDelegate", validator, delegater)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -60,9 +60,9 @@ func (c *StakeHandlerCaller) PendingWithdrawalsOfDelegate(validator common.Addre
 
 }
 
-func (c *StakeHandlerCaller) PendingWithdrawalsOfStake(validator common.Address, account common.Address) (*big.Int, error) {
+func (c *StakeHandlerCaller) PendingWithdrawalsOfStake(validator common.Address) (*big.Int, error) {
 	var out []interface{}
-	err := c.BoundContract.Caller(c.to, &out, "pendingWithdrawalsOfStake", validator, account)
+	err := c.BoundContract.Caller(c.to, &out, "pendingWithdrawalsOfStake", validator)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -74,9 +74,9 @@ func (c *StakeHandlerCaller) PendingWithdrawalsOfStake(validator common.Address,
 
 }
 
-func (c *StakeHandlerCaller) WithdrawableOfDelegate(validator common.Address, account common.Address) (*big.Int, error) {
+func (c *StakeHandlerCaller) WithdrawableOfDelegate(validator common.Address, delegater common.Address) (*big.Int, error) {
 	var out []interface{}
-	err := c.BoundContract.Caller(c.to, &out, "withdrawableOfDelegate", validator, account)
+	err := c.BoundContract.Caller(c.to, &out, "withdrawableOfDelegate", validator, delegater)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -88,9 +88,9 @@ func (c *StakeHandlerCaller) WithdrawableOfDelegate(validator common.Address, ac
 
 }
 
-func (c *StakeHandlerCaller) WithdrawableOfStake(validator common.Address, account common.Address) (*big.Int, error) {
+func (c *StakeHandlerCaller) WithdrawableOfStake(validator common.Address) (*big.Int, error) {
 	var out []interface{}
-	err := c.BoundContract.Caller(c.to, &out, "withdrawableOfStake", validator, account)
+	err := c.BoundContract.Caller(c.to, &out, "withdrawableOfStake", validator)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -99,18 +99,6 @@ func (c *StakeHandlerCaller) WithdrawableOfStake(validator common.Address, accou
 	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
 
 	return out0, err
-
-}
-
-func (c *StakeHandlerCaller) CommitEpoch(id *big.Int, epoch Epoch, epochSize *big.Int) error {
-	var out []interface{}
-	err := c.BoundContract.Caller(c.to, &out, "commitEpoch", id, epoch, epochSize)
-
-	if err != nil {
-		return err
-	}
-
-	return err
 
 }
 
@@ -203,9 +191,9 @@ func NewStakeHandlerDelegateCaller(evm *vm.EVM, contract *vm.Contract, to common
 	return s, nil
 }
 
-func (c *StakeHandlerDelegateCaller) PendingWithdrawalsOfDelegate(validator common.Address, account common.Address) (*big.Int, error) {
+func (c *StakeHandlerDelegateCaller) PendingWithdrawalsOfDelegate(validator common.Address, delegater common.Address) (*big.Int, error) {
 	var out []interface{}
-	err := c.BoundContract.DelegateCaller(c.to, &out, "pendingWithdrawalsOfDelegate", validator, account)
+	err := c.BoundContract.DelegateCaller(c.to, &out, "pendingWithdrawalsOfDelegate", validator, delegater)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -217,9 +205,9 @@ func (c *StakeHandlerDelegateCaller) PendingWithdrawalsOfDelegate(validator comm
 
 }
 
-func (c *StakeHandlerDelegateCaller) PendingWithdrawalsOfStake(validator common.Address, account common.Address) (*big.Int, error) {
+func (c *StakeHandlerDelegateCaller) PendingWithdrawalsOfStake(validator common.Address) (*big.Int, error) {
 	var out []interface{}
-	err := c.BoundContract.DelegateCaller(c.to, &out, "pendingWithdrawalsOfStake", validator, account)
+	err := c.BoundContract.DelegateCaller(c.to, &out, "pendingWithdrawalsOfStake", validator)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -231,9 +219,9 @@ func (c *StakeHandlerDelegateCaller) PendingWithdrawalsOfStake(validator common.
 
 }
 
-func (c *StakeHandlerDelegateCaller) WithdrawableOfDelegate(validator common.Address, account common.Address) (*big.Int, error) {
+func (c *StakeHandlerDelegateCaller) WithdrawableOfDelegate(validator common.Address, delegater common.Address) (*big.Int, error) {
 	var out []interface{}
-	err := c.BoundContract.DelegateCaller(c.to, &out, "withdrawableOfDelegate", validator, account)
+	err := c.BoundContract.DelegateCaller(c.to, &out, "withdrawableOfDelegate", validator, delegater)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -245,9 +233,9 @@ func (c *StakeHandlerDelegateCaller) WithdrawableOfDelegate(validator common.Add
 
 }
 
-func (c *StakeHandlerDelegateCaller) WithdrawableOfStake(validator common.Address, account common.Address) (*big.Int, error) {
+func (c *StakeHandlerDelegateCaller) WithdrawableOfStake(validator common.Address) (*big.Int, error) {
 	var out []interface{}
-	err := c.BoundContract.DelegateCaller(c.to, &out, "withdrawableOfStake", validator, account)
+	err := c.BoundContract.DelegateCaller(c.to, &out, "withdrawableOfStake", validator)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -256,18 +244,6 @@ func (c *StakeHandlerDelegateCaller) WithdrawableOfStake(validator common.Addres
 	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
 
 	return out0, err
-
-}
-
-func (c *StakeHandlerDelegateCaller) CommitEpoch(id *big.Int, epoch Epoch, epochSize *big.Int) error {
-	var out []interface{}
-	err := c.BoundContract.DelegateCaller(c.to, &out, "commitEpoch", id, epoch, epochSize)
-
-	if err != nil {
-		return err
-	}
-
-	return err
 
 }
 

@@ -32,3 +32,11 @@ func (d *Delegation) DecrementAmount(amount *big.Int) {
 		d.Amount = new(big.Int).Sub(d.Amount, amount)
 	}
 }
+
+func (d *Delegation) IsEmpty() bool {
+	return nil == d
+}
+
+func (d *Delegation) IsNotEmpty() bool {
+	return !d.IsEmpty()
+}

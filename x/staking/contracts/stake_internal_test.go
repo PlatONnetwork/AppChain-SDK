@@ -7,24 +7,25 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
 	"github.com/umbracle/ethgo"
+	"math/big"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/umbracle/ethgo/abi"
 )
 
-func TestEncodeData(t *testing.T) {
+func TestEncodeStakeData(t *testing.T) {
 
-	_ADDSTAKE_SIG := crypto.Keccak256Hash([]byte("ADDSTAKE"))
+	ADDSTAKE_SIG := crypto.Keccak256Hash([]byte("ADDSTAKE"))
 	addr := common.HexToAddress("0xFA66dAa530328D0d914B6652e4B64B00d84e3a1a")
 	amount := 99
 	//abiType := abi.MustNewType("tuple(bytes32, address, uint256)")
 	abiType := abi.MustNewType("tuple(bytes32 STAKE_SIG, address addr, uint256 amount)")
-	input, err := abiType.Encode([]interface{}{_ADDSTAKE_SIG, addr, amount})
+	input, err := abiType.Encode([]interface{}{ADDSTAKE_SIG, addr, amount})
 	if nil != err {
 		t.Error(err)
 	}
-	fmt.Printf("SIGN:\n %s \n", _ADDSTAKE_SIG.Hex())
+	fmt.Printf("SIGN:\n %s \n", ADDSTAKE_SIG.Hex())
 	fmt.Printf("data:\n %s \n", common.Bytes2Hex(input))
 }
 
@@ -34,18 +35,18 @@ func TestEncodeData(t *testing.T) {
 //0x7f629647b0cf8231fa5380e25f7c9bf0685fecbdc41360b93da5b447cef9ee73000000000000000000000000fa66daa530328d0d914b6652e4b64b00d84e3a1a0000000000000000000000000000000000000000000000000000000000000063
 // 7f629647b0cf8231fa5380e25f7c9bf0685fecbdc41360b93da5b447cef9ee73000000000000000000000000fa66daa530328d0d914b6652e4b64b00d84e3a1a0000000000000000000000000000000000000000000000000000000000000063
 
-func TestDecodeData(t *testing.T) {
-	_ADDSTAKE_SIG := crypto.Keccak256Hash([]byte("ADDSTAKE"))
+func TestDecodeStakeData(t *testing.T) {
+	ADDSTAKE_SIG := crypto.Keccak256Hash([]byte("ADDSTAKE"))
 	//addr := common.HexToAddress("0xFA66dAa530328D0d914B6652e4B64B00d84e3a1a")
 	//amount := 99
-
+	//
 	data := common.Hex2Bytes("7f629647b0cf8231fa5380e25f7c9bf0685fecbdc41360b93da5b447cef9ee73000000000000000000000000fa66daa530328d0d914b6652e4b64b00d84e3a1a0000000000000000000000000000000000000000000000000000000000000063")
 	fmt.Printf("input len: %d \n", len(data))
 	//abiType := abi.MustNewType("tuple(bytes32, address, uint256)")
 	//abiType := abi.MustNewType("tuple(address, uint256)")
 	abiType := abi.MustNewType("tuple(address addr, uint256 amount)")
 
-	assert.True(t, bytes.Compare(_ADDSTAKE_SIG.Bytes(), data[:32]) == 0, "no equals sign")
+	assert.True(t, bytes.Compare(ADDSTAKE_SIG.Bytes(), data[:32]) == 0, "no equals sign")
 	//decoded, err := abiType.Decode(data)
 	decoded, err := abiType.Decode(data[32:])
 	//decoded, err := abi.Decode(abiType, data)
@@ -175,4 +176,69 @@ func TestQueueAppend(t *testing.T) {
 
 	fmt.Printf("q empty: %v \n", q.IsEmpty())
 	fmt.Printf("q not empty: %v \n", q.IsNotEmpty())
+}
+
+func TestEncodeSlashData(t *testing.T) {
+
+	SLASH_SIG := crypto.Keccak256Hash([]byte("SLASH"))
+	addrs := []common.Address{common.HexToAddress("0xFA66dAa530328D0d914B6652e4B64B00d84e3a1a"), common.HexToAddress("0x4d21D80BA135AD50f515861a5b334A2B4FF8271D")}
+	amounts := []uint64{66, 72}
+
+	abiType := abi.MustNewType("tuple(bytes32 SLASH_SIG, uint256 handleEventId, address[] addrs, uint256[] amounts)")
+	input, err := abiType.Encode([]interface{}{SLASH_SIG, uint64(12), addrs, amounts})
+	if nil != err {
+		t.Error(err)
+	}
+	fmt.Printf("SIGN:\n %s \n", SLASH_SIG.Hex())
+	fmt.Printf("data:\n %s \n", common.Bytes2Hex(input))
+}
+
+func TestDecodeSlashData(t *testing.T) {
+	SLASH_SIG := crypto.Keccak256Hash([]byte("SLASH"))
+
+	data := common.Hex2Bytes("117f1d6f44fd34ccb7a58f1261fa59e5c4bf68e2712d65f246a8805167a93344000000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000e00000000000000000000000000000000000000000000000000000000000000002000000000000000000000000fa66daa530328d0d914b6652e4b64b00d84e3a1a0000000000000000000000004d21d80ba135ad50f515861a5b334a2b4ff8271d000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000420000000000000000000000000000000000000000000000000000000000000048")
+
+	abiType := abi.MustNewType("tuple(bytes32 SLASH_SIG, uint256 id, address[] addrs, uint256[] amounts)")
+
+	//abiType := abi.MustNewType("tuple(uint256 id, address[] addrs, uint256[] amounts)")
+
+	assert.True(t, bytes.Compare(SLASH_SIG.Bytes(), data[:32]) == 0, "no equals sign")
+
+	//decoded, err := abiType.Decode(data[32:])
+
+	decoded, err := abiType.Decode(data)
+
+	if nil != err {
+		t.Error(err)
+	}
+	res, ok := decoded.(map[string]interface{})
+	if !ok {
+		t.Error("err......")
+	}
+
+	//b, e := json.Marshal(res)
+	//if e != nil {
+	//	t.Error(e)
+	//}
+	//fmt.Printf("%s \n", string(b))
+
+	id, ok := res["id"].(*big.Int)
+	if !ok {
+		t.Error("failed......")
+	}
+	fmt.Printf("id: %s \n", fmt.Sprintf("%+v", id))
+
+	addrs, ok := res["addrs"].([]ethgo.Address)
+	if !ok {
+		t.Error("failed......")
+	}
+	addrQueue := make([]common.Address, len(addrs))
+	for i, v := range addrs {
+		addrQueue[i] = common.Address(v)
+		fmt.Printf("addr: %s \n", addrQueue[i].Hex())
+	}
+
+	amounts, ok := res["amounts"].([]*big.Int)
+
+	fmt.Printf("amounts: %s \n", fmt.Sprintf("%+v", amounts))
 }

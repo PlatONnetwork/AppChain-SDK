@@ -3,6 +3,8 @@ package contracts
 import (
 	"bytes"
 	"errors"
+	"fmt"
+	"github.com/PlatONnetwork/PlatON-Go/common/math"
 
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/x/address"
@@ -54,24 +56,20 @@ func NewStakeHandler(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*StakeH
 	return s, nil
 }
 
-func (c *StakeHandler) PendingWithdrawalsOfDelegate(validator common.Address, account common.Address) (*big.Int, error) {
-	panic("implement")
+func (c *StakeHandler) PendingWithdrawalsOfDelegate(validator common.Address, delegater common.Address) (*big.Int, error) {
+	return c.GetDelegateWithdrawalPending(delegater, validator, c.GetCurrentEpoch()), nil
 }
 
-func (c *StakeHandler) PendingWithdrawalsOfStake(validator common.Address, account common.Address) (*big.Int, error) {
-	panic("implement")
+func (c *StakeHandler) PendingWithdrawalsOfStake(validator common.Address) (*big.Int, error) {
+	return c.GetStakeWithdrawalPending(validator, c.GetCurrentEpoch()), nil
 }
 
-func (c *StakeHandler) WithdrawableOfDelegate(validator common.Address, account common.Address) (*big.Int, error) {
-	panic("implement")
+func (c *StakeHandler) WithdrawableOfDelegate(validator common.Address, delegater common.Address) (*big.Int, error) {
+	return c.GetDelegateWithdrawable(delegater, validator, c.GetCurrentEpoch()), nil
 }
 
-func (c *StakeHandler) WithdrawableOfStake(validator common.Address, account common.Address) (*big.Int, error) {
-	panic("implement")
-}
-
-func (c *StakeHandler) CommitEpoch(id *big.Int, epoch Epoch, epochSize *big.Int) error {
-	panic("implement")
+func (c *StakeHandler) WithdrawableOfStake(validator common.Address) (*big.Int, error) {
+	return c.GetStakeWithdrawable(validator, c.GetCurrentEpoch()), nil
 }
 
 func (c *StakeHandler) OnStateReceive(id *big.Int, sender common.Address, data []byte) error {
@@ -87,7 +85,7 @@ func (c *StakeHandler) OnStateReceive(id *big.Int, sender common.Address, data [
 	} else if bytes.Compare(data[:METHODID_SIZE], ADDSTAKE_SIG.Bytes()) == 0 {
 		return c.onAddStake(data[METHODID_SIZE:])
 	} else if bytes.Compare(data[:METHODID_SIZE], SLASH_SIG.Bytes()) == 0 {
-		return c.onSlash(data[METHODID_SIZE:])
+		return c.onSlash(data) // don't be data[METHODID_SIZE:], it must be data
 	} else if bytes.Compare(data[:METHODID_SIZE], DELEGATE_SIG.Bytes()) == 0 {
 		return c.onDelegate(data[METHODID_SIZE:])
 	} else {
@@ -99,29 +97,69 @@ func (c *StakeHandler) Slash(validators []common.Address) error {
 	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
 		return err
 	}
-	panic("implement")
+	if err := c.syncStateSlash(validators); nil != err {
+		return err
+	}
+
+	log.Info("Slash for", "validators", fmt.Sprintf("%+v", validators), "currentEpoch", c.GetCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
+	return nil
 }
 
 func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int) error {
 	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
 		return err
 	}
-	//// todo ...
-	//delegaterAddr := c.contract.Caller()
-	//validator := c.GetValidator(validatorAddr)
-	//// todo 先查询出所有 stakeBlock
-	//
-	//queue := c.getUnStakeDelegationRcPending(validatorAddr)
-	//
-	//if (validator.IsEmpty() || validator.IsInvalid()) && queue.IsNotEmpty() {
-	//	for _, item := range queue {
-	//		delegation := c.GetDelegation(delegaterAddr, validatorAddr, )
-	//	}
-	//
-	//}
 
-	// c.contract.Caller(): msg.sender
-	return c.registerDelegateWithdrawal(c.contract.Caller(), validatorAddr, amount, true)
+	validator := c.GetValidator(validatorAddr)
+
+	delegaterAddr := c.contract.Caller()
+
+	queue := c.getValidatorDelegationRcPending(validatorAddr, math.MaxUint64)
+
+	paid := common.Big0
+
+	for _, item := range queue { // No.0 is head item, No.1 is first item, ...
+
+		if amount.Cmp(common.Big0) == 0 || item.NextStakeEpoch == uint64(math.MaxUint64) {
+			break
+		}
+
+		delegation := c.GetDelegation(delegaterAddr, validatorAddr, item.NextStakeEpoch)
+		if delegation.IsEmpty() {
+			continue
+		}
+
+		use := common.Big0
+		if delegation.Amount.Cmp(amount) <= 0 { // remove the delegation by stakeEpoch
+			c.removeDelegation(delegaterAddr, validatorAddr, item.NextStakeEpoch)
+			if err := c.decrementValidatorDelegationRcItem(validatorAddr, item.NextStakeEpoch, 1); nil != err {
+				return err
+			}
+			use = delegation.Amount
+		} else {
+			delegation.UpdateEpoch(c.GetCurrentEpoch())
+			delegation.DecrementAmount(amount)
+			if err := c.setDelegation(delegaterAddr, validatorAddr, item.NextStakeEpoch, delegation); nil != err {
+				return err
+			}
+			use = amount
+		}
+
+		amount = new(big.Int).Sub(amount, use)
+		paid = new(big.Int).Add(paid, use)
+
+		// update validator priority
+		if validator.IsValid() && validator.Epoch == item.NextStakeEpoch {
+			validator.SubDelegateAmount(amount)
+
+			if err := c.updateValidatorByPriority(validatorAddr, validator); nil != err {
+				log.Error("Failed to add validator delegate amount", "validatorAddr", validatorAddr.Hex(), "error", err)
+				return typesdk.NewRevertError("StakeHandler: SUB DELEGATE AMOUNT OF VALIDATOR FAILED")
+			}
+		}
+	}
+
+	return c.registerDelegateWithdrawal(delegaterAddr, validatorAddr, paid, true)
 }
 
 func (c *StakeHandler) Unstake(validatorAddr common.Address, amount *big.Int) error {
@@ -156,7 +194,7 @@ func (c *StakeHandler) WithdrawUndelegate(validator common.Address) error {
 		return err
 	}
 
-	log.Info("Withdraw undelegate for", "delegater", delegater, "validator", validator.Hex(), "amount", amount, "blockNumber", c.evm.Context.BlockNumber)
+	log.Info("Withdraw undelegate for", "delegater", delegater, "validator", validator.Hex(), "amount", amount, "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }
 
@@ -173,6 +211,12 @@ func (c *StakeHandler) WithdrawUnstake(validator common.Address) error {
 		return typesdk.NewRevertError("StakeHandler: UPDATE STAKE WITHDRAW PENDDING HEAD FAILED")
 	}
 
+	// remove unstake validator
+	validatorInfo := c.GetValidator(validator)
+	if validatorInfo.IsInvalidUnstaked() {
+		c.removeValidator(validator)
+	}
+
 	if err := c.addLogStakeWithdrawalEvent(validator, amount); nil != err {
 		return err
 	}
@@ -181,6 +225,6 @@ func (c *StakeHandler) WithdrawUnstake(validator common.Address) error {
 		return err
 	}
 
-	log.Info("Withdraw unstake for", "validator", validator.Hex(), "amount", amount, "blockNumber", c.evm.Context.BlockNumber)
+	log.Info("Withdraw unstake for", "validator", validator.Hex(), "amount", amount, "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }

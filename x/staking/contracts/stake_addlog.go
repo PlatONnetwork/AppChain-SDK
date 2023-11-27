@@ -5,15 +5,6 @@ import (
 	"math/big"
 )
 
-func (c *StakeHandler) addLogNewEpochEvent(id *big.Int, startBlock *big.Int, endBlock *big.Int, epochRoot [32]byte) error {
-	log, err := c.EmitNewEpochEvent(id, startBlock, endBlock, epochRoot)
-	if nil != err {
-		return nil
-	}
-	c.evm.StateDB.AddLog(log)
-	return nil
-}
-
 func (c *StakeHandler) addLogSlashedEvent(exitId *big.Int, validators []common.Address, amounts []*big.Int) error {
 	log, err := c.EmitSlashedEvent(exitId, validators, amounts)
 	if nil != err {

@@ -123,14 +123,6 @@ func (v *Validator) String() string {
 		v.StakeIndex)
 }
 
-func (v *Validator) IsNotEmpty() bool {
-	return !v.IsEmpty()
-}
-
-func (v *Validator) IsEmpty() bool {
-	return nil == v
-}
-
 func (v *Validator) SetStatus(status ValidatorStatus) {
 	v.Status = status
 }
@@ -180,59 +172,67 @@ func (v *Validator) Shares() *big.Int {
 }
 
 func (v *Validator) IsValid() bool {
-	return v.Status.IsValid()
+	return v.IsNotEmpty() && v.Status.IsValid()
 }
 
 func (v *Validator) IsInvalid() bool {
-	return v.Status.IsInvalid()
+	return v.IsNotEmpty() && v.Status.IsInvalid()
 }
 
 func (v *Validator) IsOnlyInvalid() bool {
-	return v.Status.IsOnlyInvalid()
+	return v.IsNotEmpty() && v.Status.IsOnlyInvalid()
 }
 
 func (v *Validator) IsLowBlocks() bool {
-	return v.Status.IsLowBlocks()
+	return v.IsNotEmpty() && v.Status.IsLowBlocks()
 }
 
 func (v *Validator) IsOnlyLowBlocks() bool {
-	return v.Status.IsOnlyLowBlocks()
+	return v.IsNotEmpty() && v.Status.IsOnlyLowBlocks()
 }
 
 func (v *Validator) IsInvalidLowBlocks() bool {
-	return v.Status.IsInvalidLowBlocks()
+	return v.IsNotEmpty() && v.Status.IsInvalidLowBlocks()
 }
 
 func (v *Validator) IsLowThreshold() bool {
-	return v.Status.IsLowThreshold()
+	return v.IsNotEmpty() && v.Status.IsLowThreshold()
 }
 
 func (v *Validator) IsOnlyLowThreshold() bool {
-	return v.Status.IsOnlyLowThreshold()
+	return v.IsNotEmpty() && v.Status.IsOnlyLowThreshold()
 }
 
 func (v *Validator) IsInvalidLowThreshold() bool {
-	return v.Status.IsInvalidLowThreshold()
+	return v.IsNotEmpty() && v.Status.IsInvalidLowThreshold()
 }
 
 func (v *Validator) IsDuplicated() bool {
-	return v.Status.IsDuplicated()
+	return v.IsNotEmpty() && v.Status.IsDuplicated()
 }
 
 func (v *Validator) IsInvalidDuplicated() bool {
-	return v.Status.IsInvalidDuplicated()
+	return v.IsNotEmpty() && v.Status.IsInvalidDuplicated()
 }
 
 func (v *Validator) IsUnstaked() bool {
-	return v.Status.IsUnstaked()
+	return v.IsNotEmpty() && v.Status.IsUnstaked()
 }
 
 func (v *Validator) IsOnlyUnstaked() bool {
-	return v.Status.IsOnlyUnstaked()
+	return v.IsNotEmpty() && v.Status.IsOnlyUnstaked()
 }
 
 func (v *Validator) IsInvalidUnstaked() bool {
-	return v.Status.IsInvalidUnstaked()
+	return v.IsNotEmpty() && v.Status.IsInvalidUnstaked()
+}
+
+func (v *Validator) IsEmpty() bool {
+	return nil == v
+}
+
+func (v *Validator) IsNotEmpty() bool {
+	return !v.IsEmpty()
 }
 
 type PriorityValidator struct {
@@ -257,18 +257,26 @@ func (pv *PriorityValidator) UpdateNextKey(key []byte) {
 	pv.NextKey = key
 }
 
+func (pv *PriorityValidator) IsEmpty() bool {
+	return nil == pv
+}
+
+func (pv *PriorityValidator) IsNotEmpty() bool {
+	return !pv.IsEmpty()
+}
+
 type ValidatorIds []common.Address
 
-func (eids ValidatorIds) String() string {
-	arr := make([]string, len(eids))
-	for i, id := range eids {
+func (ids ValidatorIds) String() string {
+	arr := make([]string, len(ids))
+	for i, id := range ids {
 		arr[i] = id.Hex()
 	}
 	return "[" + strings.Join(arr, ",") + "]"
 }
 
-func (eids ValidatorIds) Has(validatorId common.Address) bool {
-	for _, id := range eids {
+func (ids ValidatorIds) Has(validatorId common.Address) bool {
+	for _, id := range ids {
 		if id == validatorId {
 			return true
 		}
@@ -276,19 +284,27 @@ func (eids ValidatorIds) Has(validatorId common.Address) bool {
 	return false
 }
 
-func (eids ValidatorIds) Remove(validatorIds ...common.Address) ValidatorIds {
+func (ids ValidatorIds) Remove(validatorIds ...common.Address) ValidatorIds {
 	cache := make(map[common.Address]struct{}, 0)
 	for _, id := range validatorIds {
 		cache[id] = struct{}{}
 	}
-	for i := 0; i < len(eids); i++ {
-		id := eids[i]
+	for i := 0; i < len(ids); i++ {
+		id := ids[i]
 		if _, ok := cache[id]; ok {
-			eids = append(eids[:i], eids[i+1:]...)
+			ids = append(ids[:i], ids[i+1:]...)
 			i--
 		}
 	}
-	return eids
+	return ids
+}
+
+func (ids ValidatorIds) IsEmpty() bool {
+	return len(ids) == 0
+}
+
+func (ids ValidatorIds) IsNotEmpty() bool {
+	return !ids.IsEmpty()
 }
 
 type EpochItem struct {
@@ -400,7 +416,15 @@ func (item *DelegateWithdrawalItem) IncrementAmount(increment *big.Int) {
 	item.Amount = new(big.Int).Add(item.Amount, increment)
 }
 
-type UnStakeDelegationRcItem struct {
+func (item *DelegateWithdrawalItem) IsEmpty() bool {
+	return nil == item
+}
+
+func (item *DelegateWithdrawalItem) IsNotEmpty() bool {
+	return !item.IsEmpty()
+}
+
+type ValidatorDelegationRcItem struct {
 	PreStakeEpoch  uint64
 	NextStakeEpoch uint64
 	// This means how many delegates in the current `stakeEpoch` have not been fully withdrawn
@@ -408,27 +432,27 @@ type UnStakeDelegationRcItem struct {
 	Rc uint64
 }
 
-func NewUnStakeDelegationRcItem(preStakeEpoch, nextStakeEpoch, delegationRc uint64) *UnStakeDelegationRcItem {
-	return &UnStakeDelegationRcItem{
+func NewValidatorDelegationRcItem(preStakeEpoch, nextStakeEpoch, delegationRc uint64) *ValidatorDelegationRcItem {
+	return &ValidatorDelegationRcItem{
 		PreStakeEpoch:  preStakeEpoch,
 		NextStakeEpoch: nextStakeEpoch,
 		Rc:             delegationRc,
 	}
 }
 
-func (item *UnStakeDelegationRcItem) UpdatePreStakeEpoch(stakeEpoch uint64) {
+func (item *ValidatorDelegationRcItem) UpdatePreStakeEpoch(stakeEpoch uint64) {
 	item.PreStakeEpoch = stakeEpoch
 }
 
-func (item *UnStakeDelegationRcItem) UpdateNextStakeEpoch(stakeEpoch uint64) {
+func (item *ValidatorDelegationRcItem) UpdateNextStakeEpoch(stakeEpoch uint64) {
 	item.NextStakeEpoch = stakeEpoch
 }
 
-func (item *UnStakeDelegationRcItem) IncrementRc(increment uint64) {
+func (item *ValidatorDelegationRcItem) IncrementRc(increment uint64) {
 	item.Rc += increment
 }
 
-func (item *UnStakeDelegationRcItem) DecrementRc(decrement uint64) {
+func (item *ValidatorDelegationRcItem) DecrementRc(decrement uint64) {
 	if item.Rc < decrement {
 		item.Rc = 0
 	} else {
@@ -436,17 +460,25 @@ func (item *UnStakeDelegationRcItem) DecrementRc(decrement uint64) {
 	}
 }
 
-type UnStakeDelegationRcQueue []*UnStakeDelegationRcItem
+func (item *ValidatorDelegationRcItem) IsEmpty() bool {
+	return nil == item
+}
 
-func NewUnStakeDelegationRcQueue(size uint64) UnStakeDelegationRcQueue {
-	queue := make(UnStakeDelegationRcQueue, size)
+func (item *ValidatorDelegationRcItem) IsNotEmpty() bool {
+	return !item.IsEmpty()
+}
+
+type ValidatorDelegationRcQueue []*ValidatorDelegationRcItem
+
+func NewValidatorDelegationRcQueue(size uint64) ValidatorDelegationRcQueue {
+	queue := make(ValidatorDelegationRcQueue, size)
 	return queue
 }
 
-func (queue UnStakeDelegationRcQueue) IsEmpty() bool {
+func (queue ValidatorDelegationRcQueue) IsEmpty() bool {
 	return len(queue) == 0
 }
 
-func (queue UnStakeDelegationRcQueue) IsNotEmpty() bool {
+func (queue ValidatorDelegationRcQueue) IsNotEmpty() bool {
 	return !queue.IsEmpty()
 }

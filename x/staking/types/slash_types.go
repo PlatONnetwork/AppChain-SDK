@@ -19,6 +19,11 @@ func NewSlashValidatorWithdrawItem(validatorAddr common.Address, amount *big.Int
 
 type SlashValidatorWithdrawItemQueue []*SlashValidatorWithdrawItem
 
+func NewSlashValidatorWithdrawItemQueue(size uint64) SlashValidatorWithdrawItemQueue {
+	queue := make(SlashValidatorWithdrawItemQueue, size)
+	return queue
+}
+
 func (queue SlashValidatorWithdrawItemQueue) UnSafeAppend(item *SlashValidatorWithdrawItem) SlashValidatorWithdrawItemQueue {
 	return append(queue, item)
 }
@@ -52,5 +57,3 @@ func (queue SlashValidatorWithdrawItemQueue) Empty() bool {
 func (queue SlashValidatorWithdrawItemQueue) NotEmpty() bool {
 	return !queue.Empty()
 }
-
-
