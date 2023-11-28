@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/x/address"
+	common2 "github.com/PlatONnetwork/AppChain-SDK/x/staking/common"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	statesenderC "github.com/PlatONnetwork/AppChain-SDK/x/statesender/contracts"
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -358,7 +359,7 @@ func (c *StakeHandler) registerStakeWithdrawal(validatorAddr common.Address, amo
 	currentEpoch := c.getCurrentEpoch()
 	var releaseEpoch uint64
 	if wait {
-		releaseEpoch = currentEpoch + DELEGATE_WITHDRAWAL_WAIT_PERIOD
+		releaseEpoch = currentEpoch + common2.DELEGATE_WITHDRAWAL_WAIT_PERIOD
 	} else {
 		releaseEpoch = currentEpoch
 	}
@@ -379,7 +380,7 @@ func (c *StakeHandler) registerDelegateWithdrawal(delegater, validatorAddr commo
 	currentEpoch := c.getCurrentEpoch()
 	var releaseEpoch uint64
 	if wait {
-		releaseEpoch = currentEpoch + DELEGATE_WITHDRAWAL_WAIT_PERIOD
+		releaseEpoch = currentEpoch + common2.DELEGATE_WITHDRAWAL_WAIT_PERIOD
 	} else {
 		releaseEpoch = currentEpoch
 	}
@@ -433,7 +434,7 @@ func (c *StakeHandler) syncStateUnDelegate(validatorAddr, delegaterAddr common.A
 
 func (c *StakeHandler) syncStateSlash(validators []common.Address) error {
 
-	data, err := abi.Encode([]interface{}{SLASH_SIG, validators, SLASHING_PERCENTAGE, SLASH_INCENTIVE_PERCENTAGE}, ROOT_CHAIN_SLASH_PARAMS_TYPE)
+	data, err := abi.Encode([]interface{}{SLASH_SIG, validators, common2.SLASHING_PERCENTAGE, common2.SLASH_INCENTIVE_PERCENTAGE}, ROOT_CHAIN_SLASH_PARAMS_TYPE)
 	if nil != err {
 		return typesdk.NewRevertError("encode L2StateSender slash data failed")
 	}

@@ -47,7 +47,7 @@ func (p *Protocol) Protocol() []p2p.Protocol {
 			Run:            p.handleMsg,
 			NodeInfo:       p.nodeInfo,
 			PeerInfo:       p.peerInfo,
-			Dialvalidators: p.dialvalidators,
+			DialCandidates: p.dialvalidators,
 		},
 	}
 }

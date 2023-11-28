@@ -1,7 +1,6 @@
 package contracts
 
 import (
-	"bytes"
 	db "github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -14,10 +13,7 @@ var (
 	//validatorDelegaterCountKeyPrefix    = []byte("validatorDelegaterCount")
 	validatorNonceKey = []byte("validatorNonce") // "validatorNonce" => nonce (It is a self increasing stake index number)
 	//validatorKeyPrefix         = []byte("validator")             // "validator":validatorAddr => validator
-	delegationKeyPrefix        = []byte("delegation")            // "delegater":delegaterAddr:validatorAddr:stakeEpoch => delegation
-	PriorityValidatorHeadKey   = []byte("priorityValidatorHead") // "priorityValidatorHead" => priorityValidator(head)
-	PriorityValidatorTailKey   = []byte("priorityValidatorTail") // "priorityValidatorTail" => priorityValidator(tail)
-	priorityValidatorKeyPrefix = []byte("priorityValidator")     // "priorityValidator":shares(stakeAmount+delegataionAmount):stakeEpoch:stakeIndex => priorityValidator{preKey, nextKey, validatorAddr}
+	delegationKeyPrefix = []byte("delegation") // "delegater":delegaterAddr:validatorAddr:stakeEpoch => delegation
 
 	stakeWithdrawalQueueItemKeyPrefix = []byte("stakeWithdrawalQueueItem") // "stakeWithdrawalQueueItem":validatorAddr:(unlock)epoch => {preEpoch, nextEpoch, amount}
 
@@ -48,31 +44,6 @@ func encodeDelegaterKey(delegaterAddr, validatorAddr common.Address, stakeEpoch 
 	copy(key[keyPrefixSize:appendDelegaterSize], delegaterAddrBytes)
 	copy(key[appendDelegaterSize:appendVlidatorAddrSize], validatorAddrBytes)
 	copy(key[appendVlidatorAddrSize:], stakeEpochBytes)
-
-	return key
-}
-
-func encodePriorityValidatorKey(epoch, stakeIndex uint64, shares *big.Int) []byte {
-
-	sharesSub := new(big.Int).Sub(math.MaxBig104, shares)
-	zeros := make([]byte, len(math.MaxBig104.Bytes()))
-	sharesPriority := append(zeros, sharesSub.Bytes()...)
-
-	stakeEpoch := common.Uint64ToBytes(epoch)
-	index := common.Uint64ToBytes(stakeIndex)
-
-	// some index of pivots
-	keyPrefixSize := len(priorityValidatorKeyPrefix)
-	appendSharePrioritySize := keyPrefixSize + len(sharesPriority)
-	appendStakeEpochSize := appendSharePrioritySize + len(stakeEpoch)
-	size := appendStakeEpochSize + len(index)
-
-	// build key
-	key := make([]byte, size)
-	copy(key[:keyPrefixSize], priorityValidatorKeyPrefix)
-	copy(key[keyPrefixSize:appendSharePrioritySize], sharesPriority)
-	copy(key[appendSharePrioritySize:appendStakeEpochSize], stakeEpoch)
-	copy(key[appendStakeEpochSize:], index)
 
 	return key
 }
@@ -199,6 +170,18 @@ func (c *StakeHandler) updateValidatorByPriority(validatorAddr common.Address, v
 	return c.setValidatorByPriority(validatorAddr, validator)
 }
 
+func (c *StakeHandler) getValidatorPriority(epoch, stakeIndex uint64, shares *big.Int) *types.PriorityValidator {
+	return db.GetValidatorPriority(c.evm.StateDB, c.contract.Address(), epoch, stakeIndex, shares)
+}
+
+func (c *StakeHandler) setValidatorPriority(validatorAddr common.Address, epoch, stakeIndex uint64, shares *big.Int) error {
+	return db.SetValidatorPriority(c.evm.StateDB, c.contract.Address(), validatorAddr, epoch, stakeIndex, shares)
+}
+
+func (c *StakeHandler) removeValidatorPriority(epoch, stakeIndex uint64, shares *big.Int) error {
+	return db.RemoveValidatorPriority(c.evm.StateDB, c.contract.Address(), epoch, stakeIndex, shares)
+}
+
 func (c *StakeHandler) setValidator(validatorAddr common.Address, validator *types.Validator) error {
 	return db.SetValidator(c.evm.StateDB, c.contract.Address(), validatorAddr, validator)
 }
@@ -292,187 +275,6 @@ func (c *StakeHandler) getEpochValidatorIds(epoch uint64) types.ValidatorIds {
 
 func (c *StakeHandler) getRoundValidatorIds(round uint64) types.ValidatorIds {
 	return db.GetRoundValidatorIds(c.evm.StateDB, c.contract.Address(), round)
-}
-
-func (c *StakeHandler) getValidatorPriority(epoch, stakeIndex uint64, shares *big.Int) *types.PriorityValidator {
-	return c.getValidatorPriorityByKey(encodePriorityValidatorKey(epoch, stakeIndex, shares))
-}
-
-func (c *StakeHandler) getValidatorPriorityByKey(key []byte) *types.PriorityValidator {
-	value := c.evm.StateDB.GetState(c.contract.Address(), key)
-	if len(value) == 0 {
-		return nil
-	}
-	var priority types.PriorityValidator
-	if err := rlp.DecodeBytes(value, &priority); nil == err {
-		return &priority
-	}
-	return nil
-}
-
-func (c *StakeHandler) setValidatorPriorityByKey(key []byte, priority *types.PriorityValidator) error {
-	value, err := rlp.EncodeToBytes(priority)
-	if nil != err {
-		return db.ErrRlpEncode
-	}
-
-	c.evm.StateDB.SetState(c.contract.Address(), key, value)
-	return nil
-}
-
-func (c *StakeHandler) setValidatorPriority(validatorAddr common.Address, epoch, stakeIndex uint64, shares *big.Int) error {
-
-	indexKey := PriorityValidatorHeadKey
-	indexItem := c.getValidatorPriorityByKey(PriorityValidatorHeadKey)
-
-	priorityKey := encodePriorityValidatorKey(epoch, stakeIndex, shares)
-	priority := types.NewPriorityValidator(
-		[]byte{},
-		[]byte{},
-		validatorAddr,
-	)
-	// first insert
-	if bytes.Compare(indexItem.PreKey, indexItem.NextKey) == 0 && bytes.Compare(indexItem.PreKey, PriorityValidatorTailKey) == 0 {
-
-		// if  tail -> head -> tail -> head
-		//
-		// then: tail -> head -> priority -> tail -> head
-
-		next := c.getValidatorPriorityByKey(indexItem.NextKey)
-
-		priority.UpdatePreKey(indexKey)
-		priority.UpdateNextKey(indexItem.NextKey)
-		indexItem.UpdateNextKey(priorityKey)
-		next.UpdatePreKey(priorityKey)
-
-		if err := c.setValidatorPriorityByKey(indexKey, indexItem); nil != err {
-			return err
-		}
-		if err := c.setValidatorPriorityByKey(priorityKey, priority); nil != err {
-			return err
-		}
-		if err := c.setValidatorPriorityByKey(priority.NextKey, next); nil != err {
-			return err
-		}
-
-		return nil
-	}
-
-	for bytes.Compare(indexItem.NextKey, PriorityValidatorHeadKey) != 0 { // not as  tail
-		if bytes.Compare(indexItem.PreKey, PriorityValidatorTailKey) != 0 { // not as head
-
-			if bytes.Compare(indexKey, priorityKey) == 0 {
-				return db.ErrInvalidValue
-			}
-
-			if bytes.Compare(indexKey, priorityKey) < 0 {
-				if bytes.Compare(indexItem.NextKey, PriorityValidatorTailKey) == 0 {
-					// if  tail -> head -> index -> tail -> head
-					// and index < priority
-					//
-					// then:  tail -> head -> index -> priority -> tail -> head
-
-					next := c.getValidatorPriorityByKey(indexItem.NextKey) // tail
-
-					priority.UpdatePreKey(indexKey)
-					priority.UpdateNextKey(indexItem.NextKey)
-					indexItem.UpdateNextKey(priorityKey)
-					next.UpdatePreKey(priorityKey)
-
-					if err := c.setValidatorPriorityByKey(indexKey, indexItem); nil != err {
-						return err
-					}
-					if err := c.setValidatorPriorityByKey(priorityKey, priority); nil != err {
-						return err
-					}
-					if err := c.setValidatorPriorityByKey(priority.NextKey, next); nil != err {
-						return err
-					}
-					break
-				}
-
-				// if  tail -> head -> index -> next -> ... tail -> head
-				// and index < priority
-				// maybe next < priority
-				//
-				// then:  continue next become new index
-			} else {
-				// if  tail -> head -> index -> (next) tail -> head
-				// and index > priority
-				//
-				// then:  tail -> head -> priority -> index -> (next)  tail -> head
-
-				pre := c.getValidatorPriorityByKey(indexItem.PreKey)
-
-				priority.UpdatePreKey(indexItem.PreKey)
-				priority.UpdateNextKey(indexKey)
-				indexItem.UpdatePreKey(priorityKey)
-				pre.UpdateNextKey(priorityKey)
-
-				if err := c.setValidatorPriorityByKey(priority.PreKey, pre); nil != err {
-					return err
-				}
-				if err := c.setValidatorPriorityByKey(priorityKey, priority); nil != err {
-					return err
-				}
-				if err := c.setValidatorPriorityByKey(indexKey, indexItem); nil != err {
-					return err
-				}
-
-				break
-			}
-		}
-
-		indexKey = indexItem.NextKey
-		indexItem = c.getValidatorPriorityByKey(indexKey)
-	}
-
-	return nil
-}
-
-func (c *StakeHandler) removeValidatorPriority(epoch, stakeIndex uint64, shares *big.Int) error {
-
-	priorityKey := encodePriorityValidatorKey(epoch, stakeIndex, shares)
-	priority := c.getValidatorPriorityByKey(priorityKey)
-
-	preKey := priority.PreKey
-	nextKey := priority.NextKey
-
-	pre := c.getValidatorPriorityByKey(preKey)
-	next := c.getValidatorPriorityByKey(nextKey)
-
-	pre.UpdateNextKey(nextKey)
-	next.UpdatePreKey(preKey)
-
-	pvalue, err := rlp.EncodeToBytes(pre)
-	if nil != err {
-		return db.ErrRlpEncode
-	}
-	nvalue, err := rlp.EncodeToBytes(next)
-	if nil != err {
-		return db.ErrRlpEncode
-	}
-	c.evm.StateDB.SetState(c.contract.Address(), preKey, pvalue)
-	c.evm.StateDB.SetState(c.contract.Address(), nextKey, nvalue)
-	c.evm.StateDB.SetState(c.contract.Address(), priorityKey, []byte{})
-
-	return nil
-}
-
-func (c *StakeHandler) rankPriorityValidatorIds(size uint64) types.ValidatorIds {
-
-	arr := make(types.ValidatorIds, size)
-	var count uint64 = 0
-
-	headItem := c.getValidatorPriorityByKey(PriorityValidatorHeadKey)
-	item := c.getValidatorPriorityByKey(headItem.NextKey)
-
-	for bytes.Compare(item.NextKey, PriorityValidatorHeadKey) != 0 && count < size { // not as tail  and count less size
-		arr[count] = item.ValidatorAddr
-		item = c.getValidatorPriorityByKey(item.NextKey)
-		count++
-	}
-	return arr[:count]
 }
 
 func (c *StakeHandler) appendStakeWithdrawal(validatorAddr common.Address, epoch uint64, amount *big.Int) error {

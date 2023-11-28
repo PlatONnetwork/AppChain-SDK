@@ -1,12 +1,14 @@
 package db
 
 import (
+	"bytes"
 	"errors"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/common/math"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
+	"math/big"
 )
 
 var (
@@ -19,16 +21,52 @@ var (
 )
 
 var (
-	validatorKeyPrefix         = []byte("validator")         // "validator":validatorAddr => validator
-	currentEpochKey            = []byte("currentEpoch")      // "currentEpoch" => currentEpoch (It is a number)
-	currentRoundKey            = []byte("currentRound")      // "currentRound" => currentRound (It is a number)
-	epochValidatorIdsKeyPrefix = []byte("epochValidatorIds") // "epochValidatorIds":epochId => []validatorAddr  (For settlement epoch)
-	roundValidatorIdsKeyPrefix = []byte("roundValidatorIds") // "roundValidatorIds":roundId => []validatorAddr  (For consensus round)
+	priorityValidatorHeadKey   = []byte("priorityValidatorHead") // "priorityValidatorHead" => priorityValidator(head)
+	priorityValidatorTailKey   = []byte("priorityValidatorTail") // "priorityValidatorTail" => priorityValidator(tail)
+	priorityValidatorKeyPrefix = []byte("priorityValidator")     // "priorityValidator":shares(stakeAmount+delegataionAmount):stakeEpoch:stakeIndex => priorityValidator{preKey, nextKey, validatorAddr}
+	validatorKeyPrefix         = []byte("validator")             // "validator":validatorAddr => validator
+	currentEpochKey            = []byte("currentEpoch")          // "currentEpoch" => currentEpoch (It is a number)
+	currentRoundKey            = []byte("currentRound")          // "currentRound" => currentRound (It is a number)
+	epochValidatorIdsKeyPrefix = []byte("epochValidatorIds")     // "epochValidatorIds":epochId => []validatorAddr  (For settlement epoch)
+	roundValidatorIdsKeyPrefix = []byte("roundValidatorIds")     // "roundValidatorIds":roundId => []validatorAddr  (For consensus round)
 
 	epochItemKeyPrefix = []byte("epochItem") // "epochItem":epochId => {preEpoch, nextEpoch, startBlock, endBlock}    todo maybe add block root range start and end
 	roundItemKeyPrefix = []byte("roundItem") // "roundItem":roundId => {preRound, nextRound, startBlock, endBlock}
 
 )
+
+func EncodePriorityValidatorHeadKey() []byte {
+	return priorityValidatorHeadKey
+}
+
+func EncodePriorityValidatorTailKey() []byte {
+	return priorityValidatorTailKey
+}
+
+func encodePriorityValidatorKey(epoch, stakeIndex uint64, shares *big.Int) []byte {
+
+	sharesSub := new(big.Int).Sub(math.MaxBig104, shares)
+	zeros := make([]byte, len(math.MaxBig104.Bytes()))
+	sharesPriority := append(zeros, sharesSub.Bytes()...)
+
+	stakeEpoch := common.Uint64ToBytes(epoch)
+	index := common.Uint64ToBytes(stakeIndex)
+
+	// some index of pivots
+	keyPrefixSize := len(priorityValidatorKeyPrefix)
+	appendSharePrioritySize := keyPrefixSize + len(sharesPriority)
+	appendStakeEpochSize := appendSharePrioritySize + len(stakeEpoch)
+	size := appendStakeEpochSize + len(index)
+
+	// build key
+	key := make([]byte, size)
+	copy(key[:keyPrefixSize], priorityValidatorKeyPrefix)
+	copy(key[keyPrefixSize:appendSharePrioritySize], sharesPriority)
+	copy(key[appendSharePrioritySize:appendStakeEpochSize], stakeEpoch)
+	copy(key[appendStakeEpochSize:], index)
+
+	return key
+}
 
 func encodeValidatorKey(validatorAddr common.Address) []byte {
 	return append(validatorKeyPrefix, validatorAddr.Bytes()...)
@@ -51,6 +89,187 @@ func EncodeRoundItemKey(round uint64) []byte {
 }
 
 // ------------------------------------------------------ db methods ------------------------------------------------------
+
+func GetValidatorPriority(db sdk.StateDB, address common.Address, epoch, stakeIndex uint64, shares *big.Int) *types.PriorityValidator {
+	return getValidatorPriorityByKey(db, address, encodePriorityValidatorKey(epoch, stakeIndex, shares))
+}
+
+func getValidatorPriorityByKey(db sdk.StateDB, address common.Address, key []byte) *types.PriorityValidator {
+	value := db.GetState(address, key)
+	if len(value) == 0 {
+		return nil
+	}
+	var priority types.PriorityValidator
+	if err := rlp.DecodeBytes(value, &priority); nil == err {
+		return &priority
+	}
+	return nil
+}
+
+func setValidatorPriorityByKey(db sdk.StateDB, address common.Address, key []byte, priority *types.PriorityValidator) error {
+	value, err := rlp.EncodeToBytes(priority)
+	if nil != err {
+		return ErrRlpEncode
+	}
+
+	db.SetState(address, key, value)
+	return nil
+}
+
+func SetValidatorPriority(db sdk.StateDB, address common.Address, validatorAddr common.Address, epoch, stakeIndex uint64, shares *big.Int) error {
+
+	indexKey := EncodePriorityValidatorHeadKey()
+	indexItem := getValidatorPriorityByKey(db, address, EncodePriorityValidatorHeadKey())
+
+	priorityKey := encodePriorityValidatorKey(epoch, stakeIndex, shares)
+	priority := types.NewPriorityValidator(
+		[]byte{},
+		[]byte{},
+		validatorAddr,
+	)
+	// first insert
+	if bytes.Compare(indexItem.PreKey, indexItem.NextKey) == 0 && bytes.Compare(indexItem.PreKey, EncodePriorityValidatorTailKey()) == 0 {
+
+		// if  tail -> head -> tail -> head
+		//
+		// then: tail -> head -> priority -> tail -> head
+
+		next := getValidatorPriorityByKey(db, address, indexItem.NextKey)
+
+		priority.UpdatePreKey(indexKey)
+		priority.UpdateNextKey(indexItem.NextKey)
+		indexItem.UpdateNextKey(priorityKey)
+		next.UpdatePreKey(priorityKey)
+
+		if err := setValidatorPriorityByKey(db, address, indexKey, indexItem); nil != err {
+			return err
+		}
+		if err := setValidatorPriorityByKey(db, address, priorityKey, priority); nil != err {
+			return err
+		}
+		if err := setValidatorPriorityByKey(db, address, priority.NextKey, next); nil != err {
+			return err
+		}
+
+		return nil
+	}
+
+	for bytes.Compare(indexItem.NextKey, EncodePriorityValidatorHeadKey()) != 0 { // not as  tail
+		if bytes.Compare(indexItem.PreKey, EncodePriorityValidatorTailKey()) != 0 { // not as head
+
+			if bytes.Compare(indexKey, priorityKey) == 0 {
+				return ErrInvalidValue
+			}
+
+			if bytes.Compare(indexKey, priorityKey) < 0 {
+				if bytes.Compare(indexItem.NextKey, EncodePriorityValidatorTailKey()) == 0 {
+					// if  tail -> head -> index -> tail -> head
+					// and index < priority
+					//
+					// then:  tail -> head -> index -> priority -> tail -> head
+
+					next := getValidatorPriorityByKey(db, address, indexItem.NextKey) // tail
+
+					priority.UpdatePreKey(indexKey)
+					priority.UpdateNextKey(indexItem.NextKey)
+					indexItem.UpdateNextKey(priorityKey)
+					next.UpdatePreKey(priorityKey)
+
+					if err := setValidatorPriorityByKey(db, address, indexKey, indexItem); nil != err {
+						return err
+					}
+					if err := setValidatorPriorityByKey(db, address, priorityKey, priority); nil != err {
+						return err
+					}
+					if err := setValidatorPriorityByKey(db, address, priority.NextKey, next); nil != err {
+						return err
+					}
+					break
+				}
+
+				// if  tail -> head -> index -> next -> ... tail -> head
+				// and index < priority
+				// maybe next < priority
+				//
+				// then:  continue next become new index
+			} else {
+				// if  tail -> head -> index -> (next) tail -> head
+				// and index > priority
+				//
+				// then:  tail -> head -> priority -> index -> (next)  tail -> head
+
+				pre := getValidatorPriorityByKey(db, address, indexItem.PreKey)
+
+				priority.UpdatePreKey(indexItem.PreKey)
+				priority.UpdateNextKey(indexKey)
+				indexItem.UpdatePreKey(priorityKey)
+				pre.UpdateNextKey(priorityKey)
+
+				if err := setValidatorPriorityByKey(db, address, priority.PreKey, pre); nil != err {
+					return err
+				}
+				if err := setValidatorPriorityByKey(db, address, priorityKey, priority); nil != err {
+					return err
+				}
+				if err := setValidatorPriorityByKey(db, address, indexKey, indexItem); nil != err {
+					return err
+				}
+
+				break
+			}
+		}
+
+		indexKey = indexItem.NextKey
+		indexItem = getValidatorPriorityByKey(db, address, indexKey)
+	}
+
+	return nil
+}
+
+func RemoveValidatorPriority(db sdk.StateDB, address common.Address, epoch, stakeIndex uint64, shares *big.Int) error {
+
+	priorityKey := encodePriorityValidatorKey(epoch, stakeIndex, shares)
+	priority := getValidatorPriorityByKey(db, address, priorityKey)
+
+	preKey := priority.PreKey
+	nextKey := priority.NextKey
+
+	pre := getValidatorPriorityByKey(db, address, preKey)
+	next := getValidatorPriorityByKey(db, address, nextKey)
+
+	pre.UpdateNextKey(nextKey)
+	next.UpdatePreKey(preKey)
+
+	pvalue, err := rlp.EncodeToBytes(pre)
+	if nil != err {
+		return ErrRlpEncode
+	}
+	nvalue, err := rlp.EncodeToBytes(next)
+	if nil != err {
+		return ErrRlpEncode
+	}
+	db.SetState(address, preKey, pvalue)
+	db.SetState(address, nextKey, nvalue)
+	db.SetState(address, priorityKey, []byte{})
+
+	return nil
+}
+
+func RankPriorityValidatorIds(db sdk.StateDB, address common.Address, size uint64) types.ValidatorIds {
+
+	arr := make(types.ValidatorIds, size)
+	var count uint64 = 0
+
+	headItem := getValidatorPriorityByKey(db, address, EncodePriorityValidatorHeadKey())
+	item := getValidatorPriorityByKey(db, address, headItem.NextKey)
+
+	for bytes.Compare(item.NextKey, EncodePriorityValidatorHeadKey()) != 0 && count < size { // not as tail  and count less size
+		arr[count] = item.ValidatorAddr
+		item = getValidatorPriorityByKey(db, address, item.NextKey)
+		count++
+	}
+	return arr[:count]
+}
 
 func SetValidator(db sdk.StateDB, address common.Address, validatorAddr common.Address, validator *types.Validator) error {
 	value, err := rlp.EncodeToBytes(validator)

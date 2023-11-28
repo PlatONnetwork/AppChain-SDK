@@ -2,8 +2,7 @@ package staking
 
 import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/address"
-	"github.com/PlatONnetwork/AppChain-SDK/x/staking/contracts"
-	"github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
+	stakingdb "github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/common/math"
@@ -29,26 +28,26 @@ func initStakeHandler(statedb sdk.StateDB) error {
 
 func initValidatorPriority(statedb sdk.StateDB) error {
 	head := types.NewPriorityValidator(
-		contracts.PriorityValidatorTailKey,
-		contracts.PriorityValidatorTailKey,
+		stakingdb.EncodePriorityValidatorTailKey(),
+		stakingdb.EncodePriorityValidatorTailKey(),
 		common.ZeroAddr,
 	)
 	tail := types.NewPriorityValidator(
-		contracts.PriorityValidatorHeadKey,
-		contracts.PriorityValidatorHeadKey,
+		stakingdb.EncodePriorityValidatorHeadKey(),
+		stakingdb.EncodePriorityValidatorHeadKey(),
 		common.ZeroAddr,
 	)
 	hvalue, err := rlp.EncodeToBytes(head)
 	if nil != err {
-		return db.ErrRlpEncode
+		return stakingdb.ErrRlpEncode
 	}
 	tvalue, err := rlp.EncodeToBytes(tail)
 	if nil != err {
-		return db.ErrRlpEncode
+		return stakingdb.ErrRlpEncode
 	}
 
-	statedb.SetState(address.StakeHandlerAddres, contracts.PriorityValidatorHeadKey, hvalue)
-	statedb.SetState(address.StakeHandlerAddres, contracts.PriorityValidatorTailKey, tvalue)
+	statedb.SetState(address.StakeHandlerAddres, stakingdb.EncodePriorityValidatorHeadKey(), hvalue)
+	statedb.SetState(address.StakeHandlerAddres, stakingdb.EncodePriorityValidatorTailKey(), tvalue)
 	return nil
 }
 
@@ -63,19 +62,19 @@ func initEpochItem(statedb sdk.StateDB) error {
 
 	hvalue, err := rlp.EncodeToBytes(headEpoch)
 	if nil != err {
-		return db.ErrRlpEncode
+		return stakingdb.ErrRlpEncode
 	}
 	value, err := rlp.EncodeToBytes(firstEpoch)
 	if nil != err {
-		return db.ErrRlpEncode
+		return stakingdb.ErrRlpEncode
 	}
 	tvalue, err := rlp.EncodeToBytes(tailEpoch)
 	if nil != err {
-		return db.ErrRlpEncode
+		return stakingdb.ErrRlpEncode
 	}
-	statedb.SetState(address.StakeHandlerAddres, db.EncodeEpochItemKey(0), hvalue)
-	statedb.SetState(address.StakeHandlerAddres, db.EncodeEpochItemKey(1), value)
-	statedb.SetState(address.StakeHandlerAddres, db.EncodeEpochItemKey(math.MaxUint64), tvalue)
+	statedb.SetState(address.StakeHandlerAddres, stakingdb.EncodeEpochItemKey(0), hvalue)
+	statedb.SetState(address.StakeHandlerAddres, stakingdb.EncodeEpochItemKey(1), value)
+	statedb.SetState(address.StakeHandlerAddres, stakingdb.EncodeEpochItemKey(math.MaxUint64), tvalue)
 	return nil
 }
 
@@ -90,18 +89,18 @@ func initRoundItem(statedb sdk.StateDB) error {
 
 	hvalue, err := rlp.EncodeToBytes(headRound)
 	if nil != err {
-		return db.ErrRlpEncode
+		return stakingdb.ErrRlpEncode
 	}
 	value, err := rlp.EncodeToBytes(firstRound)
 	if nil != err {
-		return db.ErrRlpEncode
+		return stakingdb.ErrRlpEncode
 	}
 	tvalue, err := rlp.EncodeToBytes(tailRound)
 	if nil != err {
-		return db.ErrRlpEncode
+		return stakingdb.ErrRlpEncode
 	}
-	statedb.SetState(address.StakeHandlerAddres, db.EncodeRoundItemKey(0), hvalue)
-	statedb.SetState(address.StakeHandlerAddres, db.EncodeRoundItemKey(1), value)
-	statedb.SetState(address.StakeHandlerAddres, db.EncodeRoundItemKey(math.MaxUint64), tvalue)
+	statedb.SetState(address.StakeHandlerAddres, stakingdb.EncodeRoundItemKey(0), hvalue)
+	statedb.SetState(address.StakeHandlerAddres, stakingdb.EncodeRoundItemKey(1), value)
+	statedb.SetState(address.StakeHandlerAddres, stakingdb.EncodeRoundItemKey(math.MaxUint64), tvalue)
 	return nil
 }
