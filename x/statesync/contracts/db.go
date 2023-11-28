@@ -23,12 +23,12 @@ func decodeCommitmentKey(value []byte) *big.Int {
 }
 
 func (c *StateReceiver) SetLastCommittedId(id *big.Int) {
-	c.evm.StateDB.SetState(c.contract.Address(), lastCommittedIdKey, id.Bytes())
+	c.stateDb.SetState(c.contract.Address(), lastCommittedIdKey, id.Bytes())
 }
 
 func (c *StateReceiver) GetLastCommittedId() *big.Int {
 	id := big.NewInt(0)
-	value := c.evm.StateDB.GetState(c.contract.Address(), lastCommittedIdKey)
+	value := c.stateDb.GetState(c.contract.Address(), lastCommittedIdKey)
 	if len(value) != 0 {
 		id.SetBytes(value)
 	}
@@ -36,12 +36,12 @@ func (c *StateReceiver) GetLastCommittedId() *big.Int {
 }
 
 func (c *StateReceiver) SetExecutedId(id *big.Int) {
-	c.evm.StateDB.SetState(c.contract.Address(), executedIdKey, id.Bytes())
+	c.stateDb.SetState(c.contract.Address(), executedIdKey, id.Bytes())
 }
 
 func (c *StateReceiver) getExecutedId() *big.Int {
 	id := big.NewInt(0)
-	value := c.evm.StateDB.GetState(c.contract.Address(), executedIdKey)
+	value := c.stateDb.GetState(c.contract.Address(), executedIdKey)
 	if len(value) != 0 {
 		id.SetBytes(value)
 	}
@@ -50,12 +50,12 @@ func (c *StateReceiver) getExecutedId() *big.Int {
 
 func (c *StateReceiver) SetCommitment(cm *StateSyncCommitment) {
 	value, _ := rlp.EncodeToBytes(cm)
-	c.evm.StateDB.SetState(c.contract.Address(), encodeCommitmentKey(cm.EndId), value)
+	c.stateDb.SetState(c.contract.Address(), encodeCommitmentKey(cm.EndId), value)
 }
 
 func (c *StateReceiver) GetCommitment(end *big.Int) *StateSyncCommitment {
 	id := big.NewInt(0)
-	value := c.evm.StateDB.GetState(c.contract.Address(), encodeCommitmentKey(end))
+	value := c.stateDb.GetState(c.contract.Address(), encodeCommitmentKey(end))
 	if len(value) != 0 {
 		id.SetBytes(value)
 	}

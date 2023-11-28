@@ -1,5 +1,9 @@
 package types
 
+var (
+	UndefinedError = []byte("undefined error")
+)
+
 type RevertError struct {
 	error
 	ReturnData []byte

@@ -96,7 +96,21 @@ var (
     Abi, _ = abi.JSON(strings.NewReader(ABI))
 )
 
-func (c *{{$contract.Type}})Run(input []byte) ([]byte, error) {
+func (c *{{$contract.Type}})Run(input []byte) (ret []byte, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			switch e := r.(type) {
+			case error:
+				if r, ok := e.(*typesdk.RevertError); ok {
+					ret, err = r.ReturnData, vm.ErrExecutionReverted
+				} else {
+					ret, err = nil, e
+				}
+			default:
+				ret, err = typesdk.UndefinedError, vm.ErrExecutionReverted
+			}
+		}
+	}()
     if len(input) < 4 {
         return nil, errors.New("input too short")
     }
@@ -214,6 +228,7 @@ package {{.Package}}
 
 import (
 	"errors"
+	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
@@ -248,6 +263,8 @@ type {{$contract.Type}} struct {
     readOnly bool
     contract *vm.Contract
     evm *vm.EVM
+	burner       contracts.Burn
+	stateDb      *contracts.StateDB
 	fallback func(input []byte) ([]byte, error)
 }
 
@@ -256,6 +273,8 @@ func New{{$contract.Type}}(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*
         abi: &Abi,
         evm:evm,
         contract: contract,
+		burner:   contracts.NewBurner(contract),
+		stateDb:  contracts.NewStateDB(evm, contract),
         readOnly: readOnly,
     }
     s.initMethodEntry()

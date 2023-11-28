@@ -2,6 +2,7 @@ package contracts
 
 import (
 	"errors"
+	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/merkle"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	platon "github.com/PlatONnetwork/PlatON-Go"
@@ -36,6 +37,8 @@ type StateReceiver struct {
 	readOnly     bool
 	contract     *vm.Contract
 	evm          *vm.EVM
+	burner       contracts.Burn
+	stateDb      *contracts.StateDB
 	fallback     func(input []byte) ([]byte, error)
 	verifyQCFunc func(qc *QuorumCert) error
 }
@@ -45,6 +48,8 @@ func NewStateReceiver(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*State
 		abi:      &Abi,
 		evm:      evm,
 		contract: contract,
+		burner:   contracts.NewBurner(contract),
+		stateDb:  contracts.NewStateDB(evm, contract),
 		readOnly: readOnly,
 	}
 	s.verifyQCFunc = s.verifySignature
