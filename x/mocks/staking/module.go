@@ -76,7 +76,7 @@ func (m *Module) GetLastNumber(ctx sdk.Context, blockNumber uint64) uint64 {
 	return 0
 }
 
-func (m *Module) GetValidator(ctx sdk.Context, blockNumber uint64) (*cbfttypes.Validators, error) {
+func (m *Module) GetRoundValidator(ctx sdk.Context, blockNumber uint64) (*cbfttypes.Validators, error) {
 	if m.validators == nil {
 		val, err := m.store.Get([]byte(ValidatorKey))
 		if err != nil {

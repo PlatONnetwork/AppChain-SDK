@@ -57,19 +57,19 @@ func NewStakeHandler(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*StakeH
 }
 
 func (c *StakeHandler) PendingWithdrawalsOfDelegate(validator common.Address, delegater common.Address) (*big.Int, error) {
-	return c.GetDelegateWithdrawalPending(delegater, validator, c.GetCurrentEpoch()), nil
+	return c.GetDelegateWithdrawalPending(delegater, validator, c.getCurrentEpoch()), nil
 }
 
 func (c *StakeHandler) PendingWithdrawalsOfStake(validator common.Address) (*big.Int, error) {
-	return c.GetStakeWithdrawalPending(validator, c.GetCurrentEpoch()), nil
+	return c.GetStakeWithdrawalPending(validator, c.getCurrentEpoch()), nil
 }
 
 func (c *StakeHandler) WithdrawableOfDelegate(validator common.Address, delegater common.Address) (*big.Int, error) {
-	return c.GetDelegateWithdrawable(delegater, validator, c.GetCurrentEpoch()), nil
+	return c.GetDelegateWithdrawable(delegater, validator, c.getCurrentEpoch()), nil
 }
 
 func (c *StakeHandler) WithdrawableOfStake(validator common.Address) (*big.Int, error) {
-	return c.GetStakeWithdrawable(validator, c.GetCurrentEpoch()), nil
+	return c.GetStakeWithdrawable(validator, c.getCurrentEpoch()), nil
 }
 
 func (c *StakeHandler) OnStateReceive(id *big.Int, sender common.Address, data []byte) error {
@@ -101,7 +101,7 @@ func (c *StakeHandler) Slash(validators []common.Address) error {
 		return err
 	}
 
-	log.Info("Slash for", "validators", fmt.Sprintf("%+v", validators), "currentEpoch", c.GetCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
+	log.Info("Slash for", "validators", fmt.Sprintf("%+v", validators), "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }
 
@@ -137,7 +137,7 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 			}
 			use = delegation.Amount
 		} else {
-			delegation.UpdateEpoch(c.GetCurrentEpoch())
+			delegation.UpdateEpoch(c.getCurrentEpoch())
 			delegation.DecrementAmount(amount)
 			if err := c.setDelegation(delegaterAddr, validatorAddr, item.NextStakeEpoch, delegation); nil != err {
 				return err
@@ -177,7 +177,7 @@ func (c *StakeHandler) WithdrawUndelegate(validator common.Address) error {
 		return err
 	}
 
-	currentEpoch := c.GetCurrentEpoch()
+	currentEpoch := c.getCurrentEpoch()
 	delegater := c.contract.Caller()
 	amount, err := c.applyDelegateWithdrawable(delegater, validator, currentEpoch)
 	if nil != err {
@@ -203,7 +203,7 @@ func (c *StakeHandler) WithdrawUnstake(validator common.Address) error {
 		return err
 	}
 
-	currentEpoch := c.GetCurrentEpoch()
+	currentEpoch := c.getCurrentEpoch()
 	amount, err := c.applyStakeWithdrawable(validator, currentEpoch)
 	if nil != err {
 		log.Error("Failed to withdraw unstake", "validatorAddr", validator.Hex(),

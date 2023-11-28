@@ -10,7 +10,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint"
 	"github.com/PlatONnetwork/AppChain-SDK/x/extravote"
 	"github.com/PlatONnetwork/AppChain-SDK/x/l1"
-	"github.com/PlatONnetwork/AppChain-SDK/x/mocks/staking"
+	"github.com/PlatONnetwork/AppChain-SDK/x/staking"
 	stateevent "github.com/PlatONnetwork/AppChain-SDK/x/state_event"
 	"github.com/PlatONnetwork/AppChain-SDK/x/statesync"
 	"github.com/PlatONnetwork/AppChain-SDK/x/txrelayer"
@@ -51,7 +51,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 
 	l1Module := l1.NewL1(store)
 	stateEvent := stateevent.NewModule(store)
-	staking := staking.NewModule(store)
+	staking := staking.NewStakeModule()
 
 	rootchainRpc := ctx.GlobalString(x.RootchainNodeRPCFlag.Name)
 	rootchainTxRelayer := txrelayer.NewModule(rootchainRpc, txrelayer.DefaultReceiptTimeout, txrelayer.DefaultNumRetries)
@@ -73,6 +73,8 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 	//manager.SetWorker(stateSync.Name())
 	manager.SetOrderInit(stateSync.Name(), checkpoint.Name())
 	manager.SetOrderGenesis(l1Module.Name(), staking.Name())
+	manager.SetOrderBlocker(staking.Name())
+	manager.SetOrderBlockCommiter(staking.Name())
 
 	app := &SimApp{}
 	baseApp, err := baseapp.NewBaseApp("simapp", store, manager)

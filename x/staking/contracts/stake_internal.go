@@ -191,12 +191,12 @@ func (c *StakeHandler) stake(validatorAddr, owner common.Address, amount *big.In
 
 	stakeIndex := c.incrementValidatorNonce()
 
-	if err := c.setValidatorByPriority(validatorAddr, types.NewValidator(owner, amount, common.Big0, blsKey, pubKey, commissionRate, c.GetCurrentEpoch(), stakeIndex)); nil != err {
+	if err := c.setValidatorByPriority(validatorAddr, types.NewValidator(owner, amount, common.Big0, blsKey, pubKey, commissionRate, c.getCurrentEpoch(), stakeIndex)); nil != err {
 		log.Error("Failed to set validator stake", "validatorAddr", validatorAddr.Hex(), "error", err)
 		return typesdk.NewRevertError("StakeHandler: STAKE FAILED")
 	}
 	log.Info("Stake for", "validator", validatorAddr.Hex(), "owner", owner.Hex(), "amount", amount, "blsKey", string(blsKey.Bytes()),
-		"pubKey", hex.EncodeToString(crypto.FromECDSAPub(pubKey)), "epoch", c.GetCurrentEpoch(), "stakeIndex", stakeIndex, "blockNumber", c.evm.Context.BlockNumber.Uint64())
+		"pubKey", hex.EncodeToString(crypto.FromECDSAPub(pubKey)), "epoch", c.getCurrentEpoch(), "stakeIndex", stakeIndex, "blockNumber", c.evm.Context.BlockNumber.Uint64())
 	return nil
 }
 
@@ -210,7 +210,7 @@ func (c *StakeHandler) addStake(validatorAddr common.Address, amount *big.Int) e
 	//
 	// If the validator has already invalid (nonexistent) on the childchain,
 	// but the `addstake` sent by the rootchain should be  appended as a stackewithdrawl item.
-	if validator.IsEmpty() || validator.IsInvalid() {
+	if validator.IsInvalid() {
 
 		var err error
 		lastEpoch := c.getStakeWithdrawalLastEpoch(validatorAddr)
@@ -232,14 +232,14 @@ func (c *StakeHandler) addStake(validatorAddr common.Address, amount *big.Int) e
 		log.Error("Failed to add validator stake amount", "validatorAddr", validatorAddr.Hex(), "error", err)
 		return typesdk.NewRevertError("StakeHandler: ADD STAKE FAILED")
 	}
-	log.Info("AddStake for", "validator", validatorAddr.Hex(), "amount", amount, "epoch", c.GetCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
+	log.Info("AddStake for", "validator", validatorAddr.Hex(), "amount", amount, "epoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }
 
 func (c *StakeHandler) unStake(validatorAddr common.Address, amount *big.Int) error {
 	validator := c.GetValidator(validatorAddr)
 
-	if validator.IsEmpty() || validator.IsInvalid() {
+	if validator.IsInvalid() {
 		return typesdk.NewRevertError("StakeHandler: INVALID_VALIDATOR")
 	}
 
@@ -295,7 +295,7 @@ func (c *StakeHandler) slash(handleEventId *big.Int, validatorAddrs []common.Add
 		return err
 	}
 
-	log.Info("Slash for", "handleEventId", handleEventId, "validator size", len(validatorAddrs), "epoch", c.GetCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
+	log.Info("Slash for", "handleEventId", handleEventId, "validator size", len(validatorAddrs), "epoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }
 
@@ -304,7 +304,7 @@ func (c *StakeHandler) delegate(validatorAddr, delegaterAddr common.Address, amo
 	validator := c.GetValidator(validatorAddr)
 
 	var err error
-	if validator.IsEmpty() || validator.IsInvalid() {
+	if validator.IsInvalid() {
 		if err = c.registerDelegateWithdrawal(delegaterAddr, validatorAddr, amount, false); nil != err {
 			return err
 		}
@@ -318,7 +318,7 @@ func (c *StakeHandler) delegate(validatorAddr, delegaterAddr common.Address, amo
 		}
 
 		// update delegation
-		build, err := c.incrementDelegation(delegaterAddr, validatorAddr, validator.Epoch, c.GetCurrentEpoch(), amount)
+		build, err := c.incrementDelegation(delegaterAddr, validatorAddr, validator.Epoch, c.getCurrentEpoch(), amount)
 		if nil != err {
 			log.Error("Failed to set delegation", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
 			return typesdk.NewRevertError("StakeHandler: SET DELEGATION FAILED")
@@ -329,7 +329,7 @@ func (c *StakeHandler) delegate(validatorAddr, delegaterAddr common.Address, amo
 
 			}
 		}
-		log.Info("Delegate for", "delegaterAddr", delegaterAddr.Hex(), "validator", validatorAddr.Hex(), "amount", amount, "epoch", c.GetCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
+		log.Info("Delegate for", "delegaterAddr", delegaterAddr.Hex(), "validator", validatorAddr.Hex(), "amount", amount, "epoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
 	}
 	return nil
 }
@@ -341,21 +341,21 @@ func (c *StakeHandler) registerStakeWithdrawalByEpoch(validatorAddr common.Addre
 		item.IncrementAmount(amount)
 		if err := c.setStakeWithdrawalQueueItem(validatorAddr, epoch, item); nil != err {
 			log.Error("Failed to register stake withdraw", "validatorAddr", validatorAddr.Hex(),
-				"currentEpoch", c.GetCurrentEpoch(), "releaseEpoch", epoch, "blockNumber", c.evm.Context.BlockNumber, "amount", amount, "error", err)
+				"currentEpoch", c.getCurrentEpoch(), "releaseEpoch", epoch, "blockNumber", c.evm.Context.BlockNumber, "amount", amount, "error", err)
 			return typesdk.NewRevertError("StakeHandler: SET REGISTER STAKE WITHDRAW FAILED")
 		}
 
 		if err := c.addLogStakeWithdrawalRegisteredEvent(validatorAddr, amount); nil != err {
 			return err
 		}
-		log.Info("Register stake withdrawal for", "validator", validatorAddr.Hex(), "currentEpoch", c.GetCurrentEpoch(), "releaseEpoch", epoch, "amount", amount, "blockNumber", c.evm.Context.BlockNumber)
+		log.Info("Register stake withdrawal for", "validator", validatorAddr.Hex(), "currentEpoch", c.getCurrentEpoch(), "releaseEpoch", epoch, "amount", amount, "blockNumber", c.evm.Context.BlockNumber)
 	}
 
 	return nil
 }
 
 func (c *StakeHandler) registerStakeWithdrawal(validatorAddr common.Address, amount *big.Int, wait bool) error {
-	currentEpoch := c.GetCurrentEpoch()
+	currentEpoch := c.getCurrentEpoch()
 	var releaseEpoch uint64
 	if wait {
 		releaseEpoch = currentEpoch + DELEGATE_WITHDRAWAL_WAIT_PERIOD
@@ -371,12 +371,12 @@ func (c *StakeHandler) registerStakeWithdrawal(validatorAddr common.Address, amo
 	if err := c.addLogStakeWithdrawalRegisteredEvent(validatorAddr, amount); nil != err {
 		return err
 	}
-	log.Info("Register stake withdrawal for", "validator", validatorAddr.Hex(), "currentEpoch", c.GetCurrentEpoch(), "releaseEpoch", releaseEpoch, "amount", amount, "blockNumber", c.evm.Context.BlockNumber)
+	log.Info("Register stake withdrawal for", "validator", validatorAddr.Hex(), "currentEpoch", c.getCurrentEpoch(), "releaseEpoch", releaseEpoch, "amount", amount, "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }
 
 func (c *StakeHandler) registerDelegateWithdrawal(delegater, validatorAddr common.Address, amount *big.Int, wait bool) error {
-	currentEpoch := c.GetCurrentEpoch()
+	currentEpoch := c.getCurrentEpoch()
 	var releaseEpoch uint64
 	if wait {
 		releaseEpoch = currentEpoch + DELEGATE_WITHDRAWAL_WAIT_PERIOD

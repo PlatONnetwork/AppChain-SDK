@@ -140,8 +140,8 @@ func (m *Module) ExtendData(ctx sdk.Context) []byte {
 
 	logger.Debug("Extend data")
 
-	if m.staking.IsEndOfRound(header.Number.Uint64()) {
-		currentValidators, err := m.staking.GetValidator(ctx, header.Number.Uint64())
+	if m.staking.IsEndOfRound(ctx, header.Number.Uint64()) {
+		currentValidators, err := m.staking.GetRoundValidator(ctx, header.Number.Uint64())
 		if err != nil {
 			logger.Error("Failed to get current round valdiators", "err", err)
 			return []byte{}
@@ -153,7 +153,7 @@ func (m *Module) ExtendData(ctx sdk.Context) []byte {
 			return []byte{}
 		}
 
-		nextValidators, err := m.staking.GetValidator(ctx, header.Number.Uint64()+1)
+		nextValidators, err := m.staking.GetRoundValidator(ctx, header.Number.Uint64()+1)
 		if err != nil {
 			logger.Error("Failed to get next round valdiators", "err", err)
 			return []byte{}
@@ -219,7 +219,7 @@ func (m *Module) VerifyExtendData(ctx sdk.Context, data []byte) (common.Hash, er
 
 	logger.Debug("Verify extend data")
 
-	if m.staking.IsEndOfRound(header.Number.Uint64()) {
+	if m.staking.IsEndOfRound(ctx, header.Number.Uint64()) {
 		var checkpoint types.CheckpointData
 		if err := checkpoint.UnmarshalRLP(data); err != nil {
 			logger.Error("Failed to unmarshal rlp", "data", fmt.Sprintf("%x", data), "err", err)
@@ -232,7 +232,7 @@ func (m *Module) VerifyExtendData(ctx sdk.Context, data []byte) (common.Hash, er
 			return common.ZeroHash, fmt.Errorf("mismatch view(checkpoint:%d,actual:%d)", checkpoint.ViewNumber, view)
 		}
 
-		currentValidators, err := m.staking.GetValidator(ctx, header.Number.Uint64())
+		currentValidators, err := m.staking.GetRoundValidator(ctx, header.Number.Uint64())
 		if err != nil {
 			logger.Error("Failed to get current round validators", "err", err)
 			return common.ZeroHash, err
@@ -253,7 +253,7 @@ func (m *Module) VerifyExtendData(ctx sdk.Context, data []byte) (common.Hash, er
 				currentValidatorHash.TerminalString())
 		}
 
-		nextValidators, err := m.staking.GetValidator(ctx, header.Number.Uint64()+1)
+		nextValidators, err := m.staking.GetRoundValidator(ctx, header.Number.Uint64()+1)
 		if err != nil {
 			logger.Error("Failed to get next round validators", "err", err)
 			return common.Hash{}, err
@@ -320,7 +320,7 @@ func (m *Module) PrepareQC(ctx sdk.Context, block *protocols.PrepareBlock, votes
 	logger := m.logger.New("epoch", sdkCtx.Epoch(), "view", sdkCtx.View(), "index", sdkCtx.BlockIndex(), "number", sdkCtx.Header().Number, "hash", sdkCtx.Header().Hash())
 	logger.Debug("Prepare QC")
 
-	if m.staking.IsEndOfRound(block.BlockNum()) {
+	if m.staking.IsEndOfRound(ctx, block.BlockNum()) {
 		checkpoint, err := m.store.GetCheckpoint(block.BlockNum())
 		if err != nil {
 			m.logger.Error("Failed to get checkpoint from store", "err", err)
@@ -339,7 +339,7 @@ func (m *Module) PrepareQC(ctx sdk.Context, block *protocols.PrepareBlock, votes
 	}
 
 	latestNumber := block.Block.NumberU64() - types.CheckpointCommitDis
-	if m.staking.IsEndOfRound(latestNumber) && sdkCtx.IsProposer() {
+	if m.staking.IsEndOfRound(ctx, latestNumber) && sdkCtx.IsProposer() {
 		go func(number uint64, epoch uint64) {
 			if err := m.submitCheckpoint(ctx, number); err != nil {
 				logger.Error("Failed to submit checkpoint", "checkpoint number", number, "err", err)
@@ -364,7 +364,7 @@ func (m *Module) submitCheckpoint(ctx sdk.Context, latestNumber uint64) error {
 		"latest checkpoint block", lastCheckpointBlockNumber,
 		"checkpoint block", latestNumber)
 
-	blocksOfEpoch := m.staking.BlocksOfRound()
+	blocksOfEpoch := m.staking.BlocksOfRound(ctx)
 	initialBlockNumber := lastCheckpointBlockNumber + blocksOfEpoch
 
 	for blockNumber := initialBlockNumber; blockNumber <= latestNumber; {
@@ -400,7 +400,7 @@ func (m *Module) encodeAndSendCheckpoint(ctx sdk.Context, checkpoint *types.Stor
 		ExtendRoot:  checkpoint.ExtendRoot,
 	}
 
-	nextValidators, err := m.staking.GetValidator(ctx, checkpoint.BlockNumber+1)
+	nextValidators, err := m.staking.GetRoundValidator(ctx, checkpoint.BlockNumber+1)
 	accountSet := types.NewAccountSet(nextValidators)
 	newValidatorSet := make([]checkpoint_manager.ICheckpointManagerValidator, len(accountSet))
 	for i, account := range accountSet {

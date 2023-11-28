@@ -176,7 +176,7 @@ func (v *Validator) IsValid() bool {
 }
 
 func (v *Validator) IsInvalid() bool {
-	return v.IsNotEmpty() && v.Status.IsInvalid()
+	return v.IsEmpty() || (v.IsNotEmpty() && v.Status.IsInvalid())
 }
 
 func (v *Validator) IsOnlyInvalid() bool {
@@ -312,14 +312,16 @@ type EpochItem struct {
 	NextEpoch  uint64
 	StartBlock uint64
 	EndBlock   uint64
+	RoundCount uint64
 }
 
-func NewEpochItem(preEpoch, nextEpoch, startBlock, endBlock uint64) *EpochItem {
+func NewEpochItem(preEpoch, nextEpoch, startBlock, endBlock, roundCount uint64) *EpochItem {
 	return &EpochItem{
 		PreEpoch:   preEpoch,
 		NextEpoch:  nextEpoch,
 		StartBlock: startBlock,
 		EndBlock:   endBlock,
+		RoundCount: roundCount,
 	}
 }
 
@@ -351,6 +353,53 @@ func (queue EpochQueue) IsEmpty() bool {
 }
 
 func (queue EpochQueue) IsNotEmpty() bool {
+	return !queue.IsEmpty()
+}
+
+type RoundItem struct {
+	PreRound   uint64
+	NextRound  uint64
+	StartBlock uint64
+	EndBlock   uint64
+}
+
+func NewRoundItem(preRound, nextRound, startBlock, endBlock uint64) *RoundItem {
+	return &RoundItem{
+		PreRound:   preRound,
+		NextRound:  nextRound,
+		StartBlock: startBlock,
+		EndBlock:   endBlock,
+	}
+}
+
+func (item *RoundItem) UpdatePreRound(round uint64) {
+	item.PreRound = round
+}
+
+func (item *RoundItem) UpdateNextRound(round uint64) {
+	item.NextRound = round
+}
+
+func (item *RoundItem) IsEmpty() bool {
+	return nil == item
+}
+
+func (item *RoundItem) IsNotEmpty() bool {
+	return !item.IsEmpty()
+}
+
+type RoundQueue []*RoundItem
+
+func NewRoundQueue(size uint64) RoundQueue {
+	queue := make(RoundQueue, size)
+	return queue
+}
+
+func (queue RoundQueue) IsEmpty() bool {
+	return len(queue) == 0
+}
+
+func (queue RoundQueue) IsNotEmpty() bool {
 	return !queue.IsEmpty()
 }
 
