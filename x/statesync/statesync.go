@@ -49,21 +49,21 @@ func (s *StateSync) ExtendDataImpl(ctx sdk.Context, epoch, view uint64, index ui
 	return raw
 }
 
-func (s *StateSync) VerifyExtendDataImpl(epoch, view uint64, index uint32, header *types.Header, data []byte) (common.Hash, error) {
+func (s *StateSync) VerifyExtendDataImpl(epoch, view uint64, index uint32, header *types.Header, data []byte) error {
 	if len(data) == 0 {
-		return crypto.Keccak256Hash(nil), nil
+		return nil
 	}
 
 	var commitment contracts.StateSyncCommitment
 	rlp.DecodeBytes(data, &commitment)
 	root, err := s.GenProof(epoch, view, index, commitment.StartId, commitment.EndId)
 	if err != nil {
-		return common.Hash{}, err
+		return err
 	}
 	if root != commitment.Root {
-		return common.Hash{}, errors.New("state sync root hash is invalid")
+		return errors.New("state sync root hash is invalid")
 	}
-	return crypto.Keccak256Hash(data), nil
+	return nil
 }
 
 func (s *StateSync) PrepareQCImpl(block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote) {

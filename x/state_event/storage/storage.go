@@ -28,5 +28,8 @@ func (s *Storage) GetLastProcessedEventsBlock() (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return binary.BigEndian.Uint64(result), nil
+	if len(result) > 0 {
+		return binary.BigEndian.Uint64(result), nil
+	}
+	return 0, nil
 }
