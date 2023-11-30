@@ -137,7 +137,7 @@ func (m *Module) ExtendData(ctx sdk.Context) []byte {
 	blockIndex := sdkCtx.BlockIndex()
 	logger := m.logger.New("epoch", epoch, "view", view, "index", blockIndex, "number", header.Number, "hash", header.Hash())
 
-	logger.Debug("Extend data")
+	logger.Info("Extend data")
 
 	if m.staking.IsEndOfEpoch(header.Number.Uint64()) {
 		currentValidators, err := m.staking.GetValidator(ctx, header.Number.Uint64())
@@ -216,7 +216,7 @@ func (m *Module) VerifyExtendData(ctx sdk.Context, data []byte) error {
 	epoch := sdkCtx.Epoch()
 	logger := m.logger.New("epoch", epoch, "view", view, "index", sdkCtx.BlockIndex(), "number", header.Number, "hash", header.Hash())
 
-	logger.Debug("Verify extend data")
+	logger.Info("Verify extend data")
 
 	if m.staking.IsEndOfEpoch(header.Number.Uint64()) {
 		var checkpoint types.CheckpointData
@@ -324,13 +324,17 @@ func (m *Module) PrepareQC(ctx sdk.Context, block *protocols.PrepareBlock, votes
 func (m *Module) OnCommit(ctx sdk.Context, block *coretypes.Block) error {
 	sdkCtx := ctx.(sdk.ConsensusContext)
 	logger := m.logger.New("epoch", sdkCtx.Epoch(), "view", sdkCtx.View(), "index", sdkCtx.BlockIndex(), "number", sdkCtx.Header().Number, "hash", sdkCtx.Header().Hash())
-	logger.Debug("OnCommit")
+	logger.Info("OnCommit")
 
 	if m.staking.IsEndOfEpoch(block.NumberU64()) {
 		checkpoint, err := m.store.GetCheckpoint(block.NumberU64())
 		if err != nil {
 			logger.Error("Failed to get checkpoint from store", "err", err)
 			return err
+		}
+		if checkpoint == nil {
+			logger.Warn("Discarding empty checkpoint")
+			return nil
 		}
 
 		_, qc, err := ctypes.DecodeExtra(block.ExtraData())

@@ -73,7 +73,37 @@ func (m *Module) NewHeader(ctx sdk.Context, header *types.Header) error {
 }
 
 func (m *Module) GetLastNumber(ctx sdk.Context, blockNumber uint64) uint64 {
-	return 0
+	var lastBlockNumber uint64
+	if blockNumber <= NumberBlocksOfEpoch {
+		lastBlockNumber = NumberBlocksOfEpoch
+	} else {
+		vds, err := m.GetValidator(ctx, blockNumber)
+		if err != nil {
+			log.Error("Get validator fail", "blockNumber", blockNumber)
+			return 0
+		}
+
+		if vds.ValidBlockNumber == 0 && blockNumber%NumberBlocksOfEpoch == 0 {
+			return blockNumber
+		}
+
+		// lastNumber = vds.ValidBlockNumber + ia.blocksPerNode * vds.Len() - 1
+		lastBlockNumber = vds.ValidBlockNumber + NumberBlocksOfEpoch - 1
+
+		// May be `CurrentValidators ` had not updated, so we need to calcuate `lastBlockNumber`
+		// via `blockNumber`.
+		if lastBlockNumber < blockNumber {
+			blocksPerRound := uint64(NumberBlocksOfEpoch)
+			if blockNumber%blocksPerRound == 0 {
+				lastBlockNumber = blockNumber
+			} else {
+				baseNum := blockNumber - (blockNumber % blocksPerRound)
+				lastBlockNumber = baseNum + blocksPerRound
+			}
+		}
+	}
+	//log.Debug("Get last block number", "blockNumber", blockNumber, "lastBlockNumber", lastBlockNumber)
+	return lastBlockNumber
 }
 
 func (m *Module) GetValidator(ctx sdk.Context, blockNumber uint64) (*cbfttypes.Validators, error) {
@@ -88,8 +118,13 @@ func (m *Module) GetValidator(ctx sdk.Context, blockNumber uint64) (*cbfttypes.V
 			return nil, err
 		}
 
-		m.validators = newValidators(&nodes, 0)
+		m.validators = newValidators(&nodes, 1)
 	}
+	baseNumber := blockNumber
+	if blockNumber == 0 {
+		baseNumber = 1
+	}
+	m.validators.ValidBlockNumber = ((baseNumber-1)/uint64(NumberBlocksOfEpoch))*NumberBlocksOfEpoch + 1
 	return m.validators, nil
 }
 
