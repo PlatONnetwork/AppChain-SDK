@@ -242,3 +242,67 @@ func TestDecodeSlashData(t *testing.T) {
 
 	fmt.Printf("amounts: %s \n", fmt.Sprintf("%+v", amounts))
 }
+
+func TestMapRange(t *testing.T) {
+
+	cache := make(map[string]struct{}, 0)
+
+	// current round queue {"a", "b", "c", "d", "e", "f", "g", "h"}
+
+	// unstake queue {"b", "c", "g"}
+
+	// currentepoch queue {"c", "d", "g", "m", "n"}
+
+	for _, c := range []string{"b", "c", "g"} {
+		cache[c] = struct{}{}
+	}
+
+	for _, c := range []string{"c", "d", "g", "m", "n"} {
+		if _, ok := cache[c]; ok {
+			delete(cache, c)
+		}
+	}
+
+	fmt.Printf("cache: %+v \n", cache)
+
+}
+
+func TestMapRange2(t *testing.T) {
+
+	removeCache := make(map[string]struct{}, 0)
+	cache := make(map[string]struct{}, 0)
+	queue := make([]string, 0)
+
+	// current round queue {"a", "b", "c", "d", "e", "f", "g", "h"}
+
+	// unstake queue {"b", "c", "g"}
+
+	// currentepoch queue {"c", "d", "g", "m", "n"}
+
+	for _, c := range []string{"b", "c", "g"} {
+		cache[c] = struct{}{}
+		queue = append(queue, c)
+	}
+
+	for _, c := range []string{"c", "d", "g", "m", "n"} {
+		if _, ok := cache[c]; ok {
+			delete(cache, c)
+		}
+	}
+
+	for i := 0; i < len(queue); i++ {
+
+		c := queue[i]
+		if v, ok := cache[c]; !ok {
+			// remove the can on withdrewqueue
+			queue = append(queue[:i], queue[i+1:]...)
+			i--
+		} else {
+			// append to the collection that needs to be removed
+			removeCache[c] = v
+		}
+	}
+
+	fmt.Printf("cache: %+v \nremoveCache: %+v \nqueue: %+v \n", cache, removeCache, queue)
+
+}

@@ -36,7 +36,7 @@ func (db *Database) GetKVStore(storeKey string) store.KVStore {
 	return kv.NewKVStore(db, storeKey)
 }
 
-// New returns a wrapped map with all the required database interface methods
+// New returns a wrapped map with all the required database interfaces methods
 // implemented.
 func New() *Database {
 	return &Database{
@@ -45,7 +45,7 @@ func New() *Database {
 }
 
 // NewWithCap returns a wrapped map pre-allocated to the provided capacity with
-// all the required database interface methods implemented.
+// all the required database interfaces methods implemented.
 func NewWithCap(size int) *Database {
 	return &Database{
 		db: make(map[string][]byte, size),

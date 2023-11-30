@@ -136,7 +136,7 @@ func (t *MerkleTree) Hash() common.Hash {
 	return t.rootNode.hash
 }
 
-// String implements the stringer interface
+// String implements the stringer interfaces
 func (t *MerkleTree) String() string {
 	return hex.EncodeToString(t.Hash().Bytes())
 }

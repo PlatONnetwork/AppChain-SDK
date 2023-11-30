@@ -7,4 +7,5 @@ var (
 	RootchainStakeManagerAddress = common.HexToAddress("") // CustomChildChainManager address on rootchain
 	StakeSenderAddress           = common.HexToAddress("")
 	StakeHandlerAddres           = common.HexToAddress("")
+	VRFHandlerAddress            = common.HexToAddress("")
 )

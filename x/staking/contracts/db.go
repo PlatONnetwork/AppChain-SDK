@@ -1012,29 +1012,12 @@ func (c *StakeHandler) getValidatorDelegationRc(validatorAddr common.Address, st
 }
 
 // ----
-
-func (c *StakeHandler) appendEpochItem(epoch uint64, startBlock, endBlock, roundCount uint64) error {
-	return db.AppendEpochItem(c.evm.StateDB, c.contract.Address(), epoch, startBlock, endBlock, roundCount)
+func (c *StakeHandler) getEpochQueueSince(epoch, size uint64) types.EpochQueue {
+	return db.GetEpochQueueSince(c.evm.StateDB, c.contract.Address(), epoch, size)
 }
 
-func (c *StakeHandler) getLastEpochItem() *types.EpochItem {
-	return db.GetLastEpochItem(c.evm.StateDB, c.contract.Address())
-}
-
-func (c *StakeHandler) getLastEpoch() uint64 {
-	return db.GetLastEpoch(c.evm.StateDB, c.contract.Address())
-}
-
-func (c *StakeHandler) getEpochQueueFromHead(size uint64) types.EpochQueue {
-	return db.GetEpochQueueFromHead(c.evm.StateDB, c.contract.Address(), size)
-}
-
-func (c *StakeHandler) getEpochQueueFromTail(size uint64) types.EpochQueue {
-	return db.GetEpochQueueFromTail(c.evm.StateDB, c.contract.Address(), size)
-}
-
-func (c *StakeHandler) setEpochItem(epoch uint64, item *types.EpochItem) error {
-	return db.SetEpochItem(c.evm.StateDB, c.contract.Address(), epoch, item)
+func (c *StakeHandler) getEpochQueueUtil(epoch, size uint64) types.EpochQueue {
+	return db.GetEpochQueueUtil(c.evm.StateDB, c.contract.Address(), epoch, size)
 }
 
 func (c *StakeHandler) getEpochItem(epoch uint64) *types.EpochItem {

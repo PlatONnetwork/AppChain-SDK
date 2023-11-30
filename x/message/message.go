@@ -1,4 +1,4 @@
-package statesync
+package message
 
 import (
 	"github.com/PlatONnetwork/PlatON-Go/common"

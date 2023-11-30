@@ -349,7 +349,7 @@ func New{{$contract.Type}}Caller(evm *vm.EVM, contract *vm.Contract, to common.A
 
 {{range .Contract.Calls}}
 func (c *{{$contract.Type}}Caller) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
-    var out []interface{}
+    var out []interfaces{}
 	err := c.BoundContract.Caller(c.to, &out, "{{.Original.Name}}" {{range .Normalized.Inputs}}, {{.Name}}{{end}})
 	{{if .Structured}}
 	outstruct := new(struct{ {{range .Normalized.Outputs}} {{.Name}} {{bindtype .Type $structs}}; {{end}} })
@@ -375,7 +375,7 @@ func (c *{{$contract.Type}}Caller) {{.Normalized.Name}}({{range $i, $_ := .Norma
 
 {{range .Contract.Transacts}}
 func (c *{{$contract.Type}}Caller) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
-        var out []interface{}
+        var out []interfaces{}
 	err := c.BoundContract.Caller(c.to, &out, "{{.Original.Name}}" {{range .Normalized.Inputs}}, {{.Name}}{{end}})
 	{{if .Structured}}
 	outstruct := new(struct{ {{range .Normalized.Outputs}} {{.Name}} {{bindtype .Type $structs}}; {{end}} })
@@ -418,7 +418,7 @@ func New{{$contract.Type}}DelegateCaller(evm *vm.EVM, contract *vm.Contract, to 
 
 {{range .Contract.Calls}}
 func (c *{{$contract.Type}}DelegateCaller) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
-    var out []interface{}
+    var out []interfaces{}
 	err := c.BoundContract.DelegateCaller(c.to, &out, "{{.Original.Name}}" {{range .Normalized.Inputs}}, {{.Name}}{{end}})
 	{{if .Structured}}
 	outstruct := new(struct{ {{range .Normalized.Outputs}} {{.Name}} {{bindtype .Type $structs}}; {{end}} })
@@ -444,7 +444,7 @@ func (c *{{$contract.Type}}DelegateCaller) {{.Normalized.Name}}({{range $i, $_ :
 
 {{range .Contract.Transacts}}
 func (c *{{$contract.Type}}DelegateCaller) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
-        var out []interface{}
+        var out []interfaces{}
 	err := c.BoundContract.DelegateCaller(c.to, &out, "{{.Original.Name}}" {{range .Normalized.Inputs}}, {{.Name}}{{end}})
 	{{if .Structured}}
 	outstruct := new(struct{ {{range .Normalized.Outputs}} {{.Name}} {{bindtype .Type $structs}}; {{end}} })

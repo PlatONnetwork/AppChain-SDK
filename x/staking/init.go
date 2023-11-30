@@ -23,6 +23,10 @@ func initStakeHandler(statedb sdk.StateDB) error {
 		return err
 	}
 
+	if err := initValidators(statedb); nil != err {
+		return err
+	}
+
 	return nil
 }
 
@@ -55,26 +59,12 @@ func initEpochItem(statedb sdk.StateDB) error {
 
 	// TODO 需要根据配置读取 epochSize 计算第一轮的边界
 	//
-	// tail -> head -> first -> tail -> head
-	headEpoch := types.NewEpochItem(math.MaxUint64, 1, 0, 0, 0)
-	firstEpoch := types.NewEpochItem(0, math.MaxUint64, 1, 100, 10) // todo 需要重新计算边界
-	tailEpoch := types.NewEpochItem(1, 0, 0, 0, 0)
-
-	hvalue, err := rlp.EncodeToBytes(headEpoch)
+	epoch := types.NewEpochItem(1, 100, 10) // todo 需要重新计算边界
+	value, err := rlp.EncodeToBytes(epoch)
 	if nil != err {
 		return stakingdb.ErrRlpEncode
 	}
-	value, err := rlp.EncodeToBytes(firstEpoch)
-	if nil != err {
-		return stakingdb.ErrRlpEncode
-	}
-	tvalue, err := rlp.EncodeToBytes(tailEpoch)
-	if nil != err {
-		return stakingdb.ErrRlpEncode
-	}
-	statedb.SetState(address.StakeHandlerAddres, stakingdb.EncodeEpochItemKey(0), hvalue)
 	statedb.SetState(address.StakeHandlerAddres, stakingdb.EncodeEpochItemKey(1), value)
-	statedb.SetState(address.StakeHandlerAddres, stakingdb.EncodeEpochItemKey(math.MaxUint64), tvalue)
 	return nil
 }
 
@@ -102,5 +92,12 @@ func initRoundItem(statedb sdk.StateDB) error {
 	statedb.SetState(address.StakeHandlerAddres, stakingdb.EncodeRoundItemKey(0), hvalue)
 	statedb.SetState(address.StakeHandlerAddres, stakingdb.EncodeRoundItemKey(1), value)
 	statedb.SetState(address.StakeHandlerAddres, stakingdb.EncodeRoundItemKey(math.MaxUint64), tvalue)
+	return nil
+}
+
+func initValidators(statedb sdk.StateDB) error {
+
+	// TODO 读取创世快， 添加创世的 priority / validator / epochValidatorSnapshotQueue(epoch:1)/ roundValidatorSnapshotQueue(round:1)
+
 	return nil
 }

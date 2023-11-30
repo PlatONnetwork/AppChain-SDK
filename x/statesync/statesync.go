@@ -2,6 +2,7 @@ package statesync
 
 import (
 	"errors"
+	"github.com/PlatONnetwork/AppChain-SDK/x/message"
 	"math/big"
 
 	"github.com/PlatONnetwork/AppChain-SDK/merkle"
@@ -156,7 +157,7 @@ func (s *StateSync) createExecuteTxs(ctx sdk.Context, proofs [][]common.Hash, ev
 
 func (s *StateSync) newStateSyncCallContract(ctx sdk.Context, header *types.Header) (*contracts.StateReceiver, error) {
 	from := crypto.PubkeyToAddress(s.privateKey.PublicKey)
-	evm, _, err := ctx.Backend().GetEVM(NewOnlyCallMessage(from), header)
+	evm, _, err := ctx.Backend().GetEVM(message.NewOnlyCallMessage(from), header)
 	if err != nil {
 		return nil, err
 	}

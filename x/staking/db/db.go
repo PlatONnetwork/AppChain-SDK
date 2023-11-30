@@ -16,21 +16,22 @@ var (
 	ErrRlpEncode    = errors.New("rlp encode failed")
 	ErrRlpDecode    = errors.New("rlp decode failed")
 	ErrNotFound     = errors.New("not found")
+	ErrExist        = errors.New("already exist")
 	ErrMisMatching  = errors.New("mismatching")
 	ErrInvalidValue = errors.New("invalid value")
 )
 
 var (
-	priorityValidatorHeadKey   = []byte("priorityValidatorHead") // "priorityValidatorHead" => priorityValidator(head)
-	priorityValidatorTailKey   = []byte("priorityValidatorTail") // "priorityValidatorTail" => priorityValidator(tail)
-	priorityValidatorKeyPrefix = []byte("priorityValidator")     // "priorityValidator":shares(stakeAmount+delegataionAmount):stakeEpoch:stakeIndex => priorityValidator{preKey, nextKey, validatorAddr}
-	validatorKeyPrefix         = []byte("validator")             // "validator":validatorAddr => validator
-	currentEpochKey            = []byte("currentEpoch")          // "currentEpoch" => currentEpoch (It is a number)
-	currentRoundKey            = []byte("currentRound")          // "currentRound" => currentRound (It is a number)
-	epochValidatorIdsKeyPrefix = []byte("epochValidatorIds")     // "epochValidatorIds":epochId => []validatorAddr  (For settlement epoch)
-	roundValidatorIdsKeyPrefix = []byte("roundValidatorIds")     // "roundValidatorIds":roundId => []validatorAddr  (For consensus round)
+	priorityValidatorHeadKey                   = []byte("priorityValidatorHead")             // "priorityValidatorHead" => priorityValidator(head)
+	priorityValidatorTailKey                   = []byte("priorityValidatorTail")             // "priorityValidatorTail" => priorityValidator(tail)
+	priorityValidatorKeyPrefix                 = []byte("priorityValidator")                 // "priorityValidator":shares(stakeAmount+delegataionAmount):stakeEpoch:stakeIndex => priorityValidator{preKey, nextKey, validatorAddr}
+	validatorKeyPrefix                         = []byte("validator")                         // "validator":validatorAddr => validator
+	currentEpochKey                            = []byte("currentEpoch")                      // "currentEpoch" => currentEpoch (It is a number)
+	currentRoundKey                            = []byte("currentRound")                      // "currentRound" => currentRound (It is a number)
+	epochValidatorSharesSnapshotQueueKeyPrefix = []byte("epochValidatorSharesSnapshotQueue") // "epochValidatorSharesSnapshotQueue":epochId => []validatorSharesSnapshot  (For settlement epoch)
+	roundValidatorSharesSnapshotQueueKeyPrefix = []byte("roundValidatorSharesSnapshotQueue") // "roundValidatorSharesSnapshotQueue":roundId => []validatorSharesSnapshot  (For consensus round)
 
-	epochItemKeyPrefix = []byte("epochItem") // "epochItem":epochId => {preEpoch, nextEpoch, startBlock, endBlock}    todo maybe add block root range start and end
+	epochItemKeyPrefix = []byte("epochItem") // "epochItem":epochId => {preEpoch, nextEpoch, startBlock, endBlock, roundCount}
 	roundItemKeyPrefix = []byte("roundItem") // "roundItem":roundId => {preRound, nextRound, startBlock, endBlock}
 
 )
@@ -72,12 +73,12 @@ func encodeValidatorKey(validatorAddr common.Address) []byte {
 	return append(validatorKeyPrefix, validatorAddr.Bytes()...)
 }
 
-func encodeEpochValidatorIdsKey(epoch uint64) []byte {
-	return append(epochValidatorIdsKeyPrefix, common.Uint64ToBytes(epoch)...)
+func encodeEpochValidatorSharesSnapshotQueueKey(epoch uint64) []byte {
+	return append(epochValidatorSharesSnapshotQueueKeyPrefix, common.Uint64ToBytes(epoch)...)
 }
 
-func encodeRoundValidatorIdsKey(round uint64) []byte {
-	return append(roundValidatorIdsKeyPrefix, common.Uint64ToBytes(round)...)
+func encodeRoundValidatorSharesSnapshotQueueKey(round uint64) []byte {
+	return append(roundValidatorSharesSnapshotQueueKeyPrefix, common.Uint64ToBytes(round)...)
 }
 
 func EncodeEpochItemKey(epoch uint64) []byte {
@@ -331,205 +332,157 @@ func GetCurrentRound(db sdk.StateDB, address common.Address) uint64 {
 	return common.BytesToUint64(value)
 }
 
-func SetEpochValidatorIds(db sdk.StateDB, address common.Address, epoch uint64, ids types.ValidatorIds) error {
-	value, err := rlp.EncodeToBytes(ids)
+func SetEpochValidatorSharesSnapshotQueue(db sdk.StateDB, address common.Address, epoch uint64, queue types.ValidatorSharesSnapshotQueue) error {
+	value, err := rlp.EncodeToBytes(queue)
 	if nil != err {
 		return ErrRlpEncode
 	}
-	db.SetState(address, encodeEpochValidatorIdsKey(epoch), value)
+	db.SetState(address, encodeEpochValidatorSharesSnapshotQueueKey(epoch), value)
+	return nil
+}
+
+func GetEpochValidatorSharesSnapshotQueue(db sdk.StateDB, address common.Address, epoch uint64) types.ValidatorSharesSnapshotQueue {
+	value := db.GetState(address, encodeEpochValidatorSharesSnapshotQueueKey(epoch))
+	if len(value) == 0 {
+		return nil
+	}
+	var queue types.ValidatorSharesSnapshotQueue
+	if err := rlp.DecodeBytes(value, &queue); nil == err {
+		return queue
+	}
 	return nil
 }
 
 func GetEpochValidatorIds(db sdk.StateDB, address common.Address, epoch uint64) types.ValidatorIds {
-	value := db.GetState(address, encodeEpochValidatorIdsKey(epoch))
+	value := db.GetState(address, encodeEpochValidatorSharesSnapshotQueueKey(epoch))
 	if len(value) == 0 {
 		return nil
 	}
-	var ids types.ValidatorIds
-	if err := rlp.DecodeBytes(value, &ids); nil == err {
-		return ids
+
+	var queue types.ValidatorSharesSnapshotQueue
+	if err := rlp.DecodeBytes(value, &queue); nil != err {
+		return nil
 	}
-	return nil
+
+	ids := make(types.ValidatorIds, len(queue))
+
+	for i, v := range queue {
+		ids[i] = v.ValidatorAddr
+	}
+
+	return ids
 }
 
-func SetRoundValidatorIds(db sdk.StateDB, address common.Address, round uint64, ids types.ValidatorIds) error {
-	value, err := rlp.EncodeToBytes(ids)
+func SetRoundValidatorSharesSnapshotQueue(db sdk.StateDB, address common.Address, round uint64, queue types.ValidatorSharesSnapshotQueue) error {
+	value, err := rlp.EncodeToBytes(queue)
 	if nil != err {
 		return ErrRlpEncode
 	}
-	db.SetState(address, encodeRoundValidatorIdsKey(round), value)
+	db.SetState(address, encodeRoundValidatorSharesSnapshotQueueKey(round), value)
+	return nil
+}
+
+func GetRoundValidatorSharesSnapshotQueue(db sdk.StateDB, address common.Address, round uint64) types.ValidatorSharesSnapshotQueue {
+	value := db.GetState(address, encodeRoundValidatorSharesSnapshotQueueKey(round))
+	if len(value) == 0 {
+		return nil
+	}
+	var queue types.ValidatorSharesSnapshotQueue
+	if err := rlp.DecodeBytes(value, &queue); nil == err {
+		return queue
+	}
 	return nil
 }
 
 func GetRoundValidatorIds(db sdk.StateDB, address common.Address, round uint64) types.ValidatorIds {
-	value := db.GetState(address, encodeRoundValidatorIdsKey(round))
+	value := db.GetState(address, encodeRoundValidatorSharesSnapshotQueueKey(round))
 	if len(value) == 0 {
 		return nil
 	}
-	var ids types.ValidatorIds
-	if err := rlp.DecodeBytes(value, &ids); nil == err {
-		return ids
+	var queue types.ValidatorSharesSnapshotQueue
+	if err := rlp.DecodeBytes(value, &queue); nil != err {
+		return nil
 	}
-	return nil
+
+	ids := make(types.ValidatorIds, len(queue))
+
+	for i, v := range queue {
+		ids[i] = v.ValidatorAddr
+	}
+
+	return ids
 }
 
 // ----
 
 func AppendEpochItem(db sdk.StateDB, address common.Address, epoch uint64, startBlock, endBlock, roundCount uint64) error {
-
-	indexEpoch := uint64(math.MaxUint64)
-	indexItem := GetEpochItem(db, address, indexEpoch)
-
-	// range from tail to head
-	for indexItem.PreEpoch != math.MaxUint64 { // not as head
-		if indexEpoch == epoch {
-			// pre -> index(epoch) -> next
-			// index == epoch
-
-			return ErrInvalidValue
-		}
-
-		if indexEpoch < epoch {
-			// pre -> index -> epoch -> next... -> tail(max)
-			// pre < index < epoch < next ... < tail(max)
-
-			next := GetEpochItem(db, address, indexItem.NextEpoch)
-			epochItem := types.NewEpochItem(indexEpoch, indexItem.NextEpoch, startBlock, endBlock, roundCount)
-
-			indexItem.UpdateNextEpoch(epoch)
-			next.UpdatePreEpoch(epoch)
-
-			if err := SetEpochItem(db, address, indexEpoch, indexItem); nil != err {
-				return err
-			}
-			if err := SetEpochItem(db, address, epoch, epochItem); nil != err {
-				return err
-			}
-			if err := SetEpochItem(db, address, epochItem.NextEpoch, next); nil != err {
-				return err
-			}
-
-			break
-
-		} else {
-
-			if indexItem.PreEpoch == uint64(0) {
-				// if  head(min) -> index -> tail(max)
-				// and epoch < index
-				//
-				// then: head(min) -> epoch -> index<last one> -> ... -> tail(max)
-				// head < epoch < index < ... < tail
-
-				pre := GetEpochItem(db, address, indexItem.PreEpoch) // head
-				epochItem := types.NewEpochItem(indexItem.PreEpoch, epoch, startBlock, endBlock, roundCount)
-
-				pre.UpdateNextEpoch(epoch)
-				indexItem.UpdatePreEpoch(epoch)
-
-				if err := SetEpochItem(db, address, epochItem.PreEpoch, pre); nil != err {
-					return err
-				}
-				if err := SetEpochItem(db, address, epoch, epochItem); nil != err {
-					return err
-				}
-				if err := SetEpochItem(db, address, indexEpoch, indexItem); nil != err {
-					return err
-				}
-
-				break
-
-			}
-
-			// if  head -> ... -> pre -> index -> ... -> max
-			// (head < ... <  pre < index < ... < tail(max) )
-			// and epoch < index
-			// maybe epoch < pre
-			//
-			// then: continue pre become new index
-			//
-
-		}
-
-		indexEpoch = indexItem.PreEpoch
-		indexItem = GetEpochItem(db, address, indexEpoch)
+	epochItem := GetEpochItem(db, address, epoch)
+	if epochItem.IsNotEmpty() {
+		return ErrExist
 	}
-	return nil
+	epochItem = types.NewEpochItem(startBlock, endBlock, roundCount)
+	return SetEpochItem(db, address, epoch, epochItem)
 }
 
-func GetLastEpochItem(db sdk.StateDB, address common.Address) *types.EpochItem {
-	tail := GetEpochItem(db, address, math.MaxUint64)
-	item := GetEpochItem(db, address, tail.PreEpoch)
-	return item
-}
-
-func GetLastEpoch(db sdk.StateDB, address common.Address) uint64 {
-	tail := GetEpochItem(db, address, math.MaxUint64)
-	return tail.PreEpoch
-}
-
-func GetEpochQueueFromHead(db sdk.StateDB, address common.Address, size uint64) types.EpochQueue {
+func GetEpochQueueSince(db sdk.StateDB, address common.Address, epoch, size uint64) types.EpochQueue {
 	queue := types.NewEpochQueue(size)
 
 	var count uint64 = 0
 
-	item := GetEpochItem(db, address, 1)
+	currentEpoch := GetCurrentEpoch(db, address)
+	index := epoch
 
-	for item.NextEpoch != 0 && count < size { // not as tail<nextEpoch == 0>  and count less size
-		queue[count] = item
-		item = GetEpochItem(db, address, item.NextEpoch)
+	for index != currentEpoch+1 && count < size {
+		queue[count] = GetEpochItem(db, address, index)
+		index++
 		count++
 	}
 	return queue[:count]
 }
 
-func GetEpochQueueFromTail(db sdk.StateDB, address common.Address, size uint64) types.EpochQueue {
+func GetEpochQueueUtil(db sdk.StateDB, address common.Address, epoch, size uint64) types.EpochQueue {
 	queue := types.NewEpochQueue(size)
 
 	var count uint64 = 0
 
-	tail := GetEpochItem(db, address, math.MaxUint64)
-	item := GetEpochItem(db, address, tail.PreEpoch)
-
-	for item.PreEpoch != math.MaxUint64 && count < size { // not as head<preEpoch == MaxUint64>  and count less size
-		queue[count] = item
-		item = GetEpochItem(db, address, item.PreEpoch)
+	index := epoch
+	for index != 0 && count < size {
+		queue[count] = GetEpochItem(db, address, index)
+		index--
 		count++
 	}
 	return queue[:count]
 }
 
-func GetEpochQueueAndIndexFromHead(db sdk.StateDB, address common.Address, size uint64) ([]uint64, types.EpochQueue) {
+func GetEpochQueueAndIndexSince(db sdk.StateDB, address common.Address, epoch, size uint64) ([]uint64, types.EpochQueue) {
 	queue := types.NewEpochQueue(size)
 	epochs := make([]uint64, size)
+
 	var count uint64 = 0
 
-	epoch := uint64(1)
-	item := GetEpochItem(db, address, epoch)
+	currentEpoch := GetCurrentEpoch(db, address)
+	index := epoch
 
-	for item.NextEpoch != 0 && count < size { // not as tail<nextEpoch == 0>  and count less size
-		queue[count] = item
-		epochs[count] = epoch
-		item = GetEpochItem(db, address, item.NextEpoch)
-		epoch = item.NextEpoch
+	for index != currentEpoch+1 && count < size {
+		queue[count] = GetEpochItem(db, address, index)
+		epochs[count] = index
+		index++
 		count++
 	}
 	return epochs[:count], queue[:count]
 }
 
-func GetEpochQueueAndIndexFromTail(db sdk.StateDB, address common.Address, size uint64) ([]uint64, types.EpochQueue) {
+func GetEpochQueueAndIndexUtil(db sdk.StateDB, address common.Address, epoch, size uint64) ([]uint64, types.EpochQueue) {
 	queue := types.NewEpochQueue(size)
 	epochs := make([]uint64, size)
+
 	var count uint64 = 0
 
-	tail := GetEpochItem(db, address, math.MaxUint64)
-	epoch := tail.PreEpoch
-	item := GetEpochItem(db, address, epoch)
-
-	for item.PreEpoch != math.MaxUint64 && count < size { // not as head<preEpoch == MaxUint64>  and count less size
-		queue[count] = item
-		epochs[count] = epoch
-		item = GetEpochItem(db, address, item.PreEpoch)
-		epoch = item.NextEpoch
+	index := epoch
+	for index != 0 && count < size {
+		queue[count] = GetEpochItem(db, address, index)
+		epochs[count] = index
+		index--
 		count++
 	}
 	return epochs[:count], queue[:count]
@@ -560,160 +513,73 @@ func GetEpochItem(db sdk.StateDB, address common.Address, epoch uint64) *types.E
 // ---
 
 func AppendRoundItem(db sdk.StateDB, address common.Address, round uint64, startBlock, endBlock uint64) error {
-
-	indexRound := uint64(math.MaxUint64)
-	indexItem := GetRoundItem(db, address, indexRound)
-
-	// range from tail to head
-	for indexItem.PreRound != math.MaxUint64 { // not as head
-		if indexRound == round {
-			// pre -> index(round) -> next
-			// index == round
-
-			return ErrInvalidValue
-		}
-
-		if indexRound < round {
-			// pre -> index -> round -> next... -> tail(max)
-			// pre < index < round < next ... < tail(max)
-
-			next := GetRoundItem(db, address, indexItem.NextRound)
-			roundItem := types.NewRoundItem(indexRound, indexItem.NextRound, startBlock, endBlock)
-
-			indexItem.UpdateNextRound(round)
-			next.UpdatePreRound(round)
-
-			if err := SetRoundItem(db, address, indexRound, indexItem); nil != err {
-				return err
-			}
-			if err := SetRoundItem(db, address, round, roundItem); nil != err {
-				return err
-			}
-			if err := SetRoundItem(db, address, roundItem.NextRound, next); nil != err {
-				return err
-			}
-
-			break
-
-		} else {
-
-			if indexItem.PreRound == uint64(0) {
-				// if  head(min) -> index -> tail(max)
-				// and round < index
-				//
-				// then: head(min) -> round -> index<last one> -> ... -> tail(max)
-				// head < round < index < ... < tail
-
-				pre := GetRoundItem(db, address, indexItem.PreRound) // head
-				epochItem := types.NewRoundItem(indexItem.PreRound, round, startBlock, endBlock)
-
-				pre.UpdateNextRound(round)
-				indexItem.UpdatePreRound(round)
-
-				if err := SetRoundItem(db, address, epochItem.PreRound, pre); nil != err {
-					return err
-				}
-				if err := SetRoundItem(db, address, round, epochItem); nil != err {
-					return err
-				}
-				if err := SetRoundItem(db, address, indexRound, indexItem); nil != err {
-					return err
-				}
-
-				break
-
-			}
-
-			// if  head -> ... -> pre -> index -> ... -> max
-			// (head < ... <  pre < index < ... < tail(max) )
-			// and round < index
-			// maybe round < pre
-			//
-			// then: continue pre become new index
-			//
-
-		}
-
-		indexRound = indexItem.PreRound
-		indexItem = GetRoundItem(db, address, indexRound)
+	roundItem := GetRoundItem(db, address, round)
+	if roundItem.IsNotEmpty() {
+		return ErrExist
 	}
-	return nil
+	roundItem = types.NewRoundItem(startBlock, endBlock)
+	return SetRoundItem(db, address, round, roundItem)
 }
 
-func GetLastRoundItem(db sdk.StateDB, address common.Address) *types.RoundItem {
-	tail := GetRoundItem(db, address, math.MaxUint64)
-	item := GetRoundItem(db, address, tail.PreRound)
-	return item
-}
-
-func GetLastRound(db sdk.StateDB, address common.Address) uint64 {
-	tail := GetRoundItem(db, address, math.MaxUint64)
-	return tail.PreRound
-}
-
-func GetRoundQueueFromHead(db sdk.StateDB, address common.Address, size uint64) types.RoundQueue {
+func GetRoundQueueSince(db sdk.StateDB, address common.Address, round, size uint64) types.RoundQueue {
 	queue := types.NewRoundQueue(size)
 
 	var count uint64 = 0
 
-	item := GetRoundItem(db, address, 1)
+	currentEpoch := GetCurrentRound(db, address)
+	index := round
 
-	for item.NextRound != 0 && count < size { // not as tail<nextRound == 0>  and count less size
-		queue[count] = item
-		item = GetRoundItem(db, address, item.NextRound)
+	for index != currentEpoch+1 && count < size {
+		queue[count] = GetRoundItem(db, address, index)
+		index++
 		count++
 	}
 	return queue[:count]
 }
 
-func GetRoundQueueFromTail(db sdk.StateDB, address common.Address, size uint64) types.RoundQueue {
+func GetRoundQueueUtil(db sdk.StateDB, address common.Address, round, size uint64) types.RoundQueue {
 	queue := types.NewRoundQueue(size)
 
 	var count uint64 = 0
 
-	tail := GetRoundItem(db, address, math.MaxUint64)
-	item := GetRoundItem(db, address, tail.PreRound)
-
-	for item.PreRound != math.MaxUint64 && count < size { // not as head<preRound == MaxUint64>  and count less size
-		queue[count] = item
-		item = GetRoundItem(db, address, item.PreRound)
+	index := round
+	for index != 0 && count < size {
+		queue[count] = GetRoundItem(db, address, index)
+		index--
 		count++
 	}
 	return queue[:count]
 }
 
-func GetRoundQueueAndIndexFromHead(db sdk.StateDB, address common.Address, size uint64) ([]uint64, types.RoundQueue) {
+func GetRoundQueueAndIndexSince(db sdk.StateDB, address common.Address, round, size uint64) ([]uint64, types.RoundQueue) {
 	queue := types.NewRoundQueue(size)
 	rounds := make([]uint64, size)
+
 	var count uint64 = 0
 
-	round := uint64(1)
-	item := GetRoundItem(db, address, round)
+	currentRound := GetCurrentRound(db, address)
+	index := round
 
-	for item.NextRound != 0 && count < size { // not as tail<nextRound == 0>  and count less size
-		queue[count] = item
-		rounds[count] = round
-		item = GetRoundItem(db, address, item.NextRound)
-		round = item.NextRound
+	for index != currentRound+1 && count < size {
+		queue[count] = GetRoundItem(db, address, index)
+		rounds[count] = index
+		index++
 		count++
 	}
 	return rounds[:count], queue[:count]
 }
 
-func GetRoundQueueAndIndexFromTail(db sdk.StateDB, address common.Address, size uint64) ([]uint64, types.RoundQueue) {
+func GetRoundQueueAndIndexFromTail(db sdk.StateDB, address common.Address, round, size uint64) ([]uint64, types.RoundQueue) {
 	queue := types.NewRoundQueue(size)
 	rounds := make([]uint64, size)
+
 	var count uint64 = 0
 
-	tail := GetRoundItem(db, address, math.MaxUint64)
-	round := tail.PreRound
-	item := GetRoundItem(db, address, round)
-
-	for item.PreRound != math.MaxUint64 && count < size { // not as head<preRound == MaxUint64>  and count less size
-		queue[count] = item
-		rounds[count] = round
-		item = GetRoundItem(db, address, item.PreRound)
-		round = item.NextRound
+	index := round
+	for index != 0 && count < size {
+		queue[count] = GetRoundItem(db, address, index)
+		rounds[count] = index
+		index--
 		count++
 	}
 	return rounds[:count], queue[:count]

@@ -85,6 +85,10 @@ func (status ValidatorStatus) IsInvalidUnstaked() bool {
 	return status&(Invalided|Unstaked) == (Invalided | Unstaked)
 }
 
+func (status ValidatorStatus) IsNotExist() bool {
+	return status&NotExist == NotExist
+}
+
 type Validator struct {
 	Owner          common.Address
 	StakeAmount    *big.Int
@@ -307,30 +311,324 @@ func (ids ValidatorIds) IsNotEmpty() bool {
 	return !ids.IsEmpty()
 }
 
+// used for sorting round validators in elections
+type ValidatorSortSnapshot struct {
+	ValidatorAddr  common.Address
+	Epoch          uint64
+	StakeIndex     uint64
+	ValidatorTerm  uint64
+	StakeAmount    *big.Int
+	DelegateAmount *big.Int
+}
+
+func NewValidatorSharesSnapshot(validatorAddr common.Address, epoch, stakeIndex uint64, stakeAmount, delegateAmount *big.Int) *ValidatorSortSnapshot {
+	return &ValidatorSortSnapshot{
+		ValidatorAddr:  validatorAddr,
+		Epoch:          epoch,
+		StakeIndex:     stakeIndex,
+		StakeAmount:    stakeAmount,
+		DelegateAmount: delegateAmount,
+	}
+}
+
+func (item *ValidatorSortSnapshot) Shares() *big.Int {
+	return new(big.Int).Add(item.StakeAmount, item.DelegateAmount)
+}
+
+func (item *ValidatorSortSnapshot) IncrementValidatorTerm(increment uint64) {
+	item.ValidatorTerm += increment
+}
+
+func (item *ValidatorSortSnapshot) IsEmpty() bool {
+	return nil == item
+}
+
+func (item *ValidatorSortSnapshot) IsNotEmpty() bool {
+	return !item.IsEmpty()
+}
+
+type ValidatorSharesSnapshotQueue []*ValidatorSortSnapshot
+
+func NewValidatorSharesSnapshotQueue(size uint64) ValidatorSharesSnapshotQueue {
+	queue := make(ValidatorSharesSnapshotQueue, size)
+	return queue
+}
+
+func (queue ValidatorSharesSnapshotQueue) IsEmpty() bool {
+	return len(queue) == 0
+}
+
+func (queue ValidatorSharesSnapshotQueue) IsNotEmpty() bool {
+	return !queue.IsEmpty()
+}
+
+// prioty order: large -> small
+// eg. 8 -> 5- > 3
+func (queue ValidatorSharesSnapshotQueue) ValidatorSort(cache MaybeRemoveValidatorStatusCache,
+	compare func(cache MaybeRemoveValidatorStatusCache, c, can *ValidatorSortSnapshot) int) {
+	if len(queue) <= 1 {
+		return
+	}
+
+	if nil == compare {
+		queue.quickSort(cache, 0, len(queue)-1, CompareDefault)
+	} else {
+		queue.quickSort(cache, 0, len(queue)-1, compare)
+	}
+}
+func (queue ValidatorSharesSnapshotQueue) quickSort(cache MaybeRemoveValidatorStatusCache, left, right int,
+	compare func(cache MaybeRemoveValidatorStatusCache, c, can *ValidatorSortSnapshot) int) {
+	if left < right {
+		pivot := queue.partition(cache, left, right, compare)
+		queue.quickSort(cache, left, pivot-1, compare)
+		queue.quickSort(cache, pivot+1, right, compare)
+	}
+}
+func (queue ValidatorSharesSnapshotQueue) partition(cache MaybeRemoveValidatorStatusCache, left, right int,
+	compare func(cache MaybeRemoveValidatorStatusCache, c, can *ValidatorSortSnapshot) int) int {
+	for left < right {
+		for left < right && compare(cache, queue[left], queue[right]) >= 0 {
+			right--
+		}
+		if left < right {
+			queue[left], queue[right] = queue[right], queue[left]
+			left++
+		}
+		for left < right && compare(cache, queue[left], queue[right]) >= 0 {
+			left++
+		}
+		if left < right {
+			queue[left], queue[right] = queue[right], queue[left]
+			right--
+		}
+	}
+	return left
+}
+
+// #### NOTE: ####
+// Sort By Default
+// ###############
+//
+// order rules:
+//
+//	ValidaotorTerm -> Shares > Epoch > StakeIndex > Invalid
+//
+// (no remove -> maybe remove)
+//
+// eg:  term(2 -> 5) -> shares (200w -> 100w ) -> epoch (2<early> -> 10<later>) -> stakeIndex(3<early> -> 8<later>) -> status(invalid)
+//
+// Compare Left And Right
+// 1: Left > Right	=> Left -> Right
+// 0: Left == Right	=> Left(Right)
+// -1:Left < Right	=> Right -> Left
+func CompareDefault(cache MaybeRemoveValidatorStatusCache, left, right *ValidatorSortSnapshot) int {
+
+	//
+	compareStakeIndexFunc := func(l, r *ValidatorSortSnapshot) int {
+		switch {
+		case l.StakeIndex > r.StakeIndex:
+			return -1
+		case l.StakeIndex < r.StakeIndex:
+			return 1
+		default:
+			return 0
+		}
+	}
+
+	compareEpochFunc := func(l, r *ValidatorSortSnapshot) int {
+
+		switch {
+		case l.Epoch > r.Epoch:
+			return -1
+		case l.Epoch < r.Epoch:
+			return 1
+		default:
+			return compareStakeIndexFunc(l, r)
+		}
+	}
+
+	compareSharesFunc := func(l, r *ValidatorSortSnapshot) int {
+
+		switch {
+		case l.Shares().Cmp(r.Shares()) < 0:
+			return -1
+		case l.Shares().Cmp(r.Shares()) > 0:
+			return 1
+		default:
+			return compareEpochFunc(l, r)
+		}
+	}
+
+	// Compare Term
+	compareTermFunc := func(l, r *ValidatorSortSnapshot) int {
+		switch {
+		case l.ValidatorTerm < r.ValidatorTerm:
+			return 1
+		case l.ValidatorTerm > r.ValidatorTerm:
+			return -1
+		default:
+			return compareSharesFunc(l, r)
+		}
+	}
+
+	_, leftOk := cache[left.ValidatorAddr]
+	_, rightOk := cache[right.ValidatorAddr]
+
+	if leftOk && !rightOk {
+		return -1
+	} else if !leftOk && rightOk {
+		return 1
+	} else {
+
+		return compareTermFunc(left, right)
+	}
+
+}
+
+// #### NOTE: ####
+// These are sorted by priority that will be removed
+// ###############
+//
+// order rules:
+//
+// Invalid > ValidaotorTerm  > Shares > Epoch > StakeIndex
+// (maybe remove -> no remove)
+//
+// eg: status(duplicated -> lowBlocks -> unstake -> valid) -> term(5 -> 2) -> shares (100w -> 200 w) -> epoch (10<later> -> 2<early>) -> stakeIndex(8<later> -> 3<early>)
+//
+// What is the invalid ?  That are slashed and withdrew&NotInEpochValidators
+//
+// Compare Left And Right
+// 1: Left > Right   => Left -> Right
+// 0: Left == Right  => Left(Right)
+// -1:Left < Right   => Right -> Left
+func CompareForRemoveFromHead(cache MaybeRemoveValidatorStatusCache, left, right *ValidatorSortSnapshot) int {
+
+	// Compare StakeIndex
+	compareStakeIndexFunc := func(l, r *ValidatorSortSnapshot) int {
+
+		switch {
+		case l.StakeIndex > r.StakeIndex:
+			return 1
+		case l.StakeIndex < r.StakeIndex:
+			return -1
+		default:
+			return 0
+		}
+	}
+
+	// Compare epoch
+	compareEpochFunc := func(l, r *ValidatorSortSnapshot) int {
+		switch {
+		case l.Epoch > r.Epoch:
+			return 1
+		case l.Epoch < r.Epoch:
+			return -1
+		default:
+			return compareStakeIndexFunc(l, r)
+		}
+	}
+
+	// Compare Shares
+	compareSharesFunc := func(l, r *ValidatorSortSnapshot) int {
+
+		switch {
+		case l.Shares().Cmp(r.Shares()) < 0:
+			return 1
+		case l.Shares().Cmp(r.Shares()) > 0:
+			return -1
+		default:
+			return compareEpochFunc(l, r)
+		}
+	}
+
+	// Compare Term
+	compareTermFunc := func(l, r *ValidatorSortSnapshot) int {
+		switch {
+		case l.ValidatorTerm < r.ValidatorTerm:
+			return -1
+		case l.ValidatorTerm > r.ValidatorTerm:
+			return 1
+		default:
+			return compareSharesFunc(l, r)
+		}
+	}
+
+	lstatus, lok := cache[left.ValidatorAddr]
+	rstatus, rok := cache[right.ValidatorAddr]
+
+	/**
+	Start Compare
+	*/
+
+	switch {
+	case !lok && rok: // left need not removed AND right need removed   right -> left
+		return -1
+	case !lok && !rok: // both need not removed
+
+		return compareTermFunc(left, right)
+
+	case lok && !rok: // left need removed AND right need not removed
+		return 1
+	default: // both need removed
+
+		// notexist -> exist
+		if lstatus.IsNotExist() && !rstatus.IsNotExist() {
+			return 1
+		} else if !lstatus.IsNotExist() && rstatus.IsNotExist() {
+			return -1
+		} else {
+			// duplicated -> unduplicated
+			switch {
+			case lstatus.IsInvalidDuplicated() && !rstatus.IsInvalidDuplicated():
+				return 1
+			case !lstatus.IsInvalidDuplicated() && rstatus.IsInvalidDuplicated():
+				return -1
+			case lstatus.IsInvalidDuplicated() && rstatus.IsInvalidDuplicated():
+				// compare shares
+				return compareSharesFunc(left, right)
+			default:
+
+				// lowBlocks -> unlowBlocks
+				switch {
+				case lstatus.IsInvalidLowBlocks() && !rstatus.IsInvalidLowBlocks():
+					return 1
+				case !lstatus.IsInvalidLowBlocks() && rstatus.IsInvalidLowBlocks():
+					return -1
+				case lstatus.IsInvalidLowBlocks() && rstatus.IsInvalidLowBlocks():
+					// compare shares
+					return compareSharesFunc(left, right)
+				default:
+
+					// unstake -> valid
+					if lstatus.IsInvalidUnstaked() && !rstatus.IsInvalidUnstaked() {
+						return 1
+					} else if !lstatus.IsInvalidUnstaked() && rstatus.IsInvalidUnstaked() {
+						return -1
+					} else {
+						// compare term
+						return compareTermFunc(left, right)
+					}
+				}
+			}
+		}
+	}
+}
+
+type MaybeRemoveValidatorStatusCache map[common.Address]ValidatorStatus
+
 type EpochItem struct {
-	PreEpoch   uint64
-	NextEpoch  uint64
 	StartBlock uint64
 	EndBlock   uint64
 	RoundCount uint64
 }
 
-func NewEpochItem(preEpoch, nextEpoch, startBlock, endBlock, roundCount uint64) *EpochItem {
+func NewEpochItem(startBlock, endBlock, roundCount uint64) *EpochItem {
 	return &EpochItem{
-		PreEpoch:   preEpoch,
-		NextEpoch:  nextEpoch,
 		StartBlock: startBlock,
 		EndBlock:   endBlock,
 		RoundCount: roundCount,
 	}
-}
-
-func (item *EpochItem) UpdatePreEpoch(epoch uint64) {
-	item.PreEpoch = epoch
-}
-
-func (item *EpochItem) UpdateNextEpoch(epoch uint64) {
-	item.NextEpoch = epoch
 }
 
 func (item *EpochItem) IsEmpty() bool {
@@ -357,27 +655,15 @@ func (queue EpochQueue) IsNotEmpty() bool {
 }
 
 type RoundItem struct {
-	PreRound   uint64
-	NextRound  uint64
 	StartBlock uint64
 	EndBlock   uint64
 }
 
-func NewRoundItem(preRound, nextRound, startBlock, endBlock uint64) *RoundItem {
+func NewRoundItem(startBlock, endBlock uint64) *RoundItem {
 	return &RoundItem{
-		PreRound:   preRound,
-		NextRound:  nextRound,
 		StartBlock: startBlock,
 		EndBlock:   endBlock,
 	}
-}
-
-func (item *RoundItem) UpdatePreRound(round uint64) {
-	item.PreRound = round
-}
-
-func (item *RoundItem) UpdateNextRound(round uint64) {
-	item.NextRound = round
 }
 
 func (item *RoundItem) IsEmpty() bool {
