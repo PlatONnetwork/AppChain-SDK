@@ -1,4 +1,4 @@
-package internal
+package wrap
 
 import (
 	"crypto/ecdsa"

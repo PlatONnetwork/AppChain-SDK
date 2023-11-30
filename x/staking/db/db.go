@@ -332,7 +332,7 @@ func GetCurrentRound(db sdk.StateDB, address common.Address) uint64 {
 	return common.BytesToUint64(value)
 }
 
-func SetEpochValidatorSharesSnapshotQueue(db sdk.StateDB, address common.Address, epoch uint64, queue types.ValidatorSharesSnapshotQueue) error {
+func SetEpochValidatorSharesSnapshotQueue(db sdk.StateDB, address common.Address, epoch uint64, queue types.ValidatorSortSnapshotQueue) error {
 	value, err := rlp.EncodeToBytes(queue)
 	if nil != err {
 		return ErrRlpEncode
@@ -341,12 +341,12 @@ func SetEpochValidatorSharesSnapshotQueue(db sdk.StateDB, address common.Address
 	return nil
 }
 
-func GetEpochValidatorSharesSnapshotQueue(db sdk.StateDB, address common.Address, epoch uint64) types.ValidatorSharesSnapshotQueue {
+func GetEpochValidatorSharesSnapshotQueue(db sdk.StateDB, address common.Address, epoch uint64) types.ValidatorSortSnapshotQueue {
 	value := db.GetState(address, encodeEpochValidatorSharesSnapshotQueueKey(epoch))
 	if len(value) == 0 {
 		return nil
 	}
-	var queue types.ValidatorSharesSnapshotQueue
+	var queue types.ValidatorSortSnapshotQueue
 	if err := rlp.DecodeBytes(value, &queue); nil == err {
 		return queue
 	}
@@ -359,7 +359,7 @@ func GetEpochValidatorIds(db sdk.StateDB, address common.Address, epoch uint64) 
 		return nil
 	}
 
-	var queue types.ValidatorSharesSnapshotQueue
+	var queue types.ValidatorSortSnapshotQueue
 	if err := rlp.DecodeBytes(value, &queue); nil != err {
 		return nil
 	}
@@ -373,7 +373,7 @@ func GetEpochValidatorIds(db sdk.StateDB, address common.Address, epoch uint64) 
 	return ids
 }
 
-func SetRoundValidatorSharesSnapshotQueue(db sdk.StateDB, address common.Address, round uint64, queue types.ValidatorSharesSnapshotQueue) error {
+func SetRoundValidatorSharesSnapshotQueue(db sdk.StateDB, address common.Address, round uint64, queue types.ValidatorSortSnapshotQueue) error {
 	value, err := rlp.EncodeToBytes(queue)
 	if nil != err {
 		return ErrRlpEncode
@@ -382,12 +382,12 @@ func SetRoundValidatorSharesSnapshotQueue(db sdk.StateDB, address common.Address
 	return nil
 }
 
-func GetRoundValidatorSharesSnapshotQueue(db sdk.StateDB, address common.Address, round uint64) types.ValidatorSharesSnapshotQueue {
+func GetRoundValidatorSharesSnapshotQueue(db sdk.StateDB, address common.Address, round uint64) types.ValidatorSortSnapshotQueue {
 	value := db.GetState(address, encodeRoundValidatorSharesSnapshotQueueKey(round))
 	if len(value) == 0 {
 		return nil
 	}
-	var queue types.ValidatorSharesSnapshotQueue
+	var queue types.ValidatorSortSnapshotQueue
 	if err := rlp.DecodeBytes(value, &queue); nil == err {
 		return queue
 	}
@@ -399,7 +399,7 @@ func GetRoundValidatorIds(db sdk.StateDB, address common.Address, round uint64) 
 	if len(value) == 0 {
 		return nil
 	}
-	var queue types.ValidatorSharesSnapshotQueue
+	var queue types.ValidatorSortSnapshotQueue
 	if err := rlp.DecodeBytes(value, &queue); nil != err {
 		return nil
 	}

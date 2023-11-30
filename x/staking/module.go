@@ -4,14 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/AlayaNetwork/Alaya-Go/x/staking"
-	"github.com/AlayaNetwork/Alaya-Go/x/xcom"
 	"github.com/PlatONnetwork/AppChain-SDK/x/address"
 	stakecommon "github.com/PlatONnetwork/AppChain-SDK/x/staking/common"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
 	stakingp2p "github.com/PlatONnetwork/AppChain-SDK/x/staking/p2p"
 	staketypes "github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
+	stakewrap "github.com/PlatONnetwork/AppChain-SDK/x/staking/wrap"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
@@ -607,7 +606,7 @@ func (s *StakeModule) electionRoundValidators(ctx sdk.WorkerContext, blockNumber
 		validatorSharesCache[snap.ValidatorAddr] = &validatorSharesItem{StakeAmount: snap.StakeAmount, DelegateAmount: snap.DelegateAmount}
 	}
 
-	diffValidatorSnapshotQueue := make(staketypes.ValidatorSharesSnapshotQueue, 0)
+	diffValidatorSnapshotQueue := make(staketypes.ValidatorSortSnapshotQueue, 0)
 	for _, snap := range currentEpochValidatorSnapQueue {
 
 		// If a validator with a status of `unstaked` in the current round validatorSharesSnapshotQueue that
@@ -638,54 +637,64 @@ func (s *StakeModule) electionRoundValidators(ctx sdk.WorkerContext, blockNumber
 		diffValidatorSnapshotQueue = append(diffValidatorSnapshotQueue, snap)
 	}
 
-	//shuffle := func(invalidLen int, currentRoundValidatorQueue, vrfQueue staketypes.ValidatorSharesSnapshotQueue, blockNumber uint64, parentHash common.Hash) (staking.ValidatorQueue, error) {
-	//
-	//	// increase term and use new shares  one by one
-	//	for i, v := range currentRoundValidatorQueue {
-	//		v.ValidatorTerm++
-	//		v.Shares = currMap[v.NodeId]
-	//		currentRoundValidatorQueue[i] = v
-	//	}
-	//
-	//	// sort the validator by del rule
-	//	currentRoundValidatorQueue.ValidatorSort(maybeRemoveValidatorStatusCache, staketypes.CompareForRemoveFromHead)
-	//	// Increase term of validator
-	//	copyQueue := make(staking.ValidatorQueue, len(currentRoundValidatorQueue)-invalidLen)
-	//	// Remove the invalid validators
-	//	copy(copyQueue, currentRoundValidatorQueue[invalidLen:])
-	//	return shuffleQueue(copyQueue, vrfQueue, blockNumber, parentHash)
-	//}
+	shuffle := func(invalidLen int, currentRoundValidatorQueue, vrfValidatorSnapshotQueue staketypes.ValidatorSortSnapshotQueue, blockNumber uint64) (staketypes.ValidatorSortSnapshotQueue, error) {
 
-	return nil
-}
+		// increase term and use new shares  one by one
+		for i, v := range currentRoundValidatorQueue {
+			v.ValidatorTerm++
+			v.StakeAmount = validatorSharesCache[v.ValidatorAddr].StakeAmount
+			v.DelegateAmount = validatorSharesCache[v.ValidatorAddr].DelegateAmount
+			currentRoundValidatorQueue[i] = v
+		}
 
-func shuffleQueue(remainCurrQueue, vrfQueue staking.ValidatorQueue, blockNumber uint64, parentHash common.Hash) (staking.ValidatorQueue, error) {
-
-	remainLen := len(remainCurrQueue)
-	totalQueue := append(remainCurrQueue, vrfQueue...)
-
-	for remainLen > int(xcom.MaxConsensusVals()-xcom.ShiftValidatorNum()) && len(totalQueue) > int(xcom.MaxConsensusVals()) {
-		totalQueue = totalQueue[1:]
-		remainLen--
+		// sort the validator by del rule
+		currentRoundValidatorQueue.ValidatorSort(maybeRemoveValidatorStatusCache, staketypes.CompareForRemoveFromHead)
+		// Increase term of validator
+		copyQueue := make(staketypes.ValidatorSortSnapshotQueue, len(currentRoundValidatorQueue)-invalidLen)
+		// Remove the invalid validators
+		copy(copyQueue, currentRoundValidatorQueue[invalidLen:])
+		return stakewrap.ShuffleQueue(ctx.StateDB(), copyQueue, vrfValidatorSnapshotQueue, blockNumber)
 	}
 
-	if len(totalQueue) > int(xcom.MaxConsensusVals()) {
-		totalQueue = totalQueue[:xcom.MaxConsensusVals()]
+	var vrfValidatorSnapshotQueue staketypes.ValidatorSortSnapshotQueue
+	var vrfQueueSize uint64
+	if uint64(len(diffValidatorSnapshotQueue)) > stakecommon.MAX_ROUND_VALIDATORS_SIZE {
+		vrfQueueSize = stakecommon.MAX_ROUND_VALIDATORS_SIZE
+	} else {
+		vrfQueueSize = uint64(len(diffValidatorSnapshotQueue))
 	}
 
-	next := make(staking.ValidatorQueue, len(totalQueue))
+	if vrfQueueSize != 0 {
+		if queue, err := stakewrap.ElectionValidatorByVRF(ctx.StateDB(), diffValidatorSnapshotQueue, blockNumber, vrfQueueSize); nil != err {
+			s.logger.Error("Failed to call ElectionValidatorByVRF", "blockNumber", blockNumber, "err", err)
+			return err
+		} else {
+			vrfValidatorSnapshotQueue = queue
+		}
+	}
 
-	copy(next, totalQueue)
+	s.logger.Debug("Call electionRoundValidators statistics",
+		"maybe remove current round validator count", len(maybeRemoveValidatorStatusCache), "unstake invalid validator count",
+		unstakeValidatorAddrCache, "current round validators count", len(currentRoundValidatorSnapQueue), "MAX ROUND VALIDATOR SIZE ", stakecommon.MAX_ROUND_VALIDATORS_SIZE,
+		"maybe shift validator count", (stakecommon.MAX_ROUND_VALIDATORS_SIZE-1)/3, "diff queue", len(diffValidatorSnapshotQueue),
+		"vrf queue", len(vrfValidatorSnapshotQueue))
 
-	// Divide all consensus nodes into two groups, the front and back positions of each group are not changed,
-	// but random ordering is performed in each group
-	// The first group: the first f nodes
-	// The second group: the last 2f + 1 nodes
-	next, err := randomOrderValidatorQueue(blockNumber, parentHash, next)
+	nextRoundValidatorQueue, err := shuffle(len(maybeRemoveValidatorStatusCache), currentRoundValidatorSnapQueue, vrfValidatorSnapshotQueue, blockNumber)
 	if nil != err {
-		return nil, err
+		return err
 	}
-	return next, nil
+
+	if len(nextRoundValidatorQueue) == 0 {
+		panic(fmt.Sprintf("The Next Round Validator is empty, blockNumber: %d, round: %d", blockNumber, currentRound))
+	}
+
+	if err := db.SetRoundValidatorSharesSnapshotQueue(ctx.StateDB(), address.StakeHandlerAddres, currentRound+1, nextRoundValidatorQueue); nil != err {
+		s.logger.Error("Failed to call SetRoundValidatorSharesSnapshotQueue", "blockNumber", blockNumber, "err", err)
+		return err
+	}
+
+	s.logger.Debug("Succeed to elected next round validators", "blockNumber", blockNumber, "round", currentRound, "validators size", len(nextRoundValidatorQueue))
+	return nil
 }
 
 func (s *StakeModule) electionEpochValidators(ctx sdk.WorkerContext, blockNumber uint64) error {
@@ -706,7 +715,7 @@ func (s *StakeModule) electionEpochValidators(ctx sdk.WorkerContext, blockNumber
 		return errors.New("not found validatorIds")
 	}
 
-	queue := make(staketypes.ValidatorSharesSnapshotQueue, len(validatorIds))
+	queue := make(staketypes.ValidatorSortSnapshotQueue, len(validatorIds))
 	for i, id := range validatorIds {
 
 		validator := db.GetValidator(ctx.StateDB(), address.StakeHandlerAddres, id)

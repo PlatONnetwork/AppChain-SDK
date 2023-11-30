@@ -347,24 +347,24 @@ func (item *ValidatorSortSnapshot) IsNotEmpty() bool {
 	return !item.IsEmpty()
 }
 
-type ValidatorSharesSnapshotQueue []*ValidatorSortSnapshot
+type ValidatorSortSnapshotQueue []*ValidatorSortSnapshot
 
-func NewValidatorSharesSnapshotQueue(size uint64) ValidatorSharesSnapshotQueue {
-	queue := make(ValidatorSharesSnapshotQueue, size)
+func NewValidatorSharesSnapshotQueue(size uint64) ValidatorSortSnapshotQueue {
+	queue := make(ValidatorSortSnapshotQueue, size)
 	return queue
 }
 
-func (queue ValidatorSharesSnapshotQueue) IsEmpty() bool {
+func (queue ValidatorSortSnapshotQueue) IsEmpty() bool {
 	return len(queue) == 0
 }
 
-func (queue ValidatorSharesSnapshotQueue) IsNotEmpty() bool {
+func (queue ValidatorSortSnapshotQueue) IsNotEmpty() bool {
 	return !queue.IsEmpty()
 }
 
 // prioty order: large -> small
 // eg. 8 -> 5- > 3
-func (queue ValidatorSharesSnapshotQueue) ValidatorSort(cache MaybeRemoveValidatorStatusCache,
+func (queue ValidatorSortSnapshotQueue) ValidatorSort(cache MaybeRemoveValidatorStatusCache,
 	compare func(cache MaybeRemoveValidatorStatusCache, c, can *ValidatorSortSnapshot) int) {
 	if len(queue) <= 1 {
 		return
@@ -376,7 +376,7 @@ func (queue ValidatorSharesSnapshotQueue) ValidatorSort(cache MaybeRemoveValidat
 		queue.quickSort(cache, 0, len(queue)-1, compare)
 	}
 }
-func (queue ValidatorSharesSnapshotQueue) quickSort(cache MaybeRemoveValidatorStatusCache, left, right int,
+func (queue ValidatorSortSnapshotQueue) quickSort(cache MaybeRemoveValidatorStatusCache, left, right int,
 	compare func(cache MaybeRemoveValidatorStatusCache, c, can *ValidatorSortSnapshot) int) {
 	if left < right {
 		pivot := queue.partition(cache, left, right, compare)
@@ -384,7 +384,7 @@ func (queue ValidatorSharesSnapshotQueue) quickSort(cache MaybeRemoveValidatorSt
 		queue.quickSort(cache, pivot+1, right, compare)
 	}
 }
-func (queue ValidatorSharesSnapshotQueue) partition(cache MaybeRemoveValidatorStatusCache, left, right int,
+func (queue ValidatorSortSnapshotQueue) partition(cache MaybeRemoveValidatorStatusCache, left, right int,
 	compare func(cache MaybeRemoveValidatorStatusCache, c, can *ValidatorSortSnapshot) int) int {
 	for left < right {
 		for left < right && compare(cache, queue[left], queue[right]) >= 0 {

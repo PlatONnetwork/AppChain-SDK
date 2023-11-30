@@ -10,7 +10,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/message"
 	"github.com/PlatONnetwork/AppChain-SDK/x/vrf/contracts"
 	vrfdb "github.com/PlatONnetwork/AppChain-SDK/x/vrf/db"
-	vrfInternal "github.com/PlatONnetwork/AppChain-SDK/x/vrf/internal"
+	vrfInternal "github.com/PlatONnetwork/AppChain-SDK/x/vrf/wrap"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/keystore"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"reflect"

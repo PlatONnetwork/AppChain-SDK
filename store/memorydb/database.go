@@ -52,7 +52,7 @@ func NewWithCap(size int) *Database {
 	}
 }
 
-// Close deallocates the internal map and ensures any consecutive data access op
+// Close deallocates the wrap map and ensures any consecutive data access op
 // failes with an error.
 func (db *Database) Close() error {
 	db.lock.Lock()
@@ -155,7 +155,7 @@ func (db *Database) NewIterator(prefix []byte, start []byte) store.Iterator {
 	}
 }
 
-// Stat returns a particular internal stat of the database.
+// Stat returns a particular wrap stat of the database.
 func (db *Database) Stat(property string) (string, error) {
 	return "", errors.New("unknown property")
 }
