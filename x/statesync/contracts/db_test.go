@@ -16,7 +16,7 @@ func TestDB(t *testing.T) {
 	statedb.CreateAccount(from)
 	statedb.CreateAccount(to)
 	evm := newEVM(statedb, vm.Config{}, vm.TxContext{}, new(contractsApp))
-	contract := vm.NewContract(vm.AccountRef(from), vm.AccountRef(to), nil, 10000)
+	contract := vm.NewContract(vm.AccountRef(from), vm.AccountRef(to), nil, 10000000)
 	stateReceiver, _ := NewStateReceiver(evm, contract, false)
 	stateReceiver.SetLastCommittedId(big.NewInt(10))
 	require.Equal(t, big.NewInt(10), stateReceiver.GetLastCommittedId())
