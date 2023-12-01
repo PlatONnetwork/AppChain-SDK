@@ -20,26 +20,6 @@ func NewStorage(store store.Store) *Storage {
 	}
 }
 
-func (s *Storage) InsertCheckpoint(blockNumber uint64, checkpoint *types.StorageCheckpointData) error {
-	encoded, err := rlp.EncodeToBytes(checkpoint)
-	if err != nil {
-		return err
-	}
-	return s.kv.Set(checkpointKey(blockNumber), encoded)
-}
-
-func (s *Storage) GetCheckpoint(blockNumber uint64) (*types.StorageCheckpointData, error) {
-	var checkpoint types.StorageCheckpointData
-	encoded, err := s.kv.Get(checkpointKey(blockNumber))
-	if err != nil {
-		return nil, err
-	}
-	if err := rlp.DecodeBytes(encoded, &checkpoint); err != nil {
-		return nil, err
-	}
-	return &checkpoint, nil
-}
-
 func (s *Storage) InsertExitEvent(exitEvent *contractsapi.ExitEvent) error {
 	encoded, err := rlp.EncodeToBytes(exitEvent)
 	if err != nil {

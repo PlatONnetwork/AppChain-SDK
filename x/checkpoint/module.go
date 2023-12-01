@@ -194,7 +194,10 @@ func (m *Module) ExtendData(ctx sdk.Context) []byte {
 			return []byte{}
 		}
 
+		chainID, _ := sdkCtx.Backend().ChainId()
+
 		checkpoint := &types.CheckpointData{
+			ChainID:               chainID.Uint64(),
 			ViewNumber:            view,
 			EpochNumber:           epoch,
 			BlockIndex:            blockIndex,
@@ -204,10 +207,7 @@ func (m *Module) ExtendData(ctx sdk.Context) []byte {
 			NextValidatorsHash:    nextValidatorHash,
 			EventRoot:             eventRoot,
 		}
-		logger.Info("Make checkpoint data",
-			"currentValidatorsHash", checkpoint.CurrentValidatorsHash,
-			"nextValidatorsHash", checkpoint.NextValidatorsHash,
-			"eventRoot", checkpoint.EventRoot)
+		logger.Info("Make checkpoint data", "checkpoint data", checkpoint.String())
 		return checkpoint.MarshalRLP()
 	}
 	return []byte{}
@@ -233,6 +233,10 @@ func (m *Module) VerifyExtendData(ctx sdk.Context, data []byte) error {
 		if err := checkpoint.UnmarshalRLP(data); err != nil {
 			logger.Error("Failed to unmarshal rlp", "data", fmt.Sprintf("%x", data), "err", err)
 			return err
+		}
+		chainID, _ := ctx.Backend().ChainId()
+		if checkpoint.ChainID != chainID.Uint64() {
+			return fmt.Errorf("mismatch chainID(checkpoint:%d,actual:%d)", checkpoint.ChainID, chainID)
 		}
 		if checkpoint.EpochNumber != epoch {
 			return fmt.Errorf("mismatch epoch(checkpoint:%d,actual:%d)", checkpoint.EpochNumber, epoch)
@@ -301,14 +305,7 @@ func (m *Module) VerifyExtendData(ctx sdk.Context, data []byte) error {
 			return fmt.Errorf("mismatch event root(checkpoint:%s,acutal:%s)", checkpoint.EventRoot.TerminalString(), eventRoot.TerminalString())
 		}
 
-		if err := m.store.InsertCheckpoint(blockNumber,
-			&types.StorageCheckpointData{
-				CheckpointData: &checkpoint,
-			}); err != nil {
-			logger.Error("Failed to insert checkpoint", "err", err)
-			return err
-		}
-		return err
+		logger.Info("Verify checkpoint successfully", "checkpoint", checkpoint.String())
 	}
 	return nil
 }
@@ -323,34 +320,16 @@ func (m *Module) OnCommit(ctx sdk.Context, block *coretypes.Block) error {
 
 	blockNumber := block.NumberU64()
 	if m.staking.IsEndOfEpoch(blockNumber) {
-		checkpoint, err := m.store.GetCheckpoint(blockNumber)
-		if err != nil {
-			logger.Error("Failed to get checkpoint from store", "err", err)
-			return err
-		}
-		if checkpoint == nil {
-			logger.Warn("Discarding empty checkpoint")
-			return nil
-		}
-
 		_, qc, err := ctypes.DecodeExtra(block.ExtraData())
 		if err != nil {
 			logger.Error("Failed to decode block extra data", "err", err)
 			return err
 		}
 
-		checkpoint.ExtendRoot = qc.ExtendHash
-		sig := qc.Signature.Bytes()
-		var blsSig bls.Sign
-		blsSig.Deserialize(sig)
-		checkpoint.Signature = blsSig.SerializeUncompressed()
-		checkpoint.Bitmap = qc.ValidatorSet.Bytes()
-		m.store.InsertCheckpoint(blockNumber, checkpoint)
-
 		if sdkCtx.IsProposer() {
 			go func(number uint64) {
-				if err := m.submitCheckpoint(sdkCtx, number); err != nil {
-					logger.Error("Failed to submit checkpoint", "checkpoint", checkpoint.String(), "err", err)
+				if err := m.submitCheckpoint(sdkCtx, number, qc); err != nil {
+					logger.Error("Failed to submit checkpoint", "err", err)
 				}
 			}(blockNumber)
 		}
@@ -358,7 +337,7 @@ func (m *Module) OnCommit(ctx sdk.Context, block *coretypes.Block) error {
 	return nil
 }
 
-func (m *Module) submitCheckpoint(ctx sdk.Context, latestNumber uint64) error {
+func (m *Module) submitCheckpoint(ctx sdk.Context, latestNumber uint64, latestQC *ctypes.QuorumCert) error {
 	lastCheckpointBlockNumber, err := getCurrentCheckpointBlock(m.txRelayer, m.checkpointManagerAddr)
 	if err != nil {
 		return err
@@ -378,7 +357,21 @@ func (m *Module) submitCheckpoint(ctx sdk.Context, latestNumber uint64) error {
 	initialBlockNumber := lastCheckpointBlockNumber + blocksOfEpoch
 
 	for blockNumber := initialBlockNumber; blockNumber <= latestNumber; {
-		checkpoint, err := m.store.GetCheckpoint(blockNumber)
+		qc := latestQC
+		if blockNumber != latestNumber {
+			block := ctx.Backend().GetBlockByNumber(blockNumber)
+			if block == nil {
+				m.logger.Error("Failed to get block", "number", blockNumber)
+				return fmt.Errorf("block(%d) not found", blockNumber)
+			}
+			_, qc, err = ctypes.DecodeExtra(block.ExtraData())
+			if err != nil {
+				m.logger.Error("Failed to decode extra data", "number", block.Number(), "hash", block.Hash(), "err", err)
+				return err
+			}
+		}
+
+		checkpoint, err := m.rebuildCheckpoint(ctx, qc)
 		if err != nil {
 			m.logger.Error("Failed to get checkpoint", "err", err)
 			return err
@@ -394,7 +387,57 @@ func (m *Module) submitCheckpoint(ctx sdk.Context, latestNumber uint64) error {
 	return nil
 }
 
-func (m *Module) encodeAndSendCheckpoint(ctx sdk.Context, checkpoint *types.StorageCheckpointData) error {
+func (m *Module) rebuildCheckpoint(ctx sdk.Context, qc *ctypes.QuorumCert) (*types.Checkpoint, error) {
+	currentValidators, err := m.staking.GetValidator(ctx, qc.BlockNumber)
+	if err != nil {
+		return nil, err
+	}
+	currentAccountSet := types.NewAccountSet(currentValidators)
+	currentValidatorsHash, err := currentAccountSet.Hash()
+	if err != nil {
+		return nil, err
+	}
+
+	nextValidators, err := m.staking.GetValidator(ctx, qc.BlockNumber+1)
+	if err != nil {
+		return nil, err
+	}
+	nextAccountSet := types.NewAccountSet(nextValidators)
+	nextValidatorsHash, err := nextAccountSet.Hash()
+	if err != nil {
+		return nil, err
+	}
+
+	eventRoot, err := m.BuildEventRoot(qc.Epoch)
+	if err != nil {
+		return nil, err
+	}
+
+	sig := qc.Signature.Bytes()
+	var blsSig bls.Sign
+	blsSig.Deserialize(sig)
+
+	chainID, _ := ctx.Backend().ChainId()
+
+	return &types.Checkpoint{
+		CheckpointData: &types.CheckpointData{
+			ChainID:               chainID.Uint64(),
+			EpochNumber:           qc.Epoch,
+			ViewNumber:            qc.ViewNumber,
+			BlockIndex:            qc.BlockIndex,
+			BlockNumber:           qc.BlockNumber,
+			BlockHash:             qc.BlockHash,
+			CurrentValidatorsHash: currentValidatorsHash,
+			NextValidatorsHash:    nextValidatorsHash,
+			EventRoot:             eventRoot,
+		},
+		ExtendRoot: qc.ExtendHash,
+		Signature:  blsSig.SerializeUncompressed(),
+		Bitmap:     qc.ValidatorSet.Bytes(),
+	}, nil
+}
+
+func (m *Module) encodeAndSendCheckpoint(ctx sdk.Context, checkpoint *types.Checkpoint) error {
 	checkpointMetadata := checkpoint_manager.ICheckpointManagerCheckpointMetadata{
 		BlockHash:               checkpoint.BlockHash,
 		BlockIndex:              checkpoint.BlockIndex,
@@ -443,7 +486,7 @@ func (m *Module) encodeAndSendCheckpoint(ctx sdk.Context, checkpoint *types.Stor
 	if receipt.Status == coretypes.ReceiptStatusFailed {
 		return fmt.Errorf("checkpoint submission transaction failed for block %d", checkpoint.BlockNumber)
 	}
-	m.logger.Info("Send checkpoint txn success", "checkpoint", checkpoint.String(), "gasUsed", receipt.GasUsed)
+	m.logger.Info("Send checkpoint txn success", "checkpoint", checkpoint.String(), "txHash", receipt.TxHash.Hex(), "gasUsed", receipt.GasUsed)
 	return nil
 }
 
