@@ -5,7 +5,6 @@ import (
 	stakingdb "github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
-	"github.com/PlatONnetwork/PlatON-Go/common/math"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 )
@@ -59,7 +58,7 @@ func initEpochItem(statedb sdk.StateDB) error {
 
 	// TODO 需要根据配置读取 epochSize 计算第一轮的边界
 	//
-	epoch := types.NewEpochItem(1, 100, 10) // todo 需要重新计算边界
+	epoch := types.NewEpochItem(1, 25000, 10) // todo 需要重新计算边界
 	value, err := rlp.EncodeToBytes(epoch)
 	if nil != err {
 		return stakingdb.ErrRlpEncode
@@ -72,26 +71,13 @@ func initRoundItem(statedb sdk.StateDB) error {
 
 	// TODO 需要根据配置读取 roundSize 计算第一轮的边界
 	//
-	// tail -> head -> first -> tail -> head
-	headRound := types.NewRoundItem(math.MaxUint64, 1, 0, 0)
-	firstRound := types.NewRoundItem(0, math.MaxUint64, 1, 100) // todo 需要重新计算边界
-	tailRound := types.NewRoundItem(1, 0, 0, 0)
+	round := types.NewRoundItem(1, 250) // todo 需要重新计算边界
 
-	hvalue, err := rlp.EncodeToBytes(headRound)
+	value, err := rlp.EncodeToBytes(round)
 	if nil != err {
 		return stakingdb.ErrRlpEncode
 	}
-	value, err := rlp.EncodeToBytes(firstRound)
-	if nil != err {
-		return stakingdb.ErrRlpEncode
-	}
-	tvalue, err := rlp.EncodeToBytes(tailRound)
-	if nil != err {
-		return stakingdb.ErrRlpEncode
-	}
-	statedb.SetState(address.StakeHandlerAddress, stakingdb.EncodeRoundItemKey(0), hvalue)
 	statedb.SetState(address.StakeHandlerAddress, stakingdb.EncodeRoundItemKey(1), value)
-	statedb.SetState(address.StakeHandlerAddress, stakingdb.EncodeRoundItemKey(math.MaxUint64), tvalue)
 	return nil
 }
 

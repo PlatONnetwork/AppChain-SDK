@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/AlayaNetwork/Alaya-Go/common"
 	"github.com/AlayaNetwork/Alaya-Go/x/xcom"
-	"github.com/PlatONnetwork/AppChain-SDK/x/address"
 	stakecommon "github.com/PlatONnetwork/AppChain-SDK/x/staking/common"
 	staketypes "github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	vrfwrap "github.com/PlatONnetwork/AppChain-SDK/x/vrf/wrap"
@@ -50,7 +49,7 @@ func ElectionValidatorByVRF(db sdk.StateDB, validatorSnapshotQueue staketypes.Va
 	// otherwise VRF elections will have insufficient historical VRF nonces, leading to election failure (especially during parameter governance)
 	//
 	// (the validator snapshot queue (validatorSnapshotQueue) is definitely smaller than the number of validators in the epoch)
-	historyNonceQueue, err := vrfwrap.GetNonceQueueUtil(db, address.VRFHandlerAddress, blockNumber-1, uint64(len(validatorSnapshotQueue)))
+	historyNonceQueue, err := vrfwrap.GetNonceQueueUtil(db, blockNumber-1, uint64(len(validatorSnapshotQueue)))
 	if nil != err {
 		return nil, err
 	}
@@ -58,7 +57,7 @@ func ElectionValidatorByVRF(db sdk.StateDB, validatorSnapshotQueue staketypes.Va
 		return nil, fmt.Errorf("had not enough history vrf nonces")
 	}
 
-	currentVRFNonce, err := vrfwrap.GetCurrentNonce(db, address.VRFHandlerAddress, blockNumber)
+	currentVRFNonce, err := vrfwrap.GetCurrentNonce(db, blockNumber)
 	if nil != err {
 		return nil, err
 	}
@@ -208,7 +207,7 @@ func (r randomOrderValidatorQueue) Swap(i, j int) {
 // Randomly sort nodes
 func orderValidatorQueueByRandom(db sdk.StateDB, blockNumber uint64, validatorSnapshotQueue staketypes.ValidatorSortSnapshotQueue) (staketypes.ValidatorSortSnapshotQueue, error) {
 
-	historyNonceQueue, err := vrfwrap.GetNonceQueueUtil(db, address.VRFHandlerAddress, blockNumber-1, uint64(len(validatorSnapshotQueue)))
+	historyNonceQueue, err := vrfwrap.GetNonceQueueUtil(db, blockNumber-1, uint64(len(validatorSnapshotQueue)))
 	if nil != err {
 		return nil, err
 	}

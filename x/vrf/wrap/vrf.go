@@ -15,9 +15,9 @@ var (
 	ErrInvalidVrfProve = errors.New("invalid vrf prove")
 )
 
-func GenerateNonceAndProof(db sdk.StateDB, address basecommon.Address, blockNumber uint64, key *ecdsa.PrivateKey) ([]byte, error) {
+func GenerateNonceAndProof(db sdk.StateDB, blockNumber uint64, key *ecdsa.PrivateKey) ([]byte, error) {
 
-	parentNonce, err := GetPreviousNonce(db, address, blockNumber)
+	parentNonce, err := GetPreviousNonce(db, blockNumber)
 	if nil != err {
 		return nil, fmt.Errorf("can not get previous vrf nonce, %v", err)
 	}
@@ -43,6 +43,6 @@ func VerifyVrf(nonceAndProof []byte, data basecommon.Hash, key *ecdsa.PublicKey)
 	return nil
 }
 
-func StorageNonceAndProof(db sdk.StateDB, address basecommon.Address, blockNumber uint64, nonceAndProof []byte) {
-	vrfdb.SetNonceAndProof(db, address, blockNumber, nonceAndProof)
+func StorageNonceAndProof(db sdk.StateDB, blockNumber uint64, nonceAndProof []byte) {
+	vrfdb.SetNonceAndProof(db, blockNumber, nonceAndProof)
 }

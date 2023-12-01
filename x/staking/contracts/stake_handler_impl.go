@@ -3,7 +3,6 @@ package contracts
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"github.com/PlatONnetwork/PlatON-Go/common/math"
 
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
@@ -93,16 +92,16 @@ func (c *StakeHandler) OnStateReceive(id *big.Int, sender common.Address, data [
 	}
 }
 
-func (c *StakeHandler) Slash(validators []common.Address) error {
-	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
-		return err
-	}
-	// TODO 提交 slash tx 的必须是 validator ?? round? epoch?
-	if err := c.syncStateSlash(validators); nil != err {
-		return err
-	}
-
-	log.Info("Slash for", "validators", fmt.Sprintf("%+v", validators), "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
+func (c *StakeHandler) Slash() error {
+	//if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
+	//	return err
+	//}
+	//// TODO 提交 slash tx 的必须是 validator ?? round? epoch?
+	//if err := c.syncStateSlash(validators); nil != err {
+	//	return err
+	//}
+	//
+	//log.Info("Slash for", "validators", fmt.Sprintf("%+v", validators), "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }
 

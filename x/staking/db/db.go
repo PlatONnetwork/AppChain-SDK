@@ -3,6 +3,7 @@ package db
 import (
 	"bytes"
 	"errors"
+	"github.com/PlatONnetwork/AppChain-SDK/x/address"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/common/math"
@@ -34,6 +35,7 @@ var (
 	epochItemKeyPrefix = []byte("epochItem") // "epochItem":epochId => {preEpoch, nextEpoch, startBlock, endBlock, roundCount}
 	roundItemKeyPrefix = []byte("roundItem") // "roundItem":roundId => {preRound, nextRound, startBlock, endBlock}
 
+	numberOfBlocksForRoundValidatorKeyPrefix = []byte("numberOfBlocksForRoundValidator") // "numberOfBlocksForRoundValidator":validatorAddr:round => numberOfBlocks
 )
 
 func EncodePriorityValidatorHeadKey() []byte {
@@ -89,14 +91,32 @@ func EncodeRoundItemKey(round uint64) []byte {
 	return append(roundItemKeyPrefix, common.Uint64ToBytes(round)...)
 }
 
-// ------------------------------------------------------ db methods ------------------------------------------------------
+func encodeNumberOfBlocksForRoundValidatorKey(validatorAddr common.Address, round uint64) []byte {
 
-func GetValidatorPriority(db sdk.StateDB, address common.Address, epoch, stakeIndex uint64, shares *big.Int) *types.PriorityValidator {
-	return getValidatorPriorityByKey(db, address, encodePriorityValidatorKey(epoch, stakeIndex, shares))
+	validatorAddrBytes := validatorAddr.Bytes()
+	roundBytes := common.Uint64ToBytes(round)
+
+	keyPrefixSize := len(numberOfBlocksForRoundValidatorKeyPrefix)
+	appendValidatorAddrSize := keyPrefixSize + len(validatorAddrBytes)
+	size := appendValidatorAddrSize + len(roundBytes)
+
+	key := make([]byte, size)
+
+	copy(key[:keyPrefixSize], numberOfBlocksForRoundValidatorKeyPrefix)
+	copy(key[keyPrefixSize:appendValidatorAddrSize], validatorAddrBytes)
+	copy(key[appendValidatorAddrSize:], roundBytes)
+
+	return key
 }
 
-func getValidatorPriorityByKey(db sdk.StateDB, address common.Address, key []byte) *types.PriorityValidator {
-	value := db.GetState(address, key)
+// ------------------------------------------------------ db methods ------------------------------------------------------
+
+func GetValidatorPriority(db sdk.StateDB, epoch, stakeIndex uint64, shares *big.Int) *types.PriorityValidator {
+	return getValidatorPriorityByKey(db, encodePriorityValidatorKey(epoch, stakeIndex, shares))
+}
+
+func getValidatorPriorityByKey(db sdk.StateDB, key []byte) *types.PriorityValidator {
+	value := db.GetState(address.StakeHandlerAddress, key)
 	if len(value) == 0 {
 		return nil
 	}
@@ -107,20 +127,20 @@ func getValidatorPriorityByKey(db sdk.StateDB, address common.Address, key []byt
 	return nil
 }
 
-func setValidatorPriorityByKey(db sdk.StateDB, address common.Address, key []byte, priority *types.PriorityValidator) error {
+func setValidatorPriorityByKey(db sdk.StateDB, key []byte, priority *types.PriorityValidator) error {
 	value, err := rlp.EncodeToBytes(priority)
 	if nil != err {
 		return ErrRlpEncode
 	}
 
-	db.SetState(address, key, value)
+	db.SetState(address.StakeHandlerAddress, key, value)
 	return nil
 }
 
-func SetValidatorPriority(db sdk.StateDB, address common.Address, validatorAddr common.Address, epoch, stakeIndex uint64, shares *big.Int) error {
+func SetValidatorPriority(db sdk.StateDB, validatorAddr common.Address, epoch, stakeIndex uint64, shares *big.Int) error {
 
 	indexKey := EncodePriorityValidatorHeadKey()
-	indexItem := getValidatorPriorityByKey(db, address, EncodePriorityValidatorHeadKey())
+	indexItem := getValidatorPriorityByKey(db, EncodePriorityValidatorHeadKey())
 
 	priorityKey := encodePriorityValidatorKey(epoch, stakeIndex, shares)
 	priority := types.NewPriorityValidator(
@@ -135,20 +155,20 @@ func SetValidatorPriority(db sdk.StateDB, address common.Address, validatorAddr 
 		//
 		// then: tail -> head -> priority -> tail -> head
 
-		next := getValidatorPriorityByKey(db, address, indexItem.NextKey)
+		next := getValidatorPriorityByKey(db, indexItem.NextKey)
 
 		priority.UpdatePreKey(indexKey)
 		priority.UpdateNextKey(indexItem.NextKey)
 		indexItem.UpdateNextKey(priorityKey)
 		next.UpdatePreKey(priorityKey)
 
-		if err := setValidatorPriorityByKey(db, address, indexKey, indexItem); nil != err {
+		if err := setValidatorPriorityByKey(db, indexKey, indexItem); nil != err {
 			return err
 		}
-		if err := setValidatorPriorityByKey(db, address, priorityKey, priority); nil != err {
+		if err := setValidatorPriorityByKey(db, priorityKey, priority); nil != err {
 			return err
 		}
-		if err := setValidatorPriorityByKey(db, address, priority.NextKey, next); nil != err {
+		if err := setValidatorPriorityByKey(db, priority.NextKey, next); nil != err {
 			return err
 		}
 
@@ -169,20 +189,20 @@ func SetValidatorPriority(db sdk.StateDB, address common.Address, validatorAddr 
 					//
 					// then:  tail -> head -> index -> priority -> tail -> head
 
-					next := getValidatorPriorityByKey(db, address, indexItem.NextKey) // tail
+					next := getValidatorPriorityByKey(db, indexItem.NextKey) // tail
 
 					priority.UpdatePreKey(indexKey)
 					priority.UpdateNextKey(indexItem.NextKey)
 					indexItem.UpdateNextKey(priorityKey)
 					next.UpdatePreKey(priorityKey)
 
-					if err := setValidatorPriorityByKey(db, address, indexKey, indexItem); nil != err {
+					if err := setValidatorPriorityByKey(db, indexKey, indexItem); nil != err {
 						return err
 					}
-					if err := setValidatorPriorityByKey(db, address, priorityKey, priority); nil != err {
+					if err := setValidatorPriorityByKey(db, priorityKey, priority); nil != err {
 						return err
 					}
-					if err := setValidatorPriorityByKey(db, address, priority.NextKey, next); nil != err {
+					if err := setValidatorPriorityByKey(db, priority.NextKey, next); nil != err {
 						return err
 					}
 					break
@@ -199,20 +219,20 @@ func SetValidatorPriority(db sdk.StateDB, address common.Address, validatorAddr 
 				//
 				// then:  tail -> head -> priority -> index -> (next)  tail -> head
 
-				pre := getValidatorPriorityByKey(db, address, indexItem.PreKey)
+				pre := getValidatorPriorityByKey(db, indexItem.PreKey)
 
 				priority.UpdatePreKey(indexItem.PreKey)
 				priority.UpdateNextKey(indexKey)
 				indexItem.UpdatePreKey(priorityKey)
 				pre.UpdateNextKey(priorityKey)
 
-				if err := setValidatorPriorityByKey(db, address, priority.PreKey, pre); nil != err {
+				if err := setValidatorPriorityByKey(db, priority.PreKey, pre); nil != err {
 					return err
 				}
-				if err := setValidatorPriorityByKey(db, address, priorityKey, priority); nil != err {
+				if err := setValidatorPriorityByKey(db, priorityKey, priority); nil != err {
 					return err
 				}
-				if err := setValidatorPriorityByKey(db, address, indexKey, indexItem); nil != err {
+				if err := setValidatorPriorityByKey(db, indexKey, indexItem); nil != err {
 					return err
 				}
 
@@ -221,22 +241,22 @@ func SetValidatorPriority(db sdk.StateDB, address common.Address, validatorAddr 
 		}
 
 		indexKey = indexItem.NextKey
-		indexItem = getValidatorPriorityByKey(db, address, indexKey)
+		indexItem = getValidatorPriorityByKey(db, indexKey)
 	}
 
 	return nil
 }
 
-func RemoveValidatorPriority(db sdk.StateDB, address common.Address, epoch, stakeIndex uint64, shares *big.Int) error {
+func RemoveValidatorPriority(db sdk.StateDB, epoch, stakeIndex uint64, shares *big.Int) error {
 
 	priorityKey := encodePriorityValidatorKey(epoch, stakeIndex, shares)
-	priority := getValidatorPriorityByKey(db, address, priorityKey)
+	priority := getValidatorPriorityByKey(db, priorityKey)
 
 	preKey := priority.PreKey
 	nextKey := priority.NextKey
 
-	pre := getValidatorPriorityByKey(db, address, preKey)
-	next := getValidatorPriorityByKey(db, address, nextKey)
+	pre := getValidatorPriorityByKey(db, preKey)
+	next := getValidatorPriorityByKey(db, nextKey)
 
 	pre.UpdateNextKey(nextKey)
 	next.UpdatePreKey(preKey)
@@ -249,40 +269,40 @@ func RemoveValidatorPriority(db sdk.StateDB, address common.Address, epoch, stak
 	if nil != err {
 		return ErrRlpEncode
 	}
-	db.SetState(address, preKey, pvalue)
-	db.SetState(address, nextKey, nvalue)
-	db.SetState(address, priorityKey, []byte{})
+	db.SetState(address.StakeHandlerAddress, preKey, pvalue)
+	db.SetState(address.StakeHandlerAddress, nextKey, nvalue)
+	db.SetState(address.StakeHandlerAddress, priorityKey, []byte{})
 
 	return nil
 }
 
-func RankPriorityValidatorIds(db sdk.StateDB, address common.Address, size uint64) types.ValidatorIds {
+func RankPriorityValidatorIds(db sdk.StateDB, size uint64) types.ValidatorIds {
 
 	arr := make(types.ValidatorIds, size)
 	var count uint64 = 0
 
-	headItem := getValidatorPriorityByKey(db, address, EncodePriorityValidatorHeadKey())
-	item := getValidatorPriorityByKey(db, address, headItem.NextKey)
+	headItem := getValidatorPriorityByKey(db, EncodePriorityValidatorHeadKey())
+	item := getValidatorPriorityByKey(db, headItem.NextKey)
 
 	for bytes.Compare(item.NextKey, EncodePriorityValidatorHeadKey()) != 0 && count < size { // not as tail  and count less size
 		arr[count] = item.ValidatorAddr
-		item = getValidatorPriorityByKey(db, address, item.NextKey)
+		item = getValidatorPriorityByKey(db, item.NextKey)
 		count++
 	}
 	return arr[:count]
 }
 
-func SetValidator(db sdk.StateDB, address common.Address, validatorAddr common.Address, validator *types.Validator) error {
+func SetValidator(db sdk.StateDB, validatorAddr common.Address, validator *types.Validator) error {
 	value, err := rlp.EncodeToBytes(validator)
 	if nil != err {
 		return ErrRlpEncode
 	}
-	db.SetState(address, encodeValidatorKey(validatorAddr), value)
+	db.SetState(address.StakeHandlerAddress, encodeValidatorKey(validatorAddr), value)
 	return nil
 }
 
-func GetValidator(db sdk.StateDB, address common.Address, validatorAddr common.Address) *types.Validator {
-	value := db.GetState(address, encodeValidatorKey(validatorAddr))
+func GetValidator(db sdk.StateDB, validatorAddr common.Address) *types.Validator {
+	value := db.GetState(address.StakeHandlerAddress, encodeValidatorKey(validatorAddr))
 	if len(value) == 0 {
 		return nil
 	}
@@ -293,56 +313,56 @@ func GetValidator(db sdk.StateDB, address common.Address, validatorAddr common.A
 	return nil
 }
 
-func HasValidator(db sdk.StateDB, address common.Address, validatorAddr common.Address) bool {
-	value := db.GetState(address, encodeValidatorKey(validatorAddr))
+func HasValidator(db sdk.StateDB, validatorAddr common.Address) bool {
+	value := db.GetState(address.StakeHandlerAddress, encodeValidatorKey(validatorAddr))
 	if len(value) == 0 {
 		return false
 	}
 	return true
 }
-func HasNotValidator(db sdk.StateDB, address common.Address, validatorAddr common.Address) bool {
-	return !HasValidator(db, address, validatorAddr)
+func HasNotValidator(db sdk.StateDB, validatorAddr common.Address) bool {
+	return !HasValidator(db, validatorAddr)
 }
 
-func RemoveValidator(db sdk.StateDB, address common.Address, validatorAddr common.Address) {
-	db.SetState(address, encodeValidatorKey(validatorAddr), []byte{})
+func RemoveValidator(db sdk.StateDB, validatorAddr common.Address) {
+	db.SetState(address.StakeHandlerAddress, encodeValidatorKey(validatorAddr), []byte{})
 }
 
-func SetCurrentEpoch(db sdk.StateDB, address common.Address, epoch uint64) {
-	db.SetState(address, currentEpochKey, common.Uint64ToBytes(epoch))
+func SetCurrentEpoch(db sdk.StateDB, epoch uint64) {
+	db.SetState(address.StakeHandlerAddress, currentEpochKey, common.Uint64ToBytes(epoch))
 }
 
-func GetCurrentEpoch(db sdk.StateDB, address common.Address) uint64 {
-	value := db.GetState(address, currentEpochKey)
+func GetCurrentEpoch(db sdk.StateDB) uint64 {
+	value := db.GetState(address.StakeHandlerAddress, currentEpochKey)
 	if len(value) == 0 {
 		return 0
 	}
 	return common.BytesToUint64(value)
 }
 
-func SetCurrentRound(db sdk.StateDB, address common.Address, round uint64) {
-	db.SetState(address, currentRoundKey, common.Uint64ToBytes(round))
+func SetCurrentRound(db sdk.StateDB, round uint64) {
+	db.SetState(address.StakeHandlerAddress, currentRoundKey, common.Uint64ToBytes(round))
 }
 
-func GetCurrentRound(db sdk.StateDB, address common.Address) uint64 {
-	value := db.GetState(address, currentRoundKey)
+func GetCurrentRound(db sdk.StateDB) uint64 {
+	value := db.GetState(address.StakeHandlerAddress, currentRoundKey)
 	if len(value) == 0 {
 		return 0
 	}
 	return common.BytesToUint64(value)
 }
 
-func SetEpochValidatorSharesSnapshotQueue(db sdk.StateDB, address common.Address, epoch uint64, queue types.ValidatorSortSnapshotQueue) error {
+func SetEpochValidatorSharesSnapshotQueue(db sdk.StateDB, epoch uint64, queue types.ValidatorSortSnapshotQueue) error {
 	value, err := rlp.EncodeToBytes(queue)
 	if nil != err {
 		return ErrRlpEncode
 	}
-	db.SetState(address, encodeEpochValidatorSharesSnapshotQueueKey(epoch), value)
+	db.SetState(address.StakeHandlerAddress, encodeEpochValidatorSharesSnapshotQueueKey(epoch), value)
 	return nil
 }
 
-func GetEpochValidatorSharesSnapshotQueue(db sdk.StateDB, address common.Address, epoch uint64) types.ValidatorSortSnapshotQueue {
-	value := db.GetState(address, encodeEpochValidatorSharesSnapshotQueueKey(epoch))
+func GetEpochValidatorSharesSnapshotQueue(db sdk.StateDB, epoch uint64) types.ValidatorSortSnapshotQueue {
+	value := db.GetState(address.StakeHandlerAddress, encodeEpochValidatorSharesSnapshotQueueKey(epoch))
 	if len(value) == 0 {
 		return nil
 	}
@@ -353,8 +373,8 @@ func GetEpochValidatorSharesSnapshotQueue(db sdk.StateDB, address common.Address
 	return nil
 }
 
-func GetEpochValidatorIds(db sdk.StateDB, address common.Address, epoch uint64) types.ValidatorIds {
-	value := db.GetState(address, encodeEpochValidatorSharesSnapshotQueueKey(epoch))
+func GetEpochValidatorIds(db sdk.StateDB, epoch uint64) types.ValidatorIds {
+	value := db.GetState(address.StakeHandlerAddress, encodeEpochValidatorSharesSnapshotQueueKey(epoch))
 	if len(value) == 0 {
 		return nil
 	}
@@ -373,17 +393,17 @@ func GetEpochValidatorIds(db sdk.StateDB, address common.Address, epoch uint64) 
 	return ids
 }
 
-func SetRoundValidatorSharesSnapshotQueue(db sdk.StateDB, address common.Address, round uint64, queue types.ValidatorSortSnapshotQueue) error {
+func SetRoundValidatorSharesSnapshotQueue(db sdk.StateDB, round uint64, queue types.ValidatorSortSnapshotQueue) error {
 	value, err := rlp.EncodeToBytes(queue)
 	if nil != err {
 		return ErrRlpEncode
 	}
-	db.SetState(address, encodeRoundValidatorSharesSnapshotQueueKey(round), value)
+	db.SetState(address.StakeHandlerAddress, encodeRoundValidatorSharesSnapshotQueueKey(round), value)
 	return nil
 }
 
-func GetRoundValidatorSharesSnapshotQueue(db sdk.StateDB, address common.Address, round uint64) types.ValidatorSortSnapshotQueue {
-	value := db.GetState(address, encodeRoundValidatorSharesSnapshotQueueKey(round))
+func GetRoundValidatorSharesSnapshotQueue(db sdk.StateDB, round uint64) types.ValidatorSortSnapshotQueue {
+	value := db.GetState(address.StakeHandlerAddress, encodeRoundValidatorSharesSnapshotQueueKey(round))
 	if len(value) == 0 {
 		return nil
 	}
@@ -394,8 +414,8 @@ func GetRoundValidatorSharesSnapshotQueue(db sdk.StateDB, address common.Address
 	return nil
 }
 
-func GetRoundValidatorIds(db sdk.StateDB, address common.Address, round uint64) types.ValidatorIds {
-	value := db.GetState(address, encodeRoundValidatorSharesSnapshotQueueKey(round))
+func GetRoundValidatorIds(db sdk.StateDB, round uint64) types.ValidatorIds {
+	value := db.GetState(address.StakeHandlerAddress, encodeRoundValidatorSharesSnapshotQueueKey(round))
 	if len(value) == 0 {
 		return nil
 	}
@@ -415,56 +435,56 @@ func GetRoundValidatorIds(db sdk.StateDB, address common.Address, round uint64) 
 
 // ----
 
-func AppendEpochItem(db sdk.StateDB, address common.Address, epoch uint64, startBlock, endBlock, roundCount uint64) error {
-	epochItem := GetEpochItem(db, address, epoch)
+func AppendEpochItem(db sdk.StateDB, epoch uint64, startBlock, endBlock, roundCount uint64) error {
+	epochItem := GetEpochItem(db, epoch)
 	if epochItem.IsNotEmpty() {
 		return ErrExist
 	}
 	epochItem = types.NewEpochItem(startBlock, endBlock, roundCount)
-	return SetEpochItem(db, address, epoch, epochItem)
+	return SetEpochItem(db, epoch, epochItem)
 }
 
-func GetEpochQueueSince(db sdk.StateDB, address common.Address, epoch, size uint64) types.EpochQueue {
+func GetEpochQueueSince(db sdk.StateDB, epoch, size uint64) types.EpochQueue {
 	queue := types.NewEpochQueue(size)
 
 	var count uint64 = 0
 
-	currentEpoch := GetCurrentEpoch(db, address)
+	currentEpoch := GetCurrentEpoch(db)
 	index := epoch
 
 	for index != currentEpoch+1 && count < size {
-		queue[count] = GetEpochItem(db, address, index)
+		queue[count] = GetEpochItem(db, index)
 		index++
 		count++
 	}
 	return queue[:count]
 }
 
-func GetEpochQueueUtil(db sdk.StateDB, address common.Address, epoch, size uint64) types.EpochQueue {
+func GetEpochQueueUtil(db sdk.StateDB, epoch, size uint64) types.EpochQueue {
 	queue := types.NewEpochQueue(size)
 
 	var count uint64 = 0
 
 	index := epoch
 	for index != 0 && count < size {
-		queue[count] = GetEpochItem(db, address, index)
+		queue[count] = GetEpochItem(db, index)
 		index--
 		count++
 	}
 	return queue[:count]
 }
 
-func GetEpochQueueAndIndexSince(db sdk.StateDB, address common.Address, epoch, size uint64) ([]uint64, types.EpochQueue) {
+func GetEpochQueueAndIndexSince(db sdk.StateDB, epoch, size uint64) ([]uint64, types.EpochQueue) {
 	queue := types.NewEpochQueue(size)
 	epochs := make([]uint64, size)
 
 	var count uint64 = 0
 
-	currentEpoch := GetCurrentEpoch(db, address)
+	currentEpoch := GetCurrentEpoch(db)
 	index := epoch
 
 	for index != currentEpoch+1 && count < size {
-		queue[count] = GetEpochItem(db, address, index)
+		queue[count] = GetEpochItem(db, index)
 		epochs[count] = index
 		index++
 		count++
@@ -472,7 +492,7 @@ func GetEpochQueueAndIndexSince(db sdk.StateDB, address common.Address, epoch, s
 	return epochs[:count], queue[:count]
 }
 
-func GetEpochQueueAndIndexUtil(db sdk.StateDB, address common.Address, epoch, size uint64) ([]uint64, types.EpochQueue) {
+func GetEpochQueueAndIndexUtil(db sdk.StateDB, epoch, size uint64) ([]uint64, types.EpochQueue) {
 	queue := types.NewEpochQueue(size)
 	epochs := make([]uint64, size)
 
@@ -480,7 +500,7 @@ func GetEpochQueueAndIndexUtil(db sdk.StateDB, address common.Address, epoch, si
 
 	index := epoch
 	for index != 0 && count < size {
-		queue[count] = GetEpochItem(db, address, index)
+		queue[count] = GetEpochItem(db, index)
 		epochs[count] = index
 		index--
 		count++
@@ -488,17 +508,17 @@ func GetEpochQueueAndIndexUtil(db sdk.StateDB, address common.Address, epoch, si
 	return epochs[:count], queue[:count]
 }
 
-func SetEpochItem(db sdk.StateDB, address common.Address, epoch uint64, item *types.EpochItem) error {
+func SetEpochItem(db sdk.StateDB, epoch uint64, item *types.EpochItem) error {
 	value, err := rlp.EncodeToBytes(item)
 	if nil != err {
 		return ErrRlpEncode
 	}
-	db.SetState(address, EncodeEpochItemKey(epoch), value)
+	db.SetState(address.StakeHandlerAddress, EncodeEpochItemKey(epoch), value)
 	return nil
 }
 
-func GetEpochItem(db sdk.StateDB, address common.Address, epoch uint64) *types.EpochItem {
-	value := db.GetState(address, EncodeEpochItemKey(epoch))
+func GetEpochItem(db sdk.StateDB, epoch uint64) *types.EpochItem {
+	value := db.GetState(address.StakeHandlerAddress, EncodeEpochItemKey(epoch))
 	if len(value) == 0 {
 		return nil
 	}
@@ -512,56 +532,56 @@ func GetEpochItem(db sdk.StateDB, address common.Address, epoch uint64) *types.E
 
 // ---
 
-func AppendRoundItem(db sdk.StateDB, address common.Address, round uint64, startBlock, endBlock uint64) error {
-	roundItem := GetRoundItem(db, address, round)
+func AppendRoundItem(db sdk.StateDB, round uint64, startBlock, endBlock uint64) error {
+	roundItem := GetRoundItem(db, round)
 	if roundItem.IsNotEmpty() {
 		return ErrExist
 	}
 	roundItem = types.NewRoundItem(startBlock, endBlock)
-	return SetRoundItem(db, address, round, roundItem)
+	return SetRoundItem(db, round, roundItem)
 }
 
-func GetRoundQueueSince(db sdk.StateDB, address common.Address, round, size uint64) types.RoundQueue {
+func GetRoundQueueSince(db sdk.StateDB, round, size uint64) types.RoundQueue {
 	queue := types.NewRoundQueue(size)
 
 	var count uint64 = 0
 
-	currentEpoch := GetCurrentRound(db, address)
+	currentEpoch := GetCurrentRound(db)
 	index := round
 
 	for index != currentEpoch+1 && count < size {
-		queue[count] = GetRoundItem(db, address, index)
+		queue[count] = GetRoundItem(db, index)
 		index++
 		count++
 	}
 	return queue[:count]
 }
 
-func GetRoundQueueUtil(db sdk.StateDB, address common.Address, round, size uint64) types.RoundQueue {
+func GetRoundQueueUtil(db sdk.StateDB, round, size uint64) types.RoundQueue {
 	queue := types.NewRoundQueue(size)
 
 	var count uint64 = 0
 
 	index := round
 	for index != 0 && count < size {
-		queue[count] = GetRoundItem(db, address, index)
+		queue[count] = GetRoundItem(db, index)
 		index--
 		count++
 	}
 	return queue[:count]
 }
 
-func GetRoundQueueAndIndexSince(db sdk.StateDB, address common.Address, round, size uint64) ([]uint64, types.RoundQueue) {
+func GetRoundQueueAndIndexSince(db sdk.StateDB, round, size uint64) ([]uint64, types.RoundQueue) {
 	queue := types.NewRoundQueue(size)
 	rounds := make([]uint64, size)
 
 	var count uint64 = 0
 
-	currentRound := GetCurrentRound(db, address)
+	currentRound := GetCurrentRound(db)
 	index := round
 
 	for index != currentRound+1 && count < size {
-		queue[count] = GetRoundItem(db, address, index)
+		queue[count] = GetRoundItem(db, index)
 		rounds[count] = index
 		index++
 		count++
@@ -569,7 +589,7 @@ func GetRoundQueueAndIndexSince(db sdk.StateDB, address common.Address, round, s
 	return rounds[:count], queue[:count]
 }
 
-func GetRoundQueueAndIndexFromTail(db sdk.StateDB, address common.Address, round, size uint64) ([]uint64, types.RoundQueue) {
+func GetRoundQueueAndIndexFromTail(db sdk.StateDB, round, size uint64) ([]uint64, types.RoundQueue) {
 	queue := types.NewRoundQueue(size)
 	rounds := make([]uint64, size)
 
@@ -577,7 +597,7 @@ func GetRoundQueueAndIndexFromTail(db sdk.StateDB, address common.Address, round
 
 	index := round
 	for index != 0 && count < size {
-		queue[count] = GetRoundItem(db, address, index)
+		queue[count] = GetRoundItem(db, index)
 		rounds[count] = index
 		index--
 		count++
@@ -585,17 +605,17 @@ func GetRoundQueueAndIndexFromTail(db sdk.StateDB, address common.Address, round
 	return rounds[:count], queue[:count]
 }
 
-func SetRoundItem(db sdk.StateDB, address common.Address, round uint64, item *types.RoundItem) error {
+func SetRoundItem(db sdk.StateDB, round uint64, item *types.RoundItem) error {
 	value, err := rlp.EncodeToBytes(item)
 	if nil != err {
 		return ErrRlpEncode
 	}
-	db.SetState(address, EncodeRoundItemKey(round), value)
+	db.SetState(address.StakeHandlerAddress, EncodeRoundItemKey(round), value)
 	return nil
 }
 
-func GetRoundItem(db sdk.StateDB, address common.Address, round uint64) *types.RoundItem {
-	value := db.GetState(address, EncodeRoundItemKey(round))
+func GetRoundItem(db sdk.StateDB, round uint64) *types.RoundItem {
+	value := db.GetState(address.StakeHandlerAddress, EncodeRoundItemKey(round))
 	if len(value) == 0 {
 		return nil
 	}
@@ -605,4 +625,15 @@ func GetRoundItem(db sdk.StateDB, address common.Address, round uint64) *types.R
 		return &item
 	}
 	return nil
+}
+
+func IncrementNumberOfBlocksForRoundValidator(db sdk.StateDB, validatorAddr common.Address, round, increment uint64) {
+	value := db.GetState(address.StakeHandlerAddress, encodeNumberOfBlocksForRoundValidatorKey(validatorAddr, round))
+	var v uint64
+	if len(value) != 0 {
+		v = common.BytesToUint64(value)
+	}
+	v += increment
+	db.SetState(address.StakeHandlerAddress, encodeNumberOfBlocksForRoundValidatorKey(validatorAddr, round), common.Uint64ToBytes(v))
+
 }

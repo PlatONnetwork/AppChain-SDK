@@ -114,9 +114,9 @@ func (c *StakeHandlerCaller) OnStateReceive(id *big.Int, sender common.Address, 
 
 }
 
-func (c *StakeHandlerCaller) Slash(validators []common.Address) error {
+func (c *StakeHandlerCaller) Slash() error {
 	var out []interface{}
-	err := c.BoundContract.Caller(c.to, &out, "slash", validators)
+	err := c.BoundContract.Caller(c.to, &out, "slash")
 
 	if err != nil {
 		return err
@@ -259,9 +259,9 @@ func (c *StakeHandlerDelegateCaller) OnStateReceive(id *big.Int, sender common.A
 
 }
 
-func (c *StakeHandlerDelegateCaller) Slash(validators []common.Address) error {
+func (c *StakeHandlerDelegateCaller) Slash() error {
 	var out []interface{}
-	err := c.BoundContract.DelegateCaller(c.to, &out, "slash", validators)
+	err := c.BoundContract.DelegateCaller(c.to, &out, "slash")
 
 	if err != nil {
 		return err

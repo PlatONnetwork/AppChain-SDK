@@ -58,7 +58,7 @@ func (v *VRFModule) Init() error {
 
 func (v *VRFModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
 	// TODO 初始化 vrf nonce
-	vrfdb.SetNonceAndProof(db, address.VRFHandlerAddress, 0, []byte("genesisVRFNonce"))
+	vrfdb.SetNonceAndProof(db, 0, []byte("genesisVRFNonce"))
 }
 
 func (v *VRFModule) AddTxs(ctx sdk.Context, local, remote map[basecommon.Address]types.Transactions) (map[basecommon.Address]types.Transactions, map[basecommon.Address]types.Transactions) {
@@ -152,7 +152,7 @@ func (v *VRFModule) EndBlock(ctx sdk.Context) {
 }
 
 func (v *VRFModule) GenerateNonceAndProof(ctx sdk.WorkerContext, blockNumber uint64) ([]byte, error) {
-	nonceAndProof, err := vrfInternal.GenerateNonceAndProof(ctx.StateDB(), address.VRFHandlerAddress, blockNumber, v.privateKey)
+	nonceAndProof, err := vrfInternal.GenerateNonceAndProof(ctx.StateDB(), blockNumber, v.privateKey)
 	if nil != err {
 		v.logger.Error(err.Error(), "blockNumber", blockNumber)
 		return nil, err
@@ -179,19 +179,19 @@ func (v *VRFModule) VerifyVrf(ctx sdk.WorkerContext, blockNumber uint64, nonceAn
 }
 
 func (v *VRFModule) getPreviousNonce(ctx sdk.WorkerContext, blockNumber uint64) (basecommon.Hash, error) {
-	return vrfInternal.GetPreviousNonce(ctx.StateDB(), address.VRFHandlerAddress, blockNumber)
+	return vrfInternal.GetPreviousNonce(ctx.StateDB(), blockNumber)
 }
 
 func (v *VRFModule) getPreviousNonceAndProof(ctx sdk.WorkerContext, blockNumber uint64) ([]byte, error) {
-	return vrfInternal.GetPreviousNonceAndProof(ctx.StateDB(), address.VRFHandlerAddress, blockNumber)
+	return vrfInternal.GetPreviousNonceAndProof(ctx.StateDB(), blockNumber)
 }
 
 func (v *VRFModule) getCurrentNonce(ctx sdk.WorkerContext, blockNumber uint64) (basecommon.Hash, error) {
-	return vrfInternal.GetCurrentNonce(ctx.StateDB(), address.VRFHandlerAddress, blockNumber)
+	return vrfInternal.GetCurrentNonce(ctx.StateDB(), blockNumber)
 }
 
 func (v *VRFModule) getCurrentNonceAndProof(ctx sdk.WorkerContext, blockNumber uint64) ([]byte, error) {
-	return vrfInternal.GetCurrentNonceAndProof(ctx.StateDB(), address.VRFHandlerAddress, blockNumber)
+	return vrfInternal.GetCurrentNonceAndProof(ctx.StateDB(), blockNumber)
 }
 
 func (v *VRFModule) createPushNonceAndProofTx(ctx sdk.Context, nonceAndProof []byte) (*types.Transaction, error) {
