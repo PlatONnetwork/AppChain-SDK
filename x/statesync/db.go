@@ -2,6 +2,8 @@ package statesync
 
 import (
 	"errors"
+	"math/big"
+
 	utils "github.com/PlatONnetwork/AppChain-SDK/common"
 	"github.com/PlatONnetwork/AppChain-SDK/merkle"
 	"github.com/PlatONnetwork/AppChain-SDK/store"
@@ -9,7 +11,6 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/common/math"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
-	"math/big"
 )
 
 var (

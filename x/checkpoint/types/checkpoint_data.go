@@ -32,10 +32,10 @@ func (s *StorageCheckpointData) String() string {
 		s.ViewNumber,
 		s.BlockIndex,
 		s.BlockNumber,
-		s.BlockHash.TerminalString(),
-		s.CurrentValidatorsHash.TerminalString(),
-		s.NextValidatorsHash.TerminalString(),
-		s.EventRoot.TerminalString())
+		s.BlockHash.String(),
+		s.CurrentValidatorsHash.String(),
+		s.NextValidatorsHash.String(),
+		s.EventRoot.String())
 }
 
 func (cd *CheckpointData) MarshalRLP() []byte {

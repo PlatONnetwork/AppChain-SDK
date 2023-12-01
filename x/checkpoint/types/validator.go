@@ -1,8 +1,6 @@
 package types
 
 import (
-	"math/big"
-
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint/contractsapi"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
@@ -11,7 +9,7 @@ import (
 	"github.com/umbracle/ethgo/abi"
 )
 
-var accountSetABIType = abi.MustNewType(`tuple(tuple(address _address, uint256[2] blskey)[])`)
+var accountSetABIType = abi.MustNewType(`tuple(tuple(address _address, bytes blskey)[])`)
 
 type ValidatorMetadata struct {
 	Address common.Address
@@ -26,7 +24,7 @@ func NewAccountSet(validators *cbfttypes.Validators) AccountSet {
 		n := node
 		as[node.Index] = &ValidatorMetadata{
 			Address: common.Address(n.Address),
-			BlsKey: n.BlsPubKey,
+			BlsKey:  n.BlsPubKey,
 		}
 	}
 	return as
@@ -44,13 +42,9 @@ func (as AccountSet) Hash() (common.Hash, error) {
 func (as AccountSet) ToAPIBinding() []*contractsapi.Validator {
 	apiBinding := make([]*contractsapi.Validator, len(as))
 	for i, v := range as {
-		var blsKey [2]*big.Int
-		b := v.BlsKey.Serialize()
-		blsKey[0] = big.NewInt(0).SetBytes(b[:16])
-		blsKey[1] = big.NewInt(0).SetBytes(b[16:])
 		apiBinding[i] = &contractsapi.Validator{
 			Address: v.Address,
-			BlsKey:  blsKey,
+			BlsKey:  v.BlsKey.SerializeUncompressed(),
 		}
 	}
 

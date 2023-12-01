@@ -98,7 +98,7 @@ func (s *StateSync) ExtendData(ctx sdk.Context) []byte {
 	return s.ExtendDataImpl(cc, cc.Epoch(), cc.View(), cc.BlockIndex(), cc.Header())
 }
 
-func (s *StateSync) VerifyExtendData(ctx sdk.Context, data []byte) (common.Hash, error) {
+func (s *StateSync) VerifyExtendData(ctx sdk.Context, data []byte) error {
 	cc := ctx.(sdk.ConsensusContext)
 	return s.VerifyExtendDataImpl(cc.Epoch(), cc.View(), cc.BlockIndex(), cc.Header(), data)
 }

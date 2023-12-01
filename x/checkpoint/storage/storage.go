@@ -45,29 +45,49 @@ func (s *Storage) InsertExitEvent(exitEvent *contractsapi.ExitEvent) error {
 	if err != nil {
 		return err
 	}
-	if err := s.kv.Set(exitEventKey(exitEvent.BlockNumber, exitEvent.L2StateSyncedEvent.Id.Uint64()), encoded); err != nil {
+	if err := s.kv.Set(exitEventKey(exitEvent.Epoch, exitEvent.L2StateSyncedEvent.Id.Uint64()), encoded); err != nil {
 		return err
 	}
 
 	numberBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(numberBytes, exitEvent.BlockNumber)
+	binary.BigEndian.PutUint64(numberBytes, exitEvent.Epoch)
 	return s.kv.Set(exitEventLookupKey(exitEvent.L2StateSyncedEvent.Id.Uint64()), numberBytes)
 }
 
-func (s *Storage) GetExitEventsByNumberRange(start, end uint64) ([]*contractsapi.ExitEvent, error) {
+func (s *Storage) GetExitEventsByEpoch(epoch uint64) ([]*contractsapi.ExitEvent, error) {
 	exitEvents := make([]*contractsapi.ExitEvent, 0)
-	for i := start; i <= end; i++ {
-		it := s.kv.NewIterator([]byte{}, exitEventPrefix(i))
-		for it.Next() {
-			var exitEvent contractsapi.ExitEvent
-			if err := rlp.DecodeBytes(it.Value(), &exitEvent); err != nil {
-				return exitEvents, err
-			}
-			exitEvents = append(exitEvents, &exitEvent)
+	it := s.kv.NewIterator([]byte{}, exitEventPrefix(epoch))
+	for it.Next() {
+		var exitEvent contractsapi.ExitEvent
+		if err := rlp.DecodeBytes(it.Value(), &exitEvent); err != nil {
+			return exitEvents, err
 		}
-		it.Release()
+		exitEvents = append(exitEvents, &exitEvent)
 	}
+	it.Release()
+
 	return exitEvents, nil
+}
+
+func (s *Storage) GetExitEvent(exitID uint64) (*contractsapi.ExitEvent, error) {
+	epochBytes, err := s.kv.Get(exitEventLookupKey(exitID))
+	if err != nil {
+		return nil, err
+	}
+	var epoch uint64
+	if len(epochBytes) > 0 {
+		epoch = binary.BigEndian.Uint64(epochBytes)
+	}
+
+	evBytes, err := s.kv.Get(exitEventKey(epoch, exitID))
+	if err != nil {
+		return nil, err
+	}
+	var exitEvent contractsapi.ExitEvent
+	if err := rlp.DecodeBytes(evBytes, &exitEvent); err != nil {
+		return nil, err
+	}
+	return &exitEvent, nil
 }
 
 func checkpointKey(blockNumber uint64) []byte {
