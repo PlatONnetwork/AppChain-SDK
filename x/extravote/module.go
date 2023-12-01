@@ -5,7 +5,6 @@ import (
 
 	"github.com/PlatONnetwork/AppChain-SDK/merkle"
 	"github.com/PlatONnetwork/AppChain-SDK/store"
-	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/protocols"
 	"github.com/PlatONnetwork/PlatON-Go/log"
@@ -18,13 +17,20 @@ const (
 	ExtraVoteDatabase = "extravote"
 )
 
+type ExtraVerifier interface {
+	Name() string
+	ExtendData(ctx sdk.ConsensusContext) []byte
+	VerifyExtendData(ctx sdk.ConsensusContext, data []byte) error
+	PrepareQC(ctx sdk.ConsensusContext, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote)
+}
+
 // TODO 处理扩展投票，对每个子模块进行扩展，生成投票 Merkle 证明
 type ExtraVote struct {
-	modules []module.ConsensusExtendModule
+	modules []ExtraVerifier
 	db      *ExtraVoteDB
 }
 
-func NewExtraVote(store store.Store, ms []module.ConsensusExtendModule) *ExtraVote {
+func NewExtraVote(store store.Store, ms []ExtraVerifier) *ExtraVote {
 	db := NewExtraVoteDB(store)
 	return &ExtraVote{modules: ms, db: db}
 }
@@ -33,7 +39,7 @@ func (e *ExtraVote) Name() string {
 	return "extravote"
 }
 
-func (e *ExtraVote) ExtendData(ctx sdk.Context) []byte {
+func (e *ExtraVote) ExtendData(ctx sdk.ConsensusContext) []byte {
 	data := make([][]byte, len(e.modules))
 	for i, m := range e.modules {
 		data[i] = m.ExtendData(ctx)
@@ -43,7 +49,7 @@ func (e *ExtraVote) ExtendData(ctx sdk.Context) []byte {
 	return extraData
 }
 
-func (e *ExtraVote) VerifyExtendData(ctx sdk.Context, data []byte) (common.Hash, error) {
+func (e *ExtraVote) VerifyExtendData(ctx sdk.ConsensusContext, data []byte) (common.Hash, error) {
 	cc := ctx.(sdk.ConsensusContext)
 
 	var extraData [][]byte
@@ -54,25 +60,23 @@ func (e *ExtraVote) VerifyExtendData(ctx sdk.Context, data []byte) (common.Hash,
 	if len(extraData) != len(e.modules) {
 		return common.Hash{}, errors.New("invalid extra data length")
 	}
-	var trieNodes [][]byte
 	for i, m := range e.modules {
-		leaf, err := m.VerifyExtendData(ctx, extraData[i])
+		err := m.VerifyExtendData(ctx, extraData[i])
 		if err != nil {
 			log.Error("Failed to verify extend data", "i", i, "module", m.Name(), "err", err)
 			return common.Hash{}, err
 		}
-		trieNodes = append(trieNodes, leaf.Bytes())
 	}
-	trie, err := merkle.NewMerkleTree(trieNodes)
+	trie, err := merkle.NewMerkleTree(extraData)
 	if err != nil {
 		return common.Hash{}, err
 	}
-	e.db.InsertProof(cc.Epoch(), cc.View(), cc.BlockIndex(), trieNodes, trie)
+	e.db.InsertProof(cc.Epoch(), cc.View(), cc.BlockIndex(), extraData, trie)
 
 	return trie.Hash(), nil
 }
 
-func (e *ExtraVote) PrepareQC(ctx sdk.Context, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote) {
+func (e *ExtraVote) PrepareQC(ctx sdk.ConsensusContext, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote) {
 	for _, m := range e.modules {
 		m.PrepareQC(ctx, block, votes)
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/state_event/storage"
 	"github.com/PlatONnetwork/AppChain-SDK/x/state_event/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
+	ctypes "github.com/PlatONnetwork/PlatON-Go/consensus/cbft/types"
 	coretypes "github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
@@ -27,7 +28,7 @@ type EventSubscriber interface {
 	GetLogFilters() map[common.Address][]common.Hash
 
 	// ProcessLog is used to handle a log defined in GetLogFilters, provid
-	ProcessLog(header *coretypes.Header, log *coretypes.Log) error
+	ProcessLog(ctx sdk.ConsensusContext, header *coretypes.Header, qc *ctypes.QuorumCert, log *coretypes.Log) error
 }
 
 type Module struct {
@@ -52,7 +53,7 @@ func (m *Module) Name() string {
 	return types.ModuleName
 }
 
-func (m *Module) OnCommit(ctx sdk.Context, block *coretypes.Block) error {
+func (m *Module) OnCommit(ctx sdk.ConsensusContext, block *coretypes.Block) error {
 	m.logger.Debug("OnCommit", "number", block.Number(), "hash", block.Hash())
 	if ctx.Backend() == nil {
 		m.logger.Error("Empty backend")
@@ -91,29 +92,43 @@ func (m *Module) Subscribe(subscriber EventSubscriber) {
 	}
 }
 
-func (m *Module) getEventsFromBlocks(ctx sdk.Context, lastProcessedBlock uint64, latestBlock *coretypes.Block) error {
+func (m *Module) getEventsFromBlocks(ctx sdk.ConsensusContext, lastProcessedBlock uint64, latestBlock *coretypes.Block) error {
 	if err := m.getEventsFromBlocksRange(ctx, lastProcessedBlock+1, latestBlock.NumberU64()-1); err != nil {
 		return err
 	}
-	return m.getEventsFromReceipts(ctx, latestBlock.Header(), ctx.Backend().ReadReceipts(latestBlock.Header().SealHash()))
+	_, qc, err := ctypes.DecodeExtra(latestBlock.ExtraData())
+	if err != nil {
+		return err
+	}
+	return m.getEventsFromReceipts(ctx, latestBlock.Header(), qc, ctx.Backend().ReadReceipts(latestBlock.Header().SealHash()))
 }
 
-func (m *Module) getEventsFromBlocksRange(ctx sdk.Context, from, to uint64) error {
+func (m *Module) getEventsFromBlocksRange(ctx sdk.ConsensusContext, from, to uint64) error {
 	for i := from; i <= to; i++ {
 		blockHeader := ctx.Backend().GetHeaderByNumber(i)
 		if blockHeader == nil {
 			return fmt.Errorf("block header not found(number: %d)", i)
 		}
 
+		block := ctx.Backend().GetBlock(blockHeader.Hash(), blockHeader.Number.Uint64())
+		if block == nil {
+			return fmt.Errorf("block not found(number: %d,hash: %s)", blockHeader.Number, blockHeader.Hash().String())
+		}
+
+		_, qc, err := ctypes.DecodeExtra(block.ExtraData())
+		if err != nil {
+			return err
+		}
+
 		receipts := ctx.Backend().GetReceiptsByHash(blockHeader.Hash())
-		if err := m.getEventsFromReceipts(ctx, blockHeader, receipts); err != nil {
+		if err := m.getEventsFromReceipts(ctx, blockHeader, qc, receipts); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (m *Module) getEventsFromReceipts(ctx sdk.Context, blockHeader *coretypes.Header, receipts coretypes.Receipts) error {
+func (m *Module) getEventsFromReceipts(ctx sdk.ConsensusContext, blockHeader *coretypes.Header, qc *ctypes.QuorumCert, receipts coretypes.Receipts) error {
 	for _, receipt := range receipts {
 		if receipt.Status != coretypes.ReceiptStatusSuccessful {
 			continue
@@ -128,7 +143,7 @@ func (m *Module) getEventsFromReceipts(ctx sdk.Context, blockHeader *coretypes.H
 			for logFilter, subscribers := range logFilters {
 				if log.Topics[0] == logFilter {
 					for _, subscriber := range subscribers {
-						if err := m.subscribers[subscriber].ProcessLog(blockHeader, log); err != nil {
+						if err := m.subscribers[subscriber].ProcessLog(ctx, blockHeader, qc, log); err != nil {
 							return err
 						}
 					}

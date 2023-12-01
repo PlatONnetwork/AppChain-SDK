@@ -65,7 +65,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		stateEvent,
 		l1.NewL1GenesisDB(store))
 
-	extraVote := extravote.NewExtraVote(store, []module.ConsensusExtendModule{stateSync, checkpoint})
+	extraVote := extravote.NewExtraVote(store, []extravote.ExtraVerifier{stateSync, checkpoint})
 
 	manager := module.NewManager(stateSync, stateEvent, l1Module, extraVote, checkpoint, staking)
 	manager.SetElection(staking.Name())

@@ -2,9 +2,9 @@ package contractsapi
 
 import (
 	"fmt"
-	"github.com/PlatONnetwork/PlatON-Go/common"
-	"math/big"
 	"strings"
+
+	"github.com/PlatONnetwork/PlatON-Go/common"
 
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint/contractsapi/checkpoint_manager"
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint/contractsapi/l2_state_sender"
@@ -15,11 +15,11 @@ import (
 
 type Validator struct {
 	Address common.Address `abi:"_address"`
-	BlsKey  [2]*big.Int    `abi:"blskey"`
+	BlsKey  []byte         `abi:"blskey"`
 }
 
 var (
-	ValidatorABIType        = ethgoabi.MustNewType("tuple(address _address,uint256[2] blskey)")
+	ValidatorABIType        = ethgoabi.MustNewType("tuple(address _address,bytes blskey)")
 	CheckpointManagerABI, _ = abi.JSON(strings.NewReader(checkpoint_manager.CheckpointManagerMetaData.ABI))
 	L2StateSenderABI, _     = abi.JSON(strings.NewReader(l2_state_sender.L2StateSenderMetaData.ABI))
 )
@@ -29,6 +29,7 @@ func (v *Validator) EncodeAbi() ([]byte, error) {
 }
 
 type ExitEvent struct {
+	Epoch              uint64
 	BlockNumber        uint64
 	L2StateSyncedEvent *l2_state_sender.L2StateSenderL2StateSynced
 }
@@ -38,8 +39,9 @@ func (e *ExitEvent) Encode() ([]byte, error) {
 	return L2StateSenderABI.Events["L2StateSynced"].Inputs.Pack(ev.Id, ev.Sender, ev.Receiver, ev.Data)
 }
 
-func DecodeExitEvent(log *coretypes.Log, number uint64) (*ExitEvent, error) {
+func DecodeExitEvent(log *coretypes.Log, epoch, number uint64) (*ExitEvent, error) {
 	exitEvent := &ExitEvent{
+		Epoch:              epoch,
 		BlockNumber:        number,
 		L2StateSyncedEvent: new(l2_state_sender.L2StateSenderL2StateSynced),
 	}

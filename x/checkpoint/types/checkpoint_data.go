@@ -9,6 +9,7 @@ import (
 )
 
 type CheckpointData struct {
+	ChainID uint64
 	EpochNumber           uint64
 	ViewNumber            uint64
 	BlockIndex            uint32
@@ -19,23 +20,36 @@ type CheckpointData struct {
 	EventRoot             common.Hash
 }
 
-type StorageCheckpointData struct {
+type Checkpoint struct {
 	*CheckpointData
 	ExtendRoot common.Hash
 	Signature  []byte
 	Bitmap     []byte
 }
 
-func (s *StorageCheckpointData) String() string {
-	return fmt.Sprintf("{epoch:%d,view:%d,index:%d,number:%d,hash:%s,current:%s,next:%s,root:%s}",
+func (s *Checkpoint) String() string {
+	return fmt.Sprintf("{chainID:%d,epoch:%d,view:%d,index:%d,number:%d,hash:%s,current:%s,next:%s,root:%s}",
+		s.ChainID,
 		s.EpochNumber,
 		s.ViewNumber,
 		s.BlockIndex,
 		s.BlockNumber,
-		s.BlockHash.TerminalString(),
-		s.CurrentValidatorsHash.TerminalString(),
-		s.NextValidatorsHash.TerminalString(),
-		s.EventRoot.TerminalString())
+		s.BlockHash.String(),
+		s.CurrentValidatorsHash.String(),
+		s.NextValidatorsHash.String(),
+		s.EventRoot.String())
+}
+
+func (cd *CheckpointData) String() string {
+	return fmt.Sprintf("{chainID:%d,epoch:%d,view:%d,index:%d,number:%d,hash:%s,current:%s,next:%s,root:%s}",
+		cd.ChainID,
+		cd.EpochNumber,
+		cd.ViewNumber,
+		cd.BlockIndex,
+		cd.BlockHash.Hex(),
+		cd.CurrentValidatorsHash.String(),
+		cd.NextValidatorsHash.String(),
+		cd.EventRoot.String())
 }
 
 func (cd *CheckpointData) MarshalRLP() []byte {

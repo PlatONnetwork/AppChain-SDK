@@ -83,35 +83,35 @@ func (app *BaseApp) Protocols() []basep2p.Protocol {
 	return app.manager.Protocols()
 }
 
-func (app *BaseApp) ExtendData(ctx sdk.Context) []byte {
+func (app *BaseApp) ExtendData(ctx sdk.ConsensusContext) []byte {
 	return app.manager.ExtendData(ctx)
 }
 
-func (app *BaseApp) VerifyExtendData(ctx sdk.Context, data []byte) (common.Hash, error) {
+func (app *BaseApp) VerifyExtendData(ctx sdk.ConsensusContext, data []byte) (common.Hash, error) {
 	return app.manager.VerifyExtendData(ctx, data)
 }
 
-func (app *BaseApp) PrepareQC(ctx sdk.Context, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote) {
+func (app *BaseApp) PrepareQC(ctx sdk.ConsensusContext, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote) {
 	app.manager.PrepareQC(ctx, block, votes)
 }
 
-func (app *BaseApp) NewHeader(ctx sdk.Context, header *types.Header) error {
+func (app *BaseApp) NewHeader(ctx sdk.ConsensusContext, header *types.Header) error {
 	return app.manager.NewHeader(ctx, header)
 }
 
-func (app *BaseApp) GetLastNumber(ctx sdk.Context, blockNumber uint64) uint64 {
+func (app *BaseApp) GetLastNumber(ctx sdk.ConsensusContext, blockNumber uint64) uint64 {
 	return app.manager.GetLastNumber(ctx, blockNumber)
 }
 
-func (app *BaseApp) GetValidator(ctx sdk.Context, blockNumber uint64) (*cbfttypes.Validators, error) {
+func (app *BaseApp) GetValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error) {
 	return app.manager.GetValidator(ctx, blockNumber)
 }
 
-func (app *BaseApp) IsCandidateNode(ctx sdk.Context, nodeID enode.IDv0) bool {
+func (app *BaseApp) IsCandidateNode(ctx sdk.ConsensusContext, nodeID enode.IDv0) bool {
 	return app.manager.IsCandidateNode(ctx, nodeID)
 }
 
-func (app *BaseApp) OnCommit(ctx sdk.Context, block *types.Block) error {
+func (app *BaseApp) OnCommit(ctx sdk.ConsensusContext, block *types.Block) error {
 	return app.manager.OnCommit(ctx, block)
 }
 
@@ -120,14 +120,14 @@ func (app *BaseApp) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *pa
 	return app.manager.InitGenesis(ctx, db, chainConfig, data)
 }
 
-func (app *BaseApp) BeginBlock(ctx sdk.Context) {
+func (app *BaseApp) BeginBlock(ctx sdk.WorkerContext) {
 	app.manager.BeginBlock(ctx)
 }
 
-func (app *BaseApp) EndBlock(ctx sdk.Context) {
+func (app *BaseApp) EndBlock(ctx sdk.WorkerContext) {
 	app.manager.EndBlock(ctx)
 }
 
-func (app *BaseApp) SortTxs(ctx sdk.Context, local, remote map[common.Address]types.Transactions) (types.Transactions, error) {
+func (app *BaseApp) SortTxs(ctx sdk.WorkerContext, local, remote map[common.Address]types.Transactions) (types.Transactions, error) {
 	return app.manager.SortTxs(ctx, local, remote)
 }

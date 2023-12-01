@@ -47,12 +47,12 @@ type ICheckpointManagerCheckpointMetadata struct {
 // ICheckpointManagerValidator is an auto generated low-level Go binding around an user-defined struct.
 type ICheckpointManagerValidator struct {
 	Address common.Address
-	BlsKey  [2]*big.Int
+	BlsKey  []byte
 }
 
 // CheckpointManagerMetaData contains all meta data concerning the CheckpointManager contract.
 var CheckpointManagerMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"INITIALIZER\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[],\"name\":\"InvalidInitialization\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"NotInitializing\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint64\",\"name\":\"version\",\"type\":\"uint64\"}],\"name\":\"Initialized\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"bls\",\"outputs\":[{\"internalType\":\"contractBLS\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"chainId\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"checkpointBlockNumbers\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"checkpoints\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"epoch\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"viewNumber\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"blockNumber\",\"type\":\"uint64\"},{\"internalType\":\"bytes32\",\"name\":\"eventRoot\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"extendRoot\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"currentCheckpointBlockNumber\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"currentEpoch\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"currentValidatorSet\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"_address\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"currentValidatorSetHash\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"currentValidatorSetLength\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"blockNumber\",\"type\":\"uint256\"}],\"name\":\"getCheckpointBlock\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"blockNumber\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"leaf\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"leafIndex\",\"type\":\"uint256\"},{\"internalType\":\"bytes32[]\",\"name\":\"proof\",\"type\":\"bytes32[]\"}],\"name\":\"getEventMembershipByBlockNumber\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"epoch\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"leaf\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"leafIndex\",\"type\":\"uint256\"},{\"internalType\":\"bytes32[]\",\"name\":\"proof\",\"type\":\"bytes32[]\"}],\"name\":\"getEventMembershipByEpoch\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"blockNumber\",\"type\":\"uint256\"}],\"name\":\"getEventRootByBlock\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"contractBLS\",\"name\":\"newBls\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"chainId_\",\"type\":\"uint256\"},{\"components\":[{\"internalType\":\"address\",\"name\":\"_address\",\"type\":\"address\"},{\"internalType\":\"uint256[2]\",\"name\":\"blsKey\",\"type\":\"uint256[2]\"}],\"internalType\":\"structICheckpointManager.Validator[]\",\"name\":\"newValidatorSet\",\"type\":\"tuple[]\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"bytes32\",\"name\":\"blockHash\",\"type\":\"bytes32\"},{\"internalType\":\"uint32\",\"name\":\"blockIndex\",\"type\":\"uint32\"},{\"internalType\":\"bytes32\",\"name\":\"currentValidatorSetHash\",\"type\":\"bytes32\"}],\"internalType\":\"structICheckpointManager.CheckpointMetadata\",\"name\":\"checkpointMetadata\",\"type\":\"tuple\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"epoch\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"viewNumber\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"blockNumber\",\"type\":\"uint64\"},{\"internalType\":\"bytes32\",\"name\":\"eventRoot\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"extendRoot\",\"type\":\"bytes32\"}],\"internalType\":\"structICheckpointManager.Checkpoint\",\"name\":\"checkpoint\",\"type\":\"tuple\"},{\"internalType\":\"bytes\",\"name\":\"signature\",\"type\":\"bytes\"},{\"internalType\":\"bytes\",\"name\":\"bitmap\",\"type\":\"bytes\"},{\"components\":[{\"internalType\":\"address\",\"name\":\"_address\",\"type\":\"address\"},{\"internalType\":\"uint256[2]\",\"name\":\"blsKey\",\"type\":\"uint256[2]\"}],\"internalType\":\"structICheckpointManager.Validator[]\",\"name\":\"newValidatorSet\",\"type\":\"tuple[]\"},{\"internalType\":\"uint256\",\"name\":\"leafIndex\",\"type\":\"uint256\"},{\"internalType\":\"bytes32[]\",\"name\":\"proof\",\"type\":\"bytes32[]\"}],\"name\":\"submit\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
+	ABI: "[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"INITIALIZER\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint8\",\"name\":\"version\",\"type\":\"uint8\"}],\"name\":\"Initialized\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"bls\",\"outputs\":[{\"internalType\":\"contractIBLS\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"chainId\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"checkpointBlockNumbers\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"checkpoints\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"epoch\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"viewNumber\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"blockNumber\",\"type\":\"uint64\"},{\"internalType\":\"bytes32\",\"name\":\"eventRoot\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"extendRoot\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"currentCheckpointBlockNumber\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"currentEpoch\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"currentValidatorSet\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"_address\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"blsKey\",\"type\":\"bytes\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"currentValidatorSetHash\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"currentValidatorSetLength\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"blockNumber\",\"type\":\"uint256\"}],\"name\":\"getCheckpointBlock\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"blockNumber\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"leaf\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"leafIndex\",\"type\":\"uint256\"},{\"internalType\":\"bytes32[]\",\"name\":\"proof\",\"type\":\"bytes32[]\"}],\"name\":\"getEventMembershipByBlockNumber\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"epoch\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"leaf\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"leafIndex\",\"type\":\"uint256\"},{\"internalType\":\"bytes32[]\",\"name\":\"proof\",\"type\":\"bytes32[]\"}],\"name\":\"getEventMembershipByEpoch\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"blockNumber\",\"type\":\"uint256\"}],\"name\":\"getEventRootByBlock\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"contractIBLS\",\"name\":\"newBls\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"chainId_\",\"type\":\"uint256\"},{\"components\":[{\"internalType\":\"address\",\"name\":\"_address\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"blsKey\",\"type\":\"bytes\"}],\"internalType\":\"structICheckpointManager.Validator[]\",\"name\":\"newValidatorSet\",\"type\":\"tuple[]\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"bytes32\",\"name\":\"blockHash\",\"type\":\"bytes32\"},{\"internalType\":\"uint32\",\"name\":\"blockIndex\",\"type\":\"uint32\"},{\"internalType\":\"bytes32\",\"name\":\"currentValidatorSetHash\",\"type\":\"bytes32\"}],\"internalType\":\"structICheckpointManager.CheckpointMetadata\",\"name\":\"checkpointMetadata\",\"type\":\"tuple\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"epoch\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"viewNumber\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"blockNumber\",\"type\":\"uint64\"},{\"internalType\":\"bytes32\",\"name\":\"eventRoot\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"extendRoot\",\"type\":\"bytes32\"}],\"internalType\":\"structICheckpointManager.Checkpoint\",\"name\":\"checkpoint\",\"type\":\"tuple\"},{\"internalType\":\"bytes\",\"name\":\"signature\",\"type\":\"bytes\"},{\"internalType\":\"bytes\",\"name\":\"bitmap\",\"type\":\"bytes\"},{\"components\":[{\"internalType\":\"address\",\"name\":\"_address\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"blsKey\",\"type\":\"bytes\"}],\"internalType\":\"structICheckpointManager.Validator[]\",\"name\":\"newValidatorSet\",\"type\":\"tuple[]\"},{\"internalType\":\"uint256\",\"name\":\"leafIndex\",\"type\":\"uint256\"},{\"internalType\":\"bytes32[]\",\"name\":\"proof\",\"type\":\"bytes32[]\"}],\"name\":\"submit\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
 }
 
 // CheckpointManagerABI is the input ABI used to generate the binding from.
@@ -418,32 +418,46 @@ func (_CheckpointManager *CheckpointManagerCallerSession) CurrentEpoch() (*big.I
 
 // CurrentValidatorSet is a free data retrieval call binding the contract method 0x6969a25c.
 //
-// Solidity: function currentValidatorSet(uint256 ) view returns(address _address)
-func (_CheckpointManager *CheckpointManagerCaller) CurrentValidatorSet(opts *bind.CallOpts, arg0 *big.Int) (common.Address, error) {
+// Solidity: function currentValidatorSet(uint256 ) view returns(address _address, bytes blsKey)
+func (_CheckpointManager *CheckpointManagerCaller) CurrentValidatorSet(opts *bind.CallOpts, arg0 *big.Int) (struct {
+	Address common.Address
+	BlsKey  []byte
+}, error) {
 	var out []interface{}
 	err := _CheckpointManager.contract.Call(opts, &out, "currentValidatorSet", arg0)
 
+	outstruct := new(struct {
+		Address common.Address
+		BlsKey  []byte
+	})
 	if err != nil {
-		return *new(common.Address), err
+		return *outstruct, err
 	}
 
-	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+	outstruct.Address = *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+	outstruct.BlsKey = *abi.ConvertType(out[1], new([]byte)).(*[]byte)
 
-	return out0, err
+	return *outstruct, err
 
 }
 
 // CurrentValidatorSet is a free data retrieval call binding the contract method 0x6969a25c.
 //
-// Solidity: function currentValidatorSet(uint256 ) view returns(address _address)
-func (_CheckpointManager *CheckpointManagerSession) CurrentValidatorSet(arg0 *big.Int) (common.Address, error) {
+// Solidity: function currentValidatorSet(uint256 ) view returns(address _address, bytes blsKey)
+func (_CheckpointManager *CheckpointManagerSession) CurrentValidatorSet(arg0 *big.Int) (struct {
+	Address common.Address
+	BlsKey  []byte
+}, error) {
 	return _CheckpointManager.Contract.CurrentValidatorSet(&_CheckpointManager.CallOpts, arg0)
 }
 
 // CurrentValidatorSet is a free data retrieval call binding the contract method 0x6969a25c.
 //
-// Solidity: function currentValidatorSet(uint256 ) view returns(address _address)
-func (_CheckpointManager *CheckpointManagerCallerSession) CurrentValidatorSet(arg0 *big.Int) (common.Address, error) {
+// Solidity: function currentValidatorSet(uint256 ) view returns(address _address, bytes blsKey)
+func (_CheckpointManager *CheckpointManagerCallerSession) CurrentValidatorSet(arg0 *big.Int) (struct {
+	Address common.Address
+	BlsKey  []byte
+}, error) {
 	return _CheckpointManager.Contract.CurrentValidatorSet(&_CheckpointManager.CallOpts, arg0)
 }
 
@@ -634,44 +648,44 @@ func (_CheckpointManager *CheckpointManagerCallerSession) GetEventRootByBlock(bl
 	return _CheckpointManager.Contract.GetEventRootByBlock(&_CheckpointManager.CallOpts, blockNumber)
 }
 
-// Initialize is a paid mutator transaction binding the contract method 0x24d4fad7.
+// Initialize is a paid mutator transaction binding the contract method 0x9b2a80a1.
 //
-// Solidity: function initialize(address newBls, uint256 chainId_, (address,uint256[2])[] newValidatorSet) returns()
+// Solidity: function initialize(address newBls, uint256 chainId_, (address,bytes)[] newValidatorSet) returns()
 func (_CheckpointManager *CheckpointManagerTransactor) Initialize(opts *bind.TransactOpts, newBls common.Address, chainId_ *big.Int, newValidatorSet []ICheckpointManagerValidator) (*types.Transaction, error) {
 	return _CheckpointManager.contract.Transact(opts, "initialize", newBls, chainId_, newValidatorSet)
 }
 
-// Initialize is a paid mutator transaction binding the contract method 0x24d4fad7.
+// Initialize is a paid mutator transaction binding the contract method 0x9b2a80a1.
 //
-// Solidity: function initialize(address newBls, uint256 chainId_, (address,uint256[2])[] newValidatorSet) returns()
+// Solidity: function initialize(address newBls, uint256 chainId_, (address,bytes)[] newValidatorSet) returns()
 func (_CheckpointManager *CheckpointManagerSession) Initialize(newBls common.Address, chainId_ *big.Int, newValidatorSet []ICheckpointManagerValidator) (*types.Transaction, error) {
 	return _CheckpointManager.Contract.Initialize(&_CheckpointManager.TransactOpts, newBls, chainId_, newValidatorSet)
 }
 
-// Initialize is a paid mutator transaction binding the contract method 0x24d4fad7.
+// Initialize is a paid mutator transaction binding the contract method 0x9b2a80a1.
 //
-// Solidity: function initialize(address newBls, uint256 chainId_, (address,uint256[2])[] newValidatorSet) returns()
+// Solidity: function initialize(address newBls, uint256 chainId_, (address,bytes)[] newValidatorSet) returns()
 func (_CheckpointManager *CheckpointManagerTransactorSession) Initialize(newBls common.Address, chainId_ *big.Int, newValidatorSet []ICheckpointManagerValidator) (*types.Transaction, error) {
 	return _CheckpointManager.Contract.Initialize(&_CheckpointManager.TransactOpts, newBls, chainId_, newValidatorSet)
 }
 
-// Submit is a paid mutator transaction binding the contract method 0x4bde58a1.
+// Submit is a paid mutator transaction binding the contract method 0x836b9e7f.
 //
-// Solidity: function submit((bytes32,uint32,bytes32) checkpointMetadata, (uint64,uint64,uint64,bytes32,bytes32) checkpoint, bytes signature, bytes bitmap, (address,uint256[2])[] newValidatorSet, uint256 leafIndex, bytes32[] proof) returns()
+// Solidity: function submit((bytes32,uint32,bytes32) checkpointMetadata, (uint64,uint64,uint64,bytes32,bytes32) checkpoint, bytes signature, bytes bitmap, (address,bytes)[] newValidatorSet, uint256 leafIndex, bytes32[] proof) returns()
 func (_CheckpointManager *CheckpointManagerTransactor) Submit(opts *bind.TransactOpts, checkpointMetadata ICheckpointManagerCheckpointMetadata, checkpoint ICheckpointManagerCheckpoint, signature []byte, bitmap []byte, newValidatorSet []ICheckpointManagerValidator, leafIndex *big.Int, proof [][32]byte) (*types.Transaction, error) {
 	return _CheckpointManager.contract.Transact(opts, "submit", checkpointMetadata, checkpoint, signature, bitmap, newValidatorSet, leafIndex, proof)
 }
 
-// Submit is a paid mutator transaction binding the contract method 0x4bde58a1.
+// Submit is a paid mutator transaction binding the contract method 0x836b9e7f.
 //
-// Solidity: function submit((bytes32,uint32,bytes32) checkpointMetadata, (uint64,uint64,uint64,bytes32,bytes32) checkpoint, bytes signature, bytes bitmap, (address,uint256[2])[] newValidatorSet, uint256 leafIndex, bytes32[] proof) returns()
+// Solidity: function submit((bytes32,uint32,bytes32) checkpointMetadata, (uint64,uint64,uint64,bytes32,bytes32) checkpoint, bytes signature, bytes bitmap, (address,bytes)[] newValidatorSet, uint256 leafIndex, bytes32[] proof) returns()
 func (_CheckpointManager *CheckpointManagerSession) Submit(checkpointMetadata ICheckpointManagerCheckpointMetadata, checkpoint ICheckpointManagerCheckpoint, signature []byte, bitmap []byte, newValidatorSet []ICheckpointManagerValidator, leafIndex *big.Int, proof [][32]byte) (*types.Transaction, error) {
 	return _CheckpointManager.Contract.Submit(&_CheckpointManager.TransactOpts, checkpointMetadata, checkpoint, signature, bitmap, newValidatorSet, leafIndex, proof)
 }
 
-// Submit is a paid mutator transaction binding the contract method 0x4bde58a1.
+// Submit is a paid mutator transaction binding the contract method 0x836b9e7f.
 //
-// Solidity: function submit((bytes32,uint32,bytes32) checkpointMetadata, (uint64,uint64,uint64,bytes32,bytes32) checkpoint, bytes signature, bytes bitmap, (address,uint256[2])[] newValidatorSet, uint256 leafIndex, bytes32[] proof) returns()
+// Solidity: function submit((bytes32,uint32,bytes32) checkpointMetadata, (uint64,uint64,uint64,bytes32,bytes32) checkpoint, bytes signature, bytes bitmap, (address,bytes)[] newValidatorSet, uint256 leafIndex, bytes32[] proof) returns()
 func (_CheckpointManager *CheckpointManagerTransactorSession) Submit(checkpointMetadata ICheckpointManagerCheckpointMetadata, checkpoint ICheckpointManagerCheckpoint, signature []byte, bitmap []byte, newValidatorSet []ICheckpointManagerValidator, leafIndex *big.Int, proof [][32]byte) (*types.Transaction, error) {
 	return _CheckpointManager.Contract.Submit(&_CheckpointManager.TransactOpts, checkpointMetadata, checkpoint, signature, bitmap, newValidatorSet, leafIndex, proof)
 }
@@ -745,13 +759,13 @@ func (it *CheckpointManagerInitializedIterator) Close() error {
 
 // CheckpointManagerInitialized represents a Initialized event raised by the CheckpointManager contract.
 type CheckpointManagerInitialized struct {
-	Version uint64
+	Version uint8
 	Raw     types.Log // Blockchain specific contextual infos
 }
 
-// FilterInitialized is a free log retrieval operation binding the contract event 0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2.
+// FilterInitialized is a free log retrieval operation binding the contract event 0x7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb3847402498.
 //
-// Solidity: event Initialized(uint64 version)
+// Solidity: event Initialized(uint8 version)
 func (_CheckpointManager *CheckpointManagerFilterer) FilterInitialized(opts *bind.FilterOpts) (*CheckpointManagerInitializedIterator, error) {
 
 	logs, sub, err := _CheckpointManager.contract.FilterLogs(opts, "Initialized")
@@ -761,9 +775,9 @@ func (_CheckpointManager *CheckpointManagerFilterer) FilterInitialized(opts *bin
 	return &CheckpointManagerInitializedIterator{contract: _CheckpointManager.contract, event: "Initialized", logs: logs, sub: sub}, nil
 }
 
-// WatchInitialized is a free log subscription operation binding the contract event 0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2.
+// WatchInitialized is a free log subscription operation binding the contract event 0x7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb3847402498.
 //
-// Solidity: event Initialized(uint64 version)
+// Solidity: event Initialized(uint8 version)
 func (_CheckpointManager *CheckpointManagerFilterer) WatchInitialized(opts *bind.WatchOpts, sink chan<- *CheckpointManagerInitialized) (event.Subscription, error) {
 
 	logs, sub, err := _CheckpointManager.contract.WatchLogs(opts, "Initialized")
@@ -798,9 +812,9 @@ func (_CheckpointManager *CheckpointManagerFilterer) WatchInitialized(opts *bind
 	}), nil
 }
 
-// ParseInitialized is a log parse operation binding the contract event 0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2.
+// ParseInitialized is a log parse operation binding the contract event 0x7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb3847402498.
 //
-// Solidity: event Initialized(uint64 version)
+// Solidity: event Initialized(uint8 version)
 func (_CheckpointManager *CheckpointManagerFilterer) ParseInitialized(log types.Log) (*CheckpointManagerInitialized, error) {
 	event := new(CheckpointManagerInitialized)
 	if err := _CheckpointManager.contract.UnpackLog(event, "Initialized", log); err != nil {
