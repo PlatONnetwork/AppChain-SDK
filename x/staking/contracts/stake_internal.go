@@ -428,7 +428,7 @@ func (c *StakeHandler) syncStateUnStake(validatorAddr basecommon.Address, amount
 		return typesdk.NewRevertError("encode L2StateSender unstake data failed")
 	}
 
-	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, address.StakeSenderAddress)
+	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, address.StateSenderAddress)
 	if nil != err {
 		log.Error("Failed to call NewL2StateSenderCaller", "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
 		return typesdk.NewRevertError("call unstake by L2StateSender failed")
@@ -448,7 +448,7 @@ func (c *StakeHandler) syncStateUnDelegate(validatorAddr, delegaterAddr basecomm
 		return typesdk.NewRevertError("encode L2StateSender undelegate data failed")
 	}
 
-	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, address.StakeSenderAddress)
+	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, address.StateSenderAddress)
 	if nil != err {
 		log.Error("Failed to call NewL2StateSenderCaller", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
 		return typesdk.NewRevertError("call undelegate by L2StateSender failed")
@@ -469,7 +469,7 @@ func (c *StakeHandler) syncStateSlash(validators []basecommon.Address) error {
 		return typesdk.NewRevertError("encode L2StateSender slash data failed")
 	}
 
-	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, address.StakeSenderAddress)
+	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, address.StateSenderAddress)
 	if nil != err {
 		log.Error("Failed to call NewL2StateSenderCaller", "validators size", len(validators), "error", err)
 		return typesdk.NewRevertError("call slash by L2StateSender failed")

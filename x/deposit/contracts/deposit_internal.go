@@ -23,14 +23,14 @@ var (
 )
 
 var (
-	DEPOSIT_PARAMS_TYPE = abi.MustNewType("tuple(address depositor, address recipient, uint256 amount)")
-
+	DEPOSIT_PARAMS_TYPE  = abi.MustNewType("tuple(address depositor, address recipient, uint256 amount)")
 	WITHDRAW_PARAMS_TYPE = abi.MustNewType("tuple(bytes32 sig, address withdrawer, address recipient, uint256 amount)")
 )
 
 func (c *DepositHandler) onDeposit(input []byte) error {
 	decoded, err := abi.Decode(DEPOSIT_PARAMS_TYPE, input)
 	if nil != err {
+		log.Error("Failed to decode deposit data", "error", err)
 		return typesdk.NewRevertError("DepositHandler: DECODE_DEPOSIT_DATA_FAILED")
 	}
 	res, ok := decoded.(map[string]interface{})
@@ -40,17 +40,17 @@ func (c *DepositHandler) onDeposit(input []byte) error {
 
 	depositor, ok := res["depositor"].(ethgo.Address)
 	if !ok {
-		return typesdk.NewRevertError("StakeHandler: INVALID_DEPOSITOR")
+		return typesdk.NewRevertError("DepositHandler: INVALID_DEPOSITOR")
 	}
 
 	recipient, ok := res["recipient"].(ethgo.Address)
 	if !ok {
-		return typesdk.NewRevertError("StakeHandler: INVALID_RECIPIENT")
+		return typesdk.NewRevertError("DepositHandler: INVALID_RECIPIENT")
 	}
 
 	amount, ok := res["amount"].(*big.Int)
 	if !ok {
-		return typesdk.NewRevertError("StakeHandler: INVALID_AMOUNT")
+		return typesdk.NewRevertError("DepositHandler: INVALID_AMOUNT")
 	}
 	return c.deposit(basecommon.Address(depositor), basecommon.Address(recipient), amount)
 }
@@ -69,15 +69,18 @@ func (c *DepositHandler) syncStateWithdraw(withdrawer, recipient basecommon.Addr
 
 	data, err := abi.Encode([]interface{}{WITHDRAW_SIG, withdrawer, recipient, amount}, WITHDRAW_PARAMS_TYPE)
 	if nil != err {
+		log.Error("Failed to encode withdraw syncState data", "withdrawer", withdrawer.Hex(), "recipient", recipient, "amount", amount, "error", err)
 		return typesdk.NewRevertError(fmt.Sprintf("encode L2StateSender withdraw data %s", err))
 	}
 
-	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, address.StakeSenderAddress)
+	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, address.StateSenderAddress)
 	if nil != err {
+		log.Error("Failed to call NewL2StateSenderCaller", "withdrawer", withdrawer.Hex(), "recipient", recipient, "amount", amount, "error", err)
 		return typesdk.NewRevertError(fmt.Sprintf("call withdraw by L2StateSender %s", err))
 	}
 
 	if err := l2statesender.SyncState(address.RootchainDepositManagerAddress, data); nil != err {
+		log.Error("Failed to call SyncState", "withdrawer", withdrawer.Hex(), "recipient", recipient, "amount", amount, "error", err)
 		return typesdk.NewRevertError(fmt.Sprintf("call withdraw by L2StateSender %s", err))
 	}
 	return nil
