@@ -77,7 +77,7 @@ func (m *Module) GetLastNumber(ctx sdk.ConsensusContext, blockNumber uint64) uin
 	if blockNumber <= NumberBlocksOfEpoch {
 		lastBlockNumber = NumberBlocksOfEpoch
 	} else {
-		vds, err := m.GetValidator(ctx, blockNumber)
+		vds, err := m.GetRoundValidator(ctx, blockNumber)
 		if err != nil {
 			log.Error("Get validator fail", "blockNumber", blockNumber)
 			return 0
