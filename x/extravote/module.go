@@ -19,9 +19,9 @@ const (
 
 type ExtraVerifier interface {
 	Name() string
-	ExtendData(ctx sdk.Context) []byte
-	VerifyExtendData(ctx sdk.Context, data []byte) error
-	PrepareQC(ctx sdk.Context, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote)
+	ExtendData(ctx sdk.ConsensusContext) []byte
+	VerifyExtendData(ctx sdk.ConsensusContext, data []byte) error
+	PrepareQC(ctx sdk.ConsensusContext, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote)
 }
 
 // TODO 处理扩展投票，对每个子模块进行扩展，生成投票 Merkle 证明
@@ -39,7 +39,7 @@ func (e *ExtraVote) Name() string {
 	return "extravote"
 }
 
-func (e *ExtraVote) ExtendData(ctx sdk.Context) []byte {
+func (e *ExtraVote) ExtendData(ctx sdk.ConsensusContext) []byte {
 	data := make([][]byte, len(e.modules))
 	for i, m := range e.modules {
 		data[i] = m.ExtendData(ctx)
@@ -49,7 +49,7 @@ func (e *ExtraVote) ExtendData(ctx sdk.Context) []byte {
 	return extraData
 }
 
-func (e *ExtraVote) VerifyExtendData(ctx sdk.Context, data []byte) (common.Hash, error) {
+func (e *ExtraVote) VerifyExtendData(ctx sdk.ConsensusContext, data []byte) (common.Hash, error) {
 	cc := ctx.(sdk.ConsensusContext)
 
 	var extraData [][]byte
@@ -76,7 +76,7 @@ func (e *ExtraVote) VerifyExtendData(ctx sdk.Context, data []byte) (common.Hash,
 	return trie.Hash(), nil
 }
 
-func (e *ExtraVote) PrepareQC(ctx sdk.Context, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote) {
+func (e *ExtraVote) PrepareQC(ctx sdk.ConsensusContext, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote) {
 	for _, m := range e.modules {
 		m.PrepareQC(ctx, block, votes)
 	}

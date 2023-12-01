@@ -1,10 +1,8 @@
 package checkpoint
 
 import (
-	"errors"
 	"fmt"
 	"math/big"
-	"reflect"
 
 	sdkcom "github.com/PlatONnetwork/AppChain-SDK/common"
 	"github.com/PlatONnetwork/AppChain-SDK/merkle"
@@ -147,17 +145,11 @@ func (m *Module) ProcessLog(header *coretypes.Header, qc *ctypes.QuorumCert, log
 	return m.store.InsertExitEvent(exitEvent)
 }
 
-func (m *Module) ExtendData(ctx sdk.Context) []byte {
-	sdkCtx, ok := ctx.(sdk.ConsensusContext)
-	if !ok {
-		m.logger.Error("Unexpeced sdk context", "ctx", reflect.TypeOf(ctx).String())
-		return []byte{}
-	}
-
-	header := sdkCtx.Header()
-	view := sdkCtx.View()
-	epoch := sdkCtx.Epoch()
-	blockIndex := sdkCtx.BlockIndex()
+func (m *Module) ExtendData(ctx sdk.ConsensusContext) []byte {
+	header := ctx.Header()
+	view := ctx.View()
+	epoch := ctx.Epoch()
+	blockIndex := ctx.BlockIndex()
 	logger := m.logger.New("epoch", epoch, "view", view, "index", blockIndex, "number", header.Number, "hash", header.Hash())
 
 	logger.Info("Extend data")
@@ -194,7 +186,7 @@ func (m *Module) ExtendData(ctx sdk.Context) []byte {
 			return []byte{}
 		}
 
-		chainID, _ := sdkCtx.Backend().ChainId()
+		chainID, _ := ctx.Backend().ChainId()
 
 		checkpoint := &types.CheckpointData{
 			ChainID:               chainID.Uint64(),
@@ -213,17 +205,12 @@ func (m *Module) ExtendData(ctx sdk.Context) []byte {
 	return []byte{}
 }
 
-func (m *Module) VerifyExtendData(ctx sdk.Context, data []byte) error {
-	sdkCtx, ok := ctx.(sdk.ConsensusContext)
-	if !ok {
-		m.logger.Error("Unexpeced sdk context", "ctx", reflect.TypeOf(ctx).String())
-		return errors.New("unexpected sdk context")
-	}
-
-	header := sdkCtx.Header()
-	view := sdkCtx.View()
-	epoch := sdkCtx.Epoch()
-	logger := m.logger.New("epoch", epoch, "view", view, "index", sdkCtx.BlockIndex(), "number", header.Number, "hash", header.Hash())
+func (m *Module) VerifyExtendData(ctx sdk.ConsensusContext, data []byte) error {
+	header := ctx.Header()
+	view := ctx.View()
+	epoch := ctx.Epoch()
+	blockIndex := ctx.BlockIndex()
+	logger := m.logger.New("epoch", epoch, "view", view, "index", blockIndex, "number", header.Number, "hash", header.Hash())
 
 	logger.Info("Verify extend data")
 
@@ -244,8 +231,8 @@ func (m *Module) VerifyExtendData(ctx sdk.Context, data []byte) error {
 		if checkpoint.ViewNumber != view {
 			return fmt.Errorf("mismatch view(checkpoint:%d,actual:%d)", checkpoint.ViewNumber, view)
 		}
-		if checkpoint.BlockIndex != sdkCtx.BlockIndex() {
-			return fmt.Errorf("mismatch blockIndex(checkpoint:%d,actual:%d)", checkpoint.BlockIndex, sdkCtx.BlockIndex())
+		if checkpoint.BlockIndex != blockIndex {
+			return fmt.Errorf("mismatch blockIndex(checkpoint:%d,actual:%d)", checkpoint.BlockIndex, blockIndex)
 		}
 		if checkpoint.BlockNumber != blockNumber {
 			return fmt.Errorf("mismatch blockNumber(checkpoint:%d,actual:%d)", checkpoint.BlockNumber, header.Number)
@@ -310,12 +297,11 @@ func (m *Module) VerifyExtendData(ctx sdk.Context, data []byte) error {
 	return nil
 }
 
-func (m *Module) PrepareQC(ctx sdk.Context, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote) {
+func (m *Module) PrepareQC(ctx sdk.ConsensusContext, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote) {
 }
 
-func (m *Module) OnCommit(ctx sdk.Context, block *coretypes.Block) error {
-	sdkCtx := ctx.(sdk.ConsensusContext)
-	logger := m.logger.New("epoch", sdkCtx.Epoch(), "view", sdkCtx.View(), "index", sdkCtx.BlockIndex(), "number", sdkCtx.Header().Number, "hash", sdkCtx.Header().Hash())
+func (m *Module) OnCommit(ctx sdk.ConsensusContext, block *coretypes.Block) error {
+	logger := m.logger.New("epoch", ctx.Epoch(), "view", ctx.View(), "index", ctx.BlockIndex(), "number", ctx.Header().Number, "hash", ctx.Header().Hash())
 	logger.Info("OnCommit")
 
 	blockNumber := block.NumberU64()
@@ -326,9 +312,9 @@ func (m *Module) OnCommit(ctx sdk.Context, block *coretypes.Block) error {
 			return err
 		}
 
-		if sdkCtx.IsProposer() {
+		if ctx.IsProposer() {
 			go func(number uint64) {
-				if err := m.submitCheckpoint(sdkCtx, number, qc); err != nil {
+				if err := m.submitCheckpoint(ctx, number, qc); err != nil {
 					logger.Error("Failed to submit checkpoint", "err", err)
 				}
 			}(blockNumber)
@@ -337,7 +323,7 @@ func (m *Module) OnCommit(ctx sdk.Context, block *coretypes.Block) error {
 	return nil
 }
 
-func (m *Module) submitCheckpoint(ctx sdk.Context, latestNumber uint64, latestQC *ctypes.QuorumCert) error {
+func (m *Module) submitCheckpoint(ctx sdk.ConsensusContext, latestNumber uint64, latestQC *ctypes.QuorumCert) error {
 	lastCheckpointBlockNumber, err := getCurrentCheckpointBlock(m.txRelayer, m.checkpointManagerAddr)
 	if err != nil {
 		return err
@@ -387,7 +373,7 @@ func (m *Module) submitCheckpoint(ctx sdk.Context, latestNumber uint64, latestQC
 	return nil
 }
 
-func (m *Module) rebuildCheckpoint(ctx sdk.Context, qc *ctypes.QuorumCert) (*types.Checkpoint, error) {
+func (m *Module) rebuildCheckpoint(ctx sdk.ConsensusContext, qc *ctypes.QuorumCert) (*types.Checkpoint, error) {
 	currentValidators, err := m.staking.GetValidator(ctx, qc.BlockNumber)
 	if err != nil {
 		return nil, err
@@ -437,7 +423,7 @@ func (m *Module) rebuildCheckpoint(ctx sdk.Context, qc *ctypes.QuorumCert) (*typ
 	}, nil
 }
 
-func (m *Module) encodeAndSendCheckpoint(ctx sdk.Context, checkpoint *types.Checkpoint) error {
+func (m *Module) encodeAndSendCheckpoint(ctx sdk.ConsensusContext, checkpoint *types.Checkpoint) error {
 	checkpointMetadata := checkpoint_manager.ICheckpointManagerCheckpointMetadata{
 		BlockHash:               checkpoint.BlockHash,
 		BlockIndex:              checkpoint.BlockIndex,

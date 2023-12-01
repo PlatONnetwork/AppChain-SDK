@@ -53,7 +53,7 @@ func (m *Module) Name() string {
 	return types.ModuleName
 }
 
-func (m *Module) OnCommit(ctx sdk.Context, block *coretypes.Block) error {
+func (m *Module) OnCommit(ctx sdk.ConsensusContext, block *coretypes.Block) error {
 	m.logger.Debug("OnCommit", "number", block.Number(), "hash", block.Hash())
 	if ctx.Backend() == nil {
 		m.logger.Error("Empty backend")

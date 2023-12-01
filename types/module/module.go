@@ -48,22 +48,22 @@ type P2PModule interface {
 
 type ConsensusExtendModule interface {
 	Module
-	ExtendData(ctx sdk.Context) []byte
-	VerifyExtendData(ctx sdk.Context, data []byte) (common.Hash, error)
-	PrepareQC(ctx sdk.Context, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote)
+	ExtendData(ctx sdk.ConsensusContext) []byte
+	VerifyExtendData(ctx sdk.ConsensusContext, data []byte) (common.Hash, error)
+	PrepareQC(ctx sdk.ConsensusContext, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote)
 }
 
 type BlockCommiter interface {
 	Module
-	OnCommit(ctx sdk.Context, block *types.Block) error
+	OnCommit(ctx sdk.ConsensusContext, block *types.Block) error
 }
 
 type ElectionModule interface {
 	Module
-	NewHeader(ctx sdk.Context, header *types.Header) error
-	GetLastNumber(ctx sdk.Context, blockNumber uint64) uint64
-	GetValidator(ctx sdk.Context, blockNumber uint64) (*cbfttypes.Validators, error)
-	IsCandidateNode(ctx sdk.Context, nodeID enode.IDv0) bool
+	NewHeader(ctx sdk.ConsensusContext, header *types.Header) error
+	GetLastNumber(ctx sdk.ConsensusContext, blockNumber uint64) uint64
+	GetValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error)
+	IsCandidateNode(ctx sdk.ConsensusContext, nodeID enode.IDv0) bool
 }
 
 type GenesisModule interface {
@@ -73,18 +73,18 @@ type GenesisModule interface {
 
 type BlockerModule interface {
 	Module
-	BeginBlock(ctx sdk.Context)
-	EndBlock(ctx sdk.Context)
+	BeginBlock(ctx sdk.WorkerContext)
+	EndBlock(ctx sdk.WorkerContext)
 }
 
 type WorkerModule interface {
 	Module
-	SortTxs(ctx sdk.Context, local map[common.Address]types.Transactions, remote map[common.Address]types.Transactions) (types.Transactions, error)
+	SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions, remote map[common.Address]types.Transactions) (types.Transactions, error)
 }
 
 type TransactionModule interface {
 	Module
-	AddTxs(ctx sdk.Context, local, remote map[common.Address]types.Transactions) (map[common.Address]types.Transactions, map[common.Address]types.Transactions)
+	AddTxs(ctx sdk.WorkerContext, local, remote map[common.Address]types.Transactions) (map[common.Address]types.Transactions, map[common.Address]types.Transactions)
 }
 
 type Manager struct {
@@ -269,7 +269,7 @@ func (m *Manager) FilterPendingTxs(ctx sdk.Context, txs map[common.Address]types
 	return filterTxs
 }
 
-func (m *Manager) ExtendData(ctx sdk.Context) []byte {
+func (m *Manager) ExtendData(ctx sdk.ConsensusContext) []byte {
 	log.Info("Extend data for consensus engine")
 	if m.Modules[m.ConsensusExtend] == nil {
 		return []byte{}
@@ -283,7 +283,7 @@ func (m *Manager) ExtendData(ctx sdk.Context) []byte {
 	return []byte{}
 }
 
-func (m *Manager) VerifyExtendData(ctx sdk.Context, data []byte) (common.Hash, error) {
+func (m *Manager) VerifyExtendData(ctx sdk.ConsensusContext, data []byte) (common.Hash, error) {
 	log.Info("Verify extend data for consensus engine")
 	if m.Modules[m.ConsensusExtend] == nil {
 		return common.ZeroHash, nil
@@ -297,7 +297,7 @@ func (m *Manager) VerifyExtendData(ctx sdk.Context, data []byte) (common.Hash, e
 	return common.ZeroHash, nil
 }
 
-func (m *Manager) PrepareQC(ctx sdk.Context, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote) {
+func (m *Manager) PrepareQC(ctx sdk.ConsensusContext, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote) {
 	log.Info("Notify prepare qc")
 	if m.Modules[m.ConsensusExtend] == nil {
 		return
@@ -311,7 +311,7 @@ func (m *Manager) PrepareQC(ctx sdk.Context, block *protocols.PrepareBlock, vote
 	return
 }
 
-func (m *Manager) NewHeader(ctx sdk.Context, header *types.Header) error {
+func (m *Manager) NewHeader(ctx sdk.ConsensusContext, header *types.Header) error {
 	log.Info("New header for election app")
 	if m.Modules[m.Election] == nil {
 		return nil
@@ -325,7 +325,7 @@ func (m *Manager) NewHeader(ctx sdk.Context, header *types.Header) error {
 	return nil
 }
 
-func (m *Manager) GetLastNumber(ctx sdk.Context, blockNumber uint64) uint64 {
+func (m *Manager) GetLastNumber(ctx sdk.ConsensusContext, blockNumber uint64) uint64 {
 	log.Info("Get last number for election app")
 	if m.Modules[m.Election] == nil {
 		return 0
@@ -339,7 +339,7 @@ func (m *Manager) GetLastNumber(ctx sdk.Context, blockNumber uint64) uint64 {
 	return 0
 }
 
-func (m *Manager) GetValidator(ctx sdk.Context, blockNumber uint64) (*cbfttypes.Validators, error) {
+func (m *Manager) GetValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error) {
 	log.Info("Get validator for election app")
 	if m.Modules[m.Election] == nil {
 		return nil, nil
@@ -353,7 +353,7 @@ func (m *Manager) GetValidator(ctx sdk.Context, blockNumber uint64) (*cbfttypes.
 	return nil, nil
 }
 
-func (m *Manager) IsCandidateNode(ctx sdk.Context, nodeID enode.IDv0) bool {
+func (m *Manager) IsCandidateNode(ctx sdk.ConsensusContext, nodeID enode.IDv0) bool {
 	log.Info("Check node if a candidate node for election app")
 	if m.Modules[m.Election] == nil {
 		return false
@@ -367,7 +367,7 @@ func (m *Manager) IsCandidateNode(ctx sdk.Context, nodeID enode.IDv0) bool {
 	return false
 }
 
-func (m *Manager) OnCommit(ctx sdk.Context, block *types.Block) error {
+func (m *Manager) OnCommit(ctx sdk.ConsensusContext, block *types.Block) error {
 	log.Info("Notify block commit for election app")
 	for _, moduleName := range m.OrderBlockCommiter {
 		mod := m.Modules[moduleName]
@@ -393,7 +393,7 @@ func (m *Manager) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *para
 	return nil
 }
 
-func (m *Manager) BeginBlock(ctx sdk.Context) {
+func (m *Manager) BeginBlock(ctx sdk.WorkerContext) {
 	for _, moduleName := range m.OrderBlocker {
 		if module, ok := m.Modules[moduleName].(BlockerModule); ok {
 			module.BeginBlock(ctx)
@@ -403,7 +403,7 @@ func (m *Manager) BeginBlock(ctx sdk.Context) {
 	}
 }
 
-func (m *Manager) EndBlock(ctx sdk.Context) {
+func (m *Manager) EndBlock(ctx sdk.WorkerContext) {
 	for _, moduleName := range m.OrderBlocker {
 		if module, ok := m.Modules[moduleName].(BlockerModule); ok {
 			module.EndBlock(ctx)
@@ -413,7 +413,7 @@ func (m *Manager) EndBlock(ctx sdk.Context) {
 	}
 }
 
-func (m *Manager) SortTxs(ctx sdk.Context, local, remote map[common.Address]types.Transactions) (types.Transactions, error) {
+func (m *Manager) SortTxs(ctx sdk.WorkerContext, local, remote map[common.Address]types.Transactions) (types.Transactions, error) {
 	for _, moduleName := range m.OrderTransaction {
 		if module, ok := m.Modules[moduleName].(TransactionModule); ok {
 			local, remote = module.AddTxs(ctx, local, remote)
