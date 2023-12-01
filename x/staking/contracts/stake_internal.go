@@ -48,6 +48,7 @@ func (c *StakeHandler) Initialize() error {
 func (c *StakeHandler) onStake(input []byte) error {
 	decoded, err := abi.Decode(STAKE_PARAMS_TYPE, input)
 	if nil != err {
+		log.Error("Failed to decode stake data", "error", err)
 		return typesdk.NewRevertError("StakeHandler: DECODE_STAKE_DATA_FAILED")
 	}
 	res, ok := decoded.(map[string]interface{})
@@ -99,6 +100,7 @@ func (c *StakeHandler) onStake(input []byte) error {
 func (c *StakeHandler) onAddStake(input []byte) error {
 	decoded, err := abi.Decode(ADDSTAKE_PARAMS_TYPE, input)
 	if nil != err {
+		log.Error("Failed to decode addStake data", "error", err)
 		return typesdk.NewRevertError("StakeHandler: DECODE_ADD_STAKE_DATA_FAILED")
 	}
 	res, ok := decoded.(map[string]interface{})
@@ -122,6 +124,7 @@ func (c *StakeHandler) onAddStake(input []byte) error {
 func (c *StakeHandler) onSlash(input []byte) error {
 	decoded, err := abi.Decode(CHILD_CHAIN_SLASH_PARAMS_TYPE, input)
 	if nil != err {
+		log.Error("Failed to decode slash data", "error", err)
 		return typesdk.NewRevertError("StakeHandler: DECODE_SLASH_DATA_FAILED")
 	}
 	res, ok := decoded.(map[string]interface{})
@@ -227,7 +230,9 @@ func (c *StakeHandler) addStake(validatorAddr basecommon.Address, amount *big.In
 		}
 
 		if nil != err {
-			return typesdk.NewRevertError("StakeHandler: ADDSTAKE FAILED")
+			log.Error("Failed to call registerStakeWithdrawal", "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
+			return typesdk.NewRevertError("StakeHandler: ADD STAKE FAILED")
+
 		}
 	}
 
@@ -265,17 +270,20 @@ func (c *StakeHandler) unStake(validatorAddr basecommon.Address, amount *big.Int
 	// update validator priority
 	validator.SubStakeAmount(amount)
 
-	var err error
 	if validator.StakeAmount.Cmp(basecommon.Big0) == 0 {
 		validator.AppendStatus(types.Invalided | types.Unstaked)
-		if err = c.updateValidatorRemovePriority(validatorAddr, validator); nil != err {
-			return err
+		if err := c.updateValidatorRemovePriority(validatorAddr, validator); nil != err {
+			log.Error("Failed to call updateValidatorRemovePriority", "validatorAddr", validatorAddr.Hex(), "error", err)
+			return typesdk.NewRevertError("StakeHandler: can not update validator priority")
 		}
 	} else {
-		err = c.updateValidatorByPriority(validatorAddr, validator)
+		if err := c.updateValidatorByPriority(validatorAddr, validator); nil != err {
+			log.Error("Failed to call updateValidatorByPriority", "validatorAddr", validatorAddr.Hex(), "error", err)
+			return typesdk.NewRevertError("StakeHandler: can not update validator priority")
+		}
 	}
 
-	return err
+	return nil
 }
 
 func (c *StakeHandler) slash(handleEventId *big.Int, validatorAddrs []basecommon.Address, amounts []*big.Int) error {
@@ -297,7 +305,8 @@ func (c *StakeHandler) slash(handleEventId *big.Int, validatorAddrs []basecommon
 
 	}
 	if err := c.setSlashProcessed(handleEventId, queue); nil != err {
-		return err
+		log.Error("Failed to call setSlashProcessed", "handleEventId", handleEventId, "error", err)
+		return typesdk.NewRevertError("StakeHandler: INVALID_PARAMS")
 	}
 
 	if err := c.addLogSlashedEvent(handleEventId, validatorAddrs, amounts); nil != err {
@@ -329,13 +338,14 @@ func (c *StakeHandler) delegate(validatorAddr, delegaterAddr basecommon.Address,
 		// update delegation
 		build, err := c.incrementDelegation(delegaterAddr, validatorAddr, validator.Epoch, c.getCurrentEpoch(), amount)
 		if nil != err {
-			log.Error("Failed to set delegation", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
+			log.Error("Failed to set delegation", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "stakeEpoch", validator.Epoch, "error", err)
 			return typesdk.NewRevertError("StakeHandler: SET DELEGATION FAILED")
 		}
 		// append validator delegation rc
 		if build {
 			if err = c.appendValidatorDelegationRc(validatorAddr, validator.Epoch, 1); nil != err {
-
+				log.Error("Failed to append validatorDelegation rc", "validatorAddr", validatorAddr.Hex(), "stakeEpoch", validator.Epoch, "error", err)
+				return typesdk.NewRevertError("StakeHandler: APPEND VALIDATOR DELEGATION RC FAILED")
 			}
 		}
 
@@ -414,15 +424,18 @@ func (c *StakeHandler) syncStateUnStake(validatorAddr basecommon.Address, amount
 
 	data, err := abi.Encode([]interface{}{UNSTAKE_SIG, validatorAddr, amount}, UNSTAKE_PARAMS_TYPE)
 	if nil != err {
+		log.Error("Failed to encode unstake syncState data", "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
 		return typesdk.NewRevertError("encode L2StateSender unstake data failed")
 	}
 
 	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, address.StakeSenderAddress)
 	if nil != err {
+		log.Error("Failed to call NewL2StateSenderCaller", "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
 		return typesdk.NewRevertError("call unstake by L2StateSender failed")
 	}
 
 	if err := l2statesender.SyncState(address.RootchainStakeManagerAddress, data); nil != err {
+		log.Error("Failed to call SyncState", "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
 		return typesdk.NewRevertError("call unstake by L2StateSender failed")
 	}
 	return nil
@@ -431,15 +444,18 @@ func (c *StakeHandler) syncStateUnStake(validatorAddr basecommon.Address, amount
 func (c *StakeHandler) syncStateUnDelegate(validatorAddr, delegaterAddr basecommon.Address, amount *big.Int) error {
 	data, err := abi.Encode([]interface{}{UNDELEGATE_SIG, validatorAddr, delegaterAddr, amount}, UNDELEGATE_PARAMS_TYPE)
 	if nil != err {
+		log.Error("Failed to encode undelegate syncState data", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
 		return typesdk.NewRevertError("encode L2StateSender undelegate data failed")
 	}
 
 	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, address.StakeSenderAddress)
 	if nil != err {
+		log.Error("Failed to call NewL2StateSenderCaller", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
 		return typesdk.NewRevertError("call undelegate by L2StateSender failed")
 	}
 
 	if err := l2statesender.SyncState(address.RootchainStakeManagerAddress, data); nil != err {
+		log.Error("Failed to call SyncState", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
 		return typesdk.NewRevertError("call undelegate by L2StateSender failed")
 	}
 	return nil
@@ -449,15 +465,18 @@ func (c *StakeHandler) syncStateSlash(validators []basecommon.Address) error {
 
 	data, err := abi.Encode([]interface{}{SLASH_SIG, validators, stakecommon.SLASHING_PERCENTAGE, stakecommon.SLASH_INCENTIVE_PERCENTAGE}, ROOT_CHAIN_SLASH_PARAMS_TYPE)
 	if nil != err {
+		log.Error("Failed to encode slash syncState data", "validators size", len(validators), "error", err)
 		return typesdk.NewRevertError("encode L2StateSender slash data failed")
 	}
 
 	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, address.StakeSenderAddress)
 	if nil != err {
+		log.Error("Failed to call NewL2StateSenderCaller", "validators size", len(validators), "error", err)
 		return typesdk.NewRevertError("call slash by L2StateSender failed")
 	}
 
 	if err := l2statesender.SyncState(address.RootchainStakeManagerAddress, data); nil != err {
+		log.Error("Failed to call SyncState", "validators size", len(validators), "error", err)
 		return typesdk.NewRevertError("call slash by L2StateSender failed")
 	}
 	return nil

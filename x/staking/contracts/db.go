@@ -958,16 +958,7 @@ func (c *StakeHandler) removeValidatorDelegationRcItem(validatorAddr common.Addr
 	c.evm.StateDB.SetState(c.contract.Address(), encodeValidatorDelegationRcKey(validatorAddr, stakeEpoch), []byte{})
 }
 
-func (c *StakeHandler) incrementValidatorDelegationRcItem(validatorAddr common.Address, stakeEpoch, increment uint64) error {
-	item := c.getValidatorDelegationRcItem(validatorAddr, stakeEpoch)
-	if nil == item {
-		return db.ErrNotFound
-	}
-	item.IncrementRc(increment)
-	return c.setValidatorDelegationRcItem(validatorAddr, stakeEpoch, item)
-}
-
-func (c *StakeHandler) decrementValidatorDelegationRcItem(validatorAddr common.Address, stakeEpoch, decrement uint64) error {
+func (c *StakeHandler) releaseValidatorDelegationRcItem(validatorAddr common.Address, stakeEpoch, decrement uint64) error {
 	item := c.getValidatorDelegationRcItem(validatorAddr, stakeEpoch)
 	if nil == item {
 		return db.ErrNotFound
