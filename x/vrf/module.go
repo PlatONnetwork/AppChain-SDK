@@ -8,6 +8,7 @@ import (
 	sdkcommon "github.com/PlatONnetwork/AppChain-SDK/common"
 	"github.com/PlatONnetwork/AppChain-SDK/x/address"
 	"github.com/PlatONnetwork/AppChain-SDK/x/message"
+	"github.com/PlatONnetwork/AppChain-SDK/x/util"
 	"github.com/PlatONnetwork/AppChain-SDK/x/vrf/contracts"
 	vrfdb "github.com/PlatONnetwork/AppChain-SDK/x/vrf/db"
 	vrfInternal "github.com/PlatONnetwork/AppChain-SDK/x/vrf/wrap"
@@ -94,29 +95,6 @@ func (v *VRFModule) AddTxs(ctx sdk.Context, local, remote map[basecommon.Address
 
 func (v *VRFModule) BeginBlock(ctx sdk.Context) {
 
-	//isWorker := func(extra []byte) bool {
-	//	return len(extra) > 32 && len(extra[32:]) >= common.ExtraSeal && bytes.Equal(extra[32:97], make([]byte, common.ExtraSeal))
-	//}
-	//header := ctx.Backend().CurrentHeader()
-	//if isWorker(ctx.Backend().CurrentHeader().Extra) {
-	//	// Generate vrf proof
-	//	if value, err := v.GenerateNonce(header.Number, header.ParentHash); nil != err {
-	//		return err
-	//	} else {
-	//		header.Nonce = types.EncodeNonce(value)
-	//	}
-	//} else {
-	//	blockHash = header.CacheHash()
-	//	// Verify vrf proof
-	//	pk := header.CachePublicKey()
-	//	if pk == nil {
-	//		return errors.New("failed to get the public key of the block producer")
-	//	}
-	//	if err := v.VerifyVrf(pk, header.Number, header.ParentHash, blockHash, header.Nonce.Bytes()); nil != err {
-	//		return err
-	//	}
-	//}
-
 }
 func (v *VRFModule) EndBlock(ctx sdk.Context) {
 
@@ -128,26 +106,28 @@ func (v *VRFModule) EndBlock(ctx sdk.Context) {
 
 	header := ctx.Backend().CurrentHeader()
 
-	blockNumber := header.Number.Uint64()
-	// get nonceAndProof by block (After the `pushNonceAndProof` transaction was executed)
-	nonceAndProof, err := v.getCurrentNonceAndProof(wctx, blockNumber)
-	if nil != err {
-		v.logger.Error("Failed to get current nonceAndProof", "blockNumber", blockNumber, "error", err)
-		return
-	}
+	if util.IsNotWorker(header) {
+		blockNumber := header.Number.Uint64()
+		// get nonceAndProof by block (After the `pushNonceAndProof` transaction was executed)
+		nonceAndProof, err := v.getCurrentNonceAndProof(wctx, blockNumber)
+		if nil != err {
+			v.logger.Error("Failed to get current nonceAndProof", "blockNumber", blockNumber, "error", err)
+			return
+		}
 
-	// Extract the validator public key of the build block based on the signature in the block header
-	sign := header.Signature()
-	sealhash := header.SealHash().Bytes()
-	pk, err := crypto.SigToPub(sealhash, sign)
-	if err != nil {
-		log.Error("can not sigToPub", "blockNumber", blockNumber, "err", err)
-		return
-	}
+		// Extract the validator public key of the build block based on the signature in the block header
+		sign := header.Signature()
+		sealhash := header.SealHash().Bytes()
+		pk, err := crypto.SigToPub(sealhash, sign)
+		if err != nil {
+			log.Error("can not sigToPub", "blockNumber", blockNumber, "err", err)
+			return
+		}
 
-	// verify nonce and
-	if err := v.VerifyVrf(wctx, blockNumber, nonceAndProof, pk); nil != err {
-		panic(err)
+		// verify nonce and
+		if err := v.VerifyVrf(wctx, blockNumber, nonceAndProof, pk); nil != err {
+			panic(err)
+		}
 	}
 }
 

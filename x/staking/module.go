@@ -270,16 +270,25 @@ func (s *StakeModule) BeginBlock(ctx sdk.Context) {
 		return
 	}
 
-	currentBlock := ctx.Backend().CurrentHeader().Number.Uint64()
+	blockNumber := ctx.Backend().CurrentHeader().Number.Uint64()
 	// change current round at new round startBlock
-	if isStartOfNextRound(wctx, currentBlock) {
+	if isStartOfNextRound(wctx, blockNumber) {
 		currentRound := db.GetCurrentRound(wctx.StateDB())
 		db.SetCurrentRound(wctx.StateDB(), currentRound+1)
 	}
 	// change current epoch at new epoch startBlock
-	if isStartOfNextEpoch(wctx, currentBlock) {
+	if isStartOfNextEpoch(wctx, blockNumber) {
 		currentEpoch := db.GetCurrentEpoch(wctx.StateDB())
 		db.SetCurrentEpoch(wctx.StateDB(), currentEpoch+1)
+	}
+
+	parentNumber := blockNumber - 1
+	parentHash := ctx.Backend().CurrentHeader().ParentHash
+	if parentNumber != 0 {
+		parentHeader := ctx.Backend().GetBlock(parentHash, parentNumber).Header()
+		if err := stakewrap.SetNumberOfBlocksForRoundValidator(wctx.StateDB(), parentHeader); nil != err {
+			panic(err)
+		}
 	}
 
 }
