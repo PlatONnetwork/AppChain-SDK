@@ -21,6 +21,7 @@ import (
 	coretypes "github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/crypto/bls"
 	"github.com/PlatONnetwork/PlatON-Go/log"
+	"github.com/PlatONnetwork/PlatON-Go/rpc"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"gopkg.in/urfave/cli.v1"
 )
@@ -108,14 +109,36 @@ func (m *Module) Init() error {
 	return nil
 }
 
+func (m *Module) APIs() []rpc.API {
+	return []rpc.API{
+		{
+			Namespace: types.ModuleName,
+			Version:   "1.0",
+			Service:   NewRpcService(m),
+			Public:    true,
+		},
+	}
+}
+
 func (m *Module) GetLogFilters() map[common.Address][]common.Hash {
 	return map[common.Address][]common.Hash{
 		m.l2StateSenderAddr: {contractsapi.L2StateSenderABI.Events["L2StateSynced"].ID},
 	}
 }
 
-func (m *Module) ProcessLog(header *coretypes.Header, log *coretypes.Log) error {
-	exitEvent, err := contractsapi.DecodeExitEvent(log, header.Number.Uint64())
+func (m *Module) ProcessLog(header *coretypes.Header, qc *ctypes.QuorumCert, log *coretypes.Log) error {
+	epoch := qc.Epoch
+	block := qc.BlockNumber
+	var i uint64 = 0
+	for ; i < uint64(types.CheckpointCommitDis); i++ {
+		if m.staking.IsEndOfEpoch(block + i) {
+			block = block + i + 1
+			epoch = epoch + 1
+			break
+		}
+	}
+
+	exitEvent, err := contractsapi.DecodeExitEvent(log, epoch, block)
 	if err != nil {
 		m.logger.Error("Failed to decode exit event", "err", err)
 		return err
@@ -139,8 +162,9 @@ func (m *Module) ExtendData(ctx sdk.Context) []byte {
 
 	logger.Info("Extend data")
 
-	if m.staking.IsEndOfEpoch(header.Number.Uint64()) {
-		currentValidators, err := m.staking.GetValidator(ctx, header.Number.Uint64())
+	blockNumber := header.Number.Uint64()
+	if m.staking.IsEndOfEpoch(blockNumber) {
+		currentValidators, err := m.staking.GetValidator(ctx, blockNumber)
 		if err != nil {
 			logger.Error("Failed to get current round valdiators", "err", err)
 			return []byte{}
@@ -152,7 +176,7 @@ func (m *Module) ExtendData(ctx sdk.Context) []byte {
 			return []byte{}
 		}
 
-		nextValidators, err := m.staking.GetValidator(ctx, header.Number.Uint64()+1)
+		nextValidators, err := m.staking.GetValidator(ctx, blockNumber+1)
 		if err != nil {
 			logger.Error("Failed to get next round valdiators", "err", err)
 			return []byte{}
@@ -164,22 +188,7 @@ func (m *Module) ExtendData(ctx sdk.Context) []byte {
 			return []byte{}
 		}
 
-		lastCheckpointBlockNumber, err := getCurrentCheckpointBlock(m.txRelayer, m.checkpointManagerAddr)
-		if err != nil {
-			logger.Error("Failed to get current checkpoint block", "err", err)
-			return []byte{}
-		}
-
-		// ExitEvent insert store when block committing.
-		// Block consensus sequence: qc -> locked -> committed
-		// The checkpoint number is qcblock,
-		// so the range is [commitblock, qcblock-2]
-		if lastCheckpointBlockNumber > types.CheckpointCommitDis {
-			lastCheckpointBlockNumber = lastCheckpointBlockNumber - types.CheckpointCommitDis
-		}
-		end := header.Number.Uint64() - types.CheckpointCommitDis
-
-		eventRoot, err := m.BuildEventRoot(lastCheckpointBlockNumber, end)
+		eventRoot, err := m.BuildEventRoot(epoch)
 		if err != nil {
 			logger.Error("Failed to build event root", "epoch", epoch, "err", err)
 			return []byte{}
@@ -218,7 +227,8 @@ func (m *Module) VerifyExtendData(ctx sdk.Context, data []byte) error {
 
 	logger.Info("Verify extend data")
 
-	if m.staking.IsEndOfEpoch(header.Number.Uint64()) {
+	blockNumber := header.Number.Uint64()
+	if m.staking.IsEndOfEpoch(blockNumber) {
 		var checkpoint types.CheckpointData
 		if err := checkpoint.UnmarshalRLP(data); err != nil {
 			logger.Error("Failed to unmarshal rlp", "data", fmt.Sprintf("%x", data), "err", err)
@@ -233,14 +243,14 @@ func (m *Module) VerifyExtendData(ctx sdk.Context, data []byte) error {
 		if checkpoint.BlockIndex != sdkCtx.BlockIndex() {
 			return fmt.Errorf("mismatch blockIndex(checkpoint:%d,actual:%d)", checkpoint.BlockIndex, sdkCtx.BlockIndex())
 		}
-		if checkpoint.BlockNumber != header.Number.Uint64() {
+		if checkpoint.BlockNumber != blockNumber {
 			return fmt.Errorf("mismatch blockNumber(checkpoint:%d,actual:%d)", checkpoint.BlockNumber, header.Number)
 		}
 		if checkpoint.BlockHash != header.Hash() {
 			return fmt.Errorf("mismatch blockHash(checkpoint:%s,actual:%s)", checkpoint.BlockHash.String(), header.Hash().String())
 		}
 
-		currentValidators, err := m.staking.GetValidator(ctx, header.Number.Uint64())
+		currentValidators, err := m.staking.GetValidator(ctx, blockNumber)
 		if err != nil {
 			logger.Error("Failed to get current round validators", "err", err)
 			return err
@@ -261,7 +271,7 @@ func (m *Module) VerifyExtendData(ctx sdk.Context, data []byte) error {
 				currentValidatorHash.TerminalString())
 		}
 
-		nextValidators, err := m.staking.GetValidator(ctx, header.Number.Uint64()+1)
+		nextValidators, err := m.staking.GetValidator(ctx, blockNumber+1)
 		if err != nil {
 			logger.Error("Failed to get next round validators", "err", err)
 			return err
@@ -280,24 +290,9 @@ func (m *Module) VerifyExtendData(ctx sdk.Context, data []byte) error {
 			return fmt.Errorf("mismatch nextValidatorsHash(checkpoint:%s,actual:%s)", checkpoint.NextValidatorsHash.TerminalString(), nextValidatorHash.TerminalString())
 		}
 
-		lastCheckpointBlockNumber, err := getCurrentCheckpointBlock(m.txRelayer, m.checkpointManagerAddr)
+		eventRoot, err := m.BuildEventRoot(epoch)
 		if err != nil {
-			logger.Error("Failed to get current checkpoint block", "err", err)
-			return err
-		}
-
-		// ExitEvent insert store when block committing.
-		// Block consensus sequence: qc -> locked -> committed
-		// The checkpoint number is qcblock,
-		// so the range is [commitblock, qcblock-2]
-		if lastCheckpointBlockNumber > types.CheckpointCommitDis {
-			lastCheckpointBlockNumber = lastCheckpointBlockNumber - types.CheckpointCommitDis
-		}
-		end := header.Number.Uint64() - types.CheckpointCommitDis
-
-		eventRoot, err := m.BuildEventRoot(lastCheckpointBlockNumber, end)
-		if err != nil {
-			logger.Error("Failed to build event root", "epoch", sdkCtx.Epoch(), "err", err)
+			logger.Error("Failed to build event root", "epoch", epoch, "err", err)
 			return err
 		}
 
@@ -306,7 +301,7 @@ func (m *Module) VerifyExtendData(ctx sdk.Context, data []byte) error {
 			return fmt.Errorf("mismatch event root(checkpoint:%s,acutal:%s)", checkpoint.EventRoot.TerminalString(), eventRoot.TerminalString())
 		}
 
-		if err := m.store.InsertCheckpoint(header.Number.Uint64(),
+		if err := m.store.InsertCheckpoint(blockNumber,
 			&types.StorageCheckpointData{
 				CheckpointData: &checkpoint,
 			}); err != nil {
@@ -326,8 +321,9 @@ func (m *Module) OnCommit(ctx sdk.Context, block *coretypes.Block) error {
 	logger := m.logger.New("epoch", sdkCtx.Epoch(), "view", sdkCtx.View(), "index", sdkCtx.BlockIndex(), "number", sdkCtx.Header().Number, "hash", sdkCtx.Header().Hash())
 	logger.Info("OnCommit")
 
-	if m.staking.IsEndOfEpoch(block.NumberU64()) {
-		checkpoint, err := m.store.GetCheckpoint(block.NumberU64())
+	blockNumber := block.NumberU64()
+	if m.staking.IsEndOfEpoch(blockNumber) {
+		checkpoint, err := m.store.GetCheckpoint(blockNumber)
 		if err != nil {
 			logger.Error("Failed to get checkpoint from store", "err", err)
 			return err
@@ -349,14 +345,14 @@ func (m *Module) OnCommit(ctx sdk.Context, block *coretypes.Block) error {
 		blsSig.Deserialize(sig)
 		checkpoint.Signature = blsSig.SerializeUncompressed()
 		checkpoint.Bitmap = qc.ValidatorSet.Bytes()
-		m.store.InsertCheckpoint(block.NumberU64(), checkpoint)
+		m.store.InsertCheckpoint(blockNumber, checkpoint)
 
 		if sdkCtx.IsProposer() {
-			go func(number uint64, epoch uint64) {
+			go func(number uint64) {
 				if err := m.submitCheckpoint(sdkCtx, number); err != nil {
 					logger.Error("Failed to submit checkpoint", "checkpoint", checkpoint.String(), "err", err)
 				}
-			}(qc.BlockNumber, qc.Epoch)
+			}(blockNumber)
 		}
 	}
 	return nil
@@ -426,7 +422,7 @@ func (m *Module) encodeAndSendCheckpoint(ctx sdk.Context, checkpoint *types.Stor
 	leaf := checkpoint.MarshalRLP()
 	leafIndex, proof, err := m.extraVote.GetProof(checkpoint.EpochNumber, checkpoint.ViewNumber, checkpoint.BlockIndex, leaf)
 	if err != nil {
-		m.logger.Error("Failed to get extend data proof", "err", err)
+		m.logger.Error("Failed to get extend data proof", "epoch", checkpoint.EpochNumber, "view", checkpoint.ViewNumber, "index", checkpoint.BlockIndex, "err", err)
 		return err
 	}
 
@@ -451,8 +447,8 @@ func (m *Module) encodeAndSendCheckpoint(ctx sdk.Context, checkpoint *types.Stor
 	return nil
 }
 
-func (m *Module) BuildEventRoot(start, end uint64) (common.Hash, error) {
-	exitEvents, err := m.store.GetExitEventsByNumberRange(start, end)
+func (m *Module) BuildEventRoot(epoch uint64) (common.Hash, error) {
+	exitEvents, err := m.store.GetExitEventsByEpoch(epoch)
 	if err != nil {
 		return common.ZeroHash, err
 	}

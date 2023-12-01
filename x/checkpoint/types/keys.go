@@ -7,5 +7,5 @@ const (
 	ExitEventPrefixKeyTpl = "exitevent/%d"
 	ExitEventLookupKey = "exitevent/lookup/%d"
 
-	CheckpointCommitDis = 2
+	CheckpointCommitDis = 3
 )
