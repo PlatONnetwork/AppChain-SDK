@@ -189,12 +189,8 @@ func (s *StakeModule) GetEpochValidator(ctx sdk.Context, blockNumber uint64) (*c
 		ValidBlockNumber: startBlock,
 	}, nil
 }
-func (s *StakeModule) BlocksOfEpoch(ctx sdk.Context) uint64 {
-	wctx, ok := ctx.(sdk.WorkerContext)
-	if !ok {
-		s.logger.Error("Unexpeced sdk context", "ctx", reflect.TypeOf(ctx).String())
-		return 0
-	}
+func (s *StakeModule) BlocksOfEpoch(ctx sdk.ConsensusContext) uint64 {
+
 	epoch := db.GetCurrentEpoch(wctx.StateDB())
 	epochItem := db.GetEpochItem(wctx.StateDB(), epoch)
 	if epochItem.IsEmpty() {
@@ -204,17 +200,13 @@ func (s *StakeModule) BlocksOfEpoch(ctx sdk.Context) uint64 {
 	return epochItem.EndBlock - epochItem.StartBlock + 1
 }
 
-func (s *StakeModule) NewHeader(ctx sdk.Context, header *types.Header) error { return nil }
-func (s *StakeModule) GetLastNumber(ctx sdk.Context, blockNumber uint64) uint64 {
-	wctx, ok := ctx.(sdk.WorkerContext)
-	if !ok {
-		s.logger.Error("Unexpeced sdk context", "ctx", reflect.TypeOf(ctx).String())
-		return 0
-	}
+func (s *StakeModule) NewHeader(ctx sdk.ConsensusContext, header *types.Header) error { return nil }
+func (s *StakeModule) GetLastNumber(ctx sdk.ConsensusContext, blockNumber uint64) uint64 {
+
 
 	var endBlock uint64
-	currentRound := db.GetCurrentRound(wctx.StateDB())
-	queue := db.GetRoundQueueUtil(wctx.StateDB(), currentRound, 100)
+	currentRound := db.GetCurrentRound(ctx.StateDB())
+	queue := db.GetRoundQueueUtil(ctx.StateDB(), currentRound, 100)
 	for _, item := range queue {
 		// [startBlock, endBlock) || (startBlock, endBlock]
 		if item.StartBlock <= blockNumber && item.EndBlock >= blockNumber {
@@ -228,11 +220,11 @@ func (s *StakeModule) GetLastNumber(ctx sdk.Context, blockNumber uint64) uint64 
 }
 
 // round validator
-func (s *StakeModule) GetValidator(ctx sdk.Context, blockNumber uint64) (*cbfttypes.Validators, error) {
+func (s *StakeModule) GetValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error) {
 	return s.GetRoundValidator(ctx, blockNumber)
 }
 
-func (s *StakeModule) IsCandidateNode(ctx sdk.Context, nodeID enode.IDv0) bool {
+func (s *StakeModule) IsCandidateNode(ctx sdk.ConsensusContext, nodeID enode.IDv0) bool {
 
 	wctx, ok := ctx.(sdk.WorkerContext)
 	if !ok {
@@ -262,13 +254,8 @@ func (s *StakeModule) IsCandidateNode(ctx sdk.Context, nodeID enode.IDv0) bool {
 	return false
 }
 
-func (s *StakeModule) BeginBlock(ctx sdk.Context) {
+func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) {
 
-	wctx, ok := ctx.(sdk.WorkerContext)
-	if !ok {
-		s.logger.Error("Unexpeced sdk context", "ctx", reflect.TypeOf(ctx).String())
-		return
-	}
 
 	blockNumber := ctx.Backend().CurrentHeader().Number.Uint64()
 	// change current round at new round startBlock
@@ -282,6 +269,7 @@ func (s *StakeModule) BeginBlock(ctx sdk.Context) {
 		db.SetCurrentEpoch(wctx.StateDB(), currentEpoch+1)
 	}
 
+	// increase the number of validator blocks generated from the previous block
 	parentNumber := blockNumber - 1
 	parentHash := ctx.Backend().CurrentHeader().ParentHash
 	if parentNumber != 0 {
@@ -292,13 +280,8 @@ func (s *StakeModule) BeginBlock(ctx sdk.Context) {
 	}
 
 }
-func (s *StakeModule) EndBlock(ctx sdk.Context) {
+func (s *StakeModule) EndBlock(ctx sdk.WorkerContext) {
 
-	wctx, ok := ctx.(sdk.WorkerContext)
-	if !ok {
-		s.logger.Error("Unexpeced sdk context", "ctx", reflect.TypeOf(ctx).String())
-		return
-	}
 
 	currentBlock := ctx.Backend().CurrentHeader().Number.Uint64()
 
@@ -334,6 +317,8 @@ func (s *StakeModule) EndBlock(ctx sdk.Context) {
 	// todo calculation reward
 
 	// todo record signBlocks of validator in round
+
+	if isStartOfRound()
 
 }
 

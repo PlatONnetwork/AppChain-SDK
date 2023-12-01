@@ -344,7 +344,7 @@ func SetCurrentRound(db sdk.StateDB, round uint64) {
 	db.SetState(address.StakeHandlerAddress, currentRoundKey, common.Uint64ToBytes(round))
 }
 
-func GetCurrentRound(db sdk.StateDB) uint64 {
+func GetCurrentRound(db sdk.StateDBReader) uint64 {
 	value := db.GetState(address.StakeHandlerAddress, currentRoundKey)
 	if len(value) == 0 {
 		return 0
@@ -361,7 +361,7 @@ func SetEpochValidatorSharesSnapshotQueue(db sdk.StateDB, epoch uint64, queue ty
 	return nil
 }
 
-func GetEpochValidatorSharesSnapshotQueue(db sdk.StateDB, epoch uint64) types.ValidatorSortSnapshotQueue {
+func GetEpochValidatorSharesSnapshotQueue(db sdk.StateDBReader, epoch uint64) types.ValidatorSortSnapshotQueue {
 	value := db.GetState(address.StakeHandlerAddress, encodeEpochValidatorSharesSnapshotQueueKey(epoch))
 	if len(value) == 0 {
 		return nil
@@ -373,7 +373,7 @@ func GetEpochValidatorSharesSnapshotQueue(db sdk.StateDB, epoch uint64) types.Va
 	return nil
 }
 
-func GetEpochValidatorIds(db sdk.StateDB, epoch uint64) types.ValidatorIds {
+func GetEpochValidatorIds(db sdk.StateDBReader, epoch uint64) types.ValidatorIds {
 	value := db.GetState(address.StakeHandlerAddress, encodeEpochValidatorSharesSnapshotQueueKey(epoch))
 	if len(value) == 0 {
 		return nil
@@ -402,7 +402,7 @@ func SetRoundValidatorSharesSnapshotQueue(db sdk.StateDB, round uint64, queue ty
 	return nil
 }
 
-func GetRoundValidatorSharesSnapshotQueue(db sdk.StateDB, round uint64) types.ValidatorSortSnapshotQueue {
+func GetRoundValidatorSharesSnapshotQueue(db sdk.StateDBReader, round uint64) types.ValidatorSortSnapshotQueue {
 	value := db.GetState(address.StakeHandlerAddress, encodeRoundValidatorSharesSnapshotQueueKey(round))
 	if len(value) == 0 {
 		return nil
@@ -414,7 +414,7 @@ func GetRoundValidatorSharesSnapshotQueue(db sdk.StateDB, round uint64) types.Va
 	return nil
 }
 
-func GetRoundValidatorIds(db sdk.StateDB, round uint64) types.ValidatorIds {
+func GetRoundValidatorIds(db sdk.StateDBReader, round uint64) types.ValidatorIds {
 	value := db.GetState(address.StakeHandlerAddress, encodeRoundValidatorSharesSnapshotQueueKey(round))
 	if len(value) == 0 {
 		return nil
@@ -444,7 +444,7 @@ func AppendEpochItem(db sdk.StateDB, epoch uint64, startBlock, endBlock, roundCo
 	return SetEpochItem(db, epoch, epochItem)
 }
 
-func GetEpochQueueSince(db sdk.StateDB, epoch, size uint64) types.EpochQueue {
+func GetEpochQueueSince(db sdk.StateDBReader, epoch, size uint64) types.EpochQueue {
 	queue := types.NewEpochQueue(size)
 
 	var count uint64 = 0
@@ -460,7 +460,7 @@ func GetEpochQueueSince(db sdk.StateDB, epoch, size uint64) types.EpochQueue {
 	return queue[:count]
 }
 
-func GetEpochQueueUtil(db sdk.StateDB, epoch, size uint64) types.EpochQueue {
+func GetEpochQueueUtil(db sdk.StateDBReader, epoch, size uint64) types.EpochQueue {
 	queue := types.NewEpochQueue(size)
 
 	var count uint64 = 0
@@ -474,7 +474,7 @@ func GetEpochQueueUtil(db sdk.StateDB, epoch, size uint64) types.EpochQueue {
 	return queue[:count]
 }
 
-func GetEpochQueueAndIndexSince(db sdk.StateDB, epoch, size uint64) ([]uint64, types.EpochQueue) {
+func GetEpochQueueAndIndexSince(db sdk.StateDBReader, epoch, size uint64) ([]uint64, types.EpochQueue) {
 	queue := types.NewEpochQueue(size)
 	epochs := make([]uint64, size)
 
@@ -492,7 +492,7 @@ func GetEpochQueueAndIndexSince(db sdk.StateDB, epoch, size uint64) ([]uint64, t
 	return epochs[:count], queue[:count]
 }
 
-func GetEpochQueueAndIndexUtil(db sdk.StateDB, epoch, size uint64) ([]uint64, types.EpochQueue) {
+func GetEpochQueueAndIndexUtil(db sdk.StateDBReader, epoch, size uint64) ([]uint64, types.EpochQueue) {
 	queue := types.NewEpochQueue(size)
 	epochs := make([]uint64, size)
 
