@@ -74,7 +74,10 @@ func (s *Storage) GetExitEvent(exitID uint64) (*contractsapi.ExitEvent, error) {
 	if err != nil {
 		return nil, err
 	}
-	epoch := binary.BigEndian.Uint64(epochBytes)
+	var epoch uint64
+	if len(epochBytes) > 0 {
+		epoch = binary.BigEndian.Uint64(epochBytes)
+	}
 
 	evBytes, err := s.kv.Get(exitEventKey(epoch, exitID))
 	if err != nil {
