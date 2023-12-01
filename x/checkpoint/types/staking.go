@@ -7,6 +7,6 @@ import (
 
 type Staking interface {
 	IsEndOfEpoch(blockNumber uint64) bool
-	GetValidator(ctx sdk.Context, blockNumber uint64) (*cbfttypes.Validators, error)
+	GetValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error)
 	BlocksOfEpoch() uint64
 }

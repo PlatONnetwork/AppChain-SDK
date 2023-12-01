@@ -68,11 +68,11 @@ func (m *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *param
 	m.store.Set([]byte(ValidatorKey), val)
 }
 
-func (m *Module) NewHeader(ctx sdk.Context, header *types.Header) error {
+func (m *Module) NewHeader(ctx sdk.ConsensusContext, header *types.Header) error {
 	return nil
 }
 
-func (m *Module) GetLastNumber(ctx sdk.Context, blockNumber uint64) uint64 {
+func (m *Module) GetLastNumber(ctx sdk.ConsensusContext, blockNumber uint64) uint64 {
 	var lastBlockNumber uint64
 	if blockNumber <= NumberBlocksOfEpoch {
 		lastBlockNumber = NumberBlocksOfEpoch
@@ -106,7 +106,7 @@ func (m *Module) GetLastNumber(ctx sdk.Context, blockNumber uint64) uint64 {
 	return lastBlockNumber
 }
 
-func (m *Module) GetValidator(ctx sdk.Context, blockNumber uint64) (*cbfttypes.Validators, error) {
+func (m *Module) GetValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error) {
 	if m.validators == nil {
 		val, err := m.store.Get([]byte(ValidatorKey))
 		if err != nil {
@@ -128,7 +128,7 @@ func (m *Module) GetValidator(ctx sdk.Context, blockNumber uint64) (*cbfttypes.V
 	return m.validators, nil
 }
 
-func (m *Module) IsCandidateNode(ctx sdk.Context, nodeID enode.IDv0) bool {
+func (m *Module) IsCandidateNode(ctx sdk.ConsensusContext, nodeID enode.IDv0) bool {
 	return false
 }
 

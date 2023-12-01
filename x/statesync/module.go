@@ -93,23 +93,20 @@ func (s *StateSync) Protocols() []p2p.Protocol {
 	return s.p2p.Protocols()
 }
 
-func (s *StateSync) ExtendData(ctx sdk.Context) []byte {
-	cc := ctx.(sdk.ConsensusContext)
-	return s.ExtendDataImpl(cc, cc.Epoch(), cc.View(), cc.BlockIndex(), cc.Header())
+func (s *StateSync) ExtendData(ctx sdk.ConsensusContext) []byte {
+	return s.ExtendDataImpl(ctx, ctx.Epoch(), ctx.View(), ctx.BlockIndex(), ctx.Header())
 }
 
-func (s *StateSync) VerifyExtendData(ctx sdk.Context, data []byte) error {
-	cc := ctx.(sdk.ConsensusContext)
-	return s.VerifyExtendDataImpl(cc.Epoch(), cc.View(), cc.BlockIndex(), cc.Header(), data)
+func (s *StateSync) VerifyExtendData(ctx sdk.ConsensusContext, data []byte) error {
+	return s.VerifyExtendDataImpl(ctx.Epoch(), ctx.View(), ctx.BlockIndex(), ctx.Header(), data)
 }
 
-func (s *StateSync) PrepareQC(ctx sdk.Context, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote) {
+func (s *StateSync) PrepareQC(ctx sdk.ConsensusContext, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote) {
 	s.PrepareQCImpl(block, votes)
 }
-func (s *StateSync) AddTxs(ctx sdk.Context, local, remote map[common.Address]types.Transactions) (map[common.Address]types.Transactions, map[common.Address]types.Transactions) {
-	cc := ctx.(sdk.WorkerContext)
+func (s *StateSync) AddTxs(ctx sdk.WorkerContext, local, remote map[common.Address]types.Transactions) (map[common.Address]types.Transactions, map[common.Address]types.Transactions) {
 	//创建commitment
-	receiver, err := s.newStateSyncCallContract(ctx, cc.Header())
+	receiver, err := s.newStateSyncCallContract(ctx, ctx.Header())
 	if err != nil {
 		return local, remote
 	}
