@@ -14,8 +14,8 @@ func (c *StakeHandler) addLogSlashedEvent(exitId *big.Int, validators []common.A
 	return nil
 }
 
-func (c *StakeHandler) addLogUnDelegatedEvent(validator common.Address, delegater common.Address) error {
-	log, err := c.EmitUnDelegatedEvent(validator, delegater)
+func (c *StakeHandler) addLogDelegationAddedEvent(delegater common.Address, validator common.Address, amount *big.Int) error {
+	log, err := c.EmitDelegationAddedEvent(delegater, validator, amount)
 	if nil != err {
 		return nil
 	}
@@ -23,8 +23,8 @@ func (c *StakeHandler) addLogUnDelegatedEvent(validator common.Address, delegate
 	return nil
 }
 
-func (c *StakeHandler) addLogUnStakedEvent(validator common.Address) error {
-	log, err := c.EmitUnStakedEvent(validator)
+func (c *StakeHandler) addLogStakeAddedEvent(validator common.Address, amount *big.Int) error {
+	log, err := c.EmitStakeAddedEvent(validator, amount)
 	if nil != err {
 		return nil
 	}
@@ -32,8 +32,8 @@ func (c *StakeHandler) addLogUnStakedEvent(validator common.Address) error {
 	return nil
 }
 
-func (c *StakeHandler) addLogStakeWithdrawalEvent(account common.Address, amount *big.Int) error {
-	log, err := c.EmitStakeWithdrawalEvent(account, amount)
+func (c *StakeHandler) addLogUnDelegatedEvent(delegater common.Address, validator common.Address, amount *big.Int) error {
+	log, err := c.EmitUnDelegatedEvent(delegater, validator, amount)
 	if nil != err {
 		return nil
 	}
@@ -41,8 +41,8 @@ func (c *StakeHandler) addLogStakeWithdrawalEvent(account common.Address, amount
 	return nil
 }
 
-func (c *StakeHandler) addLogStakeWithdrawalRegisteredEvent(account common.Address, amount *big.Int) error {
-	log, err := c.EmitStakeWithdrawalRegisteredEvent(account, amount)
+func (c *StakeHandler) addLogUnStakedEvent(validator common.Address, amount *big.Int) error {
+	log, err := c.EmitUnStakedEvent(validator, amount)
 	if nil != err {
 		return nil
 	}
@@ -50,8 +50,8 @@ func (c *StakeHandler) addLogStakeWithdrawalRegisteredEvent(account common.Addre
 	return nil
 }
 
-func (c *StakeHandler) addLogDelegateWithdrawalEvent(account common.Address, validator common.Address, amount *big.Int) error {
-	log, err := c.EmitDelegateWithdrawalEvent(account, validator, amount)
+func (c *StakeHandler) addLogStakeWithdrawalEvent(validator common.Address, amount *big.Int) error {
+	log, err := c.EmitStakeWithdrawalEvent(validator, amount)
 	if nil != err {
 		return nil
 	}
@@ -59,8 +59,26 @@ func (c *StakeHandler) addLogDelegateWithdrawalEvent(account common.Address, val
 	return nil
 }
 
-func (c *StakeHandler) addLogDelegateWithdrawalRegisteredEvent(account common.Address, validator common.Address, amount *big.Int) error {
-	log, err := c.EmitDelegateWithdrawalRegisteredEvent(account, validator, amount)
+func (c *StakeHandler) addLogStakeWithdrawalRegisteredEvent(validator common.Address, amount *big.Int) error {
+	log, err := c.EmitStakeWithdrawalRegisteredEvent(validator, amount)
+	if nil != err {
+		return nil
+	}
+	c.evm.StateDB.AddLog(log)
+	return nil
+}
+
+func (c *StakeHandler) addLogDelegateWithdrawalEvent(delegater common.Address, validator common.Address, amount *big.Int) error {
+	log, err := c.EmitDelegateWithdrawalEvent(delegater, validator, amount)
+	if nil != err {
+		return nil
+	}
+	c.evm.StateDB.AddLog(log)
+	return nil
+}
+
+func (c *StakeHandler) addLogDelegateWithdrawalRegisteredEvent(delegater common.Address, validator common.Address, amount *big.Int) error {
+	log, err := c.EmitDelegateWithdrawalRegisteredEvent(delegater, validator, amount)
 	if nil != err {
 		return nil
 	}

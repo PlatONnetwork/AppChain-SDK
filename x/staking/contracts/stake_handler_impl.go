@@ -97,6 +97,7 @@ func (c *StakeHandler) Slash(validators []common.Address) error {
 	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
 		return err
 	}
+	// TODO 提交 slash tx 的必须是 validator ?? round? epoch?
 	if err := c.syncStateSlash(validators); nil != err {
 		return err
 	}
@@ -158,8 +159,14 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 			}
 		}
 	}
-
-	return c.registerDelegateWithdrawal(delegaterAddr, validatorAddr, paid, true)
+	if err := c.registerDelegateWithdrawal(delegaterAddr, validatorAddr, paid, true); nil != err {
+		return err
+	}
+	if err := c.addLogUnDelegatedEvent(delegaterAddr, validatorAddr, paid); nil != err {
+		return err
+	}
+	log.Info("Undelegate for", "delegater", delegaterAddr.Hex(), "validator", validatorAddr.Hex(), "amount", amount, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
+	return nil
 }
 
 func (c *StakeHandler) Unstake(validatorAddr common.Address, amount *big.Int) error {
@@ -169,7 +176,16 @@ func (c *StakeHandler) Unstake(validatorAddr common.Address, amount *big.Int) er
 	if err := c.unStake(validatorAddr, amount); nil != err {
 		return err
 	}
-	return c.registerStakeWithdrawal(validatorAddr, amount, true)
+
+	if err := c.registerStakeWithdrawal(validatorAddr, amount, true); nil != err {
+		return err
+	}
+
+	if err := c.addLogUnStakedEvent(validatorAddr, amount); nil != err {
+		return err
+	}
+	log.Info("Unstake for", "validator", validatorAddr.Hex(), "amount", amount, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
+	return nil
 }
 
 func (c *StakeHandler) WithdrawUndelegate(validator common.Address) error {

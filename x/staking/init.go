@@ -50,8 +50,8 @@ func initValidatorPriority(statedb sdk.StateDB) error {
 		return stakingdb.ErrRlpEncode
 	}
 
-	statedb.SetState(address.StakeHandlerAddres, stakingdb.EncodePriorityValidatorHeadKey(), hvalue)
-	statedb.SetState(address.StakeHandlerAddres, stakingdb.EncodePriorityValidatorTailKey(), tvalue)
+	statedb.SetState(address.StakeHandlerAddress, stakingdb.EncodePriorityValidatorHeadKey(), hvalue)
+	statedb.SetState(address.StakeHandlerAddress, stakingdb.EncodePriorityValidatorTailKey(), tvalue)
 	return nil
 }
 
@@ -64,7 +64,7 @@ func initEpochItem(statedb sdk.StateDB) error {
 	if nil != err {
 		return stakingdb.ErrRlpEncode
 	}
-	statedb.SetState(address.StakeHandlerAddres, stakingdb.EncodeEpochItemKey(1), value)
+	statedb.SetState(address.StakeHandlerAddress, stakingdb.EncodeEpochItemKey(1), value)
 	return nil
 }
 
@@ -89,9 +89,9 @@ func initRoundItem(statedb sdk.StateDB) error {
 	if nil != err {
 		return stakingdb.ErrRlpEncode
 	}
-	statedb.SetState(address.StakeHandlerAddres, stakingdb.EncodeRoundItemKey(0), hvalue)
-	statedb.SetState(address.StakeHandlerAddres, stakingdb.EncodeRoundItemKey(1), value)
-	statedb.SetState(address.StakeHandlerAddres, stakingdb.EncodeRoundItemKey(math.MaxUint64), tvalue)
+	statedb.SetState(address.StakeHandlerAddress, stakingdb.EncodeRoundItemKey(0), hvalue)
+	statedb.SetState(address.StakeHandlerAddress, stakingdb.EncodeRoundItemKey(1), value)
+	statedb.SetState(address.StakeHandlerAddress, stakingdb.EncodeRoundItemKey(math.MaxUint64), tvalue)
 	return nil
 }
 
