@@ -1,6 +1,8 @@
 package main
 
 import (
+	"github.com/PlatONnetwork/AppChain-SDK/x/deposit"
+	"github.com/PlatONnetwork/AppChain-SDK/x/vrf"
 	"path/filepath"
 
 	"github.com/PlatONnetwork/AppChain-SDK/baseapp"
@@ -51,8 +53,9 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 
 	l1Module := l1.NewL1(store)
 	stateEvent := stateevent.NewModule(store)
-	staking := staking.NewStakeModule()
-
+	staking := staking.NewStakeModule(ctx)
+	vrf := vrf.NewVRFModule(ctx)
+	deposit := deposit.NewDepositModule()
 	rootchainRpc := ctx.GlobalString(x.RootchainNodeRPCFlag.Name)
 	rootchainTxRelayer := txrelayer.NewModule(rootchainRpc, txrelayer.DefaultReceiptTimeout, txrelayer.DefaultNumRetries)
 
@@ -67,13 +70,14 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 
 	extraVote := extravote.NewExtraVote(store, []extravote.ExtraVerifier{stateSync, checkpoint})
 
-	manager := module.NewManager(stateSync, stateEvent, l1Module, extraVote, checkpoint, staking)
+	manager := module.NewManager(stateSync, stateEvent, l1Module, extraVote, checkpoint, vrf, staking, deposit)
 	manager.SetElection(staking.Name())
 	manager.SetConsensusExtend(extraVote.Name())
 	//manager.SetWorker(stateSync.Name())
-	manager.SetOrderInit(stateSync.Name(), checkpoint.Name())
-	manager.SetOrderGenesis(l1Module.Name(), staking.Name())
-	manager.SetOrderBlocker(staking.Name())
+	manager.SetOrderInit(stateSync.Name(), checkpoint.Name(), vrf.Name(), staking.Name())
+	manager.SetOrderGenesis(l1Module.Name(), vrf.Name(), staking.Name())
+	manager.SetOrderBeginBlocker(staking.Name())
+	manager.SetOrderEndBlocker(vrf.Name(), staking.Name())
 	manager.SetOrderBlockCommiter(staking.Name())
 
 	app := &SimApp{}

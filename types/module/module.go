@@ -71,9 +71,13 @@ type GenesisModule interface {
 	InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage)
 }
 
-type BlockerModule interface {
+type BeginBlockerModule interface {
 	Module
 	BeginBlock(ctx sdk.WorkerContext)
+}
+
+type EndBlockerModule interface {
+	Module
 	EndBlock(ctx sdk.WorkerContext)
 }
 
@@ -97,6 +101,8 @@ type Manager struct {
 	OrderTxPool        []string
 	OrderBlockCommiter []string
 	OrderGenesis       []string
+	OrderBeginBlocker  []string
+	OrderEndBlocker    []string
 	OrderBlocker       []string
 	OrderTransaction   []string
 }
@@ -114,6 +120,8 @@ func NewManager(modules ...Module) *Manager {
 		OrderTxPool:        moduleStr,
 		OrderBlockCommiter: moduleStr,
 		OrderGenesis:       moduleStr,
+		OrderBeginBlocker:  moduleStr,
+		OrderEndBlocker:    moduleStr,
 		OrderBlocker:       moduleStr,
 		OrderTransaction:   moduleStr,
 	}
@@ -179,13 +187,22 @@ func (m *Manager) SetOrderGenesis(moduleNames ...string) {
 	m.OrderGenesis = moduleNames
 }
 
-func (m *Manager) SetOrderBlocker(moduleNames ...string) {
-	m.assertNoForgottenModules("SetOrderBlocker", moduleNames, func(moduleName string) bool {
+func (m *Manager) SetOrderBeginBlocker(moduleNames ...string) {
+	m.assertNoForgottenModules("SetOrderBeginBlocker", moduleNames, func(moduleName string) bool {
 		module := m.Modules[moduleName]
-		_, has := module.(BlockerModule)
+		_, has := module.(BeginBlockerModule)
 		return !has
 	})
-	m.OrderBlocker = moduleNames
+	m.OrderBeginBlocker = moduleNames
+}
+
+func (m *Manager) SetOrderEndBlocker(moduleNames ...string) {
+	m.assertNoForgottenModules("SetOrderEndBlocker", moduleNames, func(moduleName string) bool {
+		module := m.Modules[moduleName]
+		_, has := module.(EndBlockerModule)
+		return !has
+	})
+	m.OrderEndBlocker = moduleNames
 }
 
 func (m *Manager) SetOrderTransaction(moduleNames ...string) {
@@ -394,8 +411,8 @@ func (m *Manager) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *para
 }
 
 func (m *Manager) BeginBlock(ctx sdk.WorkerContext) {
-	for _, moduleName := range m.OrderBlocker {
-		if module, ok := m.Modules[moduleName].(BlockerModule); ok {
+	for _, moduleName := range m.OrderBeginBlocker {
+		if module, ok := m.Modules[moduleName].(BeginBlockerModule); ok {
 			module.BeginBlock(ctx)
 		} else {
 			continue
@@ -404,8 +421,8 @@ func (m *Manager) BeginBlock(ctx sdk.WorkerContext) {
 }
 
 func (m *Manager) EndBlock(ctx sdk.WorkerContext) {
-	for _, moduleName := range m.OrderBlocker {
-		if module, ok := m.Modules[moduleName].(BlockerModule); ok {
+	for _, moduleName := range m.OrderEndBlocker {
+		if module, ok := m.Modules[moduleName].(EndBlockerModule); ok {
 			module.EndBlock(ctx)
 		} else {
 			continue
