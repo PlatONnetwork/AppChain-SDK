@@ -60,9 +60,9 @@ func (c *RewardManagerCaller) PaidRewardPerEpoch(epochId *big.Int) (*big.Int, er
 
 }
 
-func (c *RewardManagerCaller) PendingDelegaterRewards(account common.Address) (*big.Int, error) {
+func (c *RewardManagerCaller) PendingDelegaterRewards(validator common.Address) (*big.Int, error) {
 	var out []interface{}
-	err := c.BoundContract.Caller(c.to, &out, "pendingDelegaterRewards", account)
+	err := c.BoundContract.Caller(c.to, &out, "pendingDelegaterRewards", validator)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -74,9 +74,9 @@ func (c *RewardManagerCaller) PendingDelegaterRewards(account common.Address) (*
 
 }
 
-func (c *RewardManagerCaller) PendingValidatorRewards(account common.Address) (*big.Int, error) {
+func (c *RewardManagerCaller) PendingValidatorRewards(validator common.Address) (*big.Int, error) {
 	var out []interface{}
-	err := c.BoundContract.Caller(c.to, &out, "pendingValidatorRewards", account)
+	err := c.BoundContract.Caller(c.to, &out, "pendingValidatorRewards", validator)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -143,9 +143,9 @@ func (c *RewardManagerDelegateCaller) PaidRewardPerEpoch(epochId *big.Int) (*big
 
 }
 
-func (c *RewardManagerDelegateCaller) PendingDelegaterRewards(account common.Address) (*big.Int, error) {
+func (c *RewardManagerDelegateCaller) PendingDelegaterRewards(validator common.Address) (*big.Int, error) {
 	var out []interface{}
-	err := c.BoundContract.DelegateCaller(c.to, &out, "pendingDelegaterRewards", account)
+	err := c.BoundContract.DelegateCaller(c.to, &out, "pendingDelegaterRewards", validator)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -157,9 +157,9 @@ func (c *RewardManagerDelegateCaller) PendingDelegaterRewards(account common.Add
 
 }
 
-func (c *RewardManagerDelegateCaller) PendingValidatorRewards(account common.Address) (*big.Int, error) {
+func (c *RewardManagerDelegateCaller) PendingValidatorRewards(validator common.Address) (*big.Int, error) {
 	var out []interface{}
-	err := c.BoundContract.DelegateCaller(c.to, &out, "pendingValidatorRewards", account)
+	err := c.BoundContract.DelegateCaller(c.to, &out, "pendingValidatorRewards", validator)
 
 	if err != nil {
 		return *new(*big.Int), err

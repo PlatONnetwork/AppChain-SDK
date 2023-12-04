@@ -674,7 +674,7 @@ func IsNotElectionBlockOnCurrentRound(db sdk.StateDBReader, addr common.Address,
 	return !IsElectionBlockOnCurrentRound(db, addr, blockNumber)
 }
 
-func IsStartOfRound(db sdk.StateDBReader, addr common.Address, blockNumber, size uint64) bool {
+func IsBeginOfRound(db sdk.StateDBReader, addr common.Address, blockNumber, size uint64) bool {
 
 	currentRound := GetCurrentRound(db, addr)
 	queue := GetRoundQueueUtil(db, addr, currentRound, size)
@@ -687,10 +687,10 @@ func IsStartOfRound(db sdk.StateDBReader, addr common.Address, blockNumber, size
 }
 
 func IsNotStartOfRound(db sdk.StateDBReader, addr common.Address, blockNumber, size uint64) bool {
-	return !IsStartOfRound(db, addr, blockNumber, size)
+	return !IsBeginOfRound(db, addr, blockNumber, size)
 }
 
-func IsStartOfCurrentRound(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
+func IsBeginOfCurrentRound(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
 	currentRound := GetCurrentRound(db, addr)
 	currentRoundItem := GetRoundItem(db, addr, currentRound)
 	if currentRoundItem.StartBlock == blockNumber {
@@ -700,10 +700,10 @@ func IsStartOfCurrentRound(db sdk.StateDBReader, addr common.Address, blockNumbe
 }
 
 func IsNotStartOfCurrentRound(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
-	return !IsStartOfCurrentRound(db, addr, blockNumber)
+	return !IsBeginOfCurrentRound(db, addr, blockNumber)
 }
 
-func IsStartOfNextRound(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
+func IsBeginOfNextRound(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
 	currentRound := GetCurrentRound(db, addr)
 	currentRoundItem := GetRoundItem(db, addr, currentRound)
 	if currentRoundItem.EndBlock+1 == blockNumber {
@@ -713,7 +713,7 @@ func IsStartOfNextRound(db sdk.StateDBReader, addr common.Address, blockNumber u
 }
 
 func IsNotStartOfNextRound(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
-	return !IsStartOfNextRound(db, addr, blockNumber)
+	return !IsBeginOfNextRound(db, addr, blockNumber)
 }
 
 func IsEndOfRound(db sdk.StateDBReader, addr common.Address, blockNumber, size uint64) bool {
@@ -745,7 +745,7 @@ func IsNotEndOfCurrentRound(db sdk.StateDBReader, addr common.Address, blockNumb
 	return !IsEndOfCurrentRound(db, addr, blockNumber)
 }
 
-func IsStartOfEpoch(db sdk.StateDBReader, addr common.Address, blockNumber, size uint64) bool {
+func IsBeginOfEpoch(db sdk.StateDBReader, addr common.Address, blockNumber, size uint64) bool {
 
 	currentEpoch := GetCurrentEpoch(db, addr)
 	queue := GetEpochQueueUtil(db, addr, currentEpoch, size)
@@ -758,10 +758,10 @@ func IsStartOfEpoch(db sdk.StateDBReader, addr common.Address, blockNumber, size
 }
 
 func IsNotStartOfEpoch(db sdk.StateDBReader, addr common.Address, blockNumber, size uint64) bool {
-	return !IsStartOfEpoch(db, addr, blockNumber, size)
+	return !IsBeginOfEpoch(db, addr, blockNumber, size)
 }
 
-func IsStartOfCurrentEpoch(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
+func IsBeginOfCurrentEpoch(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
 	currentEpoch := GetCurrentEpoch(db, addr)
 	currentEpochItem := GetEpochItem(db, addr, currentEpoch)
 	if currentEpochItem.StartBlock == blockNumber {
@@ -771,10 +771,10 @@ func IsStartOfCurrentEpoch(db sdk.StateDBReader, addr common.Address, blockNumbe
 }
 
 func IsNotStartOfCurrentEpoch(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
-	return !IsStartOfCurrentEpoch(db, addr, blockNumber)
+	return !IsBeginOfCurrentEpoch(db, addr, blockNumber)
 }
 
-func IsStartOfNextEpoch(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
+func IsBeginOfNextEpoch(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
 	currentEpoch := GetCurrentEpoch(db, addr)
 	currentEpochItem := GetEpochItem(db, addr, currentEpoch)
 	if currentEpochItem.EndBlock+1 == blockNumber {
@@ -784,7 +784,7 @@ func IsStartOfNextEpoch(db sdk.StateDBReader, addr common.Address, blockNumber u
 }
 
 func IsNotStartOfNextEpoch(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
-	return !IsStartOfNextEpoch(db, addr, blockNumber)
+	return !IsBeginOfNextEpoch(db, addr, blockNumber)
 }
 
 func IsEndOfEpoch(db sdk.StateDBReader, addr common.Address, blockNumber, size uint64) bool {

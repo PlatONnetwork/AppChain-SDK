@@ -5,27 +5,27 @@ import (
 	"math/big"
 )
 
-type EpochRewardPerDelegationShareItem struct {
+type EpochDelegationRewardPerShareItem struct {
 	TotalReward    *big.Int
 	PerShareReward *big.Int
 }
 
-func NewEpochRewardPerDelegationShareItem(totalReward, perShareReward *big.Int) *EpochRewardPerDelegationShareItem {
-	return &EpochRewardPerDelegationShareItem{
+func NewEpochDelegationRewardPerShareItem(totalReward, perShareReward *big.Int) *EpochDelegationRewardPerShareItem {
+	return &EpochDelegationRewardPerShareItem{
 		TotalReward:    totalReward,
 		PerShareReward: perShareReward,
 	}
 }
 
-func (item *EpochRewardPerDelegationShareItem) IsEmpty() bool {
+func (item *EpochDelegationRewardPerShareItem) IsEmpty() bool {
 	return nil == item
 }
 
-func (item *EpochRewardPerDelegationShareItem) IsNotEmpty() bool {
+func (item *EpochDelegationRewardPerShareItem) IsNotEmpty() bool {
 	return !item.IsEmpty()
 }
 
-func (item *EpochRewardPerDelegationShareItem) DecrementTotalReward(amount *big.Int) {
+func (item *EpochDelegationRewardPerShareItem) DecrementTotalReward(amount *big.Int) {
 	if item.TotalReward.Cmp(amount) < 0 {
 		item.TotalReward = basecommon.Big0
 	} else {

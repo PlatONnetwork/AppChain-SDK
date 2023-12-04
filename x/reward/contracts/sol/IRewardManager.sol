@@ -16,7 +16,7 @@ interface IRewardManager {
     function paidRewardPerEpoch(uint256 epochId) external view returns (uint256);
 
     /// @notice returns the pending reward for the given account(validator)
-    function pendingValidatorRewards(address account) external view returns (uint256);
+    function pendingValidatorRewards(address validator) external view returns (uint256);
 
-    function pendingDelegaterRewards(address account) external view returns (uint256);
+    function pendingDelegaterRewards(address validator) external view returns (uint256);
 }

@@ -104,11 +104,11 @@ func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) {
 
 	blockNumber := ctx.Backend().CurrentHeader().Number.Uint64()
 	// NOTE: change current round at new round startBlock
-	if db.IsStartOfNextRound(ctx.StateDB(), s.Address(), blockNumber) {
+	if db.IsBeginOfNextRound(ctx.StateDB(), s.Address(), blockNumber) {
 		db.InrementCurrentRound(ctx.StateDB(), s.Address())
 	}
 	// NOTE: change current epoch at new epoch startBlock
-	if db.IsStartOfNextEpoch(ctx.StateDB(), s.Address(), blockNumber) {
+	if db.IsBeginOfNextEpoch(ctx.StateDB(), s.Address(), blockNumber) {
 		db.IncrementCurrentEpoch(ctx.StateDB(), s.Address())
 	}
 
@@ -571,4 +571,48 @@ func (s *StakeModule) createSlashTx(ctx sdk.Context) (*types.Transaction, error)
 	}
 
 	return tx, nil
+}
+
+// --- extern
+
+func (s *StakeModule) GetRoundValidatorIds(stateDB sdk.StateDBReader, round uint64) []basecommon.Address {
+	queue := db.GetRoundValidatorIds(stateDB, s.Address(), round)
+	return queue
+}
+func (s *StakeModule) GetEpochValidatorIds(stateDB sdk.StateDBReader, epoch uint64) []basecommon.Address {
+	queue := db.GetEpochValidatorIds(stateDB, s.Address(), epoch)
+	return queue
+}
+func (s *StakeModule) GetValidatorCommissionRate(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) uint64 {
+	return db.GetValidator(stateDB, s.Address(), validatorAddr).CommissionRate
+}
+func (s *StakeModule) GetValidatorStakeAmount(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) *big.Int {
+	return db.GetValidator(stateDB, s.Address(), validatorAddr).StakeAmount
+}
+func (s *StakeModule) GetValidatorDelegateAmount(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) *big.Int {
+	return db.GetValidator(stateDB, s.Address(), validatorAddr).DelegateAmount
+}
+func (s *StakeModule) GetValidatorOwner(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) basecommon.Address {
+	return db.GetValidator(stateDB, s.Address(), validatorAddr).Owner
+}
+func (s *StakeModule) GetCurrentRound(stateDB sdk.StateDBReader) uint64 {
+	return db.GetCurrentRound(stateDB, s.Address())
+}
+func (s *StakeModule) GetCurrentEpoch(stateDB sdk.StateDBReader) uint64 {
+	return db.GetCurrentEpoch(stateDB, s.Address())
+}
+func (s *StakeModule) IsBeginOfCurrentRound(stateDB sdk.StateDBReader, blockNumber uint64) bool {
+	return db.IsBeginOfCurrentRound(stateDB, s.Address(), blockNumber)
+}
+func (s *StakeModule) IsBeginOfCurrentEpoch(stateDB sdk.StateDBReader, blockNumber uint64) bool {
+	return db.IsBeginOfCurrentEpoch(stateDB, s.Address(), blockNumber)
+}
+func (s *StakeModule) IsEndOfCurrentRound(stateDB sdk.StateDBReader, blockNumber uint64) bool {
+	return db.IsEndOfCurrentRound(stateDB, s.Address(), blockNumber)
+}
+func (s *StakeModule) IsEndOfCurrentEpoch(stateDB sdk.StateDBReader, blockNumber uint64) bool {
+	return db.IsEndOfCurrentEpoch(stateDB, s.Address(), blockNumber)
+}
+func (s *StakeModule) GetNumberOfBlocksForRoundValidator(stateDB sdk.StateDBReader, validatorAddr basecommon.Address, round uint64) uint64 {
+	return db.GetNumberOfBlocksForRoundValidator(stateDB, s.Address(), validatorAddr, round)
 }

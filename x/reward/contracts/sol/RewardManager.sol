@@ -14,11 +14,11 @@ contract RewardManager is IRewardManager {
     }
 
     /// @notice returns the pending reward for the given account(validator)
-    function pendingValidatorRewards(address account) external view returns (uint256) {
+    function pendingValidatorRewards(address validator) external view returns (uint256) {
         return 0;
     }
 
-    function pendingDelegaterRewards(address account) external view returns (uint256) {
+    function pendingDelegaterRewards(address validator) external view returns (uint256) {
         return 0;
     }
 }
