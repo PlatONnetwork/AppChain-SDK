@@ -4,15 +4,13 @@ import (
 	"crypto/ecdsa"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
-	sdkcommon "github.com/PlatONnetwork/AppChain-SDK/common"
 	"github.com/PlatONnetwork/AppChain-SDK/x/address"
+	"github.com/PlatONnetwork/AppChain-SDK/x/l2"
 	"github.com/PlatONnetwork/AppChain-SDK/x/message"
 	"github.com/PlatONnetwork/AppChain-SDK/x/util"
 	"github.com/PlatONnetwork/AppChain-SDK/x/vrf/contracts"
 	vrfdb "github.com/PlatONnetwork/AppChain-SDK/x/vrf/db"
 	vrfInternal "github.com/PlatONnetwork/AppChain-SDK/x/vrf/wrap"
-	"github.com/PlatONnetwork/PlatON-Go/accounts/keystore"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"reflect"
 
@@ -23,6 +21,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/p2p/enode"
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
+	"gopkg.in/urfave/cli.v1"
 	"math/big"
 )
 
@@ -37,9 +36,11 @@ type VRFModule struct {
 	privateKey   *ecdsa.PrivateKey
 }
 
-func NewVRFModule() *VRFModule {
+func NewVRFModule(ctx *cli.Context) *VRFModule {
 	return &VRFModule{
-		logger: log.New("module", "vrf"),
+		logger:       log.New("module", "vrf"),
+		keystoreFile: ctx.GlobalString(l2.KeystoreFlag.Name),
+		passwordFile: ctx.GlobalString(l2.PasswordFlag.Name),
 	}
 }
 
@@ -49,7 +50,7 @@ func (v *VRFModule) Name() string {
 
 func (v *VRFModule) Init() error {
 
-	key, err := decodePrivateKey(v.keystoreFile, v.passwordFile)
+	key, err := l2.DecodePrivateKey(v.keystoreFile, v.passwordFile)
 	if err != nil {
 		return err
 	}
@@ -59,10 +60,19 @@ func (v *VRFModule) Init() error {
 
 func (v *VRFModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
 	// TODO 初始化 vrf nonce
-	vrfdb.SetNonceAndProof(db, 0, []byte("genesisVRFNonce"))
+	vrfdb.SetNonceAndProof(db, v.Address(), 0, []byte("genesisVRFNonce"))
 }
 
-func (v *VRFModule) AddTxs(ctx sdk.Context, local, remote map[basecommon.Address]types.Transactions) (map[basecommon.Address]types.Transactions, map[basecommon.Address]types.Transactions) {
+func (v *VRFModule) Address() basecommon.Address {
+	return address.VRFHandlerAddress
+}
+
+func (v *VRFModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly bool) ([]byte, error) {
+	vrfHandler, _ := contracts.NewVRFHandler(evm, contract, readOnly)
+	return vrfHandler.Run(input)
+}
+
+func (v *VRFModule) AddTxs(ctx sdk.WorkerContext, local, remote map[basecommon.Address]types.Transactions) (map[basecommon.Address]types.Transactions, map[basecommon.Address]types.Transactions) {
 	wctx, ok := ctx.(sdk.WorkerContext)
 	if !ok {
 		v.logger.Error("Unexpeced sdk context", "ctx", reflect.TypeOf(ctx).String())
@@ -93,23 +103,17 @@ func (v *VRFModule) AddTxs(ctx sdk.Context, local, remote map[basecommon.Address
 	return local, remote
 }
 
-func (v *VRFModule) BeginBlock(ctx sdk.Context) {
+func (v *VRFModule) BeginBlock(ctx sdk.WorkerContext) {
 
 }
-func (v *VRFModule) EndBlock(ctx sdk.Context) {
-
-	wctx, ok := ctx.(sdk.WorkerContext)
-	if !ok {
-		v.logger.Error("Unexpeced sdk context", "ctx", reflect.TypeOf(ctx).String())
-		return
-	}
+func (v *VRFModule) EndBlock(ctx sdk.WorkerContext) {
 
 	header := ctx.Backend().CurrentHeader()
 
 	if util.IsNotWorker(header) {
 		blockNumber := header.Number.Uint64()
 		// get nonceAndProof by block (After the `pushNonceAndProof` transaction was executed)
-		nonceAndProof, err := v.getCurrentNonceAndProof(wctx, blockNumber)
+		nonceAndProof, err := v.getCurrentNonceAndProof(ctx, blockNumber)
 		if nil != err {
 			v.logger.Error("Failed to get current nonceAndProof", "blockNumber", blockNumber, "error", err)
 			return
@@ -125,7 +129,7 @@ func (v *VRFModule) EndBlock(ctx sdk.Context) {
 		}
 
 		// verify nonce and
-		if err := v.VerifyVrf(wctx, blockNumber, nonceAndProof, pk); nil != err {
+		if err := v.VerifyVrf(ctx, blockNumber, nonceAndProof, pk); nil != err {
 			panic(err)
 		}
 	}
@@ -159,22 +163,22 @@ func (v *VRFModule) VerifyVrf(ctx sdk.WorkerContext, blockNumber uint64, nonceAn
 }
 
 func (v *VRFModule) getPreviousNonce(ctx sdk.WorkerContext, blockNumber uint64) (basecommon.Hash, error) {
-	return vrfInternal.GetPreviousNonce(ctx.StateDB(), blockNumber)
+	return vrfInternal.GetPreviousNonce(ctx.StateDB(), v.Address(), blockNumber)
 }
 
 func (v *VRFModule) getPreviousNonceAndProof(ctx sdk.WorkerContext, blockNumber uint64) ([]byte, error) {
-	return vrfInternal.GetPreviousNonceAndProof(ctx.StateDB(), blockNumber)
+	return vrfInternal.GetPreviousNonceAndProof(ctx.StateDB(), v.Address(), blockNumber)
 }
 
 func (v *VRFModule) getCurrentNonce(ctx sdk.WorkerContext, blockNumber uint64) (basecommon.Hash, error) {
-	return vrfInternal.GetCurrentNonce(ctx.StateDB(), blockNumber)
+	return vrfInternal.GetCurrentNonce(ctx.StateDB(), v.Address(), blockNumber)
 }
 
 func (v *VRFModule) getCurrentNonceAndProof(ctx sdk.WorkerContext, blockNumber uint64) ([]byte, error) {
-	return vrfInternal.GetCurrentNonceAndProof(ctx.StateDB(), blockNumber)
+	return vrfInternal.GetCurrentNonceAndProof(ctx.StateDB(), v.Address(), blockNumber)
 }
 
-func (v *VRFModule) createPushNonceAndProofTx(ctx sdk.Context, nonceAndProof []byte) (*types.Transaction, error) {
+func (v *VRFModule) createPushNonceAndProofTx(ctx sdk.WorkerContext, nonceAndProof []byte) (*types.Transaction, error) {
 
 	input, err := contracts.Abi.Methods["pushNonceAndProof"].Inputs.Pack(nonceAndProof)
 	if nil != err {
@@ -186,7 +190,7 @@ func (v *VRFModule) createPushNonceAndProofTx(ctx sdk.Context, nonceAndProof []b
 		return nil, err
 	}
 
-	tx := types.NewTransaction(txNonce, address.VRFHandlerAddress, nil, 100000, big.NewInt(0), input)
+	tx := types.NewTransaction(txNonce, v.Address(), nil, 100000, big.NewInt(0), input)
 	chainId, _ := ctx.Backend().ChainId()
 	signer := types.NewEIP155Signer(chainId)
 	tx, err = types.SignTx(tx, signer, v.privateKey)
@@ -197,27 +201,11 @@ func (v *VRFModule) createPushNonceAndProofTx(ctx sdk.Context, nonceAndProof []b
 	return tx, nil
 }
 
-func (v *VRFModule) newVRFHandlerCallContract(ctx sdk.Context, header *types.Header) (*contracts.VRFHandler, error) {
+func (v *VRFModule) newVRFHandlerCallContract(ctx sdk.WorkerContext, header *types.Header) (*contracts.VRFHandler, error) {
 	from := crypto.PubkeyToAddress(v.privateKey.PublicKey)
 	evm, _, err := ctx.Backend().GetEVM(message.NewOnlyCallMessage(from), header)
 	if err != nil {
 		return nil, err
 	}
-	return contracts.NewVRFHandler(evm, vm.NewContract(vm.AccountRef(from), vm.AccountRef(address.VRFHandlerAddress), big.NewInt(0), 1000000), true)
-}
-
-func decodePrivateKey(keystoreFile, passwordFile string) (*keystore.Key, error) {
-	if keystoreFile == "" {
-		return nil, fmt.Errorf("statesync.keystore not set")
-	}
-	if passwordFile == "" {
-		return nil, fmt.Errorf("statesync.password not set")
-
-	}
-
-	key, err := sdkcommon.DecryptKey(keystoreFile, passwordFile)
-	if err != nil {
-		return nil, err
-	}
-	return key, nil
+	return contracts.NewVRFHandler(evm, vm.NewContract(vm.AccountRef(from), vm.AccountRef(v.Address()), big.NewInt(0), 1000000), true)
 }

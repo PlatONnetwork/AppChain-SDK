@@ -1,36 +1,45 @@
 package staking
 
 import (
+	"crypto/ecdsa"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/x/address"
+	"github.com/PlatONnetwork/AppChain-SDK/x/l2"
 	stakecommon "github.com/PlatONnetwork/AppChain-SDK/x/staking/common"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
 	stakingp2p "github.com/PlatONnetwork/AppChain-SDK/x/staking/p2p"
 	staketypes "github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	stakewrap "github.com/PlatONnetwork/AppChain-SDK/x/staking/wrap"
-	"github.com/PlatONnetwork/PlatON-Go/common"
+	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
+	"github.com/PlatONnetwork/PlatON-Go/crypto"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/p2p/enode"
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
+	"gopkg.in/urfave/cli.v1"
 	"math/big"
 	"reflect"
 )
 
 type StakeModule struct {
-	p2p    *stakingp2p.StakingP2P
-	logger log.Logger
+	p2p          *stakingp2p.StakingP2P
+	logger       log.Logger
+	privateKey   *ecdsa.PrivateKey
+	keystoreFile string
+	passwordFile string
 }
 
-func NewStakeModule() *StakeModule {
+func NewStakeModule(ctx *cli.Context) *StakeModule {
 	return &StakeModule{
-		logger: log.New("module", "staking"),
+		logger:       log.New("module", "staking"),
+		keystoreFile: ctx.GlobalString(l2.KeystoreFlag.Name),
+		passwordFile: ctx.GlobalString(l2.PasswordFlag.Name),
 	}
 }
 
@@ -38,46 +47,46 @@ func (s *StakeModule) Name() string {
 	return "staking"
 }
 
+func (s *StakeModule) Init() error {
+
+	key, err := l2.DecodePrivateKey(s.keystoreFile, s.passwordFile)
+	if err != nil {
+		return err
+	}
+	s.privateKey = key.PrivateKey
+	return nil
+}
+
 func (s *StakeModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
-	if err := initStakeHandler(db); nil != err {
+	if err := initStakeHandler(db, s.Address()); nil != err {
 		log.Error("Failed initialize StakeHandler", "error", err)
 		panic(err)
 	}
 
 }
 
-func (s *StakeModule) Address() common.Address {
+func (s *StakeModule) Address() basecommon.Address {
 	return address.StakeHandlerAddress
 }
 
 func (s *StakeModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly bool) ([]byte, error) {
-	stateReceiver, _ := contracts.NewStakeHandler(evm, contract, readOnly)
-	return stateReceiver.Run(input)
+	stakeHandler, _ := contracts.NewStakeHandler(evm, contract, readOnly)
+	return stakeHandler.Run(input)
 }
 
-func (s *StakeModule) IsEndOfRound(ctx sdk.Context, blockNumber uint64) bool {
-	wctx, ok := ctx.(sdk.WorkerContext)
-	if !ok {
-		s.logger.Error("Unexpeced sdk context", "ctx", reflect.TypeOf(ctx).String())
-		return false
-	}
-
-	return isEndOfRound(wctx, blockNumber)
+func (s *StakeModule) IsEndOfRound(ctx sdk.ConsensusContext, blockNumber uint64) bool {
+	// NOTE: Only search for the most recent 100 rounds to save resource consumption
+	return db.IsEndOfRound(ctx.StateDB(), s.Address(), blockNumber, 100)
 }
-func (s *StakeModule) GetRoundValidator(ctx sdk.Context, blockNumber uint64) (*cbfttypes.Validators, error) {
-	wctx, ok := ctx.(sdk.WorkerContext)
-	if !ok {
-		s.logger.Error("Unexpeced sdk context", "ctx", reflect.TypeOf(ctx).String())
-		return nil, errors.New("unexpeced sdk context")
-	}
+func (s *StakeModule) GetRoundValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error) {
 
 	var (
 		round      uint64
 		startBlock uint64
 	)
 
-	currentRound := db.GetCurrentRound(wctx.StateDB())
-	rounds, queue := db.GetRoundQueueAndIndexFromTail(wctx.StateDB(), currentRound, 100)
+	currentRound := db.GetCurrentRound(ctx.StateDB(), s.Address())
+	rounds, queue := db.GetRoundQueueAndIndexFromTail(ctx.StateDB(), s.Address(), currentRound, 100)
 	for i, item := range queue {
 		// [startBlock, endBlock) || (startBlock, endBlock]
 		if item.StartBlock <= blockNumber && item.EndBlock >= blockNumber {
@@ -87,7 +96,7 @@ func (s *StakeModule) GetRoundValidator(ctx sdk.Context, blockNumber uint64) (*c
 			break
 		}
 	}
-	validatorSnapQueue := db.GetRoundValidatorSharesSnapshotQueue(wctx.StateDB(), round)
+	validatorSnapQueue := db.GetRoundValidatorSharesSnapshotQueue(ctx.StateDB(), s.Address(), round)
 	if len(validatorSnapQueue) == 0 {
 		s.logger.Error("Not found round validators", "blockNumber", blockNumber, "round", round)
 		return nil, errors.New("round validators not found")
@@ -96,13 +105,13 @@ func (s *StakeModule) GetRoundValidator(ctx sdk.Context, blockNumber uint64) (*c
 	valMap := make(cbfttypes.ValidateNodeMap, len(validatorSnapQueue))
 
 	for i, snap := range validatorSnapQueue {
-		v := db.GetValidator(wctx.StateDB(), snap.ValidatorAddr)
+		v := db.GetValidator(ctx.StateDB(), s.Address(), snap.ValidatorAddr)
 		if v.IsInvalid() {
 			continue
 		}
 		validator := &cbfttypes.ValidateNode{
 			Index:     uint32(i),
-			Address:   common.NodeAddress(snap.ValidatorAddr),
+			Address:   basecommon.NodeAddress(snap.ValidatorAddr),
 			PubKey:    v.PubKey,
 			NodeID:    enode.PubkeyToIDV4(v.PubKey),
 			BlsPubKey: v.BlsKey,
@@ -115,43 +124,28 @@ func (s *StakeModule) GetRoundValidator(ctx sdk.Context, blockNumber uint64) (*c
 		ValidBlockNumber: startBlock,
 	}, nil
 }
-func (s *StakeModule) BlocksOfRound(ctx sdk.Context) uint64 {
-	wctx, ok := ctx.(sdk.WorkerContext)
-	if !ok {
-		s.logger.Error("Unexpeced sdk context", "ctx", reflect.TypeOf(ctx).String())
-		return 0
-	}
-	round := db.GetCurrentRound(wctx.StateDB())
-	roundItem := db.GetRoundItem(wctx.StateDB(), round)
+func (s *StakeModule) BlocksOfRound(ctx sdk.ConsensusContext) uint64 {
+	round := db.GetCurrentRound(ctx.StateDB(), s.Address())
+	roundItem := db.GetRoundItem(ctx.StateDB(), s.Address(), round)
 	if roundItem.IsEmpty() {
 		return 0
 	}
 
 	return roundItem.EndBlock - roundItem.StartBlock + 1
 }
-func (s *StakeModule) IsEndOfEpoch(ctx sdk.Context, blockNumber uint64) bool {
-	wctx, ok := ctx.(sdk.WorkerContext)
-	if !ok {
-		s.logger.Error("Unexpeced sdk context", "ctx", reflect.TypeOf(ctx).String())
-		return false
-	}
-
-	return isEndOfEpoch(wctx, blockNumber)
+func (s *StakeModule) IsEndOfEpoch(ctx sdk.ConsensusContext, blockNumber uint64) bool {
+	// NOTE: Only search for the most recent 100 epochs to save resource consumption
+	return db.IsEndOfEpoch(ctx.StateDB(), s.Address(), blockNumber, 100)
 }
-func (s *StakeModule) GetEpochValidator(ctx sdk.Context, blockNumber uint64) (*cbfttypes.Validators, error) {
-	wctx, ok := ctx.(sdk.WorkerContext)
-	if !ok {
-		s.logger.Error("Unexpeced sdk context", "ctx", reflect.TypeOf(ctx).String())
-		return nil, errors.New("unexpeced sdk context")
-	}
+func (s *StakeModule) GetEpochValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error) {
 
 	var (
 		epoch      uint64
 		startBlock uint64
 	)
 
-	currentEpoch := db.GetCurrentEpoch(wctx.StateDB())
-	epochs, queue := db.GetEpochQueueAndIndexUtil(wctx.StateDB(), currentEpoch, 100)
+	currentEpoch := db.GetCurrentEpoch(ctx.StateDB(), s.Address())
+	epochs, queue := db.GetEpochQueueAndIndexUtil(ctx.StateDB(), s.Address(), currentEpoch, 100)
 	for i, item := range queue {
 		// [startBlock, endBlock) || (startBlock, endBlock]
 		if item.StartBlock <= blockNumber && item.EndBlock >= blockNumber {
@@ -161,7 +155,7 @@ func (s *StakeModule) GetEpochValidator(ctx sdk.Context, blockNumber uint64) (*c
 			break
 		}
 	}
-	validatorSnapQueue := db.GetEpochValidatorSharesSnapshotQueue(wctx.StateDB(), epoch)
+	validatorSnapQueue := db.GetEpochValidatorSharesSnapshotQueue(ctx.StateDB(), s.Address(), epoch)
 	if len(validatorSnapQueue) == 0 {
 		s.logger.Error("Not found epoch validators", "blockNumber", blockNumber, "epoch", epoch)
 		return nil, errors.New("epoch validators not found")
@@ -170,13 +164,13 @@ func (s *StakeModule) GetEpochValidator(ctx sdk.Context, blockNumber uint64) (*c
 	valMap := make(cbfttypes.ValidateNodeMap, len(validatorSnapQueue))
 
 	for i, snap := range validatorSnapQueue {
-		v := db.GetValidator(wctx.StateDB(), snap.ValidatorAddr)
+		v := db.GetValidator(ctx.StateDB(), s.Address(), snap.ValidatorAddr)
 		if v.IsInvalid() {
 			continue
 		}
 		validator := &cbfttypes.ValidateNode{
 			Index:     uint32(i),
-			Address:   common.NodeAddress(snap.ValidatorAddr),
+			Address:   basecommon.NodeAddress(snap.ValidatorAddr),
 			PubKey:    v.PubKey,
 			NodeID:    enode.PubkeyToIDV4(v.PubKey),
 			BlsPubKey: v.BlsKey,
@@ -191,8 +185,8 @@ func (s *StakeModule) GetEpochValidator(ctx sdk.Context, blockNumber uint64) (*c
 }
 func (s *StakeModule) BlocksOfEpoch(ctx sdk.ConsensusContext) uint64 {
 
-	epoch := db.GetCurrentEpoch(wctx.StateDB())
-	epochItem := db.GetEpochItem(wctx.StateDB(), epoch)
+	epoch := db.GetCurrentEpoch(ctx.StateDB(), s.Address())
+	epochItem := db.GetEpochItem(ctx.StateDB(), s.Address(), epoch)
 	if epochItem.IsEmpty() {
 		return 0
 	}
@@ -203,10 +197,9 @@ func (s *StakeModule) BlocksOfEpoch(ctx sdk.ConsensusContext) uint64 {
 func (s *StakeModule) NewHeader(ctx sdk.ConsensusContext, header *types.Header) error { return nil }
 func (s *StakeModule) GetLastNumber(ctx sdk.ConsensusContext, blockNumber uint64) uint64 {
 
-
 	var endBlock uint64
-	currentRound := db.GetCurrentRound(ctx.StateDB())
-	queue := db.GetRoundQueueUtil(ctx.StateDB(), currentRound, 100)
+	currentRound := db.GetCurrentRound(ctx.StateDB(), s.Address())
+	queue := db.GetRoundQueueUtil(ctx.StateDB(), s.Address(), currentRound, 100)
 	for _, item := range queue {
 		// [startBlock, endBlock) || (startBlock, endBlock]
 		if item.StartBlock <= blockNumber && item.EndBlock >= blockNumber {
@@ -232,16 +225,16 @@ func (s *StakeModule) IsCandidateNode(ctx sdk.ConsensusContext, nodeID enode.IDv
 		return false
 	}
 
-	epoch := db.GetCurrentEpoch(wctx.StateDB())
+	epoch := db.GetCurrentEpoch(wctx.StateDB(), s.Address())
 
-	validatorSnapQueue := db.GetEpochValidatorSharesSnapshotQueue(wctx.StateDB(), epoch)
+	validatorSnapQueue := db.GetEpochValidatorSharesSnapshotQueue(wctx.StateDB(), s.Address(), epoch)
 	if len(validatorSnapQueue) == 0 {
 		s.logger.Error("Not found epoch validators", "epoch", epoch)
 		return false
 	}
 
 	for _, snap := range validatorSnapQueue {
-		v := db.GetValidator(wctx.StateDB(), snap.ValidatorAddr)
+		v := db.GetValidator(wctx.StateDB(), s.Address(), snap.ValidatorAddr)
 		if v.IsInvalid() {
 			continue
 		}
@@ -254,19 +247,43 @@ func (s *StakeModule) IsCandidateNode(ctx sdk.ConsensusContext, nodeID enode.IDv
 	return false
 }
 
-func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) {
-
+func (s *StakeModule) AddTxs(ctx sdk.WorkerContext, local, remote map[basecommon.Address]types.Transactions) (map[basecommon.Address]types.Transactions, map[basecommon.Address]types.Transactions) {
 
 	blockNumber := ctx.Backend().CurrentHeader().Number.Uint64()
-	// change current round at new round startBlock
-	if isStartOfNextRound(wctx, blockNumber) {
-		currentRound := db.GetCurrentRound(wctx.StateDB())
-		db.SetCurrentRound(wctx.StateDB(), currentRound+1)
+
+	if db.IsNotStartOfCurrentRound(ctx.StateDB(), s.Address(), blockNumber) {
+		return local, remote
 	}
-	// change current epoch at new epoch startBlock
-	if isStartOfNextEpoch(wctx, blockNumber) {
-		currentEpoch := db.GetCurrentEpoch(wctx.StateDB())
-		db.SetCurrentEpoch(wctx.StateDB(), currentEpoch+1)
+
+	// check low blocks validtors of round, and send slash tx
+	if db.HasNotLowBlocksValidator(ctx.StateDB(), s.Address()) {
+		return local, remote
+	}
+
+	from := crypto.PubkeyToAddress(s.privateKey.PublicKey)
+
+	slashTx, err := s.createSlashTx(ctx)
+	if nil != err {
+		s.logger.Error("Failed to create slash tx", "blockNumber", blockNumber, "error", err)
+		return local, remote
+	}
+	if nil == local[from] {
+		local[from] = make(types.Transactions, 0)
+	}
+	local[from] = append(local[from], slashTx)
+	return local, remote
+}
+
+func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) {
+
+	blockNumber := ctx.Backend().CurrentHeader().Number.Uint64()
+	// NOTE: change current round at new round startBlock
+	if db.IsStartOfNextRound(ctx.StateDB(), s.Address(), blockNumber) {
+		db.InrementCurrentRound(ctx.StateDB(), s.Address())
+	}
+	// NOTE: change current epoch at new epoch startBlock
+	if db.IsStartOfNextEpoch(ctx.StateDB(), s.Address(), blockNumber) {
+		db.IncrementCurrentEpoch(ctx.StateDB(), s.Address())
 	}
 
 	// increase the number of validator blocks generated from the previous block
@@ -274,7 +291,7 @@ func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) {
 	parentHash := ctx.Backend().CurrentHeader().ParentHash
 	if parentNumber != 0 {
 		parentHeader := ctx.Backend().GetBlock(parentHash, parentNumber).Header()
-		if err := stakewrap.SetNumberOfBlocksForRoundValidator(wctx.StateDB(), parentHeader); nil != err {
+		if err := stakewrap.SetNumberOfBlocksForRoundValidator(ctx.StateDB(), parentHeader); nil != err {
 			panic(err)
 		}
 	}
@@ -282,20 +299,20 @@ func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) {
 }
 func (s *StakeModule) EndBlock(ctx sdk.WorkerContext) {
 
-
 	currentBlock := ctx.Backend().CurrentHeader().Number.Uint64()
 
 	// election next round validators (at cuurent round electionBlock)
-	if isCurrentElectionBlock(wctx, currentBlock) {
-		if err := s.electionRoundValidators(wctx, currentBlock); nil != err {
+	if db.IsElectionBlockOnCurrentRound(ctx.StateDB(), s.Address(), currentBlock) {
+		if err := s.electionRoundValidators(ctx, currentBlock); nil != err {
 			s.logger.Error("Failed to election round validators", "blockNumber", currentBlock, "error", err)
 			return
 		}
 	}
 
 	// store next epochItem (at current round endBlock)
-	if isEndOfRound(wctx, currentBlock) {
-		if err := buildNextRound(wctx); nil != err {
+	// NOTE: Only search for the most recent 100 rounds to save resource consumption
+	if db.IsEndOfCurrentRound(ctx.StateDB(), s.Address(), currentBlock) {
+		if err := db.BuildNextRound(ctx.StateDB(), s.Address()); nil != err {
 			s.logger.Error("Failed to build next round", "blockNumber", currentBlock, "error", err)
 			return
 		}
@@ -303,12 +320,13 @@ func (s *StakeModule) EndBlock(ctx sdk.WorkerContext) {
 
 	// election next epoch validators (at current epoch endBlock)
 	// and store next epochItem
-	if isEndOfEpoch(wctx, currentBlock) {
-		if err := buildNextEpoch(wctx); nil != err {
+	// NOTE: Only search for the most recent 100 epochs to save resource consumption
+	if db.IsEndOfCurrentEpoch(ctx.StateDB(), s.Address(), currentBlock) {
+		if err := db.BuildNextEpoch(ctx.StateDB(), s.Address()); nil != err {
 			s.logger.Error("Failed to build next epoch", "blockNumber", currentBlock, "error", err)
 			return
 		}
-		if err := s.electionEpochValidators(wctx, currentBlock); nil != err {
+		if err := s.electionEpochValidators(ctx, currentBlock); nil != err {
 			s.logger.Error("Failed to election epoch validators", "blockNumber", currentBlock, "error", err)
 			return
 		}
@@ -316,35 +334,26 @@ func (s *StakeModule) EndBlock(ctx sdk.WorkerContext) {
 
 	// todo calculation reward
 
-	// todo record signBlocks of validator in round
-
-	if isStartOfRound()
-
 }
 
-func (s *StakeModule) OnCommit(ctx sdk.Context, block *types.Block) error {
-	wctx, ok := ctx.(sdk.WorkerContext)
-	if !ok {
-		s.logger.Error("Unexpeced sdk context", "ctx", reflect.TypeOf(ctx).String())
-		return errors.New("unexpeced sdk context")
-	}
+func (s *StakeModule) OnCommit(ctx sdk.ConsensusContext, block *types.Block) error {
 
-	if isNotCurrentElectionBlock(wctx, block.NumberU64()) {
+	if db.IsNotElectionBlockOnCurrentRound(ctx.StateDB(), s.Address(), block.NumberU64()) {
 		return nil
 	}
 
-	currentRound := db.GetCurrentRound(wctx.StateDB())
+	currentRound := db.GetCurrentRound(ctx.StateDB(), s.Address())
 
-	currentValidatorSnapQueue := db.GetRoundValidatorSharesSnapshotQueue(wctx.StateDB(), currentRound)
-	nextValidatorSnapQueue := db.GetRoundValidatorSharesSnapshotQueue(wctx.StateDB(), currentRound+1)
+	currentValidatorSnapQueue := db.GetRoundValidatorSharesSnapshotQueue(ctx.StateDB(), s.Address(), currentRound)
+	nextValidatorSnapQueue := db.GetRoundValidatorSharesSnapshotQueue(ctx.StateDB(), s.Address(), currentRound+1)
 
-	cache := make(map[common.Address]struct{}, len(currentValidatorSnapQueue))
+	cache := make(map[basecommon.Address]struct{}, len(currentValidatorSnapQueue))
 
 	for _, snap := range currentValidatorSnapQueue {
 		cache[snap.ValidatorAddr] = struct{}{}
 	}
 
-	diffIds := make([]common.Address, 0)
+	diffIds := make([]basecommon.Address, 0)
 
 	for _, snap := range nextValidatorSnapQueue {
 		if _, ok := cache[snap.ValidatorAddr]; !ok {
@@ -357,211 +366,25 @@ func (s *StakeModule) OnCommit(ctx sdk.Context, block *types.Block) error {
 	}
 
 	for _, id := range diffIds {
-		v := db.GetValidator(wctx.StateDB(), id)
+		v := db.GetValidator(ctx.StateDB(), s.Address(), id)
 		s.p2p.Addnode(enode.NewV4(v.PubKey, nil, 0, 0).URLv4())
 	}
 
 	return nil
 }
 
-func isCurrentElectionBlock(ctx sdk.WorkerContext, blockNumber uint64) bool {
-
-	round := db.GetCurrentRound(ctx.StateDB())
-	roundItem := db.GetRoundItem(ctx.StateDB(), round)
-	if roundItem.IsEmpty() {
-		return false
-	}
-
-	tmp := blockNumber + stakecommon.ROUND_VALIDATOR_ELECTION_DISTANCE
-	if tmp == roundItem.EndBlock {
-		return true
-	}
-	return false
-}
-
-func isNotCurrentElectionBlock(ctx sdk.WorkerContext, blockNumber uint64) bool {
-	return !isCurrentElectionBlock(ctx, blockNumber)
-}
-
-func isStartOfRound(ctx sdk.WorkerContext, blockNumber uint64) bool {
-
-	// NOTE: Only search for the most recent 100 rounds to save resource consumption
-	currentRound := db.GetCurrentRound(ctx.StateDB())
-	queue := db.GetRoundQueueUtil(ctx.StateDB(), currentRound, 100)
-	for _, item := range queue {
-		if item.StartBlock == blockNumber {
-			return true
-		}
-	}
-	return false
-}
-
-func isNotStartOfRound(ctx sdk.WorkerContext, blockNumber uint64) bool {
-	return !isStartOfRound(ctx, blockNumber)
-}
-
-func isStartOfCurrentRound(ctx sdk.WorkerContext, blockNumber uint64) bool {
-	currentRound := db.GetCurrentRound(ctx.StateDB())
-	currentRoundItem := db.GetRoundItem(ctx.StateDB(), currentRound)
-	if currentRoundItem.StartBlock == blockNumber {
-		return true
-	}
-	return false
-}
-
-func isNotStartOfCurrentRound(ctx sdk.WorkerContext, blockNumber uint64) bool {
-	return !isStartOfCurrentRound(ctx, blockNumber)
-}
-
-func isStartOfNextRound(ctx sdk.WorkerContext, blockNumber uint64) bool {
-	currentRound := db.GetCurrentRound(ctx.StateDB())
-	currentRoundItem := db.GetRoundItem(ctx.StateDB(), currentRound)
-	if currentRoundItem.EndBlock+1 == blockNumber {
-		return true
-	}
-	return false
-}
-
-func isNotStartOfNextRound(ctx sdk.WorkerContext, blockNumber uint64) bool {
-	return !isStartOfNextRound(ctx, blockNumber)
-}
-
-func isEndOfRound(ctx sdk.WorkerContext, blockNumber uint64) bool {
-
-	// NOTE: Only search for the most recent 100 rounds to save resource consumption
-	currentRound := db.GetCurrentRound(ctx.StateDB())
-	queue := db.GetRoundQueueUtil(ctx.StateDB(), currentRound, 100)
-	for _, item := range queue {
-		if item.EndBlock == blockNumber {
-			return true
-		}
-	}
-	return false
-}
-
-func isNotEndOfRound(ctx sdk.WorkerContext, blockNumber uint64) bool {
-	return !isEndOfRound(ctx, blockNumber)
-}
-
-func isEndOfCurrentRound(ctx sdk.WorkerContext, blockNumber uint64) bool {
-	currentRound := db.GetCurrentRound(ctx.StateDB())
-	currentRoundItem := db.GetRoundItem(ctx.StateDB(), currentRound)
-	if currentRoundItem.EndBlock == blockNumber {
-		return true
-	}
-	return false
-}
-
-func isNotEndOfCurrentRound(ctx sdk.WorkerContext, blockNumber uint64) bool {
-	return !isEndOfCurrentRound(ctx, blockNumber)
-}
-
-func isStartOfEpoch(ctx sdk.WorkerContext, blockNumber uint64) bool {
-	// NOTE: Only search for the most recent 100 epochs to save resource consumption
-	currentEpoch := db.GetCurrentEpoch(ctx.StateDB())
-	queue := db.GetEpochQueueUtil(ctx.StateDB(), currentEpoch, 100)
-	for _, item := range queue {
-		if item.StartBlock == blockNumber {
-			return true
-		}
-	}
-	return false
-}
-
-func isNotStartOfEpoch(ctx sdk.WorkerContext, blockNumber uint64) bool {
-	return !isStartOfEpoch(ctx, blockNumber)
-}
-
-func isStartOfCurrentEpoch(ctx sdk.WorkerContext, blockNumber uint64) bool {
-	currentEpoch := db.GetCurrentEpoch(ctx.StateDB())
-	currentEpochItem := db.GetEpochItem(ctx.StateDB(), currentEpoch)
-	if currentEpochItem.StartBlock == blockNumber {
-		return true
-	}
-	return false
-}
-
-func isNotStartOfCurrentEpoch(ctx sdk.WorkerContext, blockNumber uint64) bool {
-	return !isStartOfCurrentEpoch(ctx, blockNumber)
-}
-
-func isStartOfNextEpoch(ctx sdk.WorkerContext, blockNumber uint64) bool {
-	currentEpoch := db.GetCurrentEpoch(ctx.StateDB())
-	currentEpochItem := db.GetEpochItem(ctx.StateDB(), currentEpoch)
-	if currentEpochItem.EndBlock+1 == blockNumber {
-		return true
-	}
-	return false
-}
-
-func isNotStartOfNextEpoch(ctx sdk.WorkerContext, blockNumber uint64) bool {
-	return !isStartOfNextEpoch(ctx, blockNumber)
-}
-
-func isEndOfEpoch(ctx sdk.WorkerContext, blockNumber uint64) bool {
-
-	// NOTE: Only search for the most recent 100 epochs to save resource consumption
-	currentEpoch := db.GetCurrentEpoch(ctx.StateDB())
-	queue := db.GetEpochQueueUtil(ctx.StateDB(), currentEpoch, 100)
-	for _, item := range queue {
-		if item.EndBlock == blockNumber {
-			return true
-		}
-	}
-	return false
-}
-
-func isNotEndOfEpoch(ctx sdk.WorkerContext, blockNumber uint64) bool {
-	return !isEndOfEpoch(ctx, blockNumber)
-}
-
-func isEndOfCurrentEpoch(ctx sdk.WorkerContext, blockNumber uint64) bool {
-
-	currentEpoch := db.GetCurrentEpoch(ctx.StateDB())
-	currentEpochItem := db.GetEpochItem(ctx.StateDB(), currentEpoch)
-	if currentEpochItem.EndBlock == blockNumber {
-		return true
-	}
-	return false
-}
-
-func isNotEndOfCurrentEpoch(ctx sdk.WorkerContext, blockNumber uint64) bool {
-	return !isEndOfCurrentEpoch(ctx, blockNumber)
-}
-
-func buildNextRound(ctx sdk.WorkerContext) error {
-
-	currentRound := db.GetCurrentRound(ctx.StateDB())
-	currentRoundItem := db.GetRoundItem(ctx.StateDB(), currentRound)
-
-	startBlock := currentRoundItem.EndBlock + 1
-	endBlock := currentRoundItem.EndBlock + stakecommon.ROUND_SIZE
-	return db.AppendRoundItem(ctx.StateDB(), currentRound+1, startBlock, endBlock)
-}
-
-func buildNextEpoch(ctx sdk.WorkerContext) error {
-
-	currentEpoch := db.GetCurrentEpoch(ctx.StateDB())
-	currentEpochItem := db.GetEpochItem(ctx.StateDB(), currentEpoch)
-
-	startBlock := currentEpochItem.EndBlock + 1
-	endBlock := currentEpochItem.EndBlock + stakecommon.EPOCH_SIZE
-	roundCount := stakecommon.EPOCH_SIZE / stakecommon.ROUND_SIZE
-	return db.AppendEpochItem(ctx.StateDB(), currentEpoch+1, startBlock, endBlock, roundCount)
-}
-
 func (s *StakeModule) electionRoundValidators(ctx sdk.WorkerContext, blockNumber uint64) error {
 
-	currentRound := db.GetCurrentRound(ctx.StateDB())
-	currentRoundItem := db.GetRoundItem(ctx.StateDB(), currentRound)
+	currentRound := db.GetCurrentRound(ctx.StateDB(), s.Address())
+	currentRoundItem := db.GetRoundItem(ctx.StateDB(), s.Address(), currentRound)
 	if currentRoundItem.EndBlock-stakecommon.ROUND_VALIDATOR_ELECTION_DISTANCE != blockNumber {
 		return errors.New("block is not round electionBlock of current round")
 	}
 
-	currentEpoch := db.GetCurrentEpoch(ctx.StateDB())
+	currentEpoch := db.GetCurrentEpoch(ctx.StateDB(), s.Address())
 
-	currentRoundValidatorSnapQueue := db.GetRoundValidatorSharesSnapshotQueue(ctx.StateDB(), currentRound)
-	currentEpochValidatorSnapQueue := db.GetEpochValidatorSharesSnapshotQueue(ctx.StateDB(), currentEpoch)
+	currentRoundValidatorSnapQueue := db.GetRoundValidatorSharesSnapshotQueue(ctx.StateDB(), s.Address(), currentRound)
+	currentEpochValidatorSnapQueue := db.GetEpochValidatorSharesSnapshotQueue(ctx.StateDB(), s.Address(), currentEpoch)
 
 	if currentRoundValidatorSnapQueue.IsEmpty() {
 		panic(fmt.Sprintf("the current round validators is empty, blockNumber: %d, round: %d", blockNumber, currentRound))
@@ -571,18 +394,18 @@ func (s *StakeModule) electionRoundValidators(ctx sdk.WorkerContext, blockNumber
 		panic(fmt.Sprintf("the current epoch validators is empty, blockNumber: %d, epoch: %d", blockNumber, currentEpoch))
 	}
 
-	unstakeValidatorAddrCache := make(map[common.Address]struct{}, 0)
+	unstakeValidatorAddrCache := make(map[basecommon.Address]struct{}, 0)
 	maybeRemoveValidatorStatusCache := make(staketypes.MaybeRemoveValidatorStatusCache, 0)
 
 	type validatorSharesItem struct {
 		StakeAmount    *big.Int
 		DelegateAmount *big.Int
 	}
-	validatorSharesCache := make(map[common.Address]*validatorSharesItem, 0)
+	validatorSharesCache := make(map[basecommon.Address]*validatorSharesItem, 0)
 
 	for _, snap := range currentRoundValidatorSnapQueue {
 
-		validator := db.GetValidator(ctx.StateDB(), snap.ValidatorAddr)
+		validator := db.GetValidator(ctx.StateDB(), s.Address(), snap.ValidatorAddr)
 
 		// The validator details may have been removed due to being slashed
 		if validator.IsEmpty() {
@@ -618,7 +441,7 @@ func (s *StakeModule) electionRoundValidators(ctx sdk.WorkerContext, blockNumber
 			continue
 		}
 
-		validator := db.GetValidator(ctx.StateDB(), snap.ValidatorAddr)
+		validator := db.GetValidator(ctx.StateDB(), s.Address(), snap.ValidatorAddr)
 
 		// Skip invalid validators
 		if validator.IsEmpty() || validator.IsInvalid() {
@@ -682,7 +505,7 @@ func (s *StakeModule) electionRoundValidators(ctx sdk.WorkerContext, blockNumber
 		panic(fmt.Sprintf("The Next Round Validator is empty, blockNumber: %d, round: %d", blockNumber, currentRound))
 	}
 
-	if err := db.SetRoundValidatorSharesSnapshotQueue(ctx.StateDB(), currentRound+1, nextRoundValidatorQueue); nil != err {
+	if err := db.SetRoundValidatorSharesSnapshotQueue(ctx.StateDB(), s.Address(), currentRound+1, nextRoundValidatorQueue); nil != err {
 		s.logger.Error("Failed to call SetRoundValidatorSharesSnapshotQueue", "blockNumber", blockNumber, "err", err)
 		return err
 	}
@@ -693,8 +516,8 @@ func (s *StakeModule) electionRoundValidators(ctx sdk.WorkerContext, blockNumber
 
 func (s *StakeModule) electionEpochValidators(ctx sdk.WorkerContext, blockNumber uint64) error {
 
-	currentEpoch := db.GetCurrentEpoch(ctx.StateDB())
-	currentEpochItem := db.GetEpochItem(ctx.StateDB(), currentEpoch)
+	currentEpoch := db.GetCurrentEpoch(ctx.StateDB(), s.Address())
+	currentEpochItem := db.GetEpochItem(ctx.StateDB(), s.Address(), currentEpoch)
 	if currentEpochItem.IsEmpty() {
 		return errors.New("not found currentEpochItem")
 	}
@@ -703,7 +526,7 @@ func (s *StakeModule) electionEpochValidators(ctx sdk.WorkerContext, blockNumber
 		return errors.New("block is not endBlock of current epoch")
 	}
 
-	validatorIds := db.RankPriorityValidatorIds(ctx.StateDB(), stakecommon.MAX_EPOCH_VALIDATORS_SIZE)
+	validatorIds := db.RankPriorityValidatorIds(ctx.StateDB(), s.Address(), stakecommon.MAX_EPOCH_VALIDATORS_SIZE)
 
 	if len(validatorIds) == 0 {
 		return errors.New("not found validatorIds")
@@ -712,18 +535,41 @@ func (s *StakeModule) electionEpochValidators(ctx sdk.WorkerContext, blockNumber
 	queue := make(staketypes.ValidatorSortSnapshotQueue, len(validatorIds))
 	for i, id := range validatorIds {
 
-		validator := db.GetValidator(ctx.StateDB(), id)
+		validator := db.GetValidator(ctx.StateDB(), s.Address(), id)
 		if validator.IsInvalid() {
 			return errors.New("invalid validator")
 		}
 		queue[i] = staketypes.NewValidatorSharesSnapshot(id, validator.Epoch, validator.StakeIndex, validator.StakeAmount, validator.DelegateAmount)
 	}
 
-	if err := db.SetEpochValidatorSharesSnapshotQueue(ctx.StateDB(), currentEpoch+1, queue); nil != err {
+	if err := db.SetEpochValidatorSharesSnapshotQueue(ctx.StateDB(), s.Address(), currentEpoch+1, queue); nil != err {
 		s.logger.Error("Failed to store next epoch validators", "blockNumber", blockNumber, "epoch", currentEpoch, "error", err)
 		return errors.New("store next epoch failed")
 	}
 
 	s.logger.Debug("Succeed to elected next epoch validators", "blockNumber", blockNumber, "epoch", currentEpoch, "validators size", len(queue))
 	return nil
+}
+
+func (s *StakeModule) createSlashTx(ctx sdk.Context) (*types.Transaction, error) {
+
+	input, err := contracts.Abi.Methods["slash"].Inputs.Pack()
+	if nil != err {
+		return nil, err
+	}
+	from := crypto.PubkeyToAddress(s.privateKey.PublicKey)
+	txNonce, err := ctx.Backend().GetPoolNonce(from)
+	if nil != err {
+		return nil, err
+	}
+
+	tx := types.NewTransaction(txNonce, s.Address(), nil, 100000, big.NewInt(0), input)
+	chainId, _ := ctx.Backend().ChainId()
+	signer := types.NewEIP155Signer(chainId)
+	tx, err = types.SignTx(tx, signer, s.privateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return tx, nil
 }

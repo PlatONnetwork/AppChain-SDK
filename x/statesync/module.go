@@ -3,6 +3,7 @@ package statesync
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"github.com/PlatONnetwork/AppChain-SDK/x/l2"
 	"math/big"
 
 	"github.com/PlatONnetwork/AppChain-SDK/store"
@@ -46,8 +47,8 @@ func NewStateSync(ctx *cli.Context, store store.Store, extraDb *extravote.ExtraV
 	eventProofDb := NewEventProofDB(store)
 	return &StateSync{
 		rpcAddress:   ctx.GlobalString(x.RootchainNodeRPCFlag.Name),
-		keystoreFile: ctx.GlobalString(KeystoreFlag.Name),
-		passwordFile: ctx.GlobalString(PasswordFlag.Name),
+		keystoreFile: ctx.GlobalString(l2.KeystoreFlag.Name),
+		passwordFile: ctx.GlobalString(l2.PasswordFlag.Name),
 		startBlock:   start,
 		store:        store,
 		eventProofDb: eventProofDb,
@@ -65,7 +66,7 @@ func (s *StateSync) Init() error {
 		return fmt.Errorf("node rpc address not set")
 	}
 
-	key, err := decodePrivateKey(s.keystoreFile, s.passwordFile)
+	key, err := l2.DecodePrivateKey(s.keystoreFile, s.passwordFile)
 	if err != nil {
 		return err
 	}

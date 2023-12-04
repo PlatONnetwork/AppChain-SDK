@@ -11,4 +11,5 @@ var (
 	EPOCH_SIZE                        = uint64(250) // number of block in epoch
 	MAX_ROUND_VALIDATORS_SIZE         = uint64(25)
 	MAX_EPOCH_VALIDATORS_SIZE         = uint64(201)
+	MIN_ROUND_VALIDATOR_BLOCK_NUMBER  = uint64(1) // Minimum blocks quantity threshold for validators in one round
 )

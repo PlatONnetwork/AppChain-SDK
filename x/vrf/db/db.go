@@ -2,7 +2,6 @@ package db
 
 import (
 	"errors"
-	"github.com/PlatONnetwork/AppChain-SDK/x/address"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/crypto/vrf"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
@@ -19,8 +18,8 @@ func EncodeNonceAndProofKey(block uint64) []byte {
 	return append(nonceAndProofKey, basecommon.Uint64ToBytes(block)...)
 }
 
-func GetNonce(db sdk.StateDB, block uint64) basecommon.Hash {
-	nonceAndProof := GetNonceAndProof(db, block)
+func GetNonce(db sdk.StateDB, addr basecommon.Address, block uint64) basecommon.Hash {
+	nonceAndProof := GetNonceAndProof(db, addr, block)
 	if len(nonceAndProof) == 0 {
 		return basecommon.ZeroHash
 	}
@@ -31,10 +30,10 @@ func GetNonce(db sdk.StateDB, block uint64) basecommon.Hash {
 	return basecommon.BytesToHash(nonceBytes)
 }
 
-func GetNonceAndProof(db sdk.StateDB, block uint64) []byte {
-	return db.GetState(address.VRFHandlerAddress, EncodeNonceAndProofKey(block))
+func GetNonceAndProof(db sdk.StateDB, addr basecommon.Address, block uint64) []byte {
+	return db.GetState(addr, EncodeNonceAndProofKey(block))
 }
 
-func SetNonceAndProof(db sdk.StateDB, block uint64, nonceAndProof []byte) {
-	db.SetState(address.VRFHandlerAddress, EncodeNonceAndProofKey(block), nonceAndProof)
+func SetNonceAndProof(db sdk.StateDB, addr basecommon.Address, block uint64, nonceAndProof []byte) {
+	db.SetState(addr, EncodeNonceAndProofKey(block), nonceAndProof)
 }

@@ -165,34 +165,34 @@ func (c *StakeHandler) updateValidatorByPriority(validatorAddr common.Address, v
 }
 
 func (c *StakeHandler) getValidatorPriority(epoch, stakeIndex uint64, shares *big.Int) *types.PriorityValidator {
-	return db.GetValidatorPriority(c.evm.StateDB, epoch, stakeIndex, shares)
+	return db.GetValidatorPriority(c.evm.StateDB, c.contract.Address(), epoch, stakeIndex, shares)
 }
 
 func (c *StakeHandler) setValidatorPriority(validatorAddr common.Address, epoch, stakeIndex uint64, shares *big.Int) error {
-	return db.SetValidatorPriority(c.evm.StateDB, validatorAddr, epoch, stakeIndex, shares)
+	return db.SetValidatorPriority(c.evm.StateDB, c.contract.Address(), validatorAddr, epoch, stakeIndex, shares)
 }
 
 func (c *StakeHandler) removeValidatorPriority(epoch, stakeIndex uint64, shares *big.Int) error {
-	return db.RemoveValidatorPriority(c.evm.StateDB, epoch, stakeIndex, shares)
+	return db.RemoveValidatorPriority(c.evm.StateDB, c.contract.Address(), epoch, stakeIndex, shares)
 }
 
 func (c *StakeHandler) setValidator(validatorAddr common.Address, validator *types.Validator) error {
-	return db.SetValidator(c.evm.StateDB, validatorAddr, validator)
+	return db.SetValidator(c.evm.StateDB, c.contract.Address(), validatorAddr, validator)
 }
 
 func (c *StakeHandler) GetValidator(validatorAddr common.Address) *types.Validator {
-	return db.GetValidator(c.evm.StateDB, validatorAddr)
+	return db.GetValidator(c.evm.StateDB, c.contract.Address(), validatorAddr)
 }
 
 func (c *StakeHandler) hasValidator(validatorAddr common.Address) bool {
-	return db.HasValidator(c.evm.StateDB, validatorAddr)
+	return db.HasValidator(c.evm.StateDB, c.contract.Address(), validatorAddr)
 }
 func (c *StakeHandler) hasNotValidator(validatorAddr common.Address) bool {
-	return db.HasNotValidator(c.evm.StateDB, validatorAddr)
+	return db.HasNotValidator(c.evm.StateDB, c.contract.Address(), validatorAddr)
 }
 
 func (c *StakeHandler) removeValidator(validatorAddr common.Address) {
-	db.RemoveValidator(c.evm.StateDB, validatorAddr)
+	db.RemoveValidator(c.evm.StateDB, c.contract.Address(), validatorAddr)
 }
 
 func (c *StakeHandler) setDelegation(delegaterAddr, validatorAddr common.Address, stakeEpoch uint64, delegation *types.Delegation) error {
@@ -256,19 +256,19 @@ func (c *StakeHandler) decrementDelegation(delegaterAddr, validatorAddr common.A
 }
 
 func (c *StakeHandler) getCurrentEpoch() uint64 {
-	return db.GetCurrentEpoch(c.evm.StateDB)
+	return db.GetCurrentEpoch(c.evm.StateDB, c.contract.Address())
 }
 
 func (c *StakeHandler) getCurrentRound() uint64 {
-	return db.GetCurrentRound(c.evm.StateDB)
+	return db.GetCurrentRound(c.evm.StateDB, c.contract.Address())
 }
 
 func (c *StakeHandler) getEpochValidatorIds(epoch uint64) types.ValidatorIds {
-	return db.GetEpochValidatorIds(c.evm.StateDB, epoch)
+	return db.GetEpochValidatorIds(c.evm.StateDB, c.contract.Address(), epoch)
 }
 
 func (c *StakeHandler) getRoundValidatorIds(round uint64) types.ValidatorIds {
-	return db.GetRoundValidatorIds(c.evm.StateDB, round)
+	return db.GetRoundValidatorIds(c.evm.StateDB, c.contract.Address(), round)
 }
 
 func (c *StakeHandler) appendStakeWithdrawal(validatorAddr common.Address, epoch uint64, amount *big.Int) error {
@@ -998,15 +998,15 @@ func (c *StakeHandler) getValidatorDelegationRc(validatorAddr common.Address, st
 
 // ----
 func (c *StakeHandler) getEpochQueueSince(epoch, size uint64) types.EpochQueue {
-	return db.GetEpochQueueSince(c.evm.StateDB, epoch, size)
+	return db.GetEpochQueueSince(c.evm.StateDB, c.contract.Address(), epoch, size)
 }
 
 func (c *StakeHandler) getEpochQueueUtil(epoch, size uint64) types.EpochQueue {
-	return db.GetEpochQueueUtil(c.evm.StateDB, epoch, size)
+	return db.GetEpochQueueUtil(c.evm.StateDB, c.contract.Address(), epoch, size)
 }
 
 func (c *StakeHandler) getEpochItem(epoch uint64) *types.EpochItem {
-	return db.GetEpochItem(c.evm.StateDB, epoch)
+	return db.GetEpochItem(c.evm.StateDB, c.contract.Address(), epoch)
 }
 
 // ----

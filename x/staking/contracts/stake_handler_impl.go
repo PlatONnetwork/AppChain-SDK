@@ -3,6 +3,8 @@ package contracts
 import (
 	"bytes"
 	"errors"
+	"fmt"
+	"github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
 	"github.com/PlatONnetwork/PlatON-Go/common/math"
 
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
@@ -93,15 +95,36 @@ func (c *StakeHandler) OnStateReceive(id *big.Int, sender common.Address, data [
 }
 
 func (c *StakeHandler) Slash() error {
-	//if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
-	//	return err
-	//}
-	//// TODO 提交 slash tx 的必须是 validator ?? round? epoch?
-	//if err := c.syncStateSlash(validators); nil != err {
-	//	return err
-	//}
-	//
-	//log.Info("Slash for", "validators", fmt.Sprintf("%+v", validators), "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
+	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
+		return err
+	}
+	validators := db.CheckLowBlocksValidator(c.evm.StateDB, c.contract.Address())
+	// ###### NOTE: ######
+	// remove validator from epoch validators
+	cache := make(map[common.Address]struct{}, 0)
+	for _, validatorAddr := range validators {
+		cache[validatorAddr] = struct{}{}
+	}
+	currentEpoch := c.getCurrentEpoch()
+	epochValidatorAddrQueue := db.GetEpochValidatorSharesSnapshotQueue(c.evm.StateDB, c.contract.Address(), currentEpoch)
+	for i := 0; i < len(epochValidatorAddrQueue); i++ {
+		validator := epochValidatorAddrQueue[i]
+		if _, ok := cache[validator.ValidatorAddr]; !ok {
+			// remove the validatorAddr from epoch validatorAddrQueue
+			epochValidatorAddrQueue = append(epochValidatorAddrQueue[:i], epochValidatorAddrQueue[i+1:]...)
+			i--
+		}
+	}
+	if err := db.SetEpochValidatorSharesSnapshotQueue(c.evm.StateDB, c.contract.Address(), currentEpoch, epochValidatorAddrQueue); nil != err {
+		log.Error("Failed to update epochValidators", "epoch", currentEpoch, "error", err)
+		return typesdk.NewRevertError("StakeHandler: UPDATE EPOCH VALIDATORS FAILED")
+	}
+
+	if err := c.syncStateSlash(validators); nil != err {
+		return err
+	}
+
+	log.Info("Slash for", "validators", fmt.Sprintf("%+v", validators), "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }
 

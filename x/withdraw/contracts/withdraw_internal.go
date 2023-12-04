@@ -60,10 +60,10 @@ func (c *WithdrawManager) withdraw(withdrawer, recipient basecommon.Address, amo
 	// ###3 NOTE ####
 	// defferent to DepositHandler
 	// withdraw coin from `WithdrawManager` contract to recipient
-	if c.evm.StateDB.GetBalance(address.WithdrawManagerAddress).Cmp(amount) < 0 {
+	if c.evm.StateDB.GetBalance(c.contract.Address()).Cmp(amount) < 0 {
 		return typesdk.NewRevertError("WithdrawManager: insufficient balance")
 	}
-	c.evm.Context.Transfer(c.evm.StateDB, address.WithdrawManagerAddress, recipient, amount)
+	c.evm.Context.Transfer(c.evm.StateDB, c.contract.Address(), recipient, amount)
 	if err := c.addLogL2MintableCoinWithdrawEvent(recipient, withdrawer, amount); nil != err {
 		return err
 	}

@@ -1,7 +1,6 @@
 package staking
 
 import (
-	"github.com/PlatONnetwork/AppChain-SDK/x/address"
 	stakingdb "github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -9,27 +8,27 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 )
 
-func initStakeHandler(statedb sdk.StateDB) error {
+func initStakeHandler(statedb sdk.StateDB, addr common.Address) error {
 
-	if err := initValidatorPriority(statedb); nil != err {
+	if err := initValidatorPriority(statedb, addr); nil != err {
 		return err
 	}
 
-	if err := initEpochItem(statedb); nil != err {
+	if err := initEpochItem(statedb, addr); nil != err {
 		return err
 	}
-	if err := initRoundItem(statedb); nil != err {
+	if err := initRoundItem(statedb, addr); nil != err {
 		return err
 	}
 
-	if err := initValidators(statedb); nil != err {
+	if err := initValidators(statedb, addr); nil != err {
 		return err
 	}
 
 	return nil
 }
 
-func initValidatorPriority(statedb sdk.StateDB) error {
+func initValidatorPriority(statedb sdk.StateDB, addr common.Address) error {
 	head := types.NewPriorityValidator(
 		stakingdb.EncodePriorityValidatorTailKey(),
 		stakingdb.EncodePriorityValidatorTailKey(),
@@ -49,12 +48,12 @@ func initValidatorPriority(statedb sdk.StateDB) error {
 		return stakingdb.ErrRlpEncode
 	}
 
-	statedb.SetState(address.StakeHandlerAddress, stakingdb.EncodePriorityValidatorHeadKey(), hvalue)
-	statedb.SetState(address.StakeHandlerAddress, stakingdb.EncodePriorityValidatorTailKey(), tvalue)
+	statedb.SetState(addr, stakingdb.EncodePriorityValidatorHeadKey(), hvalue)
+	statedb.SetState(addr, stakingdb.EncodePriorityValidatorTailKey(), tvalue)
 	return nil
 }
 
-func initEpochItem(statedb sdk.StateDB) error {
+func initEpochItem(statedb sdk.StateDB, addr common.Address) error {
 
 	// TODO 需要根据配置读取 epochSize 计算第一轮的边界
 	//
@@ -68,13 +67,13 @@ func initEpochItem(statedb sdk.StateDB) error {
 	if nil != err {
 		return stakingdb.ErrRlpEncode
 	}
-	statedb.SetState(address.StakeHandlerAddress, stakingdb.EncodeEpochItemKey(0), zvalue)
-	statedb.SetState(address.StakeHandlerAddress, stakingdb.EncodeEpochItemKey(1), value)
+	statedb.SetState(addr, stakingdb.EncodeEpochItemKey(0), zvalue)
+	statedb.SetState(addr, stakingdb.EncodeEpochItemKey(1), value)
 
 	return nil
 }
 
-func initRoundItem(statedb sdk.StateDB) error {
+func initRoundItem(statedb sdk.StateDB, addr common.Address) error {
 
 	// TODO 需要根据配置读取 roundSize 计算第一轮的边界
 	//
@@ -88,13 +87,13 @@ func initRoundItem(statedb sdk.StateDB) error {
 	if nil != err {
 		return stakingdb.ErrRlpEncode
 	}
-	statedb.SetState(address.StakeHandlerAddress, stakingdb.EncodeRoundItemKey(0), zvalue)
-	statedb.SetState(address.StakeHandlerAddress, stakingdb.EncodeRoundItemKey(1), value)
+	statedb.SetState(addr, stakingdb.EncodeRoundItemKey(0), zvalue)
+	statedb.SetState(addr, stakingdb.EncodeRoundItemKey(1), value)
 
 	return nil
 }
 
-func initValidators(statedb sdk.StateDB) error {
+func initValidators(statedb sdk.StateDB, addr common.Address) error {
 
 	// TODO 读取创世快， 添加创世的 priority / validator / epochValidatorSnapshotQueue(epoch:1)/ roundValidatorSnapshotQueue(round:1)
 

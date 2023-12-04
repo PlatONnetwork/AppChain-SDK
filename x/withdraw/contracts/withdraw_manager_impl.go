@@ -78,7 +78,7 @@ func (c *WithdrawManager) Deposit(recipient common.Address, amount *big.Int) err
 	if c.evm.StateDB.GetBalance(c.contract.Caller()).Cmp(amount) < 0 {
 		return typesdk.NewRevertError("WithdrawManager: insufficient balance")
 	}
-	c.evm.Context.Transfer(c.evm.StateDB, c.contract.Caller(), address.WithdrawManagerAddress, amount)
+	c.evm.Context.Transfer(c.evm.StateDB, c.contract.Caller(), c.contract.Address(), amount)
 
 	if err := c.syncStateDeposit(c.contract.Caller(), recipient, amount); nil != err {
 		return err

@@ -6,6 +6,7 @@ import (
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/x/address"
 	stakecommon "github.com/PlatONnetwork/AppChain-SDK/x/staking/common"
+	"github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	statesenderC "github.com/PlatONnetwork/AppChain-SDK/x/statesender/contracts"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
@@ -295,18 +296,43 @@ func (c *StakeHandler) slash(handleEventId *big.Int, validatorAddrs []basecommon
 	}
 
 	queue := types.NewSlashValidatorWithdrawItemQueue(uint64(len(validatorAddrs)))
-	for i, v := range validatorAddrs {
+	cache := make(map[basecommon.Address]struct{}, 0)
+	for i, validatorAddr := range validatorAddrs {
 
-		queue[i] = types.NewSlashValidatorWithdrawItem(v, amounts[i])
-
+		queue[i] = types.NewSlashValidatorWithdrawItem(validatorAddr, amounts[i])
+		cache[validatorAddr] = struct{}{}
 		// unstake short circuit
-		c.removeValidator(v)
-		c.cleanStakeWithdrawable(v)
+		c.removeValidator(validatorAddr)
+		c.cleanStakeWithdrawable(validatorAddr)
 
 	}
+
 	if err := c.setSlashProcessed(handleEventId, queue); nil != err {
 		log.Error("Failed to call setSlashProcessed", "handleEventId", handleEventId, "error", err)
 		return typesdk.NewRevertError("StakeHandler: INVALID_PARAMS")
+	}
+
+	// ###### NOTE: ######
+	// To prevent transaction time differences between L1 and L2,
+	// after processing L1's crash, return to L2 to remove the validator
+	// and try again to remove the validator from Epoch validators.
+	//(as validators may be selected again during time differences)
+	currentEpoch := c.getCurrentEpoch()
+	epochValidatorAddrQueue := db.GetEpochValidatorSharesSnapshotQueue(c.evm.StateDB, c.contract.Address(), currentEpoch)
+	oldSize := len(epochValidatorAddrQueue)
+	for i := 0; i < len(epochValidatorAddrQueue); i++ {
+		validator := epochValidatorAddrQueue[i]
+		if _, ok := cache[validator.ValidatorAddr]; !ok {
+			// remove the validatorAddr from epoch validatorAddrQueue
+			epochValidatorAddrQueue = append(epochValidatorAddrQueue[:i], epochValidatorAddrQueue[i+1:]...)
+			i--
+		}
+	}
+	if len(epochValidatorAddrQueue) != oldSize {
+		if err := db.SetEpochValidatorSharesSnapshotQueue(c.evm.StateDB, c.contract.Address(), currentEpoch, epochValidatorAddrQueue); nil != err {
+			log.Error("Failed to update epochValidators", "epoch", currentEpoch, "error", err)
+			return typesdk.NewRevertError("StakeHandler: UPDATE EPOCH VALIDATORS FAILED")
+		}
 	}
 
 	if err := c.addLogSlashedEvent(handleEventId, validatorAddrs, amounts); nil != err {

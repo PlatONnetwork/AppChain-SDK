@@ -6,7 +6,7 @@ import (
 )
 
 type Staking interface {
-	IsEndOfRound(ctx sdk.Context, blockNumber uint64) bool
-	GetRoundValidator(ctx sdk.Context, blockNumber uint64) (*cbfttypes.Validators, error)
-	BlocksOfRound(ctx sdk.Context) uint64
+	IsEndOfRound(ctx sdk.ConsensusContext, blockNumber uint64) bool
+	GetRoundValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error)
+	BlocksOfRound(ctx sdk.ConsensusContext) uint64
 }
