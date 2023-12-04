@@ -395,11 +395,19 @@ func (c *StakeHandler) registerStakeWithdrawalByEpoch(validatorAddr basecommon.A
 			return typesdk.NewRevertError("StakeHandler: SET REGISTER STAKE WITHDRAW FAILED")
 		}
 
-		if err := c.addLogStakeWithdrawalRegisteredEvent(validatorAddr, amount); nil != err {
-			return err
+	} else {
+		if err := c.appendStakeWithdrawal(validatorAddr, epoch, amount); nil != err {
+			log.Error("Failed to register stake withdraw", "validatorAddr", validatorAddr.Hex(),
+				"currentEpoch", c.getCurrentEpoch(), "releaseEpoch", epoch, "blockNumber", c.evm.Context.BlockNumber, "amount", amount, "error", err)
+			return typesdk.NewRevertError("StakeHandler: SET REGISTER STAKE WITHDRAW FAILED")
 		}
-		log.Info("Register stake withdrawal for", "validator", validatorAddr.Hex(), "currentEpoch", c.getCurrentEpoch(), "releaseEpoch", epoch, "amount", amount, "blockNumber", c.evm.Context.BlockNumber)
 	}
+
+	if err := c.addLogStakeWithdrawalRegisteredEvent(validatorAddr, amount); nil != err {
+		return err
+	}
+	log.Info("Register stake withdrawal for", "validator", validatorAddr.Hex(), "currentEpoch", c.getCurrentEpoch(),
+		"releaseEpoch", epoch, "amount", amount, "blockNumber", c.evm.Context.BlockNumber)
 
 	return nil
 }
