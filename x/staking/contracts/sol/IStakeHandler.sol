@@ -14,19 +14,20 @@ struct ValidatorInit {
 
 interface IStakeHandler is IL1StateReceiver {
     event Slashed(uint256 indexed exitId, address[] validators, uint256[] amounts);
-    event UnStaked(address validator);
-    event UnDelegated(address validator, address delegater);
-    event StakeWithdrawalRegistered(address indexed account, uint256 amount);
-    event StakeWithdrawal(address indexed account, uint256 amount);
-    event DelegateWithdrawalRegistered(address indexed account, address indexed validator, uint256 amount);
-    event DelegateWithdrawal(address indexed account, address indexed validator, uint256 amount);
+    event StakeAdded(address indexed validator, uint256 amount);
+    event DelegationAdded(address indexed delegater, address indexed validator, uint256 amount);
+    event UnStaked(address indexed validator, uint256 amount);
+    event UnDelegated(address indexed delegater, address indexed validator, uint256 amount);
+    event StakeWithdrawalRegistered(address indexed validator, uint256 amount);
+    event StakeWithdrawal(address indexed validator, uint256 amount);
+    event DelegateWithdrawalRegistered(address indexed delegater, address indexed validator, uint256 amount);
+    event DelegateWithdrawal(address indexed delegater, address indexed validator, uint256 amount);
 
     /// @notice initialises slashing process
     /// @dev system call,
     /// @dev given list of validators are slashed on L2
     /// subsequently after their stake is slashed on L1
-    /// @param validators list of validators to be slashed
-    function slash(address[] calldata validators) external;
+    function slash() external;
 
     /// @notice allows a validator to announce their intention to withdraw a given amount of tokens
     /// @dev initializes a waiting period before the tokens can be withdrawn

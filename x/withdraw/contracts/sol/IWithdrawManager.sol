@@ -1,4 +1,4 @@
-pragma solidity ^0.8.22;
+pragma solidity ^0.8.20;
 
 interface IWithdrawManager {
     event L2MintableCoinDeposit(address indexed recipient, address depositor, uint256 amount);

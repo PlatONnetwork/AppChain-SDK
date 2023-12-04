@@ -1,4 +1,4 @@
-pragma solidity ^0.8.22;
+pragma solidity ^0.8.20;
 
 import "./IStakeHandler.sol";
 
@@ -9,8 +9,7 @@ contract StakeHandler is IStakeHandler {
     /// @dev system call,
     /// @dev given list of validators are slashed on L2
     /// subsequently after their stake is slashed on L1
-    /// @param validators list of validators to be slashed
-    function slash(address[] calldata validators) external {}
+    function slash() external {}
 
     /// @notice allows a validator to announce their intention to withdraw a given amount of tokens
     /// @dev initializes a waiting period before the tokens can be withdrawn
