@@ -105,14 +105,10 @@ func encodeSlashProcessedKey(handleEventId *big.Int) []byte {
 // ------------------------------------------------------ db methods ------------------------------------------------------
 
 func (c *StakeHandler) incrementValidatorNonce() uint64 {
-	value := c.evm.StateDB.GetState(c.contract.Address(), validatorNonceKey)
-	var v uint64
-	if len(value) != 0 {
-		v = common.BytesToUint64(value)
-	}
-	old := v
-	v++
-	c.evm.StateDB.SetState(c.contract.Address(), validatorNonceKey, common.Uint64ToBytes(v))
+	nonce := c.GetValidatorNonce()
+	old := nonce
+	nonce++
+	c.evm.StateDB.SetState(c.contract.Address(), validatorNonceKey, common.Uint64ToBytes(nonce))
 	return old
 }
 

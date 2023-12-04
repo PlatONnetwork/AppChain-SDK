@@ -416,7 +416,7 @@ func (c *StakeHandler) registerStakeWithdrawal(validatorAddr basecommon.Address,
 	currentEpoch := c.getCurrentEpoch()
 	var releaseEpoch uint64
 	if wait {
-		releaseEpoch = currentEpoch + stakecommon.DELEGATE_WITHDRAWAL_WAIT_PERIOD
+		releaseEpoch = currentEpoch + stakecommon.STAKE_WITHDRAWAL_WAIT_PERIOD
 	} else {
 		releaseEpoch = currentEpoch
 	}

@@ -11,5 +11,6 @@ var (
 	DepositHandlerAddress           = common.HexToAddress("")
 	RootchainWithdrawHandlerAddress = common.HexToAddress("") // WithdrawHandler address on rootchain
 	WithdrawManagerAddress          = common.HexToAddress("")
+	RewardManagerAddress            = common.HexToAddress("")
 	VRFHandlerAddress               = common.HexToAddress("")
 )

@@ -630,11 +630,7 @@ func GetRoundItem(db sdk.StateDBReader, addr common.Address, round uint64) *type
 }
 
 func IncrementNumberOfBlocksForRoundValidator(db sdk.StateDB, addr common.Address, validatorAddr common.Address, round, increment uint64) {
-	value := db.GetState(addr, encodeNumberOfBlocksForRoundValidatorKey(validatorAddr, round))
-	var number uint64
-	if len(value) != 0 {
-		number = common.BytesToUint64(value)
-	}
+	number := GetNumberOfBlocksForRoundValidator(db, addr, validatorAddr, round)
 	number += increment
 	db.SetState(addr, encodeNumberOfBlocksForRoundValidatorKey(validatorAddr, round), common.Uint64ToBytes(number))
 }
