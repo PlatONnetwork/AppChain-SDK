@@ -1,7 +1,7 @@
 package withdraw
 
 import (
-	"github.com/PlatONnetwork/AppChain-SDK/x/address"
+	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/withdraw/contracts"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
@@ -19,7 +19,7 @@ func (w *WithdrawModule) Name() string {
 }
 
 func (w *WithdrawModule) Address() basecommon.Address {
-	return address.WithdrawManagerAddress
+	return constants.WithdrawManagerAddress
 }
 
 func (w *WithdrawModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly bool) ([]byte, error) {

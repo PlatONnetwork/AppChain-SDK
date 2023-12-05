@@ -3,7 +3,8 @@ package db
 import (
 	"bytes"
 	"errors"
-	stakecommon "github.com/PlatONnetwork/AppChain-SDK/x/staking/common"
+	stakecommon "github.com/PlatONnetwork/AppChain-SDK/x/constants"
+	stagedb "github.com/PlatONnetwork/AppChain-SDK/x/stage/db"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/common/math"
@@ -23,17 +24,13 @@ var (
 )
 
 var (
-	priorityValidatorHeadKey                   = []byte("priorityValidatorHead")             // "priorityValidatorHead" => priorityValidator(head)
-	priorityValidatorTailKey                   = []byte("priorityValidatorTail")             // "priorityValidatorTail" => priorityValidator(tail)
-	priorityValidatorKeyPrefix                 = []byte("priorityValidator")                 // "priorityValidator":shares(stakeAmount+delegataionAmount):stakeEpoch:stakeIndex => priorityValidator{preKey, nextKey, validatorAddr}
-	validatorKeyPrefix                         = []byte("validator")                         // "validator":validatorAddr => validator
-	currentEpochKey                            = []byte("currentEpoch")                      // "currentEpoch" => currentEpoch (It is a number)
-	currentRoundKey                            = []byte("currentRound")                      // "currentRound" => currentRound (It is a number)
+	priorityValidatorHeadKey   = []byte("priorityValidatorHead") // "priorityValidatorHead" => priorityValidator(head)
+	priorityValidatorTailKey   = []byte("priorityValidatorTail") // "priorityValidatorTail" => priorityValidator(tail)
+	priorityValidatorKeyPrefix = []byte("priorityValidator")     // "priorityValidator":shares(stakeAmount+delegataionAmount):stakeEpoch:stakeIndex => priorityValidator{preKey, nextKey, validatorAddr}
+	validatorKeyPrefix         = []byte("validator")             // "validator":validatorAddr => validator
+
 	epochValidatorSharesSnapshotQueueKeyPrefix = []byte("epochValidatorSharesSnapshotQueue") // "epochValidatorSharesSnapshotQueue":epochId => []validatorSharesSnapshot  (For settlement epoch)
 	roundValidatorSharesSnapshotQueueKeyPrefix = []byte("roundValidatorSharesSnapshotQueue") // "roundValidatorSharesSnapshotQueue":roundId => []validatorSharesSnapshot  (For consensus round)
-
-	epochItemKeyPrefix = []byte("epochItem") // "epochItem":epochId => {preEpoch, nextEpoch, startBlock, endBlock, roundCount}
-	roundItemKeyPrefix = []byte("roundItem") // "roundItem":roundId => {preRound, nextRound, startBlock, endBlock}
 
 	numberOfBlocksForRoundValidatorKeyPrefix = []byte("numberOfBlocksForRoundValidator") // "numberOfBlocksForRoundValidator":validatorAddr:round => numberOfBlocks
 )
@@ -81,14 +78,6 @@ func encodeEpochValidatorSharesSnapshotQueueKey(epoch uint64) []byte {
 
 func encodeRoundValidatorSharesSnapshotQueueKey(round uint64) []byte {
 	return append(roundValidatorSharesSnapshotQueueKeyPrefix, common.Uint64ToBytes(round)...)
-}
-
-func EncodeEpochItemKey(epoch uint64) []byte {
-	return append(epochItemKeyPrefix, common.Uint64ToBytes(epoch)...)
-}
-
-func EncodeRoundItemKey(round uint64) []byte {
-	return append(roundItemKeyPrefix, common.Uint64ToBytes(round)...)
 }
 
 func encodeNumberOfBlocksForRoundValidatorKey(validatorAddr common.Address, round uint64) []byte {
@@ -328,32 +317,6 @@ func RemoveValidator(db sdk.StateDB, addr common.Address, validatorAddr common.A
 	db.SetState(addr, encodeValidatorKey(validatorAddr), []byte{})
 }
 
-func IncrementCurrentEpoch(db sdk.StateDB, addr common.Address) {
-	epoch := GetCurrentEpoch(db, addr)
-	db.SetState(addr, currentEpochKey, common.Uint64ToBytes(epoch+1))
-}
-
-func GetCurrentEpoch(db sdk.StateDBReader, addr common.Address) uint64 {
-	value := db.GetState(addr, currentEpochKey)
-	if len(value) == 0 {
-		return 0
-	}
-	return common.BytesToUint64(value)
-}
-
-func InrementCurrentRound(db sdk.StateDB, addr common.Address) {
-	round := GetCurrentRound(db, addr)
-	db.SetState(addr, currentRoundKey, common.Uint64ToBytes(round+1))
-}
-
-func GetCurrentRound(db sdk.StateDBReader, addr common.Address) uint64 {
-	value := db.GetState(addr, currentRoundKey)
-	if len(value) == 0 {
-		return 0
-	}
-	return common.BytesToUint64(value)
-}
-
 func SetEpochValidatorSharesSnapshotQueue(db sdk.StateDB, addr common.Address, epoch uint64, queue types.ValidatorSortSnapshotQueue) error {
 	value, err := rlp.EncodeToBytes(queue)
 	if nil != err {
@@ -437,198 +400,6 @@ func GetRoundValidatorIds(db sdk.StateDBReader, addr common.Address, round uint6
 
 // ----
 
-func AppendEpochItem(db sdk.StateDB, addr common.Address, epoch uint64, startBlock, endBlock, roundCount uint64) error {
-	epochItem := GetEpochItem(db, addr, epoch)
-	if epochItem.IsNotEmpty() {
-		return ErrExist
-	}
-	epochItem = types.NewEpochItem(startBlock, endBlock, roundCount)
-	return SetEpochItem(db, addr, epoch, epochItem)
-}
-
-func GetEpochQueueSince(db sdk.StateDBReader, addr common.Address, epoch, size uint64) types.EpochQueue {
-	queue := types.NewEpochQueue(size)
-
-	var count uint64 = 0
-
-	currentEpoch := GetCurrentEpoch(db, addr)
-	index := epoch
-
-	for index != currentEpoch+1 && count < size {
-		queue[count] = GetEpochItem(db, addr, index)
-		index++
-		count++
-	}
-	return queue[:count]
-}
-
-func GetEpochQueueUtil(db sdk.StateDBReader, addr common.Address, epoch, size uint64) types.EpochQueue {
-	queue := types.NewEpochQueue(size)
-
-	var count uint64 = 0
-
-	index := epoch
-	for index != 0 && count < size {
-		queue[count] = GetEpochItem(db, addr, index)
-		index--
-		count++
-	}
-	return queue[:count]
-}
-
-func GetEpochQueueAndIndexSince(db sdk.StateDBReader, addr common.Address, epoch, size uint64) ([]uint64, types.EpochQueue) {
-	queue := types.NewEpochQueue(size)
-	epochs := make([]uint64, size)
-
-	var count uint64 = 0
-
-	currentEpoch := GetCurrentEpoch(db, addr)
-	index := epoch
-
-	for index != currentEpoch+1 && count < size {
-		queue[count] = GetEpochItem(db, addr, index)
-		epochs[count] = index
-		index++
-		count++
-	}
-	return epochs[:count], queue[:count]
-}
-
-func GetEpochQueueAndIndexUtil(db sdk.StateDBReader, addr common.Address, epoch, size uint64) ([]uint64, types.EpochQueue) {
-	queue := types.NewEpochQueue(size)
-	epochs := make([]uint64, size)
-
-	var count uint64 = 0
-
-	index := epoch
-	for index != 0 && count < size {
-		queue[count] = GetEpochItem(db, addr, index)
-		epochs[count] = index
-		index--
-		count++
-	}
-	return epochs[:count], queue[:count]
-}
-
-func SetEpochItem(db sdk.StateDB, addr common.Address, epoch uint64, item *types.EpochItem) error {
-	value, err := rlp.EncodeToBytes(item)
-	if nil != err {
-		return ErrRlpEncode
-	}
-	db.SetState(addr, EncodeEpochItemKey(epoch), value)
-	return nil
-}
-
-func GetEpochItem(db sdk.StateDBReader, addr common.Address, epoch uint64) *types.EpochItem {
-	value := db.GetState(addr, EncodeEpochItemKey(epoch))
-	if len(value) == 0 {
-		return nil
-	}
-
-	var item types.EpochItem
-	if err := rlp.DecodeBytes(value, &item); nil == err {
-		return &item
-	}
-	return nil
-}
-
-// ---
-
-func AppendRoundItem(db sdk.StateDB, addr common.Address, round uint64, startBlock, endBlock uint64) error {
-	roundItem := GetRoundItem(db, addr, round)
-	if roundItem.IsNotEmpty() {
-		return ErrExist
-	}
-	roundItem = types.NewRoundItem(startBlock, endBlock)
-	return SetRoundItem(db, addr, round, roundItem)
-}
-
-func GetRoundQueueSince(db sdk.StateDBReader, addr common.Address, round, size uint64) types.RoundQueue {
-	queue := types.NewRoundQueue(size)
-
-	var count uint64 = 0
-
-	currentEpoch := GetCurrentRound(db, addr)
-	index := round
-
-	for index != currentEpoch+1 && count < size {
-		queue[count] = GetRoundItem(db, addr, index)
-		index++
-		count++
-	}
-	return queue[:count]
-}
-
-func GetRoundQueueUtil(db sdk.StateDBReader, addr common.Address, round, size uint64) types.RoundQueue {
-	queue := types.NewRoundQueue(size)
-
-	var count uint64 = 0
-
-	index := round
-	for index != 0 && count < size {
-		queue[count] = GetRoundItem(db, addr, index)
-		index--
-		count++
-	}
-	return queue[:count]
-}
-
-func GetRoundQueueAndIndexSince(db sdk.StateDBReader, addr common.Address, round, size uint64) ([]uint64, types.RoundQueue) {
-	queue := types.NewRoundQueue(size)
-	rounds := make([]uint64, size)
-
-	var count uint64 = 0
-
-	currentRound := GetCurrentRound(db, addr)
-	index := round
-
-	for index != currentRound+1 && count < size {
-		queue[count] = GetRoundItem(db, addr, index)
-		rounds[count] = index
-		index++
-		count++
-	}
-	return rounds[:count], queue[:count]
-}
-
-func GetRoundQueueAndIndexFromTail(db sdk.StateDBReader, addr common.Address, round, size uint64) ([]uint64, types.RoundQueue) {
-	queue := types.NewRoundQueue(size)
-	rounds := make([]uint64, size)
-
-	var count uint64 = 0
-
-	index := round
-	for index != 0 && count < size {
-		queue[count] = GetRoundItem(db, addr, index)
-		rounds[count] = index
-		index--
-		count++
-	}
-	return rounds[:count], queue[:count]
-}
-
-func SetRoundItem(db sdk.StateDB, addr common.Address, round uint64, item *types.RoundItem) error {
-	value, err := rlp.EncodeToBytes(item)
-	if nil != err {
-		return ErrRlpEncode
-	}
-	db.SetState(addr, EncodeRoundItemKey(round), value)
-	return nil
-}
-
-func GetRoundItem(db sdk.StateDBReader, addr common.Address, round uint64) *types.RoundItem {
-	value := db.GetState(addr, EncodeRoundItemKey(round))
-	if len(value) == 0 {
-		return nil
-	}
-
-	var item types.RoundItem
-	if err := rlp.DecodeBytes(value, &item); nil == err {
-		return &item
-	}
-	return nil
-}
-
 func IncrementNumberOfBlocksForRoundValidator(db sdk.StateDB, addr common.Address, validatorAddr common.Address, round, increment uint64) {
 	number := GetNumberOfBlocksForRoundValidator(db, addr, validatorAddr, round)
 	number += increment
@@ -653,192 +424,8 @@ func getNumberOfBlocksForRoundValidatorsMap(db sdk.StateDBReader, addr common.Ad
 	return cache
 }
 
-// ---------
-
-func IsElectionBlockOnCurrentRound(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
-
-	round := GetCurrentRound(db, addr)
-	roundItem := GetRoundItem(db, addr, round)
-	if roundItem.IsEmpty() {
-		return false
-	}
-
-	tmp := blockNumber + stakecommon.ROUND_VALIDATOR_ELECTION_DISTANCE
-	if tmp == roundItem.EndBlock {
-		return true
-	}
-	return false
-}
-
-func IsNotElectionBlockOnCurrentRound(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
-	return !IsElectionBlockOnCurrentRound(db, addr, blockNumber)
-}
-
-func IsBeginOfRound(db sdk.StateDBReader, addr common.Address, blockNumber, size uint64) bool {
-
-	currentRound := GetCurrentRound(db, addr)
-	queue := GetRoundQueueUtil(db, addr, currentRound, size)
-	for _, item := range queue {
-		if item.StartBlock == blockNumber {
-			return true
-		}
-	}
-	return false
-}
-
-func IsNotStartOfRound(db sdk.StateDBReader, addr common.Address, blockNumber, size uint64) bool {
-	return !IsBeginOfRound(db, addr, blockNumber, size)
-}
-
-func IsBeginOfCurrentRound(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
-	currentRound := GetCurrentRound(db, addr)
-	currentRoundItem := GetRoundItem(db, addr, currentRound)
-	if currentRoundItem.StartBlock == blockNumber {
-		return true
-	}
-	return false
-}
-
-func IsNotStartOfCurrentRound(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
-	return !IsBeginOfCurrentRound(db, addr, blockNumber)
-}
-
-func IsBeginOfNextRound(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
-	currentRound := GetCurrentRound(db, addr)
-	currentRoundItem := GetRoundItem(db, addr, currentRound)
-	if currentRoundItem.EndBlock+1 == blockNumber {
-		return true
-	}
-	return false
-}
-
-func IsNotStartOfNextRound(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
-	return !IsBeginOfNextRound(db, addr, blockNumber)
-}
-
-func IsEndOfRound(db sdk.StateDBReader, addr common.Address, blockNumber, size uint64) bool {
-
-	currentRound := GetCurrentRound(db, addr)
-	queue := GetRoundQueueUtil(db, addr, currentRound, size)
-	for _, item := range queue {
-		if item.EndBlock == blockNumber {
-			return true
-		}
-	}
-	return false
-}
-
-func IsNotEndOfRound(db sdk.StateDBReader, addr common.Address, blockNumber, size uint64) bool {
-	return !IsEndOfRound(db, addr, blockNumber, size)
-}
-
-func IsEndOfCurrentRound(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
-	currentRound := GetCurrentRound(db, addr)
-	currentRoundItem := GetRoundItem(db, addr, currentRound)
-	if currentRoundItem.EndBlock == blockNumber {
-		return true
-	}
-	return false
-}
-
-func IsNotEndOfCurrentRound(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
-	return !IsEndOfCurrentRound(db, addr, blockNumber)
-}
-
-func IsBeginOfEpoch(db sdk.StateDBReader, addr common.Address, blockNumber, size uint64) bool {
-
-	currentEpoch := GetCurrentEpoch(db, addr)
-	queue := GetEpochQueueUtil(db, addr, currentEpoch, size)
-	for _, item := range queue {
-		if item.StartBlock == blockNumber {
-			return true
-		}
-	}
-	return false
-}
-
-func IsNotStartOfEpoch(db sdk.StateDBReader, addr common.Address, blockNumber, size uint64) bool {
-	return !IsBeginOfEpoch(db, addr, blockNumber, size)
-}
-
-func IsBeginOfCurrentEpoch(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
-	currentEpoch := GetCurrentEpoch(db, addr)
-	currentEpochItem := GetEpochItem(db, addr, currentEpoch)
-	if currentEpochItem.StartBlock == blockNumber {
-		return true
-	}
-	return false
-}
-
-func IsNotStartOfCurrentEpoch(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
-	return !IsBeginOfCurrentEpoch(db, addr, blockNumber)
-}
-
-func IsBeginOfNextEpoch(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
-	currentEpoch := GetCurrentEpoch(db, addr)
-	currentEpochItem := GetEpochItem(db, addr, currentEpoch)
-	if currentEpochItem.EndBlock+1 == blockNumber {
-		return true
-	}
-	return false
-}
-
-func IsNotStartOfNextEpoch(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
-	return !IsBeginOfNextEpoch(db, addr, blockNumber)
-}
-
-func IsEndOfEpoch(db sdk.StateDBReader, addr common.Address, blockNumber, size uint64) bool {
-	currentEpoch := GetCurrentEpoch(db, addr)
-	queue := GetEpochQueueUtil(db, addr, currentEpoch, size)
-	for _, item := range queue {
-		if item.EndBlock == blockNumber {
-			return true
-		}
-	}
-	return false
-}
-
-func IsNotEndOfEpoch(db sdk.StateDBReader, addr common.Address, blockNumber, size uint64) bool {
-	return !IsEndOfEpoch(db, addr, blockNumber, size)
-}
-
-func IsEndOfCurrentEpoch(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
-
-	currentEpoch := GetCurrentEpoch(db, addr)
-	currentEpochItem := GetEpochItem(db, addr, currentEpoch)
-	if currentEpochItem.EndBlock == blockNumber {
-		return true
-	}
-	return false
-}
-
-func IsNotEndOfCurrentEpoch(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
-	return !IsEndOfCurrentEpoch(db, addr, blockNumber)
-}
-
-func BuildNextRound(db sdk.StateDB, addr common.Address) error {
-
-	currentRound := GetCurrentRound(db, addr)
-	currentRoundItem := GetRoundItem(db, addr, currentRound)
-
-	startBlock := currentRoundItem.EndBlock + 1
-	endBlock := currentRoundItem.EndBlock + stakecommon.ROUND_SIZE
-	return AppendRoundItem(db, addr, currentRound+1, startBlock, endBlock)
-}
-
-func BuildNextEpoch(db sdk.StateDB, addr common.Address) error {
-
-	currentEpoch := GetCurrentEpoch(db, addr)
-	currentEpochItem := GetEpochItem(db, addr, currentEpoch)
-
-	startBlock := currentEpochItem.EndBlock + 1
-	endBlock := currentEpochItem.EndBlock + stakecommon.EPOCH_SIZE
-	roundCount := stakecommon.EPOCH_SIZE / stakecommon.ROUND_SIZE
-	return AppendEpochItem(db, addr, currentEpoch+1, startBlock, endBlock, roundCount)
-}
-
 func HasLowBlocksValidator(db sdk.StateDB, addr common.Address) bool {
-	currentRound := GetCurrentRound(db, addr)
+	currentRound := stagedb.GetCurrentRound(db, addr)
 	if currentRound == 1 {
 		return false
 	}
@@ -861,7 +448,7 @@ func HasNotLowBlocksValidator(db sdk.StateDB, addr common.Address) bool {
 }
 
 func CheckLowBlocksValidator(db sdk.StateDB, addr common.Address) types.ValidatorIds {
-	currentRound := GetCurrentRound(db, addr)
+	currentRound := stagedb.GetCurrentRound(db, addr)
 	if currentRound == 1 {
 		return nil
 	}

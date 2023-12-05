@@ -2,7 +2,7 @@ package reward
 
 import (
 	"fmt"
-	"github.com/PlatONnetwork/AppChain-SDK/x/address"
+	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	rewardcommon "github.com/PlatONnetwork/AppChain-SDK/x/reward/common"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/contracts"
 	rewarddb "github.com/PlatONnetwork/AppChain-SDK/x/reward/db"
@@ -17,12 +17,14 @@ import (
 type RewardModule struct {
 	logger  log.Logger
 	staking types.Staking
+	stage   types.Stage
 }
 
-func NewRewardModule(staking types.Staking) *RewardModule {
+func NewRewardModule(staking types.Staking, stage types.Stage) *RewardModule {
 	return &RewardModule{
 		logger:  log.New("module", "reward"),
 		staking: staking,
+		stage:   stage,
 	}
 }
 
@@ -31,7 +33,7 @@ func (r *RewardModule) Name() string {
 }
 
 func (r *RewardModule) Address() basecommon.Address {
-	return address.RewardManagerAddress
+	return constants.RewardManagerAddress
 }
 
 func (r *RewardModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly bool) ([]byte, error) {
@@ -42,7 +44,7 @@ func (r *RewardModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, rea
 func (r *RewardModule) BeginBlock(ctx sdk.WorkerContext) {
 	currentBlock := ctx.Backend().CurrentHeader().Number.Uint64()
 	// distribute blocks reward (with round)
-	if r.staking.IsBeginOfCurrentRound(ctx.StateDB(), currentBlock) {
+	if r.stage.IsBeginOfCurrentRound(ctx.StateDB(), currentBlock) {
 		r.handleBlocksRewardForPreviousRound(ctx.StateDB())
 	}
 }
@@ -52,7 +54,7 @@ func (r *RewardModule) EndBlock(ctx sdk.WorkerContext) {
 	currentBlock := ctx.Backend().CurrentHeader().Number.Uint64()
 
 	// distribute epoch reward
-	if r.staking.IsEndOfCurrentEpoch(ctx.StateDB(), currentBlock) {
+	if r.stage.IsEndOfCurrentEpoch(ctx.StateDB(), currentBlock) {
 		if err := r.handleEpochReward(ctx.StateDB()); nil != err {
 			panic(fmt.Sprintf("Failed to handle epoch reward, %s", err))
 		}
@@ -60,7 +62,7 @@ func (r *RewardModule) EndBlock(ctx sdk.WorkerContext) {
 }
 
 func (r *RewardModule) handleBlocksRewardForPreviousRound(stateDB sdk.StateDB) error {
-	currentRound := r.staking.GetCurrentRound(stateDB)
+	currentRound := r.stage.GetCurrentRound(stateDB)
 	previousRoundValidatorIds := r.staking.GetRoundValidatorIds(stateDB, currentRound-1)
 
 	for _, validatorAddr := range previousRoundValidatorIds {
@@ -77,7 +79,7 @@ func (r *RewardModule) handleBlocksRewardForPreviousRound(stateDB sdk.StateDB) e
 }
 
 func (r *RewardModule) handleEpochReward(stateDB sdk.StateDB) error {
-	currentEpoch := r.staking.GetCurrentEpoch(stateDB)
+	currentEpoch := r.stage.GetCurrentEpoch(stateDB)
 	epochValidatorIds := r.staking.GetEpochValidatorIds(stateDB, currentEpoch)
 
 	perValidatorEpochReward := new(big.Int).Div(rewardcommon.REWARD_PER_EPOCH, big.NewInt(int64(len(epochValidatorIds))))

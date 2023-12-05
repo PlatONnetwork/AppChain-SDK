@@ -8,7 +8,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/common/math"
 
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
-	"github.com/PlatONnetwork/AppChain-SDK/x/address"
+	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	upgradecontracts "github.com/PlatONnetwork/AppChain-SDK/x/upgradesys/contracts"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 
@@ -78,7 +78,7 @@ func (c *StakeHandler) OnStateReceive(id *big.Int, sender common.Address, data [
 		return err
 	}
 	// todo need to change the inner contract address file path
-	if c.contract.Caller() != address.StateReceiverAddress || sender != address.RootchainStakeManagerAddress {
+	if c.contract.Caller() != constants.StateReceiverAddress || sender != constants.RootchainStakeManagerAddress {
 		return typesdk.NewRevertError("StakeHandler: INVALID_SENDER")
 	}
 	if bytes.Compare(data[:METHODID_SIZE], STAKE_SIG.Bytes()) == 0 {

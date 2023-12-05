@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"errors"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
-	"github.com/PlatONnetwork/AppChain-SDK/x/address"
+	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	upgradecontracts "github.com/PlatONnetwork/AppChain-SDK/x/upgradesys/contracts"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
@@ -57,7 +57,7 @@ func (c *WithdrawManager) OnStateReceive(id *big.Int, sender common.Address, dat
 		return err
 	}
 	// todo need to change the inner contract address file path
-	if c.contract.Caller() != address.StateReceiverAddress || sender != address.RootchainWithdrawHandlerAddress {
+	if c.contract.Caller() != constants.StateReceiverAddress || sender != constants.RootchainWithdrawHandlerAddress {
 		return typesdk.NewRevertError("WithdrawManager: INVALID_SENDER")
 	}
 	if bytes.Compare(data[:METHODID_SIZE], WITHDRAW_SIG.Bytes()) == 0 {

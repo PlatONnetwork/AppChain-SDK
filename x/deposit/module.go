@@ -1,7 +1,7 @@
 package deposit
 
 import (
-	"github.com/PlatONnetwork/AppChain-SDK/x/address"
+	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/deposit/contracts"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
@@ -20,7 +20,7 @@ func (d *DepositModule) Name() string {
 }
 
 func (d *DepositModule) Address() basecommon.Address {
-	return address.StakeHandlerAddress
+	return constants.StakeHandlerAddress
 }
 
 func (d *DepositModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly bool) ([]byte, error) {

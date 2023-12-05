@@ -4,7 +4,7 @@ import (
 	"crypto/ecdsa"
 	"encoding/hex"
 	"encoding/json"
-	"github.com/PlatONnetwork/AppChain-SDK/x/address"
+	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/l2"
 	"github.com/PlatONnetwork/AppChain-SDK/x/message"
 	"github.com/PlatONnetwork/AppChain-SDK/x/util"
@@ -64,7 +64,7 @@ func (v *VRFModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *pa
 }
 
 func (v *VRFModule) Address() basecommon.Address {
-	return address.VRFHandlerAddress
+	return constants.VRFHandlerAddress
 }
 
 func (v *VRFModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly bool) ([]byte, error) {

@@ -63,7 +63,18 @@ func (c *RewardManager) PendingValidatorRewards(validator common.Address) (*big.
 }
 
 func (c *RewardManager) WithdrawDelegaterReward(validator common.Address) error {
-	panic("implement")
+
+	// todo 这个还要做下合并，再 withdraw
+
+	//stakeHandler, err := stakingC.NewStakeHandlerCaller(c.evm, c.contract, constants.StakeHandlerAddress)
+	//if nil != err {
+	//	log.Error("Failed to call NewStakeHandlerCaller", "delegaterAddr", c.contract.Caller(), "validatorAddr", validator.Hex(), "error", err)
+	//	return typesdk.NewRevertError("RewardManager: invalid stakeHandler")
+	//}
+	//epochIndex := rewarddb.GetDelegaterRewardPendingIndex(c.evm.StateDB, c.contract.Address(), c.contract.Caller(), validator)
+	//stakeHandler.
+
+	return nil
 }
 
 func (c *RewardManager) WithdrawValidatorReward(validator common.Address) error {

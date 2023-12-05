@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/AlayaNetwork/Alaya-Go/common"
 	"github.com/AlayaNetwork/Alaya-Go/x/xcom"
-	stakecommon "github.com/PlatONnetwork/AppChain-SDK/x/staking/common"
+	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	staketypes "github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	vrfwrap "github.com/PlatONnetwork/AppChain-SDK/x/vrf/wrap"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
@@ -41,7 +41,7 @@ func (svs sortValidatorQueue) Swap(i, j int) {
 	svs[i], svs[j] = svs[j], svs[i]
 }
 
-func ElectionValidatorByVRF(db sdk.StateDB, validatorSnapshotQueue staketypes.ValidatorSortSnapshotQueue, blockNumber, shiftSize uint64) (staketypes.ValidatorSortSnapshotQueue, error) {
+func ElectionValidatorByVRF(db sdk.StateDB, addr basecommon.Address, validatorSnapshotQueue staketypes.ValidatorSortSnapshotQueue, blockNumber, shiftSize uint64) (staketypes.ValidatorSortSnapshotQueue, error) {
 
 	// ### NOTE ###
 	//
@@ -49,7 +49,7 @@ func ElectionValidatorByVRF(db sdk.StateDB, validatorSnapshotQueue staketypes.Va
 	// otherwise VRF elections will have insufficient historical VRF nonces, leading to election failure (especially during parameter governance)
 	//
 	// (the validator snapshot queue (validatorSnapshotQueue) is definitely smaller than the number of validators in the epoch)
-	historyNonceQueue, err := vrfwrap.GetNonceQueueUtil(db, blockNumber-1, uint64(len(validatorSnapshotQueue)))
+	historyNonceQueue, err := vrfwrap.GetNonceQueueUtil(db, addr, blockNumber-1, uint64(len(validatorSnapshotQueue)))
 	if nil != err {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ func ElectionValidatorByVRF(db sdk.StateDB, validatorSnapshotQueue staketypes.Va
 		return nil, fmt.Errorf("had not enough history vrf nonces")
 	}
 
-	currentVRFNonce, err := vrfwrap.GetCurrentNonce(db, blockNumber)
+	currentVRFNonce, err := vrfwrap.GetCurrentNonce(db, addr, blockNumber)
 	if nil != err {
 		return nil, err
 	}
@@ -157,18 +157,18 @@ func electionByProbability(validatorSnapshotQueue staketypes.ValidatorSortSnapsh
 
 // ----------------------------
 
-func ShuffleQueue(db sdk.StateDB, currentRoundValidatorSnapshotQueue, validatorSnapshotVRFQueue staketypes.ValidatorSortSnapshotQueue, blockNumber uint64) (staketypes.ValidatorSortSnapshotQueue, error) {
+func ShuffleQueue(db sdk.StateDB, addr basecommon.Address, currentRoundValidatorSnapshotQueue, validatorSnapshotVRFQueue staketypes.ValidatorSortSnapshotQueue, blockNumber uint64) (staketypes.ValidatorSortSnapshotQueue, error) {
 
 	currentSize := uint64(len(currentRoundValidatorSnapshotQueue))
 	totalQueue := append(currentRoundValidatorSnapshotQueue, validatorSnapshotVRFQueue...)
 
-	for currentSize > stakecommon.MAX_ROUND_VALIDATORS_SIZE-((stakecommon.MAX_ROUND_VALIDATORS_SIZE-1)/3) && uint64(len(totalQueue)) > stakecommon.MAX_ROUND_VALIDATORS_SIZE {
+	for currentSize > constants.MAX_ROUND_VALIDATORS_SIZE-((constants.MAX_ROUND_VALIDATORS_SIZE-1)/3) && uint64(len(totalQueue)) > constants.MAX_ROUND_VALIDATORS_SIZE {
 		totalQueue = totalQueue[1:]
 		currentSize--
 	}
 
-	if uint64(len(totalQueue)) > stakecommon.MAX_ROUND_VALIDATORS_SIZE {
-		totalQueue = totalQueue[:stakecommon.MAX_ROUND_VALIDATORS_SIZE]
+	if uint64(len(totalQueue)) > constants.MAX_ROUND_VALIDATORS_SIZE {
+		totalQueue = totalQueue[:constants.MAX_ROUND_VALIDATORS_SIZE]
 	}
 
 	nextQueue := make(staketypes.ValidatorSortSnapshotQueue, len(totalQueue))
@@ -179,7 +179,7 @@ func ShuffleQueue(db sdk.StateDB, currentRoundValidatorSnapshotQueue, validatorS
 	// but random ordering is performed in each group
 	// The first group: the first f nodes
 	// The second group: the last 2f + 1 nodes
-	nextQueue, err := orderValidatorQueueByRandom(db, blockNumber, nextQueue)
+	nextQueue, err := orderValidatorQueueByRandom(db, addr, blockNumber, nextQueue)
 	if nil != err {
 		return nil, err
 	}
@@ -205,9 +205,9 @@ func (r randomOrderValidatorQueue) Swap(i, j int) {
 }
 
 // Randomly sort nodes
-func orderValidatorQueueByRandom(db sdk.StateDB, blockNumber uint64, validatorSnapshotQueue staketypes.ValidatorSortSnapshotQueue) (staketypes.ValidatorSortSnapshotQueue, error) {
+func orderValidatorQueueByRandom(db sdk.StateDB, addr basecommon.Address, blockNumber uint64, validatorSnapshotQueue staketypes.ValidatorSortSnapshotQueue) (staketypes.ValidatorSortSnapshotQueue, error) {
 
-	historyNonceQueue, err := vrfwrap.GetNonceQueueUtil(db, blockNumber-1, uint64(len(validatorSnapshotQueue)))
+	historyNonceQueue, err := vrfwrap.GetNonceQueueUtil(db, addr, blockNumber-1, uint64(len(validatorSnapshotQueue)))
 	if nil != err {
 		return nil, err
 	}

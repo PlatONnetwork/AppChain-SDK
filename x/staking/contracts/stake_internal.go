@@ -4,8 +4,7 @@ import (
 	"crypto/ecdsa"
 	"encoding/hex"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
-	"github.com/PlatONnetwork/AppChain-SDK/x/address"
-	stakecommon "github.com/PlatONnetwork/AppChain-SDK/x/staking/common"
+	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	statesenderC "github.com/PlatONnetwork/AppChain-SDK/x/statesender/contracts"
@@ -416,7 +415,7 @@ func (c *StakeHandler) registerStakeWithdrawal(validatorAddr basecommon.Address,
 	currentEpoch := c.getCurrentEpoch()
 	var releaseEpoch uint64
 	if wait {
-		releaseEpoch = currentEpoch + stakecommon.STAKE_WITHDRAWAL_WAIT_PERIOD
+		releaseEpoch = currentEpoch + constants.STAKE_WITHDRAWAL_WAIT_PERIOD
 	} else {
 		releaseEpoch = currentEpoch
 	}
@@ -437,7 +436,7 @@ func (c *StakeHandler) registerDelegateWithdrawal(delegater, validatorAddr basec
 	currentEpoch := c.getCurrentEpoch()
 	var releaseEpoch uint64
 	if wait {
-		releaseEpoch = currentEpoch + stakecommon.DELEGATE_WITHDRAWAL_WAIT_PERIOD
+		releaseEpoch = currentEpoch + constants.DELEGATE_WITHDRAWAL_WAIT_PERIOD
 	} else {
 		releaseEpoch = currentEpoch
 	}
@@ -462,13 +461,13 @@ func (c *StakeHandler) syncStateUnStake(validatorAddr basecommon.Address, amount
 		return typesdk.NewRevertError("encode L2StateSender unstake data failed")
 	}
 
-	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, address.StateSenderAddress)
+	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, constants.StateSenderAddress)
 	if nil != err {
 		log.Error("Failed to call NewL2StateSenderCaller", "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
 		return typesdk.NewRevertError("call unstake by L2StateSender failed")
 	}
 
-	if err := l2statesender.SyncState(address.RootchainStakeManagerAddress, data); nil != err {
+	if err := l2statesender.SyncState(constants.RootchainStakeManagerAddress, data); nil != err {
 		log.Error("Failed to call SyncState", "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
 		return typesdk.NewRevertError("call unstake by L2StateSender failed")
 	}
@@ -482,13 +481,13 @@ func (c *StakeHandler) syncStateUnDelegate(validatorAddr, delegaterAddr basecomm
 		return typesdk.NewRevertError("encode L2StateSender undelegate data failed")
 	}
 
-	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, address.StateSenderAddress)
+	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, constants.StateSenderAddress)
 	if nil != err {
 		log.Error("Failed to call NewL2StateSenderCaller", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
 		return typesdk.NewRevertError("call undelegate by L2StateSender failed")
 	}
 
-	if err := l2statesender.SyncState(address.RootchainStakeManagerAddress, data); nil != err {
+	if err := l2statesender.SyncState(constants.RootchainStakeManagerAddress, data); nil != err {
 		log.Error("Failed to call SyncState", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
 		return typesdk.NewRevertError("call undelegate by L2StateSender failed")
 	}
@@ -497,19 +496,19 @@ func (c *StakeHandler) syncStateUnDelegate(validatorAddr, delegaterAddr basecomm
 
 func (c *StakeHandler) syncStateSlash(validators []basecommon.Address) error {
 
-	data, err := abi.Encode([]interface{}{SLASH_SIG, validators, stakecommon.SLASHING_PERCENTAGE, stakecommon.SLASH_INCENTIVE_PERCENTAGE}, ROOT_CHAIN_SLASH_PARAMS_TYPE)
+	data, err := abi.Encode([]interface{}{SLASH_SIG, validators, constants.SLASHING_PERCENTAGE, constants.SLASH_INCENTIVE_PERCENTAGE}, ROOT_CHAIN_SLASH_PARAMS_TYPE)
 	if nil != err {
 		log.Error("Failed to encode slash syncState data", "validators size", len(validators), "error", err)
 		return typesdk.NewRevertError("encode L2StateSender slash data failed")
 	}
 
-	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, address.StateSenderAddress)
+	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, constants.StateSenderAddress)
 	if nil != err {
 		log.Error("Failed to call NewL2StateSenderCaller", "validators size", len(validators), "error", err)
 		return typesdk.NewRevertError("call slash by L2StateSender failed")
 	}
 
-	if err := l2statesender.SyncState(address.RootchainStakeManagerAddress, data); nil != err {
+	if err := l2statesender.SyncState(constants.RootchainStakeManagerAddress, data); nil != err {
 		log.Error("Failed to call SyncState", "validators size", len(validators), "error", err)
 		return typesdk.NewRevertError("call slash by L2StateSender failed")
 	}
