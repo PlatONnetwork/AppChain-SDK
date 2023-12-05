@@ -6,7 +6,7 @@ import (
 )
 
 type Delegation struct {
-	Epoch  uint64
+	Epoch  uint64 // delegate epoch
 	Amount *big.Int
 }
 

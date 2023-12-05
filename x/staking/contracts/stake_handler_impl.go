@@ -150,34 +150,34 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 
 	delegaterAddr := c.contract.Caller()
 
-	queue := c.getValidatorDelegationRcPending(validatorAddr, math.MaxUint64)
+	epochs, _ := c.getValidatorDelegationRcPendingAndEpoch(validatorAddr, math.MaxUint64)
 
 	paid := common.Big0
 
-	for _, item := range queue { // No.0 is head item, No.1 is first item, ...
+	for _, stakeEpoch := range epochs {
 
-		if amount.Cmp(common.Big0) == 0 || item.NextStakeEpoch == uint64(math.MaxUint64) {
+		if amount.Cmp(common.Big0) == 0 {
 			break
 		}
 
-		delegation := c.getDelegation(delegaterAddr, validatorAddr, item.NextStakeEpoch)
+		delegation := c.getDelegation(delegaterAddr, validatorAddr, stakeEpoch)
 		if delegation.IsEmpty() {
 			continue
 		}
 
 		use := common.Big0
 		if delegation.Amount.Cmp(amount) <= 0 { // remove the delegation by stakeEpoch
-			c.removeDelegation(delegaterAddr, validatorAddr, item.NextStakeEpoch)
-			if err := c.releaseValidatorDelegationRcItem(validatorAddr, item.NextStakeEpoch, 1); nil != err {
-				log.Error("Failed to release validatorDelegation rc", "validatorAddr", validatorAddr.Hex(), "stakeEpoch", item.NextStakeEpoch, "error", err)
+			c.removeDelegation(delegaterAddr, validatorAddr, stakeEpoch)
+			if err := c.releaseValidatorDelegationRcItem(validatorAddr, stakeEpoch, 1); nil != err {
+				log.Error("Failed to release validatorDelegation rc", "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "error", err)
 				return typesdk.NewRevertError("StakeHandler: RELEASE VALIDATOR DELEGATION RC FAILED")
 			}
 			use = delegation.Amount
 		} else {
 			delegation.UpdateEpoch(c.getCurrentEpoch())
 			delegation.DecrementAmount(amount)
-			if err := c.setDelegation(delegaterAddr, validatorAddr, item.NextStakeEpoch, delegation); nil != err {
-				log.Error("Failed to set delegation", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "stakeEpoch", item.NextStakeEpoch, "error", err)
+			if err := c.setDelegation(delegaterAddr, validatorAddr, stakeEpoch, delegation); nil != err {
+				log.Error("Failed to set delegation", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "error", err)
 				return typesdk.NewRevertError("StakeHandler: SET DELEGATION FAILED")
 			}
 			use = amount
@@ -187,7 +187,7 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 		paid = new(big.Int).Add(paid, use)
 
 		// update validator priority
-		if validator.IsValid() && validator.Epoch == item.NextStakeEpoch {
+		if validator.IsValid() && validator.Epoch == stakeEpoch {
 			validator.SubDelegateAmount(amount)
 
 			if err := c.updateValidatorByPriority(validatorAddr, validator); nil != err {

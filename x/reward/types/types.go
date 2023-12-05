@@ -6,12 +6,16 @@ import (
 )
 
 type EpochDelegationRewardPerShareItem struct {
+	PreviousEpoch  uint64
+	NextEpoch      uint64
 	TotalReward    *big.Int
 	PerShareReward *big.Int
 }
 
-func NewEpochDelegationRewardPerShareItem(totalReward, perShareReward *big.Int) *EpochDelegationRewardPerShareItem {
+func NewEpochDelegationRewardPerShareItem(previousEpoch, nextEpoch uint64, totalReward, perShareReward *big.Int) *EpochDelegationRewardPerShareItem {
 	return &EpochDelegationRewardPerShareItem{
+		PreviousEpoch:  previousEpoch,
+		NextEpoch:      nextEpoch,
 		TotalReward:    totalReward,
 		PerShareReward: perShareReward,
 	}
@@ -23,6 +27,10 @@ func (item *EpochDelegationRewardPerShareItem) IsEmpty() bool {
 
 func (item *EpochDelegationRewardPerShareItem) IsNotEmpty() bool {
 	return !item.IsEmpty()
+}
+
+func (item *EpochDelegationRewardPerShareItem) IsZeroTotalReward() bool {
+	return item.TotalReward.Cmp(basecommon.Big0) == 0
 }
 
 func (item *EpochDelegationRewardPerShareItem) DecrementTotalReward(amount *big.Int) {

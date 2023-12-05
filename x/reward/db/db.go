@@ -26,8 +26,8 @@ var (
 
 	validatorRewardOwnerKeyPrefix = []byte("validatorRewardOwner") // "validatorRewardOwner":validatorAddr => ownerAddr
 
-	delegaterRewardPendingIndexKeyPrefix       = []byte("delegaterRewardPendingIndex")       // "delegaterRewardPendingIndex":delegaterAddr:validatorAddr => epochId
-	epochDelegationRewardPerShareItemKeyPrefix = []byte("epochDelegationRewardPerShareItem") // "epochDelegationRewardPerShareItem":validatorAddr:epochId => epochRewardPerDelegationShareItem{totalReward, perShareReward}
+	//delegaterRewardPendingIndexKeyPrefix       = []byte("delegaterRewardPendingIndex")       // "delegaterRewardPendingIndex":delegaterAddr:validatorAddr:stakeEpoch => needRewardEpoch
+	epochDelegationRewardPerShareItemKeyPrefix = []byte("epochDelegationRewardPerShareItem") // "epochDelegationRewardPerShareItem":validatorAddr:stakeEpoch:epochId => epochRewardPerDelegationShareItem{ previousEpoch, nextEpoch, totalReward, perShareReward}
 )
 
 func encodePendingValidatorRewardKey(validatorAddr basecommon.Address) []byte {
@@ -56,23 +56,25 @@ func encodeValidatorRewardOwnerKey(validatorAddr basecommon.Address) []byte {
 	return append(validatorRewardOwnerKeyPrefix, validatorAddr.Bytes()...)
 }
 
-func encodeDelegaterRewardPendingIndexKey(delegaterAddr, validatorAddr basecommon.Address) []byte {
-
-	delegaterAddrBytes := delegaterAddr.Bytes()
-	validatorAddrBytes := validatorAddr.Bytes()
-
-	keyPrefixSize := len(delegaterRewardPendingIndexKeyPrefix)
-	appendDelegaterAddrSize := keyPrefixSize + len(delegaterAddrBytes)
-	size := appendDelegaterAddrSize + len(validatorAddrBytes)
-
-	key := make([]byte, size)
-
-	copy(key[:keyPrefixSize], delegaterRewardPendingIndexKeyPrefix)
-	copy(key[keyPrefixSize:appendDelegaterAddrSize], delegaterAddrBytes)
-	copy(key[appendDelegaterAddrSize:], validatorAddrBytes)
-
-	return key
-}
+//func encodeDelegaterRewardPendingIndexKey(delegaterAddr, validatorAddr basecommon.Address, stakeEpoch uint64) []byte {
+//	delegaterAddrBytes := delegaterAddr.Bytes()
+//	validatorAddrBytes := validatorAddr.Bytes()
+//	stakeEpochBytes := common.Uint64ToBytes(stakeEpoch)
+//
+//	keyPrefixSize := len(delegaterRewardPendingIndexKeyPrefix)
+//	appendDelegaterSize := keyPrefixSize + len(delegaterAddrBytes)
+//	appendVlidatorAddrSize := appendDelegaterSize + len(validatorAddrBytes)
+//	size := appendVlidatorAddrSize + len(stakeEpochBytes)
+//
+//	key := make([]byte, size)
+//
+//	copy(key[:keyPrefixSize], delegaterRewardPendingIndexKeyPrefix)
+//	copy(key[keyPrefixSize:appendDelegaterSize], delegaterAddrBytes)
+//	copy(key[appendDelegaterSize:appendVlidatorAddrSize], validatorAddrBytes)
+//	copy(key[appendVlidatorAddrSize:], stakeEpochBytes)
+//
+//	return key
+//}
 
 func encodeEpochDelegationRewardPerShareItemKey(validatorAddr basecommon.Address, epoch uint64) []byte {
 
@@ -156,19 +158,19 @@ func GetValidatorRewardOwner(db sdk.StateDB, addr basecommon.Address, validatorA
 	return basecommon.BytesToAddress(ownerAddrBytes)
 }
 
-func GetDelegaterRewardPendingIndex(db sdk.StateDB, addr, delegaterAddr, validatorAddr basecommon.Address) uint64 {
-
-	value := db.GetState(addr, encodeDelegaterRewardPendingIndexKey(delegaterAddr, validatorAddr))
-
-	if len(value) == 0 {
-		return 0
-	}
-	return basecommon.BytesToUint64(value)
-}
-
-func SetDelegaterRewardPendingIndex(db sdk.StateDB, addr, delegaterAddr, validatorAddr basecommon.Address, epoch uint64) {
-	db.SetState(addr, encodeDelegaterRewardPendingIndexKey(delegaterAddr, validatorAddr), basecommon.Uint64ToBytes(epoch))
-}
+//func GetDelegaterRewardPendingIndex(db sdk.StateDB, addr, delegaterAddr, validatorAddr basecommon.Address, stakeEpoch uint64) uint64 {
+//
+//	value := db.GetState(addr, encodeDelegaterRewardPendingIndexKey(delegaterAddr, validatorAddr, stakeEpoch))
+//
+//	if len(value) == 0 {
+//		return 0
+//	}
+//	return basecommon.BytesToUint64(value)
+//}
+//
+//func SetDelegaterRewardPendingIndex(db sdk.StateDB, addr, delegaterAddr, validatorAddr basecommon.Address, stakeEpoch, rewardEpoch uint64) {
+//	db.SetState(addr, encodeDelegaterRewardPendingIndexKey(delegaterAddr, validatorAddr, stakeEpoch), basecommon.Uint64ToBytes(rewardEpoch))
+//}
 
 func GetEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr basecommon.Address, epoch uint64) *types.EpochDelegationRewardPerShareItem {
 	value := db.GetState(addr, encodeEpochDelegationRewardPerShareItemKey(validatorAddr, epoch))

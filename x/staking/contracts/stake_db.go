@@ -202,6 +202,10 @@ func (c *StakeHandler) getValidatorDelegationRcPending(validatorAddr common.Addr
 	return db.GetValidatorDelegationRcPending(c.evm.StateDB, c.contract.Address(), validatorAddr, size)
 }
 
+func (c *StakeHandler) getValidatorDelegationRcPendingAndEpoch(validatorAddr common.Address, size uint64) ([]uint64, types.ValidatorDelegationRcQueue) {
+	return db.GetValidatorDelegationRcPendingAndEpoch(c.evm.StateDB, c.contract.Address(), validatorAddr, size)
+}
+
 func (c *StakeHandler) releaseValidatorDelegationRcItem(validatorAddr common.Address, stakeEpoch, decrement uint64) error {
 	return db.ReleaseValidatorDelegationRcItem(c.evm.StateDB, c.contract.Address(), validatorAddr, stakeEpoch, decrement)
 }

@@ -1103,6 +1103,32 @@ func GetValidatorDelegationRcPending(db sdk.StateDB, addr common.Address, valida
 	return queue[:count]
 }
 
+func GetValidatorDelegationRcPendingAndEpoch(db sdk.StateDB, addr common.Address, validatorAddr common.Address, size uint64) ([]uint64, types.ValidatorDelegationRcQueue) {
+	indexStakeEpoch := uint64(0)
+	indexItem := getValidatorDelegationRcItem(db, addr, validatorAddr, indexStakeEpoch)
+
+	if indexItem.IsEmpty() {
+		return nil, nil
+	}
+
+	// the first one
+	indexStakeEpoch = indexItem.NextStakeEpoch
+	indexItem = getValidatorDelegationRcItem(db, addr, validatorAddr, indexStakeEpoch)
+
+	indexStakeEpochQueue := make([]uint64, size)
+	queue := types.NewValidatorDelegationRcQueue(size)
+	count := uint64(0)
+	for indexItem.NextStakeEpoch != uint64(0) && count < size { // not tail or count less size
+		indexStakeEpochQueue[count] = indexStakeEpoch
+		queue[count] = indexItem
+
+		indexStakeEpoch = indexItem.NextStakeEpoch
+		indexItem = getValidatorDelegationRcItem(db, addr, validatorAddr, indexStakeEpoch)
+		count++
+	}
+	return indexStakeEpochQueue[:count], queue[:count]
+}
+
 func getValidatorDelegationRcItem(db sdk.StateDB, addr common.Address, validatorAddr common.Address, stakeEpoch uint64) *types.ValidatorDelegationRcItem {
 	value := db.GetState(addr, encodeValidatorDelegationRcKey(validatorAddr, stakeEpoch))
 
