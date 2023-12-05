@@ -24,10 +24,18 @@ var (
 )
 
 var (
+	validatorNonceKey = []byte("validatorNonce") // "validatorNonce" => nonce (It is a self increasing stake index number)
+
 	priorityValidatorHeadKey   = []byte("priorityValidatorHead") // "priorityValidatorHead" => priorityValidator(head)
 	priorityValidatorTailKey   = []byte("priorityValidatorTail") // "priorityValidatorTail" => priorityValidator(tail)
 	priorityValidatorKeyPrefix = []byte("priorityValidator")     // "priorityValidator":shares(stakeAmount+delegataionAmount):stakeEpoch:stakeIndex => priorityValidator{preKey, nextKey, validatorAddr}
 	validatorKeyPrefix         = []byte("validator")             // "validator":validatorAddr => validator
+
+	delegationKeyPrefix                  = []byte("delegation")                  // "delegater":delegaterAddr:validatorAddr:stakeEpoch => delegation
+	stakeWithdrawalQueueItemKeyPrefix    = []byte("stakeWithdrawalQueueItem")    // "stakeWithdrawalQueueItem":validatorAddr:(unlock)epoch => {preEpoch, nextEpoch, amount}
+	delegateWithdrawalQueueItemKeyPrefix = []byte("delegateWithdrawalQueueItem") // "delegateWithdrawalQueueItem":delegaterAddr:validatorAddr:(unlock)epoch => {preEpoch, nextEpoch, amount}
+	validatorDelegationRcKeyPrefix       = []byte("validatorDelegationRc")       // "validatorDelegationRc":validatorAddr:stakeEpoch => unStakeDelegationRcItem{preStakeEpoch, nextStakeEpoch, delegation count}
+	slashProcessedKeyPrefix              = []byte("slashProcessed")              // "slashProcessed":handleEventId => []SlashValidatorWithdrawItem{validatorAddr, amount}
 
 	epochValidatorSharesSnapshotQueueKeyPrefix = []byte("epochValidatorSharesSnapshotQueue") // "epochValidatorSharesSnapshotQueue":epochId => []validatorSharesSnapshot  (For settlement epoch)
 	roundValidatorSharesSnapshotQueueKeyPrefix = []byte("roundValidatorSharesSnapshotQueue") // "roundValidatorSharesSnapshotQueue":roundId => []validatorSharesSnapshot  (For consensus round)
@@ -70,6 +78,86 @@ func encodePriorityValidatorKey(epoch, stakeIndex uint64, shares *big.Int) []byt
 
 func encodeValidatorKey(validatorAddr common.Address) []byte {
 	return append(validatorKeyPrefix, validatorAddr.Bytes()...)
+}
+
+func encodeDelegaterKey(delegaterAddr, validatorAddr common.Address, stakeEpoch uint64) []byte {
+	delegaterAddrBytes := delegaterAddr.Bytes()
+	validatorAddrBytes := validatorAddr.Bytes()
+	stakeEpochBytes := common.Uint64ToBytes(stakeEpoch)
+
+	keyPrefixSize := len(delegationKeyPrefix)
+	appendDelegaterSize := keyPrefixSize + len(delegaterAddrBytes)
+	appendVlidatorAddrSize := appendDelegaterSize + len(validatorAddrBytes)
+	size := appendVlidatorAddrSize + len(stakeEpochBytes)
+
+	key := make([]byte, size)
+
+	copy(key[:keyPrefixSize], delegationKeyPrefix)
+	copy(key[keyPrefixSize:appendDelegaterSize], delegaterAddrBytes)
+	copy(key[appendDelegaterSize:appendVlidatorAddrSize], validatorAddrBytes)
+	copy(key[appendVlidatorAddrSize:], stakeEpochBytes)
+
+	return key
+}
+
+func encodeStakeWithdrawalQueueItemKey(validatorAddr common.Address, unlockEpoch uint64) []byte {
+
+	validatorAddrBytes := validatorAddr.Bytes()
+	unlockEpochBytes := common.Uint64ToBytes(unlockEpoch)
+
+	keyPrefixSize := len(stakeWithdrawalQueueItemKeyPrefix)
+	appendValidatorAddrSize := keyPrefixSize + len(validatorAddrBytes)
+	size := appendValidatorAddrSize + len(unlockEpochBytes)
+
+	key := make([]byte, size)
+
+	copy(key[:keyPrefixSize], stakeWithdrawalQueueItemKeyPrefix)
+	copy(key[keyPrefixSize:appendValidatorAddrSize], validatorAddrBytes)
+	copy(key[appendValidatorAddrSize:], unlockEpochBytes)
+
+	return key
+}
+
+func encodeDelegateWithdrawalQueueItemKey(delegaterAddr, validatorAddr common.Address, unlockEpoch uint64) []byte {
+
+	delegaterAddrBytes := delegaterAddr.Bytes()
+	validatorAddrBytes := validatorAddr.Bytes()
+	unlockEpochBytes := common.Uint64ToBytes(unlockEpoch)
+
+	keyPrefixSize := len(delegateWithdrawalQueueItemKeyPrefix)
+	appendDelegaterSize := keyPrefixSize + len(delegaterAddrBytes)
+	appendValidatorAddrSize := appendDelegaterSize + len(validatorAddrBytes)
+	size := appendValidatorAddrSize + len(unlockEpochBytes)
+
+	key := make([]byte, size)
+
+	copy(key[:keyPrefixSize], delegateWithdrawalQueueItemKeyPrefix)
+	copy(key[keyPrefixSize:appendDelegaterSize], delegaterAddrBytes)
+	copy(key[appendDelegaterSize:appendValidatorAddrSize], validatorAddrBytes)
+	copy(key[appendValidatorAddrSize:], unlockEpochBytes)
+
+	return key
+}
+
+func encodeValidatorDelegationRcKey(validatorAddr common.Address, stakeEpoch uint64) []byte {
+	validatorAddrBytes := validatorAddr.Bytes()
+	stakeEpochBytes := common.Uint64ToBytes(stakeEpoch)
+
+	keyPrefixSize := len(validatorDelegationRcKeyPrefix)
+	appendValidatorAddrSize := keyPrefixSize + len(validatorAddrBytes)
+	size := appendValidatorAddrSize + len(stakeEpochBytes)
+
+	key := make([]byte, size)
+
+	copy(key[:keyPrefixSize], validatorDelegationRcKeyPrefix)
+	copy(key[keyPrefixSize:appendValidatorAddrSize], validatorAddrBytes)
+	copy(key[appendValidatorAddrSize:], stakeEpochBytes)
+
+	return key
+}
+
+func encodeSlashProcessedKey(handleEventId *big.Int) []byte {
+	return append(slashProcessedKeyPrefix, handleEventId.Bytes()...)
 }
 
 func encodeEpochValidatorSharesSnapshotQueueKey(epoch uint64) []byte {
@@ -316,6 +404,808 @@ func HasNotValidator(db sdk.StateDBReader, addr common.Address, validatorAddr co
 func RemoveValidator(db sdk.StateDB, addr common.Address, validatorAddr common.Address) {
 	db.SetState(addr, encodeValidatorKey(validatorAddr), []byte{})
 }
+
+// -------
+
+func IncrementValidatorNonce(db sdk.StateDB, addr common.Address) uint64 {
+	nonce := GetValidatorNonce(db, addr)
+	old := nonce
+	nonce++
+	db.SetState(addr, validatorNonceKey, common.Uint64ToBytes(nonce))
+	return old
+}
+
+func GetValidatorNonce(db sdk.StateDB, addr common.Address) uint64 {
+	value := db.GetState(addr, validatorNonceKey)
+	if len(value) == 0 {
+		return 0
+	}
+	return common.BytesToUint64(value)
+}
+
+func SetDelegation(db sdk.StateDB, addr, delegaterAddr, validatorAddr common.Address, stakeEpoch uint64, delegation *types.Delegation) error {
+	value, err := rlp.EncodeToBytes(delegation)
+	if nil != err {
+		return ErrRlpEncode
+	}
+	db.SetState(addr, encodeDelegaterKey(delegaterAddr, validatorAddr, stakeEpoch), value)
+	return nil
+}
+
+func RemoveDelegation(db sdk.StateDB, addr, delegaterAddr, validatorAddr common.Address, stakeEpoch uint64) {
+	db.SetState(addr, encodeDelegaterKey(delegaterAddr, validatorAddr, stakeEpoch), []byte{})
+}
+
+func GetDelegation(db sdk.StateDB, addr, delegaterAddr, validatorAddr common.Address, stakeEpoch uint64) *types.Delegation {
+	value := db.GetState(addr, encodeDelegaterKey(delegaterAddr, validatorAddr, stakeEpoch))
+	if len(value) == 0 {
+		return nil
+	}
+	var delegation types.Delegation
+	if err := rlp.DecodeBytes(value, &delegation); nil == err {
+		return &delegation
+	}
+	return nil
+}
+
+func AppendStakeWithdrawal(db sdk.StateDB, addr common.Address, validatorAddr common.Address, epoch uint64, amount *big.Int) error {
+
+	indexEpoch := uint64(math.MaxUint64)
+	indexItem := GetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch)
+
+	// first insert
+	if indexItem.IsEmpty() {
+
+		preEpoch := uint64(0)
+		// tail -> head -> epoch -> tail -> head
+
+		preItem := types.NewStakeWithdrawalItem(indexEpoch, epoch, common.Big0) // head
+		epochItem := types.NewStakeWithdrawalItem(preEpoch, indexEpoch, amount) // item
+		indexItem = types.NewStakeWithdrawalItem(epoch, preEpoch, common.Big0)  // tail
+
+		if err := SetStakeWithdrawalQueueItem(db, addr, validatorAddr, preEpoch, preItem); nil != err {
+			return err
+		}
+		if err := SetStakeWithdrawalQueueItem(db, addr, validatorAddr, epoch, epochItem); nil != err {
+			return err
+		}
+		if err := SetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch, indexItem); nil != err {
+			return err
+		}
+
+		return nil
+	}
+
+	// range from tail to head
+	for indexItem.PreEpoch != math.MaxUint64 { // not as head
+		if indexEpoch == epoch {
+			// pre -> index(epoch) -> next
+			// index == epoch
+
+			indexItem.IncrementAmount(amount)
+			if err := SetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch, indexItem); nil != err {
+				return err
+			}
+			break
+		} else if indexEpoch < epoch {
+			// pre -> index -> epoch -> next... -> tail(max)
+			// pre < index < epoch < next ... < tail(max)
+
+			next := GetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexItem.NextEpoch)
+			epochItem := types.NewStakeWithdrawalItem(indexEpoch, indexItem.NextEpoch, amount)
+
+			indexItem.UpdateNextEpoch(epoch)
+			next.UpdatePreEpoch(epoch)
+
+			if err := SetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch, indexItem); nil != err {
+				return err
+			}
+			if err := SetStakeWithdrawalQueueItem(db, addr, validatorAddr, epoch, epochItem); nil != err {
+				return err
+			}
+			if err := SetStakeWithdrawalQueueItem(db, addr, validatorAddr, epochItem.NextEpoch, next); nil != err {
+				return err
+			}
+
+			break
+
+		} else {
+
+			if indexItem.PreEpoch == uint64(0) {
+				// if  head(min) -> index -> tail(max)
+				// and epoch < index
+				//
+				// then: head(min) -> epoch -> index<last one> -> ... -> tail(max)
+				// head < epoch < index < ... < tail
+
+				pre := GetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexItem.PreEpoch) // head
+				epochItem := types.NewStakeWithdrawalItem(indexItem.PreEpoch, epoch, amount)
+
+				pre.UpdateNextEpoch(epoch)
+				indexItem.UpdatePreEpoch(epoch)
+
+				if err := SetStakeWithdrawalQueueItem(db, addr, validatorAddr, epochItem.PreEpoch, pre); nil != err {
+					return err
+				}
+				if err := SetStakeWithdrawalQueueItem(db, addr, validatorAddr, epoch, epochItem); nil != err {
+					return err
+				}
+				if err := SetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch, indexItem); nil != err {
+					return err
+				}
+
+				break
+
+			}
+
+			// if  head -> ... -> pre -> index -> ... -> max
+			// (head < ... <  pre < index < ... < tail(max) )
+			// and epoch < index
+			// maybe epoch < pre
+			//
+			// then: continue pre become new index
+			//
+
+		}
+
+		indexEpoch = indexItem.PreEpoch
+		indexItem = GetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch)
+	}
+	return nil
+}
+
+func GetStakeWithdrawal(db sdk.StateDB, addr, validatorAddr common.Address) *big.Int {
+
+	amount := common.Big0
+
+	indexEpoch := uint64(0)
+	indexItem := GetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch)
+
+	for indexItem.NextEpoch != uint64(0) { // not as tail
+		amount = new(big.Int).Add(amount, indexItem.Amount)
+		indexEpoch = indexItem.NextEpoch
+		indexItem = GetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch)
+	}
+	return amount
+}
+
+func GetStakeWithdrawalByEpoch(db sdk.StateDB, addr, validatorAddr common.Address, epoch uint64) *big.Int {
+	item := GetStakeWithdrawalQueueItem(db, addr, validatorAddr, epoch)
+	if nil != item {
+		return item.Amount
+	}
+	return common.Big0
+}
+
+func GetStakeWithdrawalLastEpoch(db sdk.StateDB, addr, validatorAddr common.Address) uint64 {
+
+	indexEpoch := uint64(math.MaxUint64)
+	indexItem := GetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch)
+
+	// empty queue
+	if indexItem.IsEmpty() {
+		return 0
+	}
+
+	return indexItem.PreEpoch
+}
+
+// Total of all rewards until epoch
+func GetStakeWithdrawable(db sdk.StateDB, addr, validatorAddr common.Address, epoch uint64) *big.Int {
+
+	amount := common.Big0
+
+	indexEpoch := uint64(0)
+	indexItem := GetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch)
+
+	// empty queue
+	if indexItem.IsEmpty() {
+		return amount
+	}
+
+	for indexItem.NextEpoch != uint64(0) {
+
+		if indexEpoch > epoch {
+			break
+		}
+		amount = new(big.Int).Add(amount, indexItem.Amount)
+		indexEpoch = indexItem.NextEpoch
+		indexItem = GetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch)
+	}
+	return amount
+}
+
+func ApplyStakeWithdrawable(db sdk.StateDB, addr, validatorAddr common.Address, epoch uint64) (*big.Int, error) {
+
+	amount := common.Big0
+
+	indexEpoch := uint64(0)
+	indexItem := GetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch)
+
+	// empty queue
+	if indexItem.IsEmpty() {
+		return amount, nil
+	}
+	for indexItem.NextEpoch != uint64(0) { // not sa tail
+
+		if indexEpoch > epoch {
+			break
+		}
+		amount = new(big.Int).Add(amount, indexItem.Amount)
+
+		// remove item
+		if indexEpoch != uint64(0) { // not as haed
+			removeStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch)
+		}
+
+		indexEpoch = indexItem.NextEpoch
+		indexItem = GetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch)
+	}
+
+	// remove head and tail
+	if indexItem.NextEpoch == uint64(0) { // as tail
+		removeStakeWithdrawalQueueItem(db, addr, validatorAddr, 0)
+		removeStakeWithdrawalQueueItem(db, addr, validatorAddr, math.MaxUint64)
+	} else { // update start index
+		head := GetStakeWithdrawalQueueItem(db, addr, validatorAddr, uint64(0))
+		head.UpdateNextEpoch(indexEpoch)
+		if err := SetStakeWithdrawalQueueItem(db, addr, validatorAddr, uint64(0), head); nil != err { // update head
+			return common.Big0, err
+		}
+	}
+
+	return amount, nil
+}
+
+func CleanStakeWithdrawable(db sdk.StateDB, addr, validatorAddr common.Address) {
+
+	indexEpoch := uint64(0)
+	indexItem := GetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch)
+
+	// empty queue
+	if indexItem.IsEmpty() {
+		return
+	}
+	for indexItem.IsNotEmpty() {
+
+		removeStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch)
+
+		indexEpoch = indexItem.NextEpoch
+		indexItem = GetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch)
+	}
+
+	return
+}
+
+// Total of all rewards since epoch
+func GetStakeWithdrawalPending(db sdk.StateDB, addr common.Address, validatorAddr common.Address, epoch uint64) *big.Int {
+
+	amount := common.Big0
+
+	indexEpoch := uint64(math.MaxUint64)
+	indexItem := GetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch)
+
+	// empty queue
+	if indexItem.IsEmpty() {
+		return amount
+	}
+
+	for indexItem.PreEpoch != math.MaxUint64 {
+
+		if indexEpoch <= epoch {
+			break
+		}
+		amount = new(big.Int).Add(amount, indexItem.Amount)
+
+		indexEpoch = indexItem.PreEpoch
+		indexItem = GetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch)
+	}
+	return amount
+}
+
+func SetStakeWithdrawalQueueItem(db sdk.StateDB, addr common.Address, validatorAddr common.Address, epoch uint64, item *types.StakeWithdrawalItem) error {
+	value, err := rlp.EncodeToBytes(item)
+	if nil != err {
+		return ErrRlpEncode
+	}
+	db.SetState(addr, encodeStakeWithdrawalQueueItemKey(validatorAddr, epoch), value)
+	return nil
+}
+
+func removeStakeWithdrawalQueueItem(db sdk.StateDB, addr common.Address, validatorAddr common.Address, epoch uint64) {
+	db.SetState(addr, encodeStakeWithdrawalQueueItemKey(validatorAddr, epoch), []byte{})
+}
+
+func GetStakeWithdrawalQueueItem(db sdk.StateDB, addr common.Address, validatorAddr common.Address, epoch uint64) *types.StakeWithdrawalItem {
+	value := db.GetState(addr, encodeStakeWithdrawalQueueItemKey(validatorAddr, epoch))
+
+	if len(value) == 0 {
+		return nil
+	}
+	var item types.StakeWithdrawalItem
+	if err := rlp.DecodeBytes(value, &item); nil == err {
+		return &item
+	}
+	return nil
+}
+
+// -------------
+
+func AppendDelegateWithdrawal(db sdk.StateDB, addr common.Address, delegaterAddr, validatorAddr common.Address, epoch uint64, amount *big.Int) error {
+
+	indexEpoch := uint64(math.MaxUint64)
+	indexItem := getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch)
+
+	// first insert
+	if indexItem.IsEmpty() {
+
+		preEpoch := uint64(0)
+		// tail -> head -> epoch -> tail -> head
+
+		preItem := types.NewDelegateWithdrawalItem(indexEpoch, epoch, common.Big0) // head
+		epochItem := types.NewDelegateWithdrawalItem(preEpoch, indexEpoch, amount) // item
+		indexItem = types.NewDelegateWithdrawalItem(epoch, preEpoch, common.Big0)  // tail
+
+		if err := setDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, preEpoch, preItem); nil != err {
+			return err
+		}
+		if err := setDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, epoch, epochItem); nil != err {
+			return err
+		}
+		if err := setDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch, indexItem); nil != err {
+			return err
+		}
+
+		return nil
+	}
+
+	// range from tail to head
+	for indexItem.PreEpoch != math.MaxUint64 { // not as head
+		if indexEpoch == epoch {
+			// pre -> index(epoch) -> next
+			// index == epoch
+
+			indexItem.IncrementAmount(amount)
+			if err := setDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch, indexItem); nil != err {
+				return err
+			}
+			break
+		} else if indexEpoch < epoch {
+			// pre -> index -> epoch -> next... -> tail(max)
+			// pre < index < epoch < next ... < tail(max)
+
+			next := getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexItem.NextEpoch)
+			epochItem := types.NewDelegateWithdrawalItem(indexEpoch, indexItem.NextEpoch, amount)
+
+			indexItem.UpdateNextEpoch(epoch)
+			next.UpdatePreEpoch(epoch)
+
+			if err := setDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch, indexItem); nil != err {
+				return err
+			}
+			if err := setDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, epoch, epochItem); nil != err {
+				return err
+			}
+			if err := setDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, epochItem.NextEpoch, next); nil != err {
+				return err
+			}
+
+			break
+
+		} else {
+
+			if indexItem.PreEpoch == uint64(0) {
+				// if  head(min) -> index -> tail(max)
+				// and epoch < index
+				//
+				// then: head(min) -> epoch -> index<last one> -> ... -> tail(max)
+				// head < epoch < index < ... < tail
+
+				pre := getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexItem.PreEpoch) // head
+				epochItem := types.NewDelegateWithdrawalItem(indexItem.PreEpoch, epoch, amount)
+
+				pre.UpdateNextEpoch(epoch)
+				indexItem.UpdatePreEpoch(epoch)
+
+				if err := setDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, epochItem.PreEpoch, pre); nil != err {
+					return err
+				}
+				if err := setDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, epoch, epochItem); nil != err {
+					return err
+				}
+				if err := setDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch, indexItem); nil != err {
+					return err
+				}
+
+				break
+
+			}
+
+			// if  head -> ... -> pre -> index -> ... -> max
+			// (head < ... <  pre < index < ... < tail(max) )
+			// and epoch < index
+			// maybe epoch < pre
+			//
+			// then: continue pre become new index
+			//
+
+		}
+
+		indexEpoch = indexItem.PreEpoch
+		indexItem = getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch)
+	}
+	return nil
+}
+
+func GetDelegateWithdrawal(db sdk.StateDB, addr common.Address, delegaterAddr, validatorAddr common.Address) *big.Int {
+	amount := common.Big0
+
+	indexEpoch := uint64(0)
+	indexItem := getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch)
+
+	for indexItem.NextEpoch != uint64(0) { // not as tail
+		amount = new(big.Int).Add(amount, indexItem.Amount)
+		indexEpoch = indexItem.NextEpoch
+		indexItem = getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch)
+	}
+	return amount
+}
+
+func GetDelegateWithdrawalByEpoch(db sdk.StateDB, addr common.Address, delegaterAddr, validatorAddr common.Address, epoch uint64) *big.Int {
+	item := getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, epoch)
+	if nil != item {
+		return item.Amount
+	}
+	return common.Big0
+}
+
+// Total of all rewards until epoch
+func GetDelegateWithdrawable(db sdk.StateDB, addr common.Address, delegaterAddr, validatorAddr common.Address, epoch uint64) *big.Int {
+	amount := common.Big0
+
+	indexEpoch := uint64(0)
+	indexItem := getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch)
+
+	// empty queue
+	if indexItem.IsEmpty() {
+		return amount
+	}
+
+	for indexItem.NextEpoch != uint64(0) {
+
+		if indexEpoch > epoch {
+			break
+		}
+		amount = new(big.Int).Add(amount, indexItem.Amount)
+		indexEpoch = indexItem.NextEpoch
+		indexItem = getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch)
+	}
+	return amount
+}
+
+func ApplyDelegateWithdrawable(db sdk.StateDB, addr common.Address, delegaterAddr, validatorAddr common.Address, epoch uint64) (*big.Int, error) {
+
+	amount := common.Big0
+
+	indexEpoch := uint64(0)
+	indexItem := getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch)
+
+	// empty queue
+	if indexItem.IsEmpty() {
+		return amount, nil
+	}
+	for indexItem.NextEpoch != uint64(0) {
+
+		if indexEpoch > epoch {
+			break
+		}
+		amount = new(big.Int).Add(amount, indexItem.Amount)
+
+		// remove item
+		if indexEpoch != uint64(0) {
+			removeDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch)
+		}
+
+		indexEpoch = indexItem.NextEpoch
+		indexItem = getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch)
+	}
+
+	// remove head and tail
+	if indexItem.NextEpoch == uint64(0) {
+		removeDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, 0)
+		removeDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, math.MaxUint64)
+	} else { // update start index
+		head := getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, uint64(0))
+		head.UpdateNextEpoch(indexEpoch)
+		if err := setDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, uint64(0), head); nil != err {
+			return common.Big0, err
+		}
+	}
+
+	return amount, nil
+}
+
+// Total of all rewards since epoch
+func GetDelegateWithdrawalPending(db sdk.StateDB, addr common.Address, delegaterAddr, validatorAddr common.Address, epoch uint64) *big.Int {
+	amount := common.Big0
+
+	indexEpoch := uint64(math.MaxUint64)
+	indexItem := getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch)
+
+	// empty queue
+	if indexItem.IsEmpty() {
+		return amount
+	}
+
+	for indexItem.PreEpoch != math.MaxUint64 {
+
+		if indexEpoch <= epoch {
+			break
+		}
+		amount = new(big.Int).Add(amount, indexItem.Amount)
+
+		indexEpoch = indexItem.PreEpoch
+		indexItem = getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch)
+	}
+	return amount
+}
+
+func setDelegateWithdrawalQueueItem(db sdk.StateDB, addr common.Address, delegaterAddr, validatorAddr common.Address, epoch uint64, item *types.DelegateWithdrawalItem) error {
+	value, err := rlp.EncodeToBytes(item)
+	if nil != err {
+		return ErrRlpEncode
+	}
+	db.SetState(addr, encodeDelegateWithdrawalQueueItemKey(delegaterAddr, validatorAddr, epoch), value)
+	return nil
+}
+
+func removeDelegateWithdrawalQueueItem(db sdk.StateDB, addr common.Address, delegaterAddr, validatorAddr common.Address, epoch uint64) {
+	db.SetState(addr, encodeDelegateWithdrawalQueueItemKey(delegaterAddr, validatorAddr, epoch), []byte{})
+}
+
+func getDelegateWithdrawalQueueItem(db sdk.StateDB, addr common.Address, delegaterAddr, validatorAddr common.Address, epoch uint64) *types.DelegateWithdrawalItem {
+	value := db.GetState(addr, encodeDelegateWithdrawalQueueItemKey(delegaterAddr, validatorAddr, epoch))
+
+	if len(value) == 0 {
+		return nil
+	}
+	var item types.DelegateWithdrawalItem
+	if err := rlp.DecodeBytes(value, &item); nil == err {
+		return &item
+	}
+	return nil
+}
+
+// -------
+
+func AppendValidatorDelegationRc(db sdk.StateDB, addr common.Address, validatorAddr common.Address, epoch, rc uint64) error {
+
+	indexEpoch := uint64(math.MaxUint64)
+	indexItem := getValidatorDelegationRcItem(db, addr, validatorAddr, indexEpoch)
+
+	// first insert
+	if indexItem.IsEmpty() {
+
+		preEpoch := uint64(0)
+		// tail -> head -> epoch -> tail -> head
+
+		preItem := types.NewValidatorDelegationRcItem(indexEpoch, epoch, 0)       // head
+		epochItem := types.NewValidatorDelegationRcItem(preEpoch, indexEpoch, rc) // item
+		indexItem = types.NewValidatorDelegationRcItem(epoch, preEpoch, 0)        // tail
+
+		if err := setValidatorDelegationRcItem(db, addr, validatorAddr, preEpoch, preItem); nil != err {
+			return err
+		}
+		if err := setValidatorDelegationRcItem(db, addr, validatorAddr, epoch, epochItem); nil != err {
+			return err
+		}
+		if err := setValidatorDelegationRcItem(db, addr, validatorAddr, indexEpoch, indexItem); nil != err {
+			return err
+		}
+
+		return nil
+	}
+
+	// range from tail to head
+	for indexItem.PreStakeEpoch != math.MaxUint64 { // not as head
+		if indexEpoch == epoch {
+			// pre -> index(epoch) -> next
+			// index == epoch
+
+			indexItem.IncrementRc(rc)
+			if err := setValidatorDelegationRcItem(db, addr, validatorAddr, indexEpoch, indexItem); nil != err {
+				return err
+			}
+			break
+		} else if indexEpoch < epoch {
+			// pre -> index -> epoch -> next... -> tail(max)
+			// pre < index < epoch < next ... < tail(max)
+
+			next := getValidatorDelegationRcItem(db, addr, validatorAddr, indexItem.NextStakeEpoch)
+			epochItem := types.NewValidatorDelegationRcItem(indexEpoch, indexItem.NextStakeEpoch, rc)
+
+			indexItem.UpdateNextStakeEpoch(epoch)
+			next.UpdatePreStakeEpoch(epoch)
+
+			if err := setValidatorDelegationRcItem(db, addr, validatorAddr, indexEpoch, indexItem); nil != err {
+				return err
+			}
+			if err := setValidatorDelegationRcItem(db, addr, validatorAddr, epoch, epochItem); nil != err {
+				return err
+			}
+			if err := setValidatorDelegationRcItem(db, addr, validatorAddr, epochItem.NextStakeEpoch, next); nil != err {
+				return err
+			}
+
+			break
+
+		} else {
+
+			if indexItem.PreStakeEpoch == uint64(0) {
+				// if  head(min) -> index -> tail(max)
+				// and epoch < index
+				//
+				// then: head(min) -> epoch -> index<last one> -> ... -> tail(max)
+				// head < epoch < index < ... < tail
+
+				pre := getValidatorDelegationRcItem(db, addr, validatorAddr, indexItem.PreStakeEpoch) // head
+				epochItem := types.NewValidatorDelegationRcItem(indexItem.PreStakeEpoch, epoch, rc)
+
+				pre.UpdateNextStakeEpoch(epoch)
+				indexItem.UpdatePreStakeEpoch(epoch)
+
+				if err := setValidatorDelegationRcItem(db, addr, validatorAddr, epochItem.PreStakeEpoch, pre); nil != err {
+					return err
+				}
+				if err := setValidatorDelegationRcItem(db, addr, validatorAddr, epoch, epochItem); nil != err {
+					return err
+				}
+				if err := setValidatorDelegationRcItem(db, addr, validatorAddr, indexEpoch, indexItem); nil != err {
+					return err
+				}
+
+				break
+
+			}
+
+			// if  head -> ... -> pre -> index -> ... -> max
+			// (head < ... <  pre < index < ... < tail(max) )
+			// and epoch < index
+			// maybe epoch < pre
+			//
+			// then: continue pre become new index
+			//
+
+		}
+
+		indexEpoch = indexItem.PreStakeEpoch
+		indexItem = getValidatorDelegationRcItem(db, addr, validatorAddr, indexEpoch)
+	}
+	return nil
+}
+
+func GetValidatorDelegationRcPending(db sdk.StateDB, addr common.Address, validatorAddr common.Address, size uint64) types.ValidatorDelegationRcQueue {
+	indexStakeEpoch := uint64(0)
+	indexItem := getValidatorDelegationRcItem(db, addr, validatorAddr, indexStakeEpoch)
+
+	if indexItem.IsEmpty() {
+		return nil
+	}
+	queue := types.NewValidatorDelegationRcQueue(size)
+	count := uint64(0)
+	for indexItem.NextStakeEpoch != uint64(0) && count < size { // not tail or count less size
+		queue[count] = indexItem
+
+		indexStakeEpoch = indexItem.NextStakeEpoch
+		indexItem = getValidatorDelegationRcItem(db, addr, validatorAddr, indexStakeEpoch)
+		count++
+	}
+	return queue[:count]
+}
+
+func getValidatorDelegationRcItem(db sdk.StateDB, addr common.Address, validatorAddr common.Address, stakeEpoch uint64) *types.ValidatorDelegationRcItem {
+	value := db.GetState(addr, encodeValidatorDelegationRcKey(validatorAddr, stakeEpoch))
+
+	if len(value) != 0 {
+		return nil
+	}
+	var item types.ValidatorDelegationRcItem
+	if err := rlp.DecodeBytes(value, &item); nil == err {
+		return &item
+	}
+	return nil
+}
+
+func setValidatorDelegationRcItem(db sdk.StateDB, addr common.Address, validatorAddr common.Address, stakeEpoch uint64, item *types.ValidatorDelegationRcItem) error {
+	value, err := rlp.EncodeToBytes(item)
+	if nil != err {
+		return ErrRlpEncode
+	}
+	db.SetState(addr, encodeValidatorDelegationRcKey(validatorAddr, stakeEpoch), value)
+	return nil
+}
+
+func removeValidatorDelegationRcItem(db sdk.StateDB, addr common.Address, validatorAddr common.Address, stakeEpoch uint64) {
+	db.SetState(addr, encodeValidatorDelegationRcKey(validatorAddr, stakeEpoch), []byte{})
+}
+
+func ReleaseValidatorDelegationRcItem(db sdk.StateDB, addr common.Address, validatorAddr common.Address, stakeEpoch, decrement uint64) error {
+	item := getValidatorDelegationRcItem(db, addr, validatorAddr, stakeEpoch)
+	if nil == item {
+		return ErrNotFound
+	}
+
+	item.DecrementRc(decrement)
+
+	// change index
+	if item.Rc == 0 {
+		pre := getValidatorDelegationRcItem(db, addr, validatorAddr, item.PreStakeEpoch)
+		next := getValidatorDelegationRcItem(db, addr, validatorAddr, item.NextStakeEpoch)
+
+		// remove the last one   tail -> head -> lastone(remove) -> tail -> head
+		if pre.PreStakeEpoch == math.MaxUint64 && next.NextStakeEpoch == 0 {
+			removeValidatorDelegationRcItem(db, addr, validatorAddr, item.PreStakeEpoch)
+			removeValidatorDelegationRcItem(db, addr, validatorAddr, item.NextStakeEpoch)
+		} else {
+			pre.UpdateNextStakeEpoch(item.NextStakeEpoch)
+			next.UpdatePreStakeEpoch(item.PreStakeEpoch)
+			if err := setValidatorDelegationRcItem(db, addr, validatorAddr, item.PreStakeEpoch, pre); nil != err {
+				return err
+			}
+			if err := setValidatorDelegationRcItem(db, addr, validatorAddr, item.NextStakeEpoch, next); nil != err {
+				return err
+			}
+		}
+		removeValidatorDelegationRcItem(db, addr, validatorAddr, stakeEpoch)
+	} else {
+		if err := setValidatorDelegationRcItem(db, addr, validatorAddr, stakeEpoch, item); nil != err {
+			return err
+		}
+	}
+	return nil
+}
+
+func GetValidatorDelegationRc(db sdk.StateDB, addr common.Address, validatorAddr common.Address, stakeEpoch uint64) uint64 {
+	item := getValidatorDelegationRcItem(db, addr, validatorAddr, stakeEpoch)
+	if nil == item {
+		return 0
+	}
+	return item.Rc
+}
+
+// ----
+
+func SetSlashProcessed(db sdk.StateDB, addr common.Address, handleEventId *big.Int, queue types.SlashValidatorWithdrawItemQueue) error {
+	value, err := rlp.EncodeToBytes(queue)
+	if nil != err {
+		return ErrRlpEncode
+	}
+	db.SetState(addr, encodeSlashProcessedKey(handleEventId), value)
+	return nil
+}
+
+func GetSlashProcessed(db sdk.StateDB, addr common.Address, handleEventId *big.Int) types.SlashValidatorWithdrawItemQueue {
+	value := db.GetState(addr, encodeSlashProcessedKey(handleEventId))
+	if len(value) == 0 {
+		return nil
+	}
+
+	var queue types.SlashValidatorWithdrawItemQueue
+	if err := rlp.DecodeBytes(value, &queue); nil == err {
+		return queue
+	}
+	return nil
+}
+
+func HasSlashProcessed(db sdk.StateDB, addr common.Address, handleEventId *big.Int) bool {
+	return GetSlashProcessed(db, addr, handleEventId).IsNotEmpty()
+}
+
+func HasNotSlashProcessed(db sdk.StateDB, addr common.Address, handleEventId *big.Int) bool {
+	return !HasSlashProcessed(db, addr, handleEventId)
+}
+
+// ---------
 
 func SetEpochValidatorSharesSnapshotQueue(db sdk.StateDB, addr common.Address, epoch uint64, queue types.ValidatorSortSnapshotQueue) error {
 	value, err := rlp.EncodeToBytes(queue)

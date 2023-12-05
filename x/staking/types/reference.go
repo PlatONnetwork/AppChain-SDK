@@ -39,3 +39,6 @@ type Stage interface {
 	GetRoundAndBlockBoundByBlockNumber(db sdk.StateDBReader, blockNumber, size uint64) (uint64, uint64, uint64)
 	GetEpochAndBlockBoundByBlockNumber(db sdk.StateDBReader, blockNumber, size uint64) (uint64, uint64, uint64)
 }
+
+type Reward interface {
+}

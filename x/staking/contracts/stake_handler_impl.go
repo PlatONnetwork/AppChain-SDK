@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
+	staketypes "github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	"github.com/PlatONnetwork/PlatON-Go/common/math"
 
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
@@ -44,6 +45,8 @@ type StakeHandler struct {
 	contract    *vm.Contract
 	evm         *vm.EVM
 	fallback    func(input []byte) ([]byte, error)
+	stage       staketypes.Stage
+	reward      staketypes.Reward
 }
 
 func NewStakeHandler(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*StakeHandler, error) {
@@ -57,20 +60,30 @@ func NewStakeHandler(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*StakeH
 	return s, nil
 }
 
+// internal
+func (c *StakeHandler) SetStageModule(stage staketypes.Stage) {
+	c.stage = stage
+}
+
+func (c *StakeHandler) SetRewardModule(reward staketypes.Reward) {
+	c.reward = reward
+}
+
+// external
 func (c *StakeHandler) PendingWithdrawalsOfDelegate(validator common.Address, delegater common.Address) (*big.Int, error) {
-	return c.GetDelegateWithdrawalPending(delegater, validator, c.getCurrentEpoch()), nil
+	return c.getDelegateWithdrawalPending(delegater, validator, c.getCurrentEpoch()), nil
 }
 
 func (c *StakeHandler) PendingWithdrawalsOfStake(validator common.Address) (*big.Int, error) {
-	return c.GetStakeWithdrawalPending(validator, c.getCurrentEpoch()), nil
+	return c.getStakeWithdrawalPending(validator, c.getCurrentEpoch()), nil
 }
 
 func (c *StakeHandler) WithdrawableOfDelegate(validator common.Address, delegater common.Address) (*big.Int, error) {
-	return c.GetDelegateWithdrawable(delegater, validator, c.getCurrentEpoch()), nil
+	return c.getDelegateWithdrawable(delegater, validator, c.getCurrentEpoch()), nil
 }
 
 func (c *StakeHandler) WithdrawableOfStake(validator common.Address) (*big.Int, error) {
-	return c.GetStakeWithdrawable(validator, c.getCurrentEpoch()), nil
+	return c.getStakeWithdrawable(validator, c.getCurrentEpoch()), nil
 }
 
 func (c *StakeHandler) OnStateReceive(id *big.Int, sender common.Address, data []byte) error {
@@ -133,7 +146,7 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 		return err
 	}
 
-	validator := c.GetValidator(validatorAddr)
+	validator := c.getValidator(validatorAddr)
 
 	delegaterAddr := c.contract.Caller()
 
@@ -147,7 +160,7 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 			break
 		}
 
-		delegation := c.GetDelegation(delegaterAddr, validatorAddr, item.NextStakeEpoch)
+		delegation := c.getDelegation(delegaterAddr, validatorAddr, item.NextStakeEpoch)
 		if delegation.IsEmpty() {
 			continue
 		}
@@ -252,7 +265,7 @@ func (c *StakeHandler) WithdrawUnstake(validator common.Address) error {
 	}
 
 	// remove unstake validator
-	validatorInfo := c.GetValidator(validator)
+	validatorInfo := c.getValidator(validator)
 	if validatorInfo.IsInvalidUnstaked() {
 		c.removeValidator(validator)
 	}

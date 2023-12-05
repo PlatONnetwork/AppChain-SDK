@@ -6,7 +6,7 @@ import (
 	"math/big"
 )
 
-type Staking interface {
+type Stake interface {
 	GetRoundValidatorIds(stateDB sdk.StateDBReader, round uint64) []basecommon.Address
 	GetEpochValidatorIds(stateDB sdk.StateDBReader, epoch uint64) []basecommon.Address
 	GetValidatorCommissionRate(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) uint64

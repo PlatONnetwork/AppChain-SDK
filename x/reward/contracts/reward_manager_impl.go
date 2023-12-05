@@ -3,7 +3,10 @@ package contracts
 import (
 	"errors"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
+	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	rewarddb "github.com/PlatONnetwork/AppChain-SDK/x/reward/db"
+	rewardtypes "github.com/PlatONnetwork/AppChain-SDK/x/reward/types"
+	stagedb "github.com/PlatONnetwork/AppChain-SDK/x/stage/db"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
@@ -37,6 +40,8 @@ type RewardManager struct {
 	contract    *vm.Contract
 	evm         *vm.EVM
 	fallback    func(input []byte) ([]byte, error)
+	stage       rewardtypes.Stage
+	stake       rewardtypes.Stake
 }
 
 func NewRewardManager(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*RewardManager, error) {
@@ -50,6 +55,17 @@ func NewRewardManager(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*Rewar
 	return s, nil
 }
 
+// internal
+
+func (c *RewardManager) SetStageModule(stage rewardtypes.Stage) {
+	c.stage = stage
+}
+
+func (c *RewardManager) SetStakeModule(stake rewardtypes.Stake) {
+	c.stake = stake
+}
+
+// external
 func (c *RewardManager) PaidRewardPerEpoch(epochId *big.Int) (*big.Int, error) {
 	panic("implement")
 }
@@ -66,13 +82,12 @@ func (c *RewardManager) WithdrawDelegaterReward(validator common.Address) error 
 
 	// todo 这个还要做下合并，再 withdraw
 
-	//stakeHandler, err := stakingC.NewStakeHandlerCaller(c.evm, c.contract, constants.StakeHandlerAddress)
-	//if nil != err {
-	//	log.Error("Failed to call NewStakeHandlerCaller", "delegaterAddr", c.contract.Caller(), "validatorAddr", validator.Hex(), "error", err)
-	//	return typesdk.NewRevertError("RewardManager: invalid stakeHandler")
-	//}
-	//epochIndex := rewarddb.GetDelegaterRewardPendingIndex(c.evm.StateDB, c.contract.Address(), c.contract.Caller(), validator)
-	//stakeHandler.
+	currentEpoch := stagedb.GetCurrentEpoch(c.evm.StateDB, constants.StageManagerAddress)
+	epochIndex := rewarddb.GetDelegaterRewardPendingIndex(c.evm.StateDB, c.contract.Address(), c.contract.Caller(), validator)
+	// Settlement rewards
+	if epochIndex <= currentEpoch {
+		rewarddb.GetEpochDelegationRewardPerShareItem(c.evm.StateDB, c.contract.Address(), validator)
+	}
 
 	return nil
 }

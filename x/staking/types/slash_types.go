@@ -50,10 +50,10 @@ func (queue SlashValidatorWithdrawItemQueue) IndexOf(item *SlashValidatorWithdra
 	return 0
 }
 
-func (queue SlashValidatorWithdrawItemQueue) Empty() bool {
+func (queue SlashValidatorWithdrawItemQueue) IsEmpty() bool {
 	return len(queue) == 0
 }
 
-func (queue SlashValidatorWithdrawItemQueue) NotEmpty() bool {
-	return !queue.Empty()
+func (queue SlashValidatorWithdrawItemQueue) IsNotEmpty() bool {
+	return !queue.IsEmpty()
 }

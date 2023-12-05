@@ -16,11 +16,11 @@ import (
 
 type RewardModule struct {
 	logger  log.Logger
-	staking types.Staking
+	staking types.Stake
 	stage   types.Stage
 }
 
-func NewRewardModule(staking types.Staking, stage types.Stage) *RewardModule {
+func NewRewardModule(staking types.Stake, stage types.Stage) *RewardModule {
 	return &RewardModule{
 		logger:  log.New("module", "reward"),
 		staking: staking,

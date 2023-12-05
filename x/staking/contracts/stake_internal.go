@@ -210,7 +210,7 @@ func (c *StakeHandler) stake(validatorAddr, owner basecommon.Address, amount *bi
 }
 
 func (c *StakeHandler) addStake(validatorAddr basecommon.Address, amount *big.Int) error {
-	validator := c.GetValidator(validatorAddr)
+	validator := c.getValidator(validatorAddr)
 
 	// ## NOTE ##
 	// Reason:
@@ -253,7 +253,7 @@ func (c *StakeHandler) addStake(validatorAddr basecommon.Address, amount *big.In
 }
 
 func (c *StakeHandler) unStake(validatorAddr basecommon.Address, amount *big.Int) error {
-	validator := c.GetValidator(validatorAddr)
+	validator := c.getValidator(validatorAddr)
 
 	if validator.IsInvalid() {
 		return typesdk.NewRevertError("StakeHandler: INVALID_VALIDATOR")
@@ -344,7 +344,7 @@ func (c *StakeHandler) slash(handleEventId *big.Int, validatorAddrs []basecommon
 
 func (c *StakeHandler) delegate(validatorAddr, delegaterAddr basecommon.Address, amount *big.Int) error {
 
-	validator := c.GetValidator(validatorAddr)
+	validator := c.getValidator(validatorAddr)
 
 	var err error
 	if validator.IsInvalid() {
@@ -385,7 +385,7 @@ func (c *StakeHandler) delegate(validatorAddr, delegaterAddr basecommon.Address,
 
 func (c *StakeHandler) registerStakeWithdrawalByEpoch(validatorAddr basecommon.Address, amount *big.Int, epoch uint64) error {
 
-	item := c.getStakeWithdrawalQueueItem(validatorAddr, epoch)
+	item := db.GetStakeWithdrawalQueueItem(c.evm.StateDB, c.contract.Address(), validatorAddr, epoch)
 	if item.IsNotEmpty() {
 		item.IncrementAmount(amount)
 		if err := c.setStakeWithdrawalQueueItem(validatorAddr, epoch, item); nil != err {
