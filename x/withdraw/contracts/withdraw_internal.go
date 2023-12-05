@@ -3,7 +3,7 @@ package contracts
 import (
 	"fmt"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
-	"github.com/PlatONnetwork/AppChain-SDK/x/address"
+	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	statesenderC "github.com/PlatONnetwork/AppChain-SDK/x/statesender/contracts"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
@@ -79,13 +79,13 @@ func (c *WithdrawManager) syncStateDeposit(depositor, recipient basecommon.Addre
 		return typesdk.NewRevertError(fmt.Sprintf("encode L2StateSender deposit data %s", err))
 	}
 
-	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, address.StateSenderAddress)
+	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, constants.StateSenderAddress)
 	if nil != err {
 		log.Error("Failed to call NewL2StateSenderCaller", "depositor", depositor.Hex(), "recipient", recipient, "amount", amount, "error", err)
 		return typesdk.NewRevertError(fmt.Sprintf("call deposit by L2StateSender %s", err))
 	}
 
-	if err := l2statesender.SyncState(address.RootchainWithdrawHandlerAddress, data); nil != err {
+	if err := l2statesender.SyncState(constants.RootchainWithdrawHandlerAddress, data); nil != err {
 		log.Error("Failed to call SyncState", "depositor", depositor.Hex(), "recipient", recipient, "amount", amount, "error", err)
 		return typesdk.NewRevertError(fmt.Sprintf("call deposit by L2StateSender %s", err))
 	}
