@@ -20,7 +20,7 @@ func (d *DepositModule) Name() string {
 }
 
 func (d *DepositModule) Address() basecommon.Address {
-	return constants.StakeHandlerAddress
+	return constants.DepositHandlerAddress
 }
 
 func (d *DepositModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly bool) ([]byte, error) {

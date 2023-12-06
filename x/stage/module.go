@@ -1,6 +1,7 @@
 package stage
 
 import (
+	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/stage/db"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
@@ -51,8 +52,7 @@ func (s *StageModule) EndBlock(ctx sdk.WorkerContext) {
 	// NOTE: Only search for the most recent 100 rounds to save resource consumption
 	if db.IsEndOfCurrentRound(ctx.StateDB(), s.Address(), currentBlock) {
 		if err := db.BuildNextRound(ctx.StateDB(), s.Address()); nil != err {
-			s.logger.Error("Failed to build next round", "blockNumber", currentBlock, "error", err)
-			return
+			panic(fmt.Sprintf("Failed to build next round, currentRound: %d, blockNumber: %d, error: %s", s.GetCurrentRound(ctx.StateDB()), currentBlock, err))
 		}
 	}
 
@@ -61,11 +61,12 @@ func (s *StageModule) EndBlock(ctx sdk.WorkerContext) {
 	// NOTE: Only search for the most recent 100 epochs to save resource consumption
 	if db.IsEndOfCurrentEpoch(ctx.StateDB(), s.Address(), currentBlock) {
 		if err := db.BuildNextEpoch(ctx.StateDB(), s.Address()); nil != err {
-			s.logger.Error("Failed to build next epoch", "blockNumber", currentBlock, "error", err)
-			return
+			panic(fmt.Sprintf("Failed to build next epoch, currentEpoch: %d, blockNumber: %d, error: %s", s.GetCurrentEpoch(ctx.StateDB()), currentBlock, err))
 		}
 	}
 }
+
+// extern
 
 func (s *StageModule) GetCurrentRound(stateDB sdk.StateDBReader) uint64 {
 	return db.GetCurrentRound(stateDB, s.Address())

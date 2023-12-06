@@ -3,7 +3,6 @@ package contracts
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
 	staketypes "github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	"github.com/PlatONnetwork/PlatON-Go/common/math"
@@ -133,7 +132,7 @@ func (c *StakeHandler) Slash() error {
 		return err
 	}
 
-	log.Info("Slash for", "validators", fmt.Sprintf("%+v", validators), "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber)
+	log.Info("Slash for", "validator size", len(validators), "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }
 

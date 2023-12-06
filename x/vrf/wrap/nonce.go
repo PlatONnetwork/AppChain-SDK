@@ -7,7 +7,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 )
 
-func GetPreviousNonce(db sdk.StateDB, addr basecommon.Address, blockNumber uint64) (basecommon.Hash, error) {
+func GetPreviousNonce(db sdk.StateDBReader, addr basecommon.Address, blockNumber uint64) (basecommon.Hash, error) {
 	if blockNumber == 0 {
 		return basecommon.ZeroHash, errors.New("can not found vrf nonce of parent of genesis block")
 	}
@@ -18,7 +18,7 @@ func GetPreviousNonce(db sdk.StateDB, addr basecommon.Address, blockNumber uint6
 	return nonce, nil
 }
 
-func GetPreviousNonceAndProof(db sdk.StateDB, addr basecommon.Address, blockNumber uint64) ([]byte, error) {
+func GetPreviousNonceAndProof(db sdk.StateDBReader, addr basecommon.Address, blockNumber uint64) ([]byte, error) {
 	if blockNumber == 0 {
 		return nil, errors.New("can not found vrf nonce of parent of genesis block")
 	}
@@ -29,7 +29,7 @@ func GetPreviousNonceAndProof(db sdk.StateDB, addr basecommon.Address, blockNumb
 	return nonceAndProof, nil
 }
 
-func GetCurrentNonce(db sdk.StateDB, addr basecommon.Address, blockNumber uint64) (basecommon.Hash, error) {
+func GetCurrentNonce(db sdk.StateDBReader, addr basecommon.Address, blockNumber uint64) (basecommon.Hash, error) {
 
 	nonce := vrfdb.GetNonce(db, addr, blockNumber)
 	if nonce == basecommon.ZeroHash {
@@ -38,7 +38,7 @@ func GetCurrentNonce(db sdk.StateDB, addr basecommon.Address, blockNumber uint64
 	return nonce, nil
 }
 
-func GetCurrentNonceAndProof(db sdk.StateDB, addr basecommon.Address, blockNumber uint64) ([]byte, error) {
+func GetCurrentNonceAndProof(db sdk.StateDBReader, addr basecommon.Address, blockNumber uint64) ([]byte, error) {
 
 	nonceAndProof := vrfdb.GetNonceAndProof(db, addr, blockNumber)
 	if len(nonceAndProof) == 0 {
@@ -47,7 +47,7 @@ func GetCurrentNonceAndProof(db sdk.StateDB, addr basecommon.Address, blockNumbe
 	return nonceAndProof, nil
 }
 
-func GetNonceQueueUtil(db sdk.StateDB, addr basecommon.Address, blockNumber, size uint64) ([]basecommon.Hash, error) {
+func GetNonceQueueUtil(db sdk.StateDBReader, addr basecommon.Address, blockNumber, size uint64) ([]basecommon.Hash, error) {
 
 	index := blockNumber
 	count := uint64(0)

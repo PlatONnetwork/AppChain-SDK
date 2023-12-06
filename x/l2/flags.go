@@ -2,7 +2,6 @@ package l2
 
 import (
 	"fmt"
-
 	"github.com/PlatONnetwork/AppChain-SDK/common"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/keystore"
 	"gopkg.in/urfave/cli.v1"

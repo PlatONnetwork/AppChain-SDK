@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
-	"github.com/PlatONnetwork/AppChain-SDK/x/l2"
+	"github.com/PlatONnetwork/AppChain-SDK/x/l1"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
 	stakingp2p "github.com/PlatONnetwork/AppChain-SDK/x/staking/p2p"
@@ -18,6 +18,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
+	"github.com/PlatONnetwork/PlatON-Go/crypto/bls"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/p2p/enode"
 	"github.com/PlatONnetwork/PlatON-Go/params"
@@ -27,36 +28,23 @@ import (
 )
 
 type StakeModule struct {
-	p2p          *stakingp2p.StakingP2P
-	logger       log.Logger
-	privateKey   *ecdsa.PrivateKey
-	keystoreFile string
-	passwordFile string
-	stage        staketypes.Stage
-	reward       staketypes.Reward
+	p2p            *stakingp2p.StakingP2P
+	logger         log.Logger
+	nodePrivateKey *ecdsa.PrivateKey
+	stage          staketypes.Stage
+	reward         staketypes.Reward
 }
 
 func NewStakeModule(ctx *cli.Context, stage staketypes.Stage) *StakeModule {
 	return &StakeModule{
-		logger:       log.New("module", "staking"),
-		keystoreFile: ctx.GlobalString(l2.KeystoreFlag.Name),
-		passwordFile: ctx.GlobalString(l2.PasswordFlag.Name),
-		stage:        stage,
+		logger:         log.New("module", "staking"),
+		stage:          stage,
+		nodePrivateKey: l1.DecodeNodePrivateKey(ctx),
 	}
 }
 
 func (s *StakeModule) Name() string {
 	return "staking"
-}
-
-func (s *StakeModule) Init() error {
-
-	key, err := l2.DecodePrivateKey(s.keystoreFile, s.passwordFile)
-	if err != nil {
-		return err
-	}
-	s.privateKey = key.PrivateKey
-	return nil
 }
 
 func (s *StakeModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
@@ -90,7 +78,7 @@ func (s *StakeModule) AddTxs(ctx sdk.WorkerContext, local, remote map[basecommon
 		return local, remote
 	}
 
-	from := crypto.PubkeyToAddress(s.privateKey.PublicKey)
+	from := crypto.PubkeyToAddress(s.nodePrivateKey.PublicKey)
 
 	slashTx, err := s.createSlashTx(ctx)
 	if nil != err {
@@ -114,7 +102,7 @@ func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) {
 	if parentBlock != 0 {
 		parentHeader := ctx.Backend().GetBlock(parentHash, parentBlock).Header()
 		if err := stakewrap.SetNumberOfBlocksForRoundValidator(ctx.StateDB(), parentHeader); nil != err {
-			panic(fmt.Sprintf("Failed to set number of blocks for round validators, parentBlock: %d, currentBlock: %d", parentBlock, currentBlock))
+			panic(fmt.Sprintf("Failed to set number of blocks for round validators, parentBlock: %d, blockNumber: %d, error: %s", parentBlock, currentBlock, err))
 		}
 	}
 
@@ -124,7 +112,7 @@ func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) {
 		// update validator status
 		for _, validatorAddr := range lowBlocksValidatorAddrQueue {
 			if err := s.updateValidatorStatus(ctx.StateDB(), validatorAddr, staketypes.Invalided|staketypes.LowBlocks); nil != err {
-				panic(fmt.Sprintf("Failed to update validator status to [lowBlocks], validator: %s, currentBlock: %d", validatorAddr.Hex(), currentBlock))
+				panic(fmt.Sprintf("Failed to update validator status to [lowBlocks], validator: %s, blockNumber: %d, error: %s", validatorAddr.Hex(), currentBlock, err))
 			}
 		}
 	}
@@ -137,7 +125,6 @@ func (s *StakeModule) EndBlock(ctx sdk.WorkerContext) {
 	// election next round validators (at cuurent round electionBlock)
 	if s.stage.IsElectionBlockOnCurrentRound(ctx.StateDB(), currentBlock) {
 		if err := s.electionRoundValidators(ctx, currentBlock); nil != err {
-			s.logger.Error("Failed to elected round validators", "blockNumber", currentBlock, "error", err)
 			panic(fmt.Sprintf("Failed to elected round validators, blockNumber: %d, error: %s", currentBlock, err))
 		}
 	}
@@ -147,7 +134,6 @@ func (s *StakeModule) EndBlock(ctx sdk.WorkerContext) {
 	// NOTE: Only search for the most recent 100 epochs to save resource consumption
 	if s.stage.IsEndOfCurrentEpoch(ctx.StateDB(), currentBlock) {
 		if err := s.electionEpochValidators(ctx, currentBlock); nil != err {
-			s.logger.Error("Failed to elected epoch validators", "blockNumber", currentBlock, "error", err)
 			panic(fmt.Sprintf("Failed to elected epoch validators, blockNumber: %d, error: %s", currentBlock, err))
 		}
 	}
@@ -486,7 +472,7 @@ func (s *StakeModule) createSlashTx(ctx sdk.Context) (*types.Transaction, error)
 	if nil != err {
 		return nil, err
 	}
-	from := crypto.PubkeyToAddress(s.privateKey.PublicKey)
+	from := crypto.PubkeyToAddress(s.nodePrivateKey.PublicKey)
 	txNonce, err := ctx.Backend().GetPoolNonce(from)
 	if nil != err {
 		return nil, err
@@ -495,7 +481,7 @@ func (s *StakeModule) createSlashTx(ctx sdk.Context) (*types.Transaction, error)
 	tx := types.NewTransaction(txNonce, s.Address(), nil, 100000, big.NewInt(0), input)
 	chainId, _ := ctx.Backend().ChainId()
 	signer := types.NewEIP155Signer(chainId)
-	tx, err = types.SignTx(tx, signer, s.privateKey)
+	tx, err = types.SignTx(tx, signer, s.nodePrivateKey)
 	if err != nil {
 		return nil, err
 	}
@@ -542,20 +528,54 @@ func (s *StakeModule) IsInvalidValidator(stateDB sdk.StateDBReader, validatorAdd
 	validator := db.GetValidator(stateDB, s.Address(), validatorAddr)
 	return validator.IsInvalid()
 }
+func (s *StakeModule) GetValidatorECDSAPubKey(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) *ecdsa.PublicKey {
+	validator := db.GetValidator(stateDB, s.Address(), validatorAddr)
+	if validator.IsEmpty() {
+		return nil
+	}
+	return validator.PubKey
+}
+func (s *StakeModule) GetValidatorBLSPubKey(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) *bls.PublicKey {
+	validator := db.GetValidator(stateDB, s.Address(), validatorAddr)
+	if validator.IsEmpty() {
+		return nil
+	}
+	return validator.BlsKey
+}
 func (s *StakeModule) GetValidatorCommissionRate(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) uint64 {
-	return db.GetValidator(stateDB, s.Address(), validatorAddr).CommissionRate
+	validator := db.GetValidator(stateDB, s.Address(), validatorAddr)
+	if validator.IsEmpty() {
+		return 0
+	}
+	return validator.CommissionRate
 }
 func (s *StakeModule) GetValidatorStakeEpoch(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) uint64 {
-	return db.GetValidator(stateDB, s.Address(), validatorAddr).Epoch
+	validator := db.GetValidator(stateDB, s.Address(), validatorAddr)
+	if validator.IsEmpty() {
+		return 0
+	}
+	return validator.Epoch
 }
 func (s *StakeModule) GetValidatorStakeAmount(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) *big.Int {
-	return db.GetValidator(stateDB, s.Address(), validatorAddr).StakeAmount
+	validator := db.GetValidator(stateDB, s.Address(), validatorAddr)
+	if validator.IsEmpty() {
+		return basecommon.Big0
+	}
+	return validator.StakeAmount
 }
 func (s *StakeModule) GetValidatorDelegateAmount(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) *big.Int {
-	return db.GetValidator(stateDB, s.Address(), validatorAddr).DelegateAmount
+	validator := db.GetValidator(stateDB, s.Address(), validatorAddr)
+	if validator.IsEmpty() {
+		return basecommon.Big0
+	}
+	return validator.DelegateAmount
 }
 func (s *StakeModule) GetValidatorOwner(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) basecommon.Address {
-	return db.GetValidator(stateDB, s.Address(), validatorAddr).Owner
+	validator := db.GetValidator(stateDB, s.Address(), validatorAddr)
+	if validator.IsEmpty() {
+		return basecommon.ZeroAddr
+	}
+	return validator.Owner
 }
 func (s *StakeModule) GetNumberOfBlocksForRoundValidator(stateDB sdk.StateDBReader, validatorAddr basecommon.Address, round uint64) uint64 {
 	return db.GetNumberOfBlocksForRoundValidator(stateDB, s.Address(), validatorAddr, round)
