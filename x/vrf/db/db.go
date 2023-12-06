@@ -18,7 +18,7 @@ func EncodeNonceAndProofKey(block uint64) []byte {
 	return append(nonceAndProofKey, basecommon.Uint64ToBytes(block)...)
 }
 
-func GetNonce(db sdk.StateDB, addr basecommon.Address, block uint64) basecommon.Hash {
+func GetNonce(db sdk.StateDBReader, addr basecommon.Address, block uint64) basecommon.Hash {
 	nonceAndProof := GetNonceAndProof(db, addr, block)
 	if len(nonceAndProof) == 0 {
 		return basecommon.ZeroHash
@@ -30,7 +30,7 @@ func GetNonce(db sdk.StateDB, addr basecommon.Address, block uint64) basecommon.
 	return basecommon.BytesToHash(nonceBytes)
 }
 
-func GetNonceAndProof(db sdk.StateDB, addr basecommon.Address, block uint64) []byte {
+func GetNonceAndProof(db sdk.StateDBReader, addr basecommon.Address, block uint64) []byte {
 	return db.GetState(addr, EncodeNonceAndProofKey(block))
 }
 

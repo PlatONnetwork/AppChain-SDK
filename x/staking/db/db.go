@@ -214,7 +214,7 @@ func setValidatorPriorityByKey(db sdk.StateDB, addr common.Address, key []byte, 
 	return nil
 }
 
-func SetValidatorPriority(db sdk.StateDB, addr common.Address, validatorAddr common.Address, epoch, stakeIndex uint64, shares *big.Int) error {
+func SetValidatorPriority(db sdk.StateDB, addr, validatorAddr common.Address, epoch, stakeIndex uint64, shares *big.Int) error {
 
 	indexKey := EncodePriorityValidatorHeadKey()
 	indexItem := getValidatorPriorityByKey(db, addr, EncodePriorityValidatorHeadKey())
@@ -369,7 +369,7 @@ func RankPriorityValidatorIds(db sdk.StateDBReader, addr common.Address, size ui
 	return arr[:count]
 }
 
-func SetValidator(db sdk.StateDB, addr common.Address, validatorAddr common.Address, validator *types.Validator) error {
+func SetValidator(db sdk.StateDB, addr, validatorAddr common.Address, validator *types.Validator) error {
 	value, err := rlp.EncodeToBytes(validator)
 	if nil != err {
 		return ErrRlpEncode
@@ -378,7 +378,7 @@ func SetValidator(db sdk.StateDB, addr common.Address, validatorAddr common.Addr
 	return nil
 }
 
-func GetValidator(db sdk.StateDBReader, addr common.Address, validatorAddr common.Address) *types.Validator {
+func GetValidator(db sdk.StateDBReader, addr, validatorAddr common.Address) *types.Validator {
 	value := db.GetState(addr, encodeValidatorKey(validatorAddr))
 	if len(value) == 0 {
 		return nil
@@ -390,18 +390,18 @@ func GetValidator(db sdk.StateDBReader, addr common.Address, validatorAddr commo
 	return nil
 }
 
-func HasValidator(db sdk.StateDBReader, addr common.Address, validatorAddr common.Address) bool {
+func HasValidator(db sdk.StateDBReader, addr, validatorAddr common.Address) bool {
 	value := db.GetState(addr, encodeValidatorKey(validatorAddr))
 	if len(value) == 0 {
 		return false
 	}
 	return true
 }
-func HasNotValidator(db sdk.StateDBReader, addr common.Address, validatorAddr common.Address) bool {
+func HasNotValidator(db sdk.StateDBReader, addr, validatorAddr common.Address) bool {
 	return !HasValidator(db, addr, validatorAddr)
 }
 
-func RemoveValidator(db sdk.StateDB, addr common.Address, validatorAddr common.Address) {
+func RemoveValidator(db sdk.StateDB, addr, validatorAddr common.Address) {
 	db.SetState(addr, encodeValidatorKey(validatorAddr), []byte{})
 }
 
@@ -415,7 +415,7 @@ func IncrementValidatorNonce(db sdk.StateDB, addr common.Address) uint64 {
 	return old
 }
 
-func GetValidatorNonce(db sdk.StateDB, addr common.Address) uint64 {
+func GetValidatorNonce(db sdk.StateDBReader, addr common.Address) uint64 {
 	value := db.GetState(addr, validatorNonceKey)
 	if len(value) == 0 {
 		return 0
@@ -436,7 +436,7 @@ func RemoveDelegation(db sdk.StateDB, addr, delegaterAddr, validatorAddr common.
 	db.SetState(addr, encodeDelegaterKey(delegaterAddr, validatorAddr, stakeEpoch), []byte{})
 }
 
-func GetDelegation(db sdk.StateDB, addr, delegaterAddr, validatorAddr common.Address, stakeEpoch uint64) *types.Delegation {
+func GetDelegation(db sdk.StateDBReader, addr, delegaterAddr, validatorAddr common.Address, stakeEpoch uint64) *types.Delegation {
 	value := db.GetState(addr, encodeDelegaterKey(delegaterAddr, validatorAddr, stakeEpoch))
 	if len(value) == 0 {
 		return nil
@@ -448,7 +448,7 @@ func GetDelegation(db sdk.StateDB, addr, delegaterAddr, validatorAddr common.Add
 	return nil
 }
 
-func AppendStakeWithdrawal(db sdk.StateDB, addr common.Address, validatorAddr common.Address, epoch uint64, amount *big.Int) error {
+func AppendStakeWithdrawal(db sdk.StateDB, addr, validatorAddr common.Address, epoch uint64, amount *big.Int) error {
 
 	indexEpoch := uint64(math.MaxUint64)
 	indexItem := GetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch)
@@ -554,7 +554,7 @@ func AppendStakeWithdrawal(db sdk.StateDB, addr common.Address, validatorAddr co
 	return nil
 }
 
-func GetStakeWithdrawal(db sdk.StateDB, addr, validatorAddr common.Address) *big.Int {
+func GetStakeWithdrawal(db sdk.StateDBReader, addr, validatorAddr common.Address) *big.Int {
 
 	amount := common.Big0
 
@@ -569,7 +569,7 @@ func GetStakeWithdrawal(db sdk.StateDB, addr, validatorAddr common.Address) *big
 	return amount
 }
 
-func GetStakeWithdrawalByEpoch(db sdk.StateDB, addr, validatorAddr common.Address, epoch uint64) *big.Int {
+func GetStakeWithdrawalByEpoch(db sdk.StateDBReader, addr, validatorAddr common.Address, epoch uint64) *big.Int {
 	item := GetStakeWithdrawalQueueItem(db, addr, validatorAddr, epoch)
 	if nil != item {
 		return item.Amount
@@ -577,7 +577,7 @@ func GetStakeWithdrawalByEpoch(db sdk.StateDB, addr, validatorAddr common.Addres
 	return common.Big0
 }
 
-func GetStakeWithdrawalLastEpoch(db sdk.StateDB, addr, validatorAddr common.Address) uint64 {
+func GetStakeWithdrawalLastEpoch(db sdk.StateDBReader, addr, validatorAddr common.Address) uint64 {
 
 	indexEpoch := uint64(math.MaxUint64)
 	indexItem := GetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch)
@@ -591,7 +591,7 @@ func GetStakeWithdrawalLastEpoch(db sdk.StateDB, addr, validatorAddr common.Addr
 }
 
 // Total of all rewards until epoch
-func GetStakeWithdrawable(db sdk.StateDB, addr, validatorAddr common.Address, epoch uint64) *big.Int {
+func GetStakeWithdrawable(db sdk.StateDBReader, addr, validatorAddr common.Address, epoch uint64) *big.Int {
 
 	amount := common.Big0
 
@@ -678,7 +678,7 @@ func CleanStakeWithdrawable(db sdk.StateDB, addr, validatorAddr common.Address) 
 }
 
 // Total of all rewards since epoch
-func GetStakeWithdrawalPending(db sdk.StateDB, addr common.Address, validatorAddr common.Address, epoch uint64) *big.Int {
+func GetStakeWithdrawalPending(db sdk.StateDBReader, addr, validatorAddr common.Address, epoch uint64) *big.Int {
 
 	amount := common.Big0
 
@@ -703,7 +703,7 @@ func GetStakeWithdrawalPending(db sdk.StateDB, addr common.Address, validatorAdd
 	return amount
 }
 
-func SetStakeWithdrawalQueueItem(db sdk.StateDB, addr common.Address, validatorAddr common.Address, epoch uint64, item *types.StakeWithdrawalItem) error {
+func SetStakeWithdrawalQueueItem(db sdk.StateDB, addr, validatorAddr common.Address, epoch uint64, item *types.StakeWithdrawalItem) error {
 	value, err := rlp.EncodeToBytes(item)
 	if nil != err {
 		return ErrRlpEncode
@@ -712,11 +712,11 @@ func SetStakeWithdrawalQueueItem(db sdk.StateDB, addr common.Address, validatorA
 	return nil
 }
 
-func removeStakeWithdrawalQueueItem(db sdk.StateDB, addr common.Address, validatorAddr common.Address, epoch uint64) {
+func removeStakeWithdrawalQueueItem(db sdk.StateDB, addr, validatorAddr common.Address, epoch uint64) {
 	db.SetState(addr, encodeStakeWithdrawalQueueItemKey(validatorAddr, epoch), []byte{})
 }
 
-func GetStakeWithdrawalQueueItem(db sdk.StateDB, addr common.Address, validatorAddr common.Address, epoch uint64) *types.StakeWithdrawalItem {
+func GetStakeWithdrawalQueueItem(db sdk.StateDBReader, addr, validatorAddr common.Address, epoch uint64) *types.StakeWithdrawalItem {
 	value := db.GetState(addr, encodeStakeWithdrawalQueueItemKey(validatorAddr, epoch))
 
 	if len(value) == 0 {
@@ -837,7 +837,7 @@ func AppendDelegateWithdrawal(db sdk.StateDB, addr common.Address, delegaterAddr
 	return nil
 }
 
-func GetDelegateWithdrawal(db sdk.StateDB, addr common.Address, delegaterAddr, validatorAddr common.Address) *big.Int {
+func GetDelegateWithdrawal(db sdk.StateDBReader, addr common.Address, delegaterAddr, validatorAddr common.Address) *big.Int {
 	amount := common.Big0
 
 	indexEpoch := uint64(0)
@@ -851,7 +851,7 @@ func GetDelegateWithdrawal(db sdk.StateDB, addr common.Address, delegaterAddr, v
 	return amount
 }
 
-func GetDelegateWithdrawalByEpoch(db sdk.StateDB, addr common.Address, delegaterAddr, validatorAddr common.Address, epoch uint64) *big.Int {
+func GetDelegateWithdrawalByEpoch(db sdk.StateDBReader, addr common.Address, delegaterAddr, validatorAddr common.Address, epoch uint64) *big.Int {
 	item := getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, epoch)
 	if nil != item {
 		return item.Amount
@@ -860,7 +860,7 @@ func GetDelegateWithdrawalByEpoch(db sdk.StateDB, addr common.Address, delegater
 }
 
 // Total of all rewards until epoch
-func GetDelegateWithdrawable(db sdk.StateDB, addr common.Address, delegaterAddr, validatorAddr common.Address, epoch uint64) *big.Int {
+func GetDelegateWithdrawable(db sdk.StateDBReader, addr common.Address, delegaterAddr, validatorAddr common.Address, epoch uint64) *big.Int {
 	amount := common.Big0
 
 	indexEpoch := uint64(0)
@@ -926,7 +926,7 @@ func ApplyDelegateWithdrawable(db sdk.StateDB, addr common.Address, delegaterAdd
 }
 
 // Total of all rewards since epoch
-func GetDelegateWithdrawalPending(db sdk.StateDB, addr common.Address, delegaterAddr, validatorAddr common.Address, epoch uint64) *big.Int {
+func GetDelegateWithdrawalPending(db sdk.StateDBReader, addr common.Address, delegaterAddr, validatorAddr common.Address, epoch uint64) *big.Int {
 	amount := common.Big0
 
 	indexEpoch := uint64(math.MaxUint64)
@@ -963,7 +963,7 @@ func removeDelegateWithdrawalQueueItem(db sdk.StateDB, addr common.Address, dele
 	db.SetState(addr, encodeDelegateWithdrawalQueueItemKey(delegaterAddr, validatorAddr, epoch), []byte{})
 }
 
-func getDelegateWithdrawalQueueItem(db sdk.StateDB, addr common.Address, delegaterAddr, validatorAddr common.Address, epoch uint64) *types.DelegateWithdrawalItem {
+func getDelegateWithdrawalQueueItem(db sdk.StateDBReader, addr common.Address, delegaterAddr, validatorAddr common.Address, epoch uint64) *types.DelegateWithdrawalItem {
 	value := db.GetState(addr, encodeDelegateWithdrawalQueueItemKey(delegaterAddr, validatorAddr, epoch))
 
 	if len(value) == 0 {
@@ -978,7 +978,7 @@ func getDelegateWithdrawalQueueItem(db sdk.StateDB, addr common.Address, delegat
 
 // -------
 
-func AppendValidatorDelegationRc(db sdk.StateDB, addr common.Address, validatorAddr common.Address, epoch, rc uint64) error {
+func AppendValidatorDelegationRc(db sdk.StateDB, addr, validatorAddr common.Address, epoch, rc uint64) error {
 
 	indexEpoch := uint64(math.MaxUint64)
 	indexItem := getValidatorDelegationRcItem(db, addr, validatorAddr, indexEpoch)
@@ -1021,11 +1021,11 @@ func AppendValidatorDelegationRc(db sdk.StateDB, addr common.Address, validatorA
 			// pre -> index -> epoch -> next... -> tail(max)
 			// pre < index < epoch < next ... < tail(max)
 
-			next := getValidatorDelegationRcItem(db, addr, validatorAddr, indexItem.NextStakeEpoch)
+			nextItem := getValidatorDelegationRcItem(db, addr, validatorAddr, indexItem.NextStakeEpoch)
 			epochItem := types.NewValidatorDelegationRcItem(indexEpoch, indexItem.NextStakeEpoch, rc)
 
 			indexItem.UpdateNextStakeEpoch(epoch)
-			next.UpdatePreStakeEpoch(epoch)
+			nextItem.UpdatePreStakeEpoch(epoch)
 
 			if err := setValidatorDelegationRcItem(db, addr, validatorAddr, indexEpoch, indexItem); nil != err {
 				return err
@@ -1033,7 +1033,7 @@ func AppendValidatorDelegationRc(db sdk.StateDB, addr common.Address, validatorA
 			if err := setValidatorDelegationRcItem(db, addr, validatorAddr, epoch, epochItem); nil != err {
 				return err
 			}
-			if err := setValidatorDelegationRcItem(db, addr, validatorAddr, epochItem.NextStakeEpoch, next); nil != err {
+			if err := setValidatorDelegationRcItem(db, addr, validatorAddr, epochItem.NextStakeEpoch, nextItem); nil != err {
 				return err
 			}
 
@@ -1048,13 +1048,13 @@ func AppendValidatorDelegationRc(db sdk.StateDB, addr common.Address, validatorA
 				// then: head(min) -> epoch -> index<last one> -> ... -> tail(max)
 				// head < epoch < index < ... < tail
 
-				pre := getValidatorDelegationRcItem(db, addr, validatorAddr, indexItem.PreStakeEpoch) // head
+				preItem := getValidatorDelegationRcItem(db, addr, validatorAddr, indexItem.PreStakeEpoch) // head
 				epochItem := types.NewValidatorDelegationRcItem(indexItem.PreStakeEpoch, epoch, rc)
 
-				pre.UpdateNextStakeEpoch(epoch)
+				preItem.UpdateNextStakeEpoch(epoch)
 				indexItem.UpdatePreStakeEpoch(epoch)
 
-				if err := setValidatorDelegationRcItem(db, addr, validatorAddr, epochItem.PreStakeEpoch, pre); nil != err {
+				if err := setValidatorDelegationRcItem(db, addr, validatorAddr, epochItem.PreStakeEpoch, preItem); nil != err {
 					return err
 				}
 				if err := setValidatorDelegationRcItem(db, addr, validatorAddr, epoch, epochItem); nil != err {
@@ -1084,7 +1084,7 @@ func AppendValidatorDelegationRc(db sdk.StateDB, addr common.Address, validatorA
 	return nil
 }
 
-func GetValidatorDelegationRcPending(db sdk.StateDB, addr common.Address, validatorAddr common.Address, size uint64) types.ValidatorDelegationRcQueue {
+func GetValidatorDelegationRcPending(db sdk.StateDBReader, addr, validatorAddr common.Address, size uint64) types.ValidatorDelegationRcQueue {
 	indexStakeEpoch := uint64(0)
 	indexItem := getValidatorDelegationRcItem(db, addr, validatorAddr, indexStakeEpoch)
 
@@ -1103,7 +1103,7 @@ func GetValidatorDelegationRcPending(db sdk.StateDB, addr common.Address, valida
 	return queue[:count]
 }
 
-func GetValidatorDelegationRcPendingAndEpoch(db sdk.StateDB, addr common.Address, validatorAddr common.Address, size uint64) ([]uint64, types.ValidatorDelegationRcQueue) {
+func GetValidatorDelegationRcPendingAndEpoch(db sdk.StateDBReader, addr, validatorAddr common.Address, size uint64) ([]uint64, types.ValidatorDelegationRcQueue) {
 	indexStakeEpoch := uint64(0)
 	indexItem := getValidatorDelegationRcItem(db, addr, validatorAddr, indexStakeEpoch)
 
@@ -1129,7 +1129,7 @@ func GetValidatorDelegationRcPendingAndEpoch(db sdk.StateDB, addr common.Address
 	return indexStakeEpochQueue[:count], queue[:count]
 }
 
-func getValidatorDelegationRcItem(db sdk.StateDB, addr common.Address, validatorAddr common.Address, stakeEpoch uint64) *types.ValidatorDelegationRcItem {
+func getValidatorDelegationRcItem(db sdk.StateDBReader, addr, validatorAddr common.Address, stakeEpoch uint64) *types.ValidatorDelegationRcItem {
 	value := db.GetState(addr, encodeValidatorDelegationRcKey(validatorAddr, stakeEpoch))
 
 	if len(value) != 0 {
@@ -1142,7 +1142,7 @@ func getValidatorDelegationRcItem(db sdk.StateDB, addr common.Address, validator
 	return nil
 }
 
-func setValidatorDelegationRcItem(db sdk.StateDB, addr common.Address, validatorAddr common.Address, stakeEpoch uint64, item *types.ValidatorDelegationRcItem) error {
+func setValidatorDelegationRcItem(db sdk.StateDB, addr, validatorAddr common.Address, stakeEpoch uint64, item *types.ValidatorDelegationRcItem) error {
 	value, err := rlp.EncodeToBytes(item)
 	if nil != err {
 		return ErrRlpEncode
@@ -1151,11 +1151,11 @@ func setValidatorDelegationRcItem(db sdk.StateDB, addr common.Address, validator
 	return nil
 }
 
-func removeValidatorDelegationRcItem(db sdk.StateDB, addr common.Address, validatorAddr common.Address, stakeEpoch uint64) {
+func removeValidatorDelegationRcItem(db sdk.StateDB, addr, validatorAddr common.Address, stakeEpoch uint64) {
 	db.SetState(addr, encodeValidatorDelegationRcKey(validatorAddr, stakeEpoch), []byte{})
 }
 
-func ReleaseValidatorDelegationRcItem(db sdk.StateDB, addr common.Address, validatorAddr common.Address, stakeEpoch, decrement uint64) error {
+func ReleaseValidatorDelegationRcItem(db sdk.StateDB, addr, validatorAddr common.Address, stakeEpoch, decrement uint64) error {
 	item := getValidatorDelegationRcItem(db, addr, validatorAddr, stakeEpoch)
 	if nil == item {
 		return ErrNotFound
@@ -1191,7 +1191,7 @@ func ReleaseValidatorDelegationRcItem(db sdk.StateDB, addr common.Address, valid
 	return nil
 }
 
-func GetValidatorDelegationRc(db sdk.StateDB, addr common.Address, validatorAddr common.Address, stakeEpoch uint64) uint64 {
+func GetValidatorDelegationRc(db sdk.StateDBReader, addr, validatorAddr common.Address, stakeEpoch uint64) uint64 {
 	item := getValidatorDelegationRcItem(db, addr, validatorAddr, stakeEpoch)
 	if nil == item {
 		return 0
@@ -1210,7 +1210,7 @@ func SetSlashProcessed(db sdk.StateDB, addr common.Address, handleEventId *big.I
 	return nil
 }
 
-func GetSlashProcessed(db sdk.StateDB, addr common.Address, handleEventId *big.Int) types.SlashValidatorWithdrawItemQueue {
+func GetSlashProcessed(db sdk.StateDBReader, addr common.Address, handleEventId *big.Int) types.SlashValidatorWithdrawItemQueue {
 	value := db.GetState(addr, encodeSlashProcessedKey(handleEventId))
 	if len(value) == 0 {
 		return nil
@@ -1223,11 +1223,11 @@ func GetSlashProcessed(db sdk.StateDB, addr common.Address, handleEventId *big.I
 	return nil
 }
 
-func HasSlashProcessed(db sdk.StateDB, addr common.Address, handleEventId *big.Int) bool {
+func HasSlashProcessed(db sdk.StateDBReader, addr common.Address, handleEventId *big.Int) bool {
 	return GetSlashProcessed(db, addr, handleEventId).IsNotEmpty()
 }
 
-func HasNotSlashProcessed(db sdk.StateDB, addr common.Address, handleEventId *big.Int) bool {
+func HasNotSlashProcessed(db sdk.StateDBReader, addr common.Address, handleEventId *big.Int) bool {
 	return !HasSlashProcessed(db, addr, handleEventId)
 }
 
@@ -1316,13 +1316,13 @@ func GetRoundValidatorIds(db sdk.StateDBReader, addr common.Address, round uint6
 
 // ----
 
-func IncrementNumberOfBlocksForRoundValidator(db sdk.StateDB, addr common.Address, validatorAddr common.Address, round, increment uint64) {
+func IncrementNumberOfBlocksForRoundValidator(db sdk.StateDB, addr, validatorAddr common.Address, round, increment uint64) {
 	number := GetNumberOfBlocksForRoundValidator(db, addr, validatorAddr, round)
 	number += increment
 	db.SetState(addr, encodeNumberOfBlocksForRoundValidatorKey(validatorAddr, round), common.Uint64ToBytes(number))
 }
 
-func GetNumberOfBlocksForRoundValidator(db sdk.StateDBReader, addr common.Address, validatorAddr common.Address, round uint64) uint64 {
+func GetNumberOfBlocksForRoundValidator(db sdk.StateDBReader, addr, validatorAddr common.Address, round uint64) uint64 {
 	value := db.GetState(addr, encodeNumberOfBlocksForRoundValidatorKey(validatorAddr, round))
 	var number uint64
 	if len(value) != 0 {
@@ -1340,7 +1340,7 @@ func getNumberOfBlocksForRoundValidatorsMap(db sdk.StateDBReader, addr common.Ad
 	return cache
 }
 
-func HasLowBlocksValidator(db sdk.StateDB, addr common.Address) bool {
+func HasLowBlocksValidator(db sdk.StateDBReader, addr common.Address) bool {
 	currentRound := stagedb.GetCurrentRound(db, addr)
 	if currentRound == 1 {
 		return false
@@ -1359,11 +1359,11 @@ func HasLowBlocksValidator(db sdk.StateDB, addr common.Address) bool {
 	return false
 }
 
-func HasNotLowBlocksValidator(db sdk.StateDB, addr common.Address) bool {
+func HasNotLowBlocksValidator(db sdk.StateDBReader, addr common.Address) bool {
 	return !HasLowBlocksValidator(db, addr)
 }
 
-func CheckLowBlocksValidator(db sdk.StateDB, addr common.Address) types.ValidatorIds {
+func CheckLowBlocksValidator(db sdk.StateDBReader, addr common.Address) types.ValidatorIds {
 	currentRound := stagedb.GetCurrentRound(db, addr)
 	if currentRound == 1 {
 		return nil

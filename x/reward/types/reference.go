@@ -9,11 +9,19 @@ import (
 type Stake interface {
 	GetRoundValidatorIds(stateDB sdk.StateDBReader, round uint64) []basecommon.Address
 	GetEpochValidatorIds(stateDB sdk.StateDBReader, epoch uint64) []basecommon.Address
+	IsValidValidator(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) bool
+	IsInvalidValidator(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) bool
 	GetValidatorCommissionRate(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) uint64
+	GetValidatorStakeEpoch(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) uint64
 	GetValidatorStakeAmount(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) *big.Int
 	GetValidatorDelegateAmount(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) *big.Int
 	GetValidatorOwner(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) basecommon.Address
 	GetNumberOfBlocksForRoundValidator(stateDB sdk.StateDBReader, validatorAddr basecommon.Address, round uint64) uint64
+
+	// for reward contract
+	GetEpochByValidatorDelegationRcPending(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) []uint64
+	GetDelegationFlatten(stateDB sdk.StateDBReader, delegaterAddr, validatorAddr basecommon.Address, stakeEpoch uint64) (uint64, *big.Int)
+	UpdateDelegationEpoch(stateDB sdk.StateDB, delegaterAddr, validatorAddr basecommon.Address, stakeEpoch, delegateEpoch uint64) error
 }
 
 type Stage interface {
@@ -28,4 +36,8 @@ type Stage interface {
 	IsNotBeginOfCurrentEpoch(stateDB sdk.StateDBReader, blockNumber uint64) bool
 	IsNotEndOfCurrentRound(stateDB sdk.StateDBReader, blockNumber uint64) bool
 	IsNotEndOfCurrentEpoch(stateDB sdk.StateDBReader, blockNumber uint64) bool
+}
+
+type Reward interface {
+	UpdateDelegationRewards(stateDB sdk.StateDB, delegaterAddr, validatorAddr basecommon.Address) error
 }

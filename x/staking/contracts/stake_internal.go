@@ -302,6 +302,7 @@ func (c *StakeHandler) slash(handleEventId *big.Int, validatorAddrs []basecommon
 		cache[validatorAddr] = struct{}{}
 		// unstake short circuit
 		c.removeValidator(validatorAddr)
+		c.updateValidatorRemovePriority()
 		c.cleanStakeWithdrawable(validatorAddr)
 
 	}

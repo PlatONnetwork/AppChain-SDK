@@ -13,6 +13,7 @@ import (
 	staketypes "github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	stakewrap "github.com/PlatONnetwork/AppChain-SDK/x/staking/wrap"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/common/math"
 	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
@@ -497,8 +498,19 @@ func (s *StakeModule) GetEpochValidatorIds(stateDB sdk.StateDBReader, epoch uint
 	queue := db.GetEpochValidatorIds(stateDB, s.Address(), epoch)
 	return queue
 }
+func (s *StakeModule) IsValidValidator(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) bool {
+	validator := db.GetValidator(stateDB, s.Address(), validatorAddr)
+	return validator.IsValid()
+}
+func (s *StakeModule) IsInvalidValidator(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) bool {
+	validator := db.GetValidator(stateDB, s.Address(), validatorAddr)
+	return validator.IsInvalid()
+}
 func (s *StakeModule) GetValidatorCommissionRate(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) uint64 {
 	return db.GetValidator(stateDB, s.Address(), validatorAddr).CommissionRate
+}
+func (s *StakeModule) GetValidatorStakeEpoch(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) uint64 {
+	return db.GetValidator(stateDB, s.Address(), validatorAddr).Epoch
 }
 func (s *StakeModule) GetValidatorStakeAmount(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) *big.Int {
 	return db.GetValidator(stateDB, s.Address(), validatorAddr).StakeAmount
@@ -511,4 +523,29 @@ func (s *StakeModule) GetValidatorOwner(stateDB sdk.StateDBReader, validatorAddr
 }
 func (s *StakeModule) GetNumberOfBlocksForRoundValidator(stateDB sdk.StateDBReader, validatorAddr basecommon.Address, round uint64) uint64 {
 	return db.GetNumberOfBlocksForRoundValidator(stateDB, s.Address(), validatorAddr, round)
+}
+func (s *StakeModule) GetEpochByValidatorDelegationRcPending(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) []uint64 {
+	epochs, _ := db.GetValidatorDelegationRcPendingAndEpoch(stateDB, s.Address(), validatorAddr, math.MaxUint64)
+	return epochs
+}
+func (s *StakeModule) GetDelegationFlatten(stateDB sdk.StateDBReader, delegaterAddr, validatorAddr basecommon.Address, stakeEpoch uint64) (uint64, *big.Int) {
+	delegation := db.GetDelegation(stateDB, s.Address(), delegaterAddr, validatorAddr, stakeEpoch)
+	if delegation.IsEmpty() {
+		return 0, basecommon.Big0
+	}
+	return delegation.Epoch, delegation.Amount
+}
+func (s *StakeModule) UpdateDelegationEpoch(stateDB sdk.StateDB, delegaterAddr, validatorAddr basecommon.Address, stakeEpoch, delegateEpoch uint64) error {
+	del := db.GetDelegation(stateDB, s.Address(), delegaterAddr, validatorAddr, stakeEpoch)
+	if nil == del {
+		return db.ErrNotFound
+	}
+	if del.Epoch == delegateEpoch {
+		return nil
+	}
+	if del.Epoch > delegateEpoch {
+		return fmt.Errorf("new delegate epoch not greater than old, old epoch: %d, new epoch: %d", del.Epoch, delegateEpoch)
+	}
+	del.UpdateEpoch(delegateEpoch)
+	return db.SetDelegation(stateDB, s.Address(), delegaterAddr, validatorAddr, stakeEpoch, del)
 }
