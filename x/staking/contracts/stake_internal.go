@@ -31,7 +31,7 @@ var (
 )
 
 var (
-	STAKE_PARAMS_TYPE             = abi.MustNewType("tuple(address validatorAddr, address ownerAddr, uint256 amount, uint256 commissionRate, uint256[2] bksKey, bytes pubKey)")
+	STAKE_PARAMS_TYPE             = abi.MustNewType("tuple(address validatorAddr, address ownerAddr, uint256 amount, uint256 commissionRate, bytes bksKey, bytes pubKey)")
 	ADDSTAKE_PARAMS_TYPE          = abi.MustNewType("tuple(address validatorAddr, uint256 amount)")
 	UNSTAKE_PARAMS_TYPE           = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, uint256 amount)")
 	ROOT_CHAIN_SLASH_PARAMS_TYPE  = abi.MustNewType("tuple(bytes32 sig, address[] validatorAddrs, uint256 slashingPercentage, uint256 slashIncentivePercentage)")
@@ -76,25 +76,24 @@ func (c *StakeHandler) onStake(input []byte) error {
 		return typesdk.NewRevertError("StakeHandler: INVALID_COMMISSION_RATE")
 	}
 
-	blsKeyArr, ok := res["blsKey"].([2]*big.Int)
+	blsKeyBytes, ok := res["blsKey"].([]byte)
 	if !ok {
 		return typesdk.NewRevertError("StakeHandler: INVALID_BLSKEY")
 	}
-	blsKeyBytes := append(blsKeyArr[0].Bytes(), blsKeyArr[1].Bytes()...)
 	blsKey := bls.PublicKey{}
-	(&blsKey).Deserialize(blsKeyBytes)
+	(&blsKey).DeserializeUncompressed(blsKeyBytes)
 
-	pubKey, ok := res["pubKey"].([]byte)
+	pubKeyBytes, ok := res["pubKey"].([]byte)
 	if !ok {
 		return typesdk.NewRevertError("StakeHandler: INVALID_PUBKEY")
 	}
 
-	publicKey, err := crypto.UnmarshalPubkey(pubKey)
+	pubKey, err := crypto.UnmarshalPubkey(pubKeyBytes)
 	if nil != err {
 		log.Error("Failed to unmarshal publicKey", "error", err)
 		return typesdk.NewRevertError("StakeHandler: INVALID_PUBKEY")
 	}
-	return c.stake(basecommon.Address(validatorAddr), basecommon.Address(ownerAddr), amount, commissionRate.Uint64(), &blsKey, publicKey)
+	return c.stake(basecommon.Address(validatorAddr), basecommon.Address(ownerAddr), amount, commissionRate.Uint64(), &blsKey, pubKey)
 }
 
 func (c *StakeHandler) onAddStake(input []byte) error {
