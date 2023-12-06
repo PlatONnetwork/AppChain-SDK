@@ -111,7 +111,7 @@ func (c *StakeHandler) Slash() error {
 	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
 		return err
 	}
-	validators := db.CheckLowBlocksValidator(c.evm.StateDB, c.contract.Address())
+	validators := db.CheckLowBlocksValidatorForPreviousRound(c.evm.StateDB, c.contract.Address())
 	// ###### NOTE: ######
 	// remove validator from epoch validators
 	cache := make(map[common.Address]struct{}, 0)
@@ -119,6 +119,7 @@ func (c *StakeHandler) Slash() error {
 		cache[validatorAddr] = struct{}{}
 	}
 	currentEpoch := c.getCurrentEpoch()
+	// NTOE: update epoch validator snapshot queue (after remove low blocks validators)
 	epochValidatorAddrQueue := db.GetEpochValidatorSharesSnapshotQueue(c.evm.StateDB, c.contract.Address(), currentEpoch)
 	for i := 0; i < len(epochValidatorAddrQueue); i++ {
 		validator := epochValidatorAddrQueue[i]
@@ -165,19 +166,33 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 			continue
 		}
 
+		// NOTE:
+		// Priority must be given to settling commission rewards before proceeding with the `withdraw` operation.
+		if err := c.reward.UpdateDelegationRewardsByStakeEpoch(c.evm.StateDB, delegaterAddr, validatorAddr, stakeEpoch); nil != err {
+			log.Error("Failed to update delegation rewards by stakeEpoch", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
+				"stakeEpoch", stakeEpoch, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber, "error", err)
+			return typesdk.NewRevertError("StakeHandler: UPDATE DELEGATION REWARDS BY STAKE EPOCH FAILED")
+		}
+
 		use := common.Big0
-		if delegation.Amount.Cmp(amount) <= 0 { // remove the delegation by stakeEpoch
+		if delegation.Amount.Cmp(amount) <= 0 {
+			// remove the delegation by stakeEpoch
 			c.removeDelegation(delegaterAddr, validatorAddr, stakeEpoch)
+
+			// decrement validator-delegater-rc
 			if err := c.releaseValidatorDelegationRcItem(validatorAddr, stakeEpoch, 1); nil != err {
-				log.Error("Failed to release validatorDelegation rc", "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "error", err)
+				log.Error("Failed to release validatorDelegation rc", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
+					"stakeEpoch", stakeEpoch, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber, "error", err)
 				return typesdk.NewRevertError("StakeHandler: RELEASE VALIDATOR DELEGATION RC FAILED")
 			}
 			use = delegation.Amount
 		} else {
+			// update delegation with new epoch and new amount
 			delegation.UpdateEpoch(c.getCurrentEpoch())
 			delegation.DecrementAmount(amount)
 			if err := c.setDelegation(delegaterAddr, validatorAddr, stakeEpoch, delegation); nil != err {
-				log.Error("Failed to set delegation", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "error", err)
+				log.Error("Failed to set delegation", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
+					"stakeEpoch", stakeEpoch, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber, "error", err)
 				return typesdk.NewRevertError("StakeHandler: SET DELEGATION FAILED")
 			}
 			use = amount
@@ -188,11 +203,11 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 
 		// update validator priority
 		if validator.IsValid() && validator.Epoch == stakeEpoch {
-			validator.SubDelegateAmount(amount)
 
+			validator.SubDelegateAmount(amount)
 			if err := c.updateValidatorByPriority(validatorAddr, validator); nil != err {
 				log.Error("Failed to update validator priority", "validatorAddr", validatorAddr.Hex(), "error", err)
-				return typesdk.NewRevertError("StakeHandler: UPDATE VALIDATOR PRIORITY FAILED")
+				return typesdk.NewRevertError("StakeHandler: SUB DELEGATE AMOUNT OF VALIDATOR FAILED")
 			}
 		}
 	}

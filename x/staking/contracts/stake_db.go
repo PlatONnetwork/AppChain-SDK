@@ -26,7 +26,7 @@ func (c *StakeHandler) setValidatorByPriority(validatorAddr common.Address, vali
 
 func (c *StakeHandler) updateValidatorRemovePriority(validatorAddr common.Address, validator *types.Validator) error {
 	old := c.getValidator(validatorAddr)
-	if nil == old { // maybe short circuit
+	if old.IsEmpty() { // maybe short circuit
 		return nil
 	}
 	// delete old priority
@@ -44,7 +44,7 @@ func (c *StakeHandler) updateValidatorRemovePriority(validatorAddr common.Addres
 func (c *StakeHandler) updateValidatorByPriority(validatorAddr common.Address, validator *types.Validator) error {
 
 	old := c.getValidator(validatorAddr)
-	if nil == old { // maybe short circuit
+	if old.IsEmpty() { // maybe short circuit
 		return nil
 	}
 	// delete old priority

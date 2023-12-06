@@ -165,8 +165,8 @@ func (r *RewardModule) UpdateDelegationRewards(stateDB sdk.StateDB, delegaterAdd
 
 	currentEpoch := r.stage.GetCurrentEpoch(stateDB)
 	if currentEpoch == 1 {
-		r.logger.Error("No epoch reward has been assigned yet", "currentEpoch", currentEpoch)
-		return errors.New("no epoch reward has been assigned yet")
+		r.logger.Warn("No epoch reward has been assigned yet", "currentEpoch", currentEpoch)
+		return nil
 	}
 
 	stakeEpochQueue := r.stake.GetEpochByValidatorDelegationRcPending(stateDB, validatorAddr)
@@ -183,6 +183,44 @@ func (r *RewardModule) UpdateDelegationRewards(stateDB sdk.StateDB, delegaterAdd
 		}
 		delegateRewardSnapshotQueue = append(delegateRewardSnapshotQueue, types.NewDelegationRewardSnapshot(delegation, rewardQueue))
 	}
+
+	if len(delegateRewardSnapshotQueue) == 0 {
+		return nil
+	}
+
+	for _, snap := range delegateRewardSnapshotQueue {
+		if err := r.aggregationEpochDelegationRewards(stateDB, delegaterAddr, validatorAddr, snap.Delegation.StakeEpoch, snap.Delegation.Amount, snap.RewardQueue); nil != err {
+			r.logger.Error("Failed to aggregate epoch delegation rewards", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "stakeEpoch", snap.Delegation.StakeEpoch, "error", err)
+			return err
+		}
+		// update delegateEpoch of delegation to currentEpoch
+		if err := r.stake.UpdateDelegationEpoch(stateDB, delegaterAddr, validatorAddr, snap.Delegation.StakeEpoch, currentEpoch); nil != err {
+			r.logger.Error("Failed to update delegation epoch", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "stakeEpoch", snap.Delegation.StakeEpoch, "error", err)
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (r *RewardModule) UpdateDelegationRewardsByStakeEpoch(stateDB sdk.StateDB, delegaterAddr, validatorAddr basecommon.Address, stakeEpoch uint64) error {
+
+	currentEpoch := r.stage.GetCurrentEpoch(stateDB)
+	if currentEpoch == 1 {
+		r.logger.Warn("No epoch reward has been assigned yet", "currentEpoch", currentEpoch)
+		return nil
+	}
+
+	previousEpoch := currentEpoch - 1
+	delegateRewardSnapshotQueue := types.NewDelegationRewardSnapshotQueue(0)
+
+	// get delegation
+	delegation := r.getDelegateSnapshot(stateDB, delegaterAddr, validatorAddr, stakeEpoch)
+	rewardQueue := r.getEpochDelegationRewardQueue(stateDB, validatorAddr, stakeEpoch, delegation.DelegateEpoch, previousEpoch)
+	if rewardQueue.IsEmpty() {
+		return nil
+	}
+	delegateRewardSnapshotQueue = append(delegateRewardSnapshotQueue, types.NewDelegationRewardSnapshot(delegation, rewardQueue))
 
 	if len(delegateRewardSnapshotQueue) == 0 {
 		return nil

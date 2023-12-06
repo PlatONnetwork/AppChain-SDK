@@ -1,6 +1,7 @@
 package types
 
 import (
+	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 )
 
@@ -40,5 +41,9 @@ type Stage interface {
 	GetEpochAndBlockBoundByBlockNumber(db sdk.StateDBReader, blockNumber, size uint64) (uint64, uint64, uint64)
 }
 
+type Stake interface {
+}
+
 type Reward interface {
+	UpdateDelegationRewardsByStakeEpoch(stateDB sdk.StateDB, delegaterAddr, validatorAddr basecommon.Address, stakeEpoch uint64) error
 }

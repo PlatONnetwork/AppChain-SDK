@@ -33,6 +33,7 @@ type StakeModule struct {
 	keystoreFile string
 	passwordFile string
 	stage        staketypes.Stage
+	reward       staketypes.Reward
 }
 
 func NewStakeModule(ctx *cli.Context, stage staketypes.Stage) *StakeModule {
@@ -71,6 +72,8 @@ func (s *StakeModule) Address() basecommon.Address {
 
 func (s *StakeModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly bool) ([]byte, error) {
 	stakeHandler, _ := contracts.NewStakeHandler(evm, contract, readOnly)
+	stakeHandler.SetStageModule(s.stage)
+	stakeHandler.SetRewardModule(s.reward)
 	return stakeHandler.Run(input)
 }
 
@@ -111,9 +114,21 @@ func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) {
 	if parentBlock != 0 {
 		parentHeader := ctx.Backend().GetBlock(parentHash, parentBlock).Header()
 		if err := stakewrap.SetNumberOfBlocksForRoundValidator(ctx.StateDB(), parentHeader); nil != err {
-			panic(err)
+			panic(fmt.Sprintf("Failed to set number of blocks for round validators, parentBlock: %d, currentBlock: %d", parentBlock, currentBlock))
 		}
 	}
+
+	if s.stage.IsBeginOfCurrentRound(ctx.StateDB(), currentBlock) {
+		// check low blocks validators
+		lowBlocksValidatorAddrQueue := db.CheckLowBlocksValidatorForPreviousRound(ctx.StateDB(), s.Address())
+		// update validator status
+		for _, validatorAddr := range lowBlocksValidatorAddrQueue {
+			if err := s.updateValidatorStatus(ctx.StateDB(), validatorAddr, staketypes.Invalided|staketypes.LowBlocks); nil != err {
+				panic(fmt.Sprintf("Failed to update validator status to [lowBlocks], validator: %s, currentBlock: %d", validatorAddr.Hex(), currentBlock))
+			}
+		}
+	}
+
 }
 func (s *StakeModule) EndBlock(ctx sdk.WorkerContext) {
 
@@ -122,8 +137,8 @@ func (s *StakeModule) EndBlock(ctx sdk.WorkerContext) {
 	// election next round validators (at cuurent round electionBlock)
 	if s.stage.IsElectionBlockOnCurrentRound(ctx.StateDB(), currentBlock) {
 		if err := s.electionRoundValidators(ctx, currentBlock); nil != err {
-			s.logger.Error("Failed to election round validators", "blockNumber", currentBlock, "error", err)
-			return
+			s.logger.Error("Failed to elected round validators", "blockNumber", currentBlock, "error", err)
+			panic(fmt.Sprintf("Failed to elected round validators, blockNumber: %d, error: %s", currentBlock, err))
 		}
 	}
 
@@ -132,8 +147,8 @@ func (s *StakeModule) EndBlock(ctx sdk.WorkerContext) {
 	// NOTE: Only search for the most recent 100 epochs to save resource consumption
 	if s.stage.IsEndOfCurrentEpoch(ctx.StateDB(), currentBlock) {
 		if err := s.electionEpochValidators(ctx, currentBlock); nil != err {
-			s.logger.Error("Failed to election epoch validators", "blockNumber", currentBlock, "error", err)
-			return
+			s.logger.Error("Failed to elected epoch validators", "blockNumber", currentBlock, "error", err)
+			panic(fmt.Sprintf("Failed to elected epoch validators, blockNumber: %d, error: %s", currentBlock, err))
 		}
 	}
 }
@@ -488,6 +503,27 @@ func (s *StakeModule) createSlashTx(ctx sdk.Context) (*types.Transaction, error)
 	return tx, nil
 }
 
+func (s *StakeModule) updateValidatorStatus(stateDB sdk.StateDB, validatorAddr basecommon.Address, status staketypes.ValidatorStatus) error {
+	old := db.GetValidator(stateDB, s.Address(), validatorAddr)
+	if old.IsEmpty() {
+		return errors.New("has not validator")
+	}
+	old.AppendStatus(status)
+
+	if status.IsInvalid() {
+
+		// delete old priority
+		if db.GetValidatorPriority(stateDB, s.Address(), old.Epoch, old.StakeIndex, old.Shares()).ValidatorAddr != validatorAddr {
+			return db.ErrMisMatching
+		}
+		if err := db.RemoveValidatorPriority(stateDB, s.Address(), old.Epoch, old.StakeIndex, old.Shares()); nil != err {
+			return err
+		}
+	}
+
+	return db.SetValidator(stateDB, s.Address(), validatorAddr, old)
+}
+
 // --- extern
 
 func (s *StakeModule) GetRoundValidatorIds(stateDB sdk.StateDBReader, round uint64) []basecommon.Address {
@@ -549,3 +585,5 @@ func (s *StakeModule) UpdateDelegationEpoch(stateDB sdk.StateDB, delegaterAddr, 
 	del.UpdateEpoch(delegateEpoch)
 	return db.SetDelegation(stateDB, s.Address(), delegaterAddr, validatorAddr, stakeEpoch, del)
 }
+
+//

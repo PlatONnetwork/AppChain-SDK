@@ -300,9 +300,8 @@ func (c *StakeHandler) slash(handleEventId *big.Int, validatorAddrs []basecommon
 
 		queue[i] = types.NewSlashValidatorWithdrawItem(validatorAddr, amounts[i])
 		cache[validatorAddr] = struct{}{}
-		// unstake short circuit
+		// NOTE: unstake short circuit
 		c.removeValidator(validatorAddr)
-		c.updateValidatorRemovePriority()
 		c.cleanStakeWithdrawable(validatorAddr)
 
 	}
@@ -328,6 +327,7 @@ func (c *StakeHandler) slash(handleEventId *big.Int, validatorAddrs []basecommon
 			i--
 		}
 	}
+	// NTOE: update epoch validator snapshot queue (after remove low blocks validators)
 	if len(epochValidatorAddrQueue) != oldSize {
 		if err := db.SetEpochValidatorSharesSnapshotQueue(c.evm.StateDB, c.contract.Address(), currentEpoch, epochValidatorAddrQueue); nil != err {
 			log.Error("Failed to update epochValidators", "epoch", currentEpoch, "error", err)
@@ -353,26 +353,44 @@ func (c *StakeHandler) delegate(validatorAddr, delegaterAddr basecommon.Address,
 			return err
 		}
 	} else {
-		// update validator priority
-		validator.AddDelegateAmount(amount)
 
-		if err = c.updateValidatorByPriority(validatorAddr, validator); nil != err {
-			log.Error("Failed to add validator delegate amount", "validatorAddr", validatorAddr.Hex(), "error", err)
-			return typesdk.NewRevertError("StakeHandler: ADD DELEGATE AMOUNT OF VALIDATOR FAILED")
-		}
+		currentEpoch := c.getCurrentEpoch()
+		delegation := c.getDelegation(delegaterAddr, validatorAddr, validator.Epoch)
 
-		// update delegation
-		build, err := c.incrementDelegation(delegaterAddr, validatorAddr, validator.Epoch, c.getCurrentEpoch(), amount)
-		if nil != err {
-			log.Error("Failed to set delegation", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "stakeEpoch", validator.Epoch, "error", err)
-			return typesdk.NewRevertError("StakeHandler: SET DELEGATION FAILED")
-		}
-		// append validator delegation rc
-		if build {
+		if delegation.IsNotEmpty() {
+			// NOTE:
+			// Priority must be given to settling commission rewards before proceeding with the `withdraw` operation.
+			if err := c.reward.UpdateDelegationRewardsByStakeEpoch(c.evm.StateDB, delegaterAddr, validatorAddr, validator.Epoch); nil != err {
+				log.Error("Failed to update delegation rewards by stakeEpoch", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
+					"stakeEpoch", validator.Epoch, "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber, "error", err)
+				return typesdk.NewRevertError("StakeHandler: UPDATE DELEGATION REWARDS BY STAKE EPOCH FAILED")
+			}
+
+			// update delegation
+			delegation.UpdateEpoch(currentEpoch)
+			delegation.IncrementAmount(amount)
+		} else {
+			delegation = types.NewDelegation(currentEpoch, amount)
+
+			// increment validator-delegater-rc
 			if err = c.appendValidatorDelegationRc(validatorAddr, validator.Epoch, 1); nil != err {
-				log.Error("Failed to append validatorDelegation rc", "validatorAddr", validatorAddr.Hex(), "stakeEpoch", validator.Epoch, "error", err)
+				log.Error("Failed to append validatorDelegation rc", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
+					"stakeEpoch", validator.Epoch, "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber, "error", err)
 				return typesdk.NewRevertError("StakeHandler: APPEND VALIDATOR DELEGATION RC FAILED")
 			}
+		}
+
+		if err := c.setDelegation(delegaterAddr, validatorAddr, validator.Epoch, delegation); nil != err {
+			log.Error("Failed to set delegation", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
+				"stakeEpoch", validator.Epoch, "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber, "error", err)
+			return typesdk.NewRevertError("StakeHandler: SET DELEGATION FAILED")
+		}
+
+		// update validator priority
+		validator.AddDelegateAmount(amount)
+		if err = c.updateValidatorByPriority(validatorAddr, validator); nil != err {
+			log.Error("Failed to add validator delegate amount", "validatorAddr", validatorAddr.Hex(), "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber, "error", err)
+			return typesdk.NewRevertError("StakeHandler: ADD DELEGATE AMOUNT OF VALIDATOR FAILED")
 		}
 
 		if err := c.addLogDelegationAddedEvent(delegaterAddr, validatorAddr, amount); nil != err {

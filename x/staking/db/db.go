@@ -390,6 +390,15 @@ func GetValidator(db sdk.StateDBReader, addr, validatorAddr common.Address) *typ
 	return nil
 }
 
+func UpdateValidatorStatus(db sdk.StateDB, addr, validatorAddr common.Address, status types.ValidatorStatus) error {
+	validator := GetValidator(db, addr, validatorAddr)
+	if validator.IsEmpty() {
+		return ErrInvalidValue
+	}
+	validator.AppendStatus(status)
+	return SetValidator(db, addr, validatorAddr, validator)
+}
+
 func HasValidator(db sdk.StateDBReader, addr, validatorAddr common.Address) bool {
 	value := db.GetState(addr, encodeValidatorKey(validatorAddr))
 	if len(value) == 0 {
@@ -1363,7 +1372,7 @@ func HasNotLowBlocksValidator(db sdk.StateDBReader, addr common.Address) bool {
 	return !HasLowBlocksValidator(db, addr)
 }
 
-func CheckLowBlocksValidator(db sdk.StateDBReader, addr common.Address) types.ValidatorIds {
+func CheckLowBlocksValidatorForPreviousRound(db sdk.StateDBReader, addr common.Address) types.ValidatorIds {
 	currentRound := stagedb.GetCurrentRound(db, addr)
 	if currentRound == 1 {
 		return nil
