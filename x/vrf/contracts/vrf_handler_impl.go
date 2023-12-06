@@ -38,8 +38,8 @@ type VRFHandler struct {
 	contract    *vm.Contract
 	evm         *vm.EVM
 	fallback    func(input []byte) ([]byte, error)
-	stage       vrftypes.Stage
-	stake       vrftypes.Stake
+	stageModule vrftypes.StageModuler
+	stakeModule vrftypes.StakeModuler
 }
 
 func NewVRFHandler(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*VRFHandler, error) {
@@ -55,12 +55,12 @@ func NewVRFHandler(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*VRFHandl
 
 // for vrf module
 
-func (c *VRFHandler) SetStageModule(stage vrftypes.Stage) {
-	c.stage = stage
+func (c *VRFHandler) SetStageModule(stage vrftypes.StageModuler) {
+	c.stageModule = stage
 }
 
-func (c *VRFHandler) SetStakeModule(stake vrftypes.Stake) {
-	c.stake = stake
+func (c *VRFHandler) SetStakeModule(stake vrftypes.StakeModuler) {
+	c.stakeModule = stake
 }
 
 func (c *VRFHandler) PushNonceAndProof(nonceAndProof []byte) error {
@@ -71,7 +71,7 @@ func (c *VRFHandler) PushNonceAndProof(nonceAndProof []byte) error {
 
 	validatorAddr := c.contract.Caller()
 
-	if c.stake.IsInvalidValidator(c.evm.StateDB, validatorAddr) {
+	if c.stakeModule.IsInvalidValidator(c.evm.StateDB, validatorAddr) {
 		return typesdk.NewRevertError("VRFHandler: INVALID CALLER")
 	}
 	currentBlock := c.evm.Context.BlockNumber.Uint64()
@@ -82,6 +82,6 @@ func (c *VRFHandler) PushNonceAndProof(nonceAndProof []byte) error {
 	c.setNonceAndProof(currentBlock, nonceAndProof)
 
 	log.Info("PushNonceAndProof for", "validatorAddr", validatorAddr, "nonceAndProof", hex.EncodeToString(nonceAndProof),
-		"currentEpoch", c.stage.GetCurrentEpoch(c.evm.StateDB), "blockNumber", c.evm.Context.BlockNumber)
+		"currentEpoch", c.stageModule.GetCurrentEpoch(c.evm.StateDB), "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }

@@ -9,7 +9,7 @@ import (
 )
 
 func (c *RewardManager) updateDelegationRewards(delegaterAddr, validatorAddr basecommon.Address) error {
-	return c.reward.UpdateDelegationRewards(c.evm.StateDB, delegaterAddr, validatorAddr)
+	return c.rewardModule.UpdateDelegationRewards(c.evm.StateDB, delegaterAddr, validatorAddr)
 }
 
 func (c *RewardManager) withdrawDelegationRewards(delegaterAddr, validatorAddr basecommon.Address) (*big.Int, error) {

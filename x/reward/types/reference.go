@@ -6,7 +6,21 @@ import (
 	"math/big"
 )
 
-type Stake interface {
+type StageModuler interface {
+	GetCurrentRound(stateDB sdk.StateDBReader) uint64
+	GetCurrentEpoch(stateDB sdk.StateDBReader) uint64
+	IsBeginOfCurrentRound(stateDB sdk.StateDBReader, blockNumber uint64) bool
+	IsBeginOfCurrentEpoch(stateDB sdk.StateDBReader, blockNumber uint64) bool
+	IsEndOfCurrentRound(stateDB sdk.StateDBReader, blockNumber uint64) bool
+	IsEndOfCurrentEpoch(stateDB sdk.StateDBReader, blockNumber uint64) bool
+
+	IsNotBeginOfCurrentRound(stateDB sdk.StateDBReader, blockNumber uint64) bool
+	IsNotBeginOfCurrentEpoch(stateDB sdk.StateDBReader, blockNumber uint64) bool
+	IsNotEndOfCurrentRound(stateDB sdk.StateDBReader, blockNumber uint64) bool
+	IsNotEndOfCurrentEpoch(stateDB sdk.StateDBReader, blockNumber uint64) bool
+}
+
+type StakeModuler interface {
 	GetRoundValidatorIds(stateDB sdk.StateDBReader, round uint64) []basecommon.Address
 	GetEpochValidatorIds(stateDB sdk.StateDBReader, epoch uint64) []basecommon.Address
 	IsValidValidator(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) bool
@@ -24,20 +38,6 @@ type Stake interface {
 	UpdateDelegationEpoch(stateDB sdk.StateDB, delegaterAddr, validatorAddr basecommon.Address, stakeEpoch, delegateEpoch uint64) error
 }
 
-type Stage interface {
-	GetCurrentRound(stateDB sdk.StateDBReader) uint64
-	GetCurrentEpoch(stateDB sdk.StateDBReader) uint64
-	IsBeginOfCurrentRound(stateDB sdk.StateDBReader, blockNumber uint64) bool
-	IsBeginOfCurrentEpoch(stateDB sdk.StateDBReader, blockNumber uint64) bool
-	IsEndOfCurrentRound(stateDB sdk.StateDBReader, blockNumber uint64) bool
-	IsEndOfCurrentEpoch(stateDB sdk.StateDBReader, blockNumber uint64) bool
-
-	IsNotBeginOfCurrentRound(stateDB sdk.StateDBReader, blockNumber uint64) bool
-	IsNotBeginOfCurrentEpoch(stateDB sdk.StateDBReader, blockNumber uint64) bool
-	IsNotEndOfCurrentRound(stateDB sdk.StateDBReader, blockNumber uint64) bool
-	IsNotEndOfCurrentEpoch(stateDB sdk.StateDBReader, blockNumber uint64) bool
-}
-
-type Reward interface {
+type RewardModuler interface {
 	UpdateDelegationRewards(stateDB sdk.StateDB, delegaterAddr, validatorAddr basecommon.Address) error
 }

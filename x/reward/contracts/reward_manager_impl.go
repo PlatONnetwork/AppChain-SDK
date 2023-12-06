@@ -33,15 +33,15 @@ var (
 )
 
 type RewardManager struct {
-	abi         *abi.ABI
-	methodEntry map[string]func([]byte) ([]byte, error)
-	readOnly    bool
-	contract    *vm.Contract
-	evm         *vm.EVM
-	fallback    func(input []byte) ([]byte, error)
-	stage       rewardtypes.Stage
-	stake       rewardtypes.Stake
-	reward      rewardtypes.Reward
+	abi          *abi.ABI
+	methodEntry  map[string]func([]byte) ([]byte, error)
+	readOnly     bool
+	contract     *vm.Contract
+	evm          *vm.EVM
+	fallback     func(input []byte) ([]byte, error)
+	stageModule  rewardtypes.StageModuler
+	stakeModule  rewardtypes.StakeModuler
+	rewardModule rewardtypes.RewardModuler
 }
 
 func NewRewardManager(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*RewardManager, error) {
@@ -57,16 +57,16 @@ func NewRewardManager(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*Rewar
 
 // internal
 
-func (c *RewardManager) SetStageModule(stage rewardtypes.Stage) {
-	c.stage = stage
+func (c *RewardManager) SetStageModule(stage rewardtypes.StageModuler) {
+	c.stageModule = stage
 }
 
-func (c *RewardManager) SetStakeModule(stake rewardtypes.Stake) {
-	c.stake = stake
+func (c *RewardManager) SetStakeModule(stake rewardtypes.StakeModuler) {
+	c.stakeModule = stake
 }
 
-func (c *RewardManager) SetRewardModule(reward rewardtypes.Reward) {
-	c.reward = reward
+func (c *RewardManager) SetRewardModule(reward rewardtypes.RewardModuler) {
+	c.rewardModule = reward
 }
 
 // external
@@ -97,7 +97,7 @@ func (c *RewardManager) WithdrawDelegaterReward(validator common.Address) error 
 		return err
 	}
 	log.Info("WithdrawDelegaterReward for", "validator", validator.Hex(), "rewards", rewards, "delegater", c.contract.Caller().Hex(),
-		"currentEpoch", c.stage.GetCurrentEpoch(c.evm.StateDB), "blockNumber", c.evm.Context.BlockNumber)
+		"currentEpoch", c.stageModule.GetCurrentEpoch(c.evm.StateDB), "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }
 
@@ -118,6 +118,6 @@ func (c *RewardManager) WithdrawValidatorReward(validator common.Address) error 
 		return err
 	}
 	log.Info("WithdrawValidatorReward for", "validator", validator.Hex(), "rewards", rewards, "caller", c.contract.Caller().Hex(),
-		"currentEpoch", c.stage.GetCurrentEpoch(c.evm.StateDB), "blockNumber", c.evm.Context.BlockNumber)
+		"currentEpoch", c.stageModule.GetCurrentEpoch(c.evm.StateDB), "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }

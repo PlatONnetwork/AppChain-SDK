@@ -6,12 +6,12 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 )
 
-type Stage interface {
+type StageModuler interface {
 	GetCurrentRound(stateDB sdk.StateDBReader) uint64
 	GetCurrentEpoch(stateDB sdk.StateDBReader) uint64
 }
 
-type Stake interface {
+type StakeModuler interface {
 	IsValidValidator(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) bool
 	IsInvalidValidator(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) bool
 	GetValidatorECDSAPubKey(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) *ecdsa.PublicKey

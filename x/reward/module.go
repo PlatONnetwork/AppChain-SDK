@@ -17,18 +17,18 @@ import (
 
 type RewardModule struct {
 	logger log.Logger
-	stage  types.Stage
-	stake  types.Stake
+	stage  types.StageModuler
+	stake  types.StakeModuler
 }
 
-func NewRewardModule(ctx *cli.Context, stage types.Stage) *RewardModule {
+func NewRewardModule(ctx *cli.Context, stage types.StageModuler) *RewardModule {
 	return &RewardModule{
 		logger: log.New("module", "reward"),
 		stage:  stage,
 	}
 }
 
-func (r *RewardModule) SetStakeModule(stake types.Stake) {
+func (r *RewardModule) SetStakeModule(stake types.StakeModuler) {
 	r.stake = stake
 }
 

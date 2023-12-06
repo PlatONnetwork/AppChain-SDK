@@ -15,7 +15,7 @@ func (c *VRFHandler) verifyNonceAndProof(validatorAddr basecommon.Address, block
 		return typesdk.NewRevertError("VRFHandler: can not get previous vrf nonce")
 	}
 
-	pubKey := c.stake.GetValidatorECDSAPubKey(c.evm.StateDB, validatorAddr)
+	pubKey := c.stakeModule.GetValidatorECDSAPubKey(c.evm.StateDB, validatorAddr)
 
 	if nil == pubKey {
 		log.Error("Failed to get ecdsa pubkey of nonceAndProof provide validator", "validatorAddr", validatorAddr.Hex(), "blockNumber", blockNumber)

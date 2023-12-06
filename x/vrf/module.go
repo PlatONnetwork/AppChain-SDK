@@ -33,11 +33,11 @@ var (
 type VRFModule struct {
 	logger         log.Logger
 	nodePrivateKey *ecdsa.PrivateKey
-	stage          vrftypes.Stage
-	stake          vrftypes.Stake
+	stage          vrftypes.StageModuler
+	stake          vrftypes.StakeModuler
 }
 
-func NewVRFModule(ctx *cli.Context, stage vrftypes.Stage) *VRFModule {
+func NewVRFModule(ctx *cli.Context, stage vrftypes.StageModuler) *VRFModule {
 	return &VRFModule{
 		logger:         log.New("module", "vrf"),
 		nodePrivateKey: l1.DecodeNodePrivateKey(ctx),
@@ -45,7 +45,7 @@ func NewVRFModule(ctx *cli.Context, stage vrftypes.Stage) *VRFModule {
 	}
 }
 
-func (v *VRFModule) SetStakeModule(stake vrftypes.Stake) {
+func (v *VRFModule) SetStakeModule(stake vrftypes.StakeModuler) {
 	v.stake = stake
 }
 
