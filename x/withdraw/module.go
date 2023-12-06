@@ -5,13 +5,18 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/withdraw/contracts"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
+	"github.com/PlatONnetwork/PlatON-Go/log"
+	"gopkg.in/urfave/cli.v1"
 )
 
 type WithdrawModule struct {
+	logger log.Logger
 }
 
-func NewWithdrawModule() *WithdrawModule {
-	return &WithdrawModule{}
+func NewWithdrawModule(ctx *cli.Context) *WithdrawModule {
+	return &WithdrawModule{
+		logger: log.New("module", "withdraw"),
+	}
 }
 
 func (w *WithdrawModule) Name() string {

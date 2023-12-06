@@ -1,20 +1,23 @@
 package stage
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/stage/db"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/log"
+	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
+	"gopkg.in/urfave/cli.v1"
 )
 
 type StageModule struct {
 	logger log.Logger
 }
 
-func NewStageModule() *StageModule {
+func NewStageModule(ctx *cli.Context) *StageModule {
 	return &StageModule{
 		logger: log.New("module", "stage"),
 	}
@@ -22,6 +25,18 @@ func NewStageModule() *StageModule {
 
 func (s *StageModule) Name() string {
 	return "stage"
+}
+
+func (s *StageModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
+	if err := initRoundItem(db, s.Address()); nil != err {
+		log.Error("Failed initialize round", "error", err)
+		panic(err)
+	}
+
+	if err := initEpochItem(db, s.Address()); nil != err {
+		log.Error("Failed initialize epoch", "error", err)
+		panic(err)
+	}
 }
 
 func (s *StageModule) Address() basecommon.Address {

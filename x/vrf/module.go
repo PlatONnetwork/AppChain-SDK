@@ -180,3 +180,13 @@ func (v *VRFModule) createPushNonceAndProofTx(ctx sdk.WorkerContext, nonceAndPro
 
 	return tx, nil
 }
+
+// extern
+
+func (v *VRFModule) GetNonceQueueUtil(stateDB sdk.StateDBReader, blockNumber, size uint64) ([]basecommon.Hash, error) {
+	return vrfwrap.GetNonceQueueUtil(stateDB, v.Address(), blockNumber, size)
+}
+
+func (v *VRFModule) GetCurrentNonce(stateDB sdk.StateDBReader, blockNumber uint64) (basecommon.Hash, error) {
+	return vrfwrap.GetCurrentNonce(stateDB, v.Address(), blockNumber)
+}

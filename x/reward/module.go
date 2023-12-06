@@ -11,21 +11,25 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
+	"gopkg.in/urfave/cli.v1"
 	"math/big"
 )
 
 type RewardModule struct {
 	logger log.Logger
-	stake  types.Stake
 	stage  types.Stage
+	stake  types.Stake
 }
 
-func NewRewardModule(stake types.Stake, stage types.Stage) *RewardModule {
+func NewRewardModule(ctx *cli.Context, stage types.Stage) *RewardModule {
 	return &RewardModule{
 		logger: log.New("module", "reward"),
-		stake:  stake,
 		stage:  stage,
 	}
+}
+
+func (r *RewardModule) SetStakeModule(stake types.Stake) {
+	r.stake = stake
 }
 
 func (r *RewardModule) Name() string {

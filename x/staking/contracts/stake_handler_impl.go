@@ -43,8 +43,8 @@ type StakeHandler struct {
 	contract    *vm.Contract
 	evm         *vm.EVM
 	fallback    func(input []byte) ([]byte, error)
-	stage       staketypes.Stage
-	reward      staketypes.Reward
+	stage       staketypes.StageModuler
+	reward      staketypes.RewardModuler
 }
 
 func NewStakeHandler(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*StakeHandler, error) {
@@ -59,11 +59,11 @@ func NewStakeHandler(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*StakeH
 }
 
 // internal
-func (c *StakeHandler) SetStageModule(stage staketypes.Stage) {
+func (c *StakeHandler) SetStageModule(stage staketypes.StageModuler) {
 	c.stage = stage
 }
 
-func (c *StakeHandler) SetRewardModule(reward staketypes.Reward) {
+func (c *StakeHandler) SetRewardModule(reward staketypes.RewardModuler) {
 	c.reward = reward
 }
 

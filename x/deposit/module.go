@@ -5,14 +5,19 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/deposit/contracts"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
+	"github.com/PlatONnetwork/PlatON-Go/log"
+	"gopkg.in/urfave/cli.v1"
 )
 
 type DepositModule struct {
+	logger log.Logger
 }
 
-func NewDepositModule() *DepositModule {
+func NewDepositModule(ctx *cli.Context) *DepositModule {
 
-	return &DepositModule{}
+	return &DepositModule{
+		logger: log.New("module", "deposit"),
+	}
 }
 
 func (d *DepositModule) Name() string {

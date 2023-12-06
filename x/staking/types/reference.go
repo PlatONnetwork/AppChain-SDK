@@ -5,7 +5,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 )
 
-type Stage interface {
+type StageModuler interface {
 	GetCurrentRound(stateDB sdk.StateDBReader) uint64
 	GetCurrentEpoch(stateDB sdk.StateDBReader) uint64
 
@@ -41,9 +41,14 @@ type Stage interface {
 	GetEpochAndBlockBoundByBlockNumber(db sdk.StateDBReader, blockNumber, size uint64) (uint64, uint64, uint64)
 }
 
-type Stake interface {
+type StakeModuler interface {
 }
 
-type Reward interface {
+type RewardModuler interface {
 	UpdateDelegationRewardsByStakeEpoch(stateDB sdk.StateDB, delegaterAddr, validatorAddr basecommon.Address, stakeEpoch uint64) error
+}
+
+type VRFModuler interface {
+	GetNonceQueueUtil(stateDB sdk.StateDBReader, blockNumber, size uint64) ([]basecommon.Hash, error)
+	GetCurrentNonce(stateDB sdk.StateDBReader, blockNumber uint64) (basecommon.Hash, error)
 }

@@ -6,7 +6,6 @@ import (
 	"github.com/AlayaNetwork/Alaya-Go/x/xcom"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	staketypes "github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
-	vrfwrap "github.com/PlatONnetwork/AppChain-SDK/x/vrf/wrap"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/common/math"
 	"github.com/PlatONnetwork/PlatON-Go/log"
@@ -41,7 +40,7 @@ func (svs sortValidatorQueue) Swap(i, j int) {
 	svs[i], svs[j] = svs[j], svs[i]
 }
 
-func ElectionValidatorByVRF(db sdk.StateDB, addr basecommon.Address, validatorSnapshotQueue staketypes.ValidatorSortSnapshotQueue, blockNumber, shiftSize uint64) (staketypes.ValidatorSortSnapshotQueue, error) {
+func ElectionValidatorByVRF(db sdk.StateDB, vrfModule staketypes.VRFModuler, validatorSnapshotQueue staketypes.ValidatorSortSnapshotQueue, blockNumber, shiftSize uint64) (staketypes.ValidatorSortSnapshotQueue, error) {
 
 	// ### NOTE ###
 	//
@@ -49,7 +48,7 @@ func ElectionValidatorByVRF(db sdk.StateDB, addr basecommon.Address, validatorSn
 	// otherwise VRF elections will have insufficient historical VRF nonces, leading to election failure (especially during parameter governance)
 	//
 	// (the validator snapshot queue (validatorSnapshotQueue) is definitely smaller than the number of validators in the epoch)
-	historyNonceQueue, err := vrfwrap.GetNonceQueueUtil(db, addr, blockNumber-1, uint64(len(validatorSnapshotQueue)))
+	historyNonceQueue, err := vrfModule.GetNonceQueueUtil(db, blockNumber-1, uint64(len(validatorSnapshotQueue)))
 	if nil != err {
 		return nil, err
 	}
@@ -57,7 +56,7 @@ func ElectionValidatorByVRF(db sdk.StateDB, addr basecommon.Address, validatorSn
 		return nil, fmt.Errorf("had not enough history vrf nonces")
 	}
 
-	currentVRFNonce, err := vrfwrap.GetCurrentNonce(db, addr, blockNumber)
+	currentVRFNonce, err := vrfModule.GetCurrentNonce(db, blockNumber)
 	if nil != err {
 		return nil, err
 	}
@@ -157,7 +156,7 @@ func electionByProbability(validatorSnapshotQueue staketypes.ValidatorSortSnapsh
 
 // ----------------------------
 
-func ShuffleQueue(db sdk.StateDB, addr basecommon.Address, currentRoundValidatorSnapshotQueue, validatorSnapshotVRFQueue staketypes.ValidatorSortSnapshotQueue, blockNumber uint64) (staketypes.ValidatorSortSnapshotQueue, error) {
+func ShuffleQueue(db sdk.StateDB, vrfModule staketypes.VRFModuler, currentRoundValidatorSnapshotQueue, validatorSnapshotVRFQueue staketypes.ValidatorSortSnapshotQueue, blockNumber uint64) (staketypes.ValidatorSortSnapshotQueue, error) {
 
 	currentSize := uint64(len(currentRoundValidatorSnapshotQueue))
 	totalQueue := append(currentRoundValidatorSnapshotQueue, validatorSnapshotVRFQueue...)
@@ -179,7 +178,7 @@ func ShuffleQueue(db sdk.StateDB, addr basecommon.Address, currentRoundValidator
 	// but random ordering is performed in each group
 	// The first group: the first f nodes
 	// The second group: the last 2f + 1 nodes
-	nextQueue, err := orderValidatorQueueByRandom(db, addr, blockNumber, nextQueue)
+	nextQueue, err := orderValidatorQueueByRandom(db, vrfModule, blockNumber, nextQueue)
 	if nil != err {
 		return nil, err
 	}
@@ -205,9 +204,9 @@ func (r randomOrderValidatorQueue) Swap(i, j int) {
 }
 
 // Randomly sort nodes
-func orderValidatorQueueByRandom(db sdk.StateDB, addr basecommon.Address, blockNumber uint64, validatorSnapshotQueue staketypes.ValidatorSortSnapshotQueue) (staketypes.ValidatorSortSnapshotQueue, error) {
+func orderValidatorQueueByRandom(db sdk.StateDB, vrfModule staketypes.VRFModuler, blockNumber uint64, validatorSnapshotQueue staketypes.ValidatorSortSnapshotQueue) (staketypes.ValidatorSortSnapshotQueue, error) {
 
-	historyNonceQueue, err := vrfwrap.GetNonceQueueUtil(db, addr, blockNumber-1, uint64(len(validatorSnapshotQueue)))
+	historyNonceQueue, err := vrfModule.GetNonceQueueUtil(db, blockNumber-1, uint64(len(validatorSnapshotQueue)))
 	if nil != err {
 		return nil, err
 	}

@@ -2,6 +2,8 @@ package main
 
 import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/deposit"
+	"github.com/PlatONnetwork/AppChain-SDK/x/reward"
+	"github.com/PlatONnetwork/AppChain-SDK/x/stage"
 	"github.com/PlatONnetwork/AppChain-SDK/x/vrf"
 	"path/filepath"
 
@@ -53,16 +55,25 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 
 	l1Module := l1.NewL1(store)
 	stateEvent := stateevent.NewModule(store)
-	staking := staking.NewStakeModule(ctx)
-	vrf := vrf.NewVRFModule(ctx)
-	deposit := deposit.NewDepositModule()
+
+	stageModule := stage.NewStageModule(ctx)
+	stakeModule := staking.NewStakeModule(ctx, stageModule)
+	rewardModule := reward.NewRewardModule(ctx, stageModule)
+	vrfModule := vrf.NewVRFModule(ctx, stageModule)
+	depositModule := deposit.NewDepositModule(ctx)
+
+	stakeModule.SetRewardModule(rewardModule)
+	stakeModule.SetVRFModule(vrfModule)
+	rewardModule.SetStakeModule(stakeModule)
+	vrfModule.SetStakeModule(stakeModule)
+
 	rootchainRpc := ctx.GlobalString(x.RootchainNodeRPCFlag.Name)
 	rootchainTxRelayer := txrelayer.NewModule(rootchainRpc, txrelayer.DefaultReceiptTimeout, txrelayer.DefaultNumRetries)
 
 	checkpoint, err := checkpoint.NewModule(
 		ctx,
 		store,
-		staking,
+		stakeModule,
 		rootchainTxRelayer,
 		extravote.NewExtraVoteDB(store),
 		stateEvent,
@@ -70,15 +81,15 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 
 	extraVote := extravote.NewExtraVote(store, []extravote.ExtraVerifier{stateSync, checkpoint})
 
-	manager := module.NewManager(stateSync, stateEvent, l1Module, extraVote, checkpoint, vrf, staking, deposit)
-	manager.SetElection(staking.Name())
+	manager := module.NewManager(stateSync, stateEvent, l1Module, extraVote, checkpoint, stageModule, vrfModule, stakeModule, rewardModule, depositModule)
+	manager.SetElection(stakeModule.Name())
 	manager.SetConsensusExtend(extraVote.Name())
 	//manager.SetWorker(stateSync.Name())
-	manager.SetOrderInit(stateSync.Name(), checkpoint.Name(), vrf.Name(), staking.Name())
-	manager.SetOrderGenesis(l1Module.Name(), vrf.Name(), staking.Name())
-	manager.SetOrderBeginBlocker(staking.Name())
-	manager.SetOrderEndBlocker(vrf.Name(), staking.Name())
-	manager.SetOrderBlockCommiter(staking.Name())
+	manager.SetOrderInit(stateSync.Name(), checkpoint.Name())
+	manager.SetOrderGenesis(l1Module.Name(), stageModule.Name(), vrfModule.Name(), stakeModule.Name())
+	manager.SetOrderBeginBlocker(stageModule.Name(), stakeModule.Name())
+	manager.SetOrderEndBlocker(vrfModule.Name(), stakeModule.Name())
+	manager.SetOrderBlockCommiter(stakeModule.Name())
 
 	app := &SimApp{}
 	baseApp, err := baseapp.NewBaseApp("simapp", store, manager)
