@@ -5,7 +5,6 @@ import (
 	"errors"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
-	upgradecontracts "github.com/PlatONnetwork/AppChain-SDK/x/upgradesys/contracts"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
@@ -53,9 +52,7 @@ func NewWithdrawManager(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*Wit
 }
 
 func (c *WithdrawManager) OnStateReceive(id *big.Int, sender common.Address, data []byte) error {
-	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
-		return err
-	}
+
 	// todo need to change the inner contract address file path
 	if c.contract.Caller() != constants.StateReceiverAddress || sender != constants.RootchainWithdrawHandlerAddress {
 		return typesdk.NewRevertError("WithdrawManager: INVALID_SENDER")
@@ -68,11 +65,8 @@ func (c *WithdrawManager) OnStateReceive(id *big.Int, sender common.Address, dat
 }
 
 func (c *WithdrawManager) Deposit(recipient common.Address, amount *big.Int) error {
-	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
-		return err
-	}
 
-	// ###3 NOTE ####
+	// #### NOTE ####
 	// defferent to DepositHandler
 	// deposit coin to `WithdrawManager` contract
 	if c.evm.StateDB.GetBalance(c.contract.Caller()).Cmp(amount) < 0 {

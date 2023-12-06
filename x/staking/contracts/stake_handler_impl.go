@@ -10,7 +10,6 @@ import (
 
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
-	upgradecontracts "github.com/PlatONnetwork/AppChain-SDK/x/upgradesys/contracts"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
@@ -87,9 +86,7 @@ func (c *StakeHandler) WithdrawableOfStake(validator common.Address) (*big.Int, 
 }
 
 func (c *StakeHandler) OnStateReceive(id *big.Int, sender common.Address, data []byte) error {
-	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
-		return err
-	}
+
 	// todo need to change the inner contract address file path
 	if c.contract.Caller() != constants.StateReceiverAddress || sender != constants.RootchainStakeManagerAddress {
 		return typesdk.NewRevertError("StakeHandler: INVALID_SENDER")
@@ -108,9 +105,7 @@ func (c *StakeHandler) OnStateReceive(id *big.Int, sender common.Address, data [
 }
 
 func (c *StakeHandler) Slash() error {
-	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
-		return err
-	}
+
 	validators := db.CheckLowBlocksValidatorForPreviousRound(c.evm.StateDB, c.contract.Address())
 	// ###### NOTE: ######
 	// remove validator from epoch validators
@@ -143,9 +138,6 @@ func (c *StakeHandler) Slash() error {
 }
 
 func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int) error {
-	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
-		return err
-	}
 
 	validator := c.getValidator(validatorAddr)
 
@@ -222,9 +214,7 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 }
 
 func (c *StakeHandler) Unstake(validatorAddr common.Address, amount *big.Int) error {
-	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
-		return err
-	}
+
 	if err := c.unStake(validatorAddr, amount); nil != err {
 		return err
 	}
@@ -241,9 +231,6 @@ func (c *StakeHandler) Unstake(validatorAddr common.Address, amount *big.Int) er
 }
 
 func (c *StakeHandler) WithdrawUndelegate(validator common.Address) error {
-	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
-		return err
-	}
 
 	currentEpoch := c.getCurrentEpoch()
 	delegater := c.contract.Caller()
@@ -267,9 +254,6 @@ func (c *StakeHandler) WithdrawUndelegate(validator common.Address) error {
 }
 
 func (c *StakeHandler) WithdrawUnstake(validator common.Address) error {
-	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
-		return err
-	}
 
 	currentEpoch := c.getCurrentEpoch()
 	amount, err := c.applyStakeWithdrawable(validator, currentEpoch)
