@@ -57,15 +57,15 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 	stateEvent := stateevent.NewModule(store)
 
 	stageModule := stage.NewStageModule(ctx)
+	vrfModule := vrf.NewVRFModule(ctx, stageModule)
 	stakeModule := staking.NewStakeModule(ctx, stageModule)
 	rewardModule := reward.NewRewardModule(ctx, stageModule)
-	vrfModule := vrf.NewVRFModule(ctx, stageModule)
 	depositModule := deposit.NewDepositModule(ctx)
 
+	vrfModule.SetStakeModule(stakeModule)
 	stakeModule.SetRewardModule(rewardModule)
 	stakeModule.SetVRFModule(vrfModule)
 	rewardModule.SetStakeModule(stakeModule)
-	vrfModule.SetStakeModule(stakeModule)
 
 	rootchainRpc := ctx.GlobalString(x.RootchainNodeRPCFlag.Name)
 	rootchainTxRelayer := txrelayer.NewModule(rootchainRpc, txrelayer.DefaultReceiptTimeout, txrelayer.DefaultNumRetries)
@@ -87,8 +87,8 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 	//manager.SetWorker(stateSync.Name())
 	manager.SetOrderInit(stateSync.Name(), checkpoint.Name())
 	manager.SetOrderGenesis(l1Module.Name(), stageModule.Name(), vrfModule.Name(), stakeModule.Name())
-	manager.SetOrderBeginBlocker(stageModule.Name(), stakeModule.Name())
-	manager.SetOrderEndBlocker(vrfModule.Name(), stakeModule.Name())
+	manager.SetOrderBeginBlocker(stageModule.Name(), stakeModule.Name(), rewardModule.Name())
+	manager.SetOrderEndBlocker(stageModule.Name(), vrfModule.Name(), stakeModule.Name(), rewardModule.Name())
 	manager.SetOrderBlockCommiter(stakeModule.Name())
 
 	app := &SimApp{}
