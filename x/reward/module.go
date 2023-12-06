@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
-	rewardcommon "github.com/PlatONnetwork/AppChain-SDK/x/reward/common"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/contracts"
 	rewarddb "github.com/PlatONnetwork/AppChain-SDK/x/reward/db"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/types"
@@ -80,7 +79,7 @@ func (r *RewardModule) handleBlocksRewardForPreviousRound(stateDB sdk.StateDB, b
 
 		numberOfBlocks := r.stake.GetNumberOfBlocksForRoundValidator(stateDB, validatorAddr, handleRound)
 		// got it !
-		blocksReward := new(big.Int).Mul(rewardcommon.REWARD_PER_BLOCK, big.NewInt(int64(numberOfBlocks)))
+		blocksReward := new(big.Int).Mul(constants.REWARD_PER_BLOCK, big.NewInt(int64(numberOfBlocks)))
 
 		// increment validatorEpochReward to validator rewards
 		rewarddb.IncrementPendingValidatorReward(stateDB, r.Address(), validatorAddr, blocksReward)
@@ -104,7 +103,7 @@ func (r *RewardModule) handleEpochReward(stateDB sdk.StateDB, blockNumber uint64
 	currentEpoch := r.stage.GetCurrentEpoch(stateDB)
 	epochValidatorIds := r.stake.GetEpochValidatorIds(stateDB, currentEpoch)
 
-	perValidatorEpochReward := new(big.Int).Div(rewardcommon.REWARD_PER_EPOCH, big.NewInt(int64(len(epochValidatorIds))))
+	perValidatorEpochReward := new(big.Int).Div(constants.REWARD_PER_EPOCH, big.NewInt(int64(len(epochValidatorIds))))
 
 	for _, validatorAddr := range epochValidatorIds {
 
@@ -156,7 +155,7 @@ func (r *RewardModule) handleEpochReward(stateDB sdk.StateDB, blockNumber uint64
 		}
 	}
 
-	rewarddb.IncrementPaidRewardPerEpoch(stateDB, r.Address(), currentEpoch, rewardcommon.REWARD_PER_EPOCH)
+	rewarddb.IncrementPaidRewardPerEpoch(stateDB, r.Address(), currentEpoch, constants.REWARD_PER_EPOCH)
 
 	return nil
 }
