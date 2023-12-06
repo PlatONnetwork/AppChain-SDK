@@ -15,7 +15,7 @@ func TestModule(t *testing.T) {
 	g := Genesis{
 		ChainID:    big.NewInt(11),
 		State:      common.BigToAddress(big.NewInt(1)),
-		CheckPoint: common.BigToAddress(big.NewInt(2)),
+		Checkpoint: common.BigToAddress(big.NewInt(2)),
 	}
 	raw, _ := json.Marshal(g)
 	l1.InitGenesis(nil, nil, nil, raw)
@@ -27,5 +27,5 @@ func TestModule(t *testing.T) {
 	require.Equal(t, g.State, addr)
 	addr, err = l1.db.GetCheckpointAddress()
 	require.Nil(t, err)
-	require.Equal(t, g.CheckPoint, addr)
+	require.Equal(t, g.Checkpoint, addr)
 }
