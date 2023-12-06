@@ -2,16 +2,6 @@ pragma solidity ^0.8.20;
 
 import "../IL1StateReceiver.sol";
 
-struct ValidatorInit {
-    address benefit;
-    // uint256[2] signerkey; // ecdsa keySize: 64 bytes
-    // uint128[3] blsKey; // bls keySize: 48 bytes
-    uint256 stakePower;
-    uint256 delegationPower;
-    bytes signerKey; // ecdsa keySize: 64 bytes
-    uint256[2] blsKey; // bls keySize: 48 bytes
-}
-
 interface IStakeHandler is IL1StateReceiver {
     event Slashed(uint256 indexed exitId, address[] validators, uint256[] amounts);
     event StakeAdded(address indexed validator, uint256 amount);
