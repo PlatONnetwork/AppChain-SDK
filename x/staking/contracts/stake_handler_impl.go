@@ -37,14 +37,15 @@ var (
 )
 
 type StakeHandler struct {
-	abi         *abi.ABI
-	methodEntry map[string]func([]byte) ([]byte, error)
-	readOnly    bool
-	contract    *vm.Contract
-	evm         *vm.EVM
-	fallback    func(input []byte) ([]byte, error)
-	stage       staketypes.StageModuler
-	reward      staketypes.RewardModuler
+	abi          *abi.ABI
+	methodEntry  map[string]func([]byte) ([]byte, error)
+	readOnly     bool
+	contract     *vm.Contract
+	evm          *vm.EVM
+	fallback     func(input []byte) ([]byte, error)
+	stageModule  staketypes.StageModuler
+	stakeModule  staketypes.StakeModuler
+	rewardModule staketypes.RewardModuler
 }
 
 func NewStakeHandler(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*StakeHandler, error) {
@@ -58,15 +59,6 @@ func NewStakeHandler(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*StakeH
 	return s, nil
 }
 
-// internal
-func (c *StakeHandler) SetStageModule(stage staketypes.StageModuler) {
-	c.stage = stage
-}
-
-func (c *StakeHandler) SetRewardModule(reward staketypes.RewardModuler) {
-	c.reward = reward
-}
-
 // external
 func (c *StakeHandler) PendingWithdrawalsOfDelegate(validator common.Address, delegater common.Address) (*big.Int, error) {
 	return c.getDelegateWithdrawalPending(delegater, validator, c.getCurrentEpoch()), nil
@@ -74,6 +66,14 @@ func (c *StakeHandler) PendingWithdrawalsOfDelegate(validator common.Address, de
 
 func (c *StakeHandler) PendingWithdrawalsOfStake(validator common.Address) (*big.Int, error) {
 	return c.getStakeWithdrawalPending(validator, c.getCurrentEpoch()), nil
+}
+
+func (c *StakeHandler) VerifyAggregateSignature(blockNumber *big.Int, validatorIndexs []*big.Int, data common.Hash, signatues []byte) (bool, error) {
+	panic("implement")
+}
+
+func (c *StakeHandler) VerifyAggregateSignatureByValidators(validators []common.Address, data common.Hash, signatues []byte) (bool, error) {
+	panic("implement")
 }
 
 func (c *StakeHandler) WithdrawableOfDelegate(validator common.Address, delegater common.Address) (*big.Int, error) {
@@ -105,7 +105,7 @@ func (c *StakeHandler) OnStateReceive(id *big.Int, sender common.Address, data [
 
 func (c *StakeHandler) Slash() error {
 
-	validators := db.CheckLowBlocksValidatorForPreviousRound(c.evm.StateDB, c.contract.Address())
+	validators := db.CheckLowBlocksValidatorForPreviousRound(c.evm.StateDB, c.contract.Address(), c.stakeModule.MinRoundValidatorBlockNumber())
 	// ###### NOTE: ######
 	// remove validator from epoch validators
 	cache := make(map[common.Address]struct{}, 0)
@@ -159,7 +159,7 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 
 		// NOTE:
 		// Priority must be given to settling commission rewards before proceeding with the `withdraw` operation.
-		if err := c.reward.UpdateDelegationRewardsByStakeEpoch(c.evm.StateDB, delegaterAddr, validatorAddr, stakeEpoch); nil != err {
+		if err := c.rewardModule.UpdateDelegationRewardsByStakeEpoch(c.evm.StateDB, delegaterAddr, validatorAddr, stakeEpoch); nil != err {
 			log.Error("Failed to update delegation rewards by stakeEpoch", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
 				"stakeEpoch", stakeEpoch, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber, "error", err)
 			return typesdk.NewRevertError("StakeHandler: UPDATE DELEGATION REWARDS BY STAKE EPOCH FAILED")

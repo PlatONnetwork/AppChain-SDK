@@ -47,4 +47,36 @@ contract StakeHandler is IStakeHandler {
     function pendingWithdrawalsOfDelegate(address validator, address delegater) external view returns (uint256) {
         return 0;
     }
+
+    /**
+     * @notice Verify the aggregated signature of the validators.
+     * @param blockNumber The number of the block to which the validator list belongs in a period
+     * @param validatorIndexs The index in the list of validators for aggregate signatures
+     * @param data Signature Data Hash
+     * @param signatues Aggregated signatures for validators
+     * @return True is successful
+     */
+    function verifyAggregateSignature(
+        uint256 blockNumber,
+        uint256[] calldata validatorIndexs,
+        bytes32 data,
+        bytes calldata signatues
+    ) external view returns (bool) {
+        return true;
+    }
+
+    /**
+     * @notice Verify the aggregated signature of the validators.
+     * @param validators List of validators for aggregated signatures
+     * @param data Signature Data Hash
+     * @param signatues Aggregated signatures for validators
+     * @return True is successful
+     */
+    function verifyAggregateSignatureByValidators(address[] calldata validators, bytes32 data, bytes calldata signatues)
+        external
+        view
+        returns (bool)
+    {
+        return true;
+    }
 }

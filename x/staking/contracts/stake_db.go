@@ -18,10 +18,10 @@ func (c *StakeHandler) getValidatorNonce() uint64 {
 }
 
 func (c *StakeHandler) setValidatorByPriority(validatorAddr common.Address, validator *types.Validator) error {
-	if err := db.SetValidatorPriority(c.evm.StateDB, c.contract.Address(), validatorAddr, validator.Epoch, validator.StakeIndex, validator.Shares()); nil != err {
+	if err := db.SetValidator(c.evm.StateDB, c.contract.Address(), validatorAddr, validator); nil != err {
 		return err
 	}
-	return db.SetValidator(c.evm.StateDB, c.contract.Address(), validatorAddr, validator)
+	return db.SetValidatorPriority(c.evm.StateDB, c.contract.Address(), validatorAddr, validator.Epoch, validator.StakeIndex, validator.Shares())
 }
 
 func (c *StakeHandler) updateValidatorRemovePriority(validatorAddr common.Address, validator *types.Validator) error {
@@ -33,12 +33,12 @@ func (c *StakeHandler) updateValidatorRemovePriority(validatorAddr common.Addres
 	if db.GetValidatorPriority(c.evm.StateDB, c.contract.Address(), old.Epoch, old.StakeIndex, old.Shares()).ValidatorAddr != validatorAddr {
 		return db.ErrMisMatching
 	}
-	if err := db.RemoveValidatorPriority(c.evm.StateDB, c.contract.Address(), old.Epoch, old.StakeIndex, old.Shares()); nil != err {
+	if err := db.SetValidator(c.evm.StateDB, c.contract.Address(), validatorAddr, validator); nil != err {
 		return err
 	}
 	// set new priority only
 
-	return db.SetValidator(c.evm.StateDB, c.contract.Address(), validatorAddr, validator)
+	return db.RemoveValidatorPriority(c.evm.StateDB, c.contract.Address(), old.Epoch, old.StakeIndex, old.Shares())
 }
 
 func (c *StakeHandler) updateValidatorByPriority(validatorAddr common.Address, validator *types.Validator) error {
@@ -123,11 +123,11 @@ func (c *StakeHandler) decrementDelegation(delegaterAddr, validatorAddr common.A
 }
 
 func (c *StakeHandler) getCurrentEpoch() uint64 {
-	return c.stage.GetCurrentEpoch(c.evm.StateDB)
+	return c.stageModule.GetCurrentEpoch(c.evm.StateDB)
 }
 
 func (c *StakeHandler) getCurrentRound() uint64 {
-	return c.stage.GetCurrentRound(c.evm.StateDB)
+	return c.stageModule.GetCurrentRound(c.evm.StateDB)
 }
 
 func (c *StakeHandler) getEpochValidatorIds(epoch uint64) types.ValidatorIds {

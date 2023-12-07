@@ -2,7 +2,6 @@ package db
 
 import (
 	"errors"
-	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/stage/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
@@ -258,7 +257,7 @@ func GetRoundItem(db sdk.StateDBReader, addr common.Address, round uint64) *type
 
 // ---------
 
-func IsElectionBlockOnCurrentRound(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
+func IsElectionBlockOnCurrentRound(db sdk.StateDBReader, addr common.Address, blockNumber, distance uint64) bool {
 
 	currentRound := GetCurrentRound(db, addr)
 	currentRoundItem := GetRoundItem(db, addr, currentRound)
@@ -266,15 +265,15 @@ func IsElectionBlockOnCurrentRound(db sdk.StateDBReader, addr common.Address, bl
 		return false
 	}
 
-	tmp := blockNumber + constants.ROUND_VALIDATOR_ELECTION_DISTANCE
+	tmp := blockNumber + distance
 	if tmp == currentRoundItem.EndBlock {
 		return true
 	}
 	return false
 }
 
-func IsNotElectionBlockOnCurrentRound(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
-	return !IsElectionBlockOnCurrentRound(db, addr, blockNumber)
+func IsNotElectionBlockOnCurrentRound(db sdk.StateDBReader, addr common.Address, blockNumber, distance uint64) bool {
+	return !IsElectionBlockOnCurrentRound(db, addr, blockNumber, distance)
 }
 
 func IsBeginOfRound(db sdk.StateDBReader, addr common.Address, blockNumber, size uint64) bool {
@@ -445,23 +444,23 @@ func IsNotEndOfCurrentEpoch(db sdk.StateDBReader, addr common.Address, blockNumb
 	return !IsEndOfCurrentEpoch(db, addr, blockNumber)
 }
 
-func BuildNextRound(db sdk.StateDB, addr common.Address) error {
+func BuildNextRound(db sdk.StateDB, addr common.Address, roundSize uint64) error {
 
 	currentRound := GetCurrentRound(db, addr)
 	currentRoundItem := GetRoundItem(db, addr, currentRound)
 
 	startBlock := currentRoundItem.EndBlock + 1
-	endBlock := currentRoundItem.EndBlock + constants.ROUND_SIZE
+	endBlock := currentRoundItem.EndBlock + roundSize
 	return AppendRoundItem(db, addr, currentRound+1, startBlock, endBlock)
 }
 
-func BuildNextEpoch(db sdk.StateDB, addr common.Address) error {
+func BuildNextEpoch(db sdk.StateDB, addr common.Address, epochSize, roundSize uint64) error {
 
 	currentEpoch := GetCurrentEpoch(db, addr)
 	currentEpochItem := GetEpochItem(db, addr, currentEpoch)
 
 	startBlock := currentEpochItem.EndBlock + 1
-	endBlock := currentEpochItem.EndBlock + constants.EPOCH_SIZE
-	roundCount := constants.EPOCH_SIZE / constants.ROUND_SIZE
+	endBlock := currentEpochItem.EndBlock + epochSize
+	roundCount := epochSize / roundSize
 	return AppendEpochItem(db, addr, currentEpoch+1, startBlock, endBlock, roundCount)
 }

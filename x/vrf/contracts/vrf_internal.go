@@ -3,10 +3,21 @@ package contracts
 import (
 	"encoding/hex"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
+	vrftypes "github.com/PlatONnetwork/AppChain-SDK/x/vrf/types"
 	vrfwrap "github.com/PlatONnetwork/AppChain-SDK/x/vrf/wrap"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 )
+
+// internal
+
+func (c *VRFHandler) SetStageModule(stage vrftypes.StageModuler) {
+	c.stageModule = stage
+}
+
+func (c *VRFHandler) SetStakeModule(stake vrftypes.StakeModuler) {
+	c.stakeModule = stake
+}
 
 func (c *VRFHandler) verifyNonceAndProof(validatorAddr basecommon.Address, blockNumber uint64, nonceAndProof []byte) error {
 	previousNonce, err := vrfwrap.GetPreviousNonce(c.evm.StateDB, c.contract.Address(), blockNumber)

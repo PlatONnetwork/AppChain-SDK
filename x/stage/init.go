@@ -1,6 +1,7 @@
 package stage
 
 import (
+	"github.com/PlatONnetwork/AppChain-SDK/x/stage/config"
 	stagedb "github.com/PlatONnetwork/AppChain-SDK/x/stage/db"
 	"github.com/PlatONnetwork/AppChain-SDK/x/stage/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -8,12 +9,10 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 )
 
-func initEpochItem(statedb sdk.StateDB, addr common.Address) error {
+func initGenesisEpochItem(statedb sdk.StateDB, addr common.Address, params *config.StageNetworkParams) error {
 
-	// TODO 需要根据配置读取 epochSize 计算第一轮的边界
-	//
 	zero := types.NewEpochItem(0, 0, 0)
-	epoch := types.NewEpochItem(1, 25000, 10) // todo 需要重新计算边界
+	epoch := types.NewEpochItem(1, params.EpochSize, params.EpochSize/params.RoundSize)
 	zvalue, err := rlp.EncodeToBytes(zero)
 	if nil != err {
 		return stagedb.ErrRlpEncode
@@ -22,18 +21,16 @@ func initEpochItem(statedb sdk.StateDB, addr common.Address) error {
 	if nil != err {
 		return stagedb.ErrRlpEncode
 	}
-	statedb.SetState(addr, stagedb.EncodeEpochItemKey(0), zvalue)
-	statedb.SetState(addr, stagedb.EncodeEpochItemKey(1), value)
+	statedb.SetState(addr, stagedb.EncodeEpochItemKey(0), zvalue) // 0 epoch
+	statedb.SetState(addr, stagedb.EncodeEpochItemKey(1), value)  // ist epoch
 
 	return nil
 }
 
-func initRoundItem(statedb sdk.StateDB, addr common.Address) error {
+func initGenesisRoundItem(statedb sdk.StateDB, addr common.Address, params *config.StageNetworkParams) error {
 
-	// TODO 需要根据配置读取 roundSize 计算第一轮的边界
-	//
 	zero := types.NewRoundItem(0, 0)
-	round := types.NewRoundItem(1, 250) // todo 需要重新计算边界
+	round := types.NewRoundItem(1, params.RoundSize)
 	zvalue, err := rlp.EncodeToBytes(zero)
 	if nil != err {
 		return stagedb.ErrRlpEncode
@@ -42,8 +39,8 @@ func initRoundItem(statedb sdk.StateDB, addr common.Address) error {
 	if nil != err {
 		return stagedb.ErrRlpEncode
 	}
-	statedb.SetState(addr, stagedb.EncodeRoundItemKey(0), zvalue)
-	statedb.SetState(addr, stagedb.EncodeRoundItemKey(1), value)
+	statedb.SetState(addr, stagedb.EncodeRoundItemKey(0), zvalue) // 0 round
+	statedb.SetState(addr, stagedb.EncodeRoundItemKey(1), value)  // 1st round
 
 	return nil
 }

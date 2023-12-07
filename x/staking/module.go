@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/l1"
+	"github.com/PlatONnetwork/AppChain-SDK/x/staking/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
 	stakingp2p "github.com/PlatONnetwork/AppChain-SDK/x/staking/p2p"
@@ -30,6 +31,7 @@ import (
 type StakeModule struct {
 	p2p            *stakingp2p.StakingP2P
 	logger         log.Logger
+	configParams   *config.StakeNetworkParams
 	nodePrivateKey *ecdsa.PrivateKey
 	stageModule    staketypes.StageModuler
 	vrfModule      staketypes.VRFModuler
@@ -39,8 +41,9 @@ type StakeModule struct {
 func NewStakeModule(ctx *cli.Context, stage staketypes.StageModuler) *StakeModule {
 	return &StakeModule{
 		logger:         log.New("module", "staking"),
-		stageModule:    stage,
 		nodePrivateKey: l1.DecodeNodePrivateKey(ctx),
+		configParams:   config.DefualtStakeNetworkParams(),
+		stageModule:    stage,
 	}
 }
 
@@ -57,15 +60,23 @@ func (s *StakeModule) Name() string {
 }
 
 func (s *StakeModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
-	if err := initValidatorPriority(db, s.Address()); nil != err {
-		log.Error("Failed initialize validator priority queue", "error", err)
-		panic(err)
+	var conf config.StakeNetworkParams
+	raw, err := data.MarshalJSON()
+	if nil != err {
+		log.Error("Failed MarshalJSON StakeNetworkParams bytes", "error", err)
+	}
+	if err := json.Unmarshal(raw, &conf); nil != err {
+		log.Error("Failed UnmarshalJSON StakeNetworkParams", "error", err)
+	} else {
+		s.configParams = &conf
 	}
 
-	if err := initValidators(db, s.Address()); nil != err {
+	if err := initValidators(db, s.Address(), chainConfig, s.configParams); nil != err {
 		log.Error("Failed initialize genesis validators", "error", err)
 		panic(err)
 	}
+
+	log.Info("Succeed init genesis", "module", s.Name(), "StakeNetworkParams", string(raw))
 
 }
 
@@ -76,6 +87,7 @@ func (s *StakeModule) Address() basecommon.Address {
 func (s *StakeModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly bool) ([]byte, error) {
 	stakeHandler, _ := contracts.NewStakeHandler(evm, contract, readOnly)
 	stakeHandler.SetStageModule(s.stageModule)
+	stakeHandler.SetStakeModule(s)
 	stakeHandler.SetRewardModule(s.rewardModule)
 	return stakeHandler.Run(input)
 }
@@ -89,7 +101,7 @@ func (s *StakeModule) AddTxs(ctx sdk.WorkerContext, local, remote map[basecommon
 	}
 
 	// check low blocks validtors of round, and send slash tx
-	if db.HasNotLowBlocksValidator(ctx.StateDB(), s.Address()) {
+	if db.HasNotLowBlocksValidator(ctx.StateDB(), s.Address(), s.MinRoundValidatorBlockNumber()) {
 		return local, remote
 	}
 
@@ -123,7 +135,7 @@ func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) {
 
 	if s.stageModule.IsBeginOfCurrentRound(ctx.StateDB(), currentBlock) {
 		// check low blocks validators
-		lowBlocksValidatorAddrQueue := db.CheckLowBlocksValidatorForPreviousRound(ctx.StateDB(), s.Address())
+		lowBlocksValidatorAddrQueue := db.CheckLowBlocksValidatorForPreviousRound(ctx.StateDB(), s.Address(), s.MinRoundValidatorBlockNumber())
 		// update validator status
 		for _, validatorAddr := range lowBlocksValidatorAddrQueue {
 			if err := s.updateValidatorStatus(ctx.StateDB(), validatorAddr, staketypes.Invalided|staketypes.LowBlocks); nil != err {
@@ -404,13 +416,13 @@ func (s *StakeModule) electionRoundValidators(ctx sdk.WorkerContext, blockNumber
 		copyQueue := make(staketypes.ValidatorSortSnapshotQueue, len(currentRoundValidatorQueue)-invalidLen)
 		// Remove the invalid validators
 		copy(copyQueue, currentRoundValidatorQueue[invalidLen:])
-		return stakewrap.ShuffleQueue(ctx.StateDB(), s.vrfModule, copyQueue, vrfValidatorSnapshotQueue, blockNumber)
+		return stakewrap.ShuffleQueue(ctx.StateDB(), s.vrfModule, copyQueue, vrfValidatorSnapshotQueue, blockNumber, s.MaxRoundValidatorsSize())
 	}
 
 	var vrfValidatorSnapshotQueue staketypes.ValidatorSortSnapshotQueue
 	var vrfQueueSize uint64
-	if uint64(len(diffValidatorSnapshotQueue)) > constants.MAX_ROUND_VALIDATORS_SIZE {
-		vrfQueueSize = constants.MAX_ROUND_VALIDATORS_SIZE
+	if uint64(len(diffValidatorSnapshotQueue)) > s.MaxRoundValidatorsSize() {
+		vrfQueueSize = s.MaxRoundValidatorsSize()
 	} else {
 		vrfQueueSize = uint64(len(diffValidatorSnapshotQueue))
 	}
@@ -427,8 +439,8 @@ func (s *StakeModule) electionRoundValidators(ctx sdk.WorkerContext, blockNumber
 
 	s.logger.Debug("Call electionRoundValidators statistics",
 		"maybe remove current round validator count", len(maybeRemoveValidatorStatusCache), "unstake invalid validator count",
-		unstakeValidatorAddrCache, "current round validators count", len(currentRoundValidatorSnapQueue), "MAX ROUND VALIDATOR SIZE ", constants.MAX_ROUND_VALIDATORS_SIZE,
-		"maybe shift validator count", (constants.MAX_ROUND_VALIDATORS_SIZE-1)/3, "diff queue", len(diffValidatorSnapshotQueue),
+		unstakeValidatorAddrCache, "current round validators count", len(currentRoundValidatorSnapQueue), "MAX ROUND VALIDATOR SIZE ", s.MaxRoundValidatorsSize(),
+		"maybe shift validator count", (s.MaxRoundValidatorsSize()-1)/3, "diff queue", len(diffValidatorSnapshotQueue),
 		"vrf queue", len(vrfValidatorSnapshotQueue))
 
 	nextRoundValidatorQueue, err := shuffle(len(maybeRemoveValidatorStatusCache), currentRoundValidatorSnapQueue, vrfValidatorSnapshotQueue, blockNumber)
@@ -457,7 +469,7 @@ func (s *StakeModule) electionEpochValidators(ctx sdk.WorkerContext, blockNumber
 		return errors.New("block is not endBlock of current epoch")
 	}
 
-	validatorIds := db.RankPriorityValidatorIds(ctx.StateDB(), s.Address(), constants.MAX_EPOCH_VALIDATORS_SIZE)
+	validatorIds := db.RankPriorityValidatorIds(ctx.StateDB(), s.Address(), s.MaxEpochValidatorsSize())
 
 	if len(validatorIds) == 0 {
 		return errors.New("not found validatorIds")
@@ -622,4 +634,24 @@ func (s *StakeModule) UpdateDelegationEpoch(stateDB sdk.StateDB, delegaterAddr, 
 	return db.SetDelegation(stateDB, s.Address(), delegaterAddr, validatorAddr, stakeEpoch, del)
 }
 
-//
+func (s *StakeModule) StakeWithdrawalWaitPeriod() uint64 {
+	return s.configParams.StakeWithdrawalWaitPeriod
+}
+func (s *StakeModule) DelegateWithdrawalWaitPeriod() uint64 {
+	return s.configParams.DelegateWithdrawalWaitPeriod
+}
+func (s *StakeModule) SlashingPercentage() uint64 {
+	return s.configParams.SlashingPercentage
+}
+func (s *StakeModule) SlashIncentivePercentage() uint64 {
+	return s.configParams.SlashIncentivePercentage
+}
+func (s *StakeModule) MaxRoundValidatorsSize() uint64 {
+	return s.configParams.MaxRoundValidatorsSize
+}
+func (s *StakeModule) MaxEpochValidatorsSize() uint64 {
+	return s.configParams.MaxEpochValidatorsSize
+}
+func (s *StakeModule) MinRoundValidatorBlockNumber() uint64 {
+	return s.configParams.MinRoundValidatorBlockNumber
+}

@@ -8,7 +8,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	statesenderC "github.com/PlatONnetwork/AppChain-SDK/x/statesender/contracts"
-	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
 	"github.com/PlatONnetwork/PlatON-Go/crypto/bls"
 	"github.com/PlatONnetwork/PlatON-Go/log"
@@ -40,9 +40,16 @@ var (
 	UNDELEGATE_PARAMS_TYPE        = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, address delegterAddr, uint256 amount)")
 )
 
-func (c *StakeHandler) Initialize() error {
+// internal
+func (c *StakeHandler) SetStageModule(stage types.StageModuler) {
+	c.stageModule = stage
+}
 
-	return nil
+func (c *StakeHandler) SetStakeModule(stake types.StakeModuler) {
+	c.stakeModule = stake
+}
+func (c *StakeHandler) SetRewardModule(reward types.RewardModuler) {
+	c.rewardModule = reward
 }
 
 func (c *StakeHandler) onStake(input []byte) error {
@@ -63,7 +70,7 @@ func (c *StakeHandler) onStake(input []byte) error {
 
 	ownerAddr, ok := res["ownerAddr"].(ethgo.Address)
 	if !ok {
-		return typesdk.NewRevertError("StakeHandler: INVALID_owner")
+		return typesdk.NewRevertError("StakeHandler: INVALID_OWNER")
 	}
 
 	amount, ok := res["amount"].(*big.Int)
@@ -93,7 +100,15 @@ func (c *StakeHandler) onStake(input []byte) error {
 		log.Error("Failed to unmarshal publicKey", "error", err)
 		return typesdk.NewRevertError("StakeHandler: INVALID_PUBKEY")
 	}
-	return c.stake(basecommon.Address(validatorAddr), basecommon.Address(ownerAddr), amount, commissionRate.Uint64(), &blsKey, pubKey)
+
+	// check validatorAddr
+	if crypto.PubkeyToAddress(*pubKey) != common.Address(validatorAddr) {
+		log.Error("Failed to check publicKey and validator", "publicKey", hex.EncodeToString(crypto.FromECDSAPub(pubKey)),
+			"validatorAddr", common.Address(validatorAddr).Hex(), "error", err)
+		return typesdk.NewRevertError("StakeHandler: INVALID_PUBKEY_AND_VALIDATOR")
+	}
+
+	return c.stake(common.Address(validatorAddr), common.Address(ownerAddr), amount, commissionRate.Uint64(), &blsKey, pubKey)
 }
 
 func (c *StakeHandler) onAddStake(input []byte) error {
@@ -117,7 +132,7 @@ func (c *StakeHandler) onAddStake(input []byte) error {
 		return typesdk.NewRevertError("StakeHandler: INVALID_AMOUNT")
 	}
 
-	return c.addStake(basecommon.Address(validatorAddr), amount)
+	return c.addStake(common.Address(validatorAddr), amount)
 }
 
 func (c *StakeHandler) onSlash(input []byte) error {
@@ -141,9 +156,9 @@ func (c *StakeHandler) onSlash(input []byte) error {
 		return typesdk.NewRevertError("StakeHandler: INVALID_VALIDATORADDRS")
 	}
 
-	addrs := make([]basecommon.Address, len(validatorAddrs))
+	addrs := make([]common.Address, len(validatorAddrs))
 	for i, v := range validatorAddrs {
-		addrs[i] = basecommon.Address(v)
+		addrs[i] = common.Address(v)
 	}
 
 	amounts, ok := res["amounts"].([]*big.Int)
@@ -179,10 +194,10 @@ func (c *StakeHandler) onDelegate(input []byte) error {
 		return typesdk.NewRevertError("StakeHandler: INVALID_AMOUNT")
 	}
 
-	return c.delegate(basecommon.Address(validatorAddr), basecommon.Address(delegterAddr), amount)
+	return c.delegate(common.Address(validatorAddr), common.Address(delegterAddr), amount)
 }
 
-func (c *StakeHandler) stake(validatorAddr, owner basecommon.Address, amount *big.Int, commissionRate uint64, blsKey *bls.PublicKey, pubKey *ecdsa.PublicKey) error {
+func (c *StakeHandler) stake(validatorAddr, owner common.Address, amount *big.Int, commissionRate uint64, blsKey *bls.PublicKey, pubKey *ecdsa.PublicKey) error {
 	// ## NOTE ##
 	//
 	// Because there is a validator's stake information in the rootchain,
@@ -194,7 +209,7 @@ func (c *StakeHandler) stake(validatorAddr, owner basecommon.Address, amount *bi
 
 	stakeIndex := c.incrementValidatorNonce()
 
-	if err := c.setValidatorByPriority(validatorAddr, types.NewValidator(owner, amount, basecommon.Big0, blsKey, pubKey, commissionRate, c.getCurrentEpoch(), stakeIndex)); nil != err {
+	if err := c.setValidatorByPriority(validatorAddr, types.NewValidator(owner, amount, common.Big0, blsKey, pubKey, commissionRate, c.getCurrentEpoch(), stakeIndex)); nil != err {
 		log.Error("Failed to set validator stake", "validatorAddr", validatorAddr.Hex(), "error", err)
 		return typesdk.NewRevertError("StakeHandler: STAKE FAILED")
 	}
@@ -208,7 +223,7 @@ func (c *StakeHandler) stake(validatorAddr, owner basecommon.Address, amount *bi
 	return nil
 }
 
-func (c *StakeHandler) addStake(validatorAddr basecommon.Address, amount *big.Int) error {
+func (c *StakeHandler) addStake(validatorAddr common.Address, amount *big.Int) error {
 	validator := c.getValidator(validatorAddr)
 
 	// ## NOTE ##
@@ -251,7 +266,7 @@ func (c *StakeHandler) addStake(validatorAddr basecommon.Address, amount *big.In
 	return nil
 }
 
-func (c *StakeHandler) unStake(validatorAddr basecommon.Address, amount *big.Int) error {
+func (c *StakeHandler) unStake(validatorAddr common.Address, amount *big.Int) error {
 	validator := c.getValidator(validatorAddr)
 
 	if validator.IsInvalid() {
@@ -269,7 +284,7 @@ func (c *StakeHandler) unStake(validatorAddr basecommon.Address, amount *big.Int
 	// update validator priority
 	validator.SubStakeAmount(amount)
 
-	if validator.StakeAmount.Cmp(basecommon.Big0) == 0 {
+	if validator.StakeAmount.Cmp(common.Big0) == 0 {
 		validator.AppendStatus(types.Invalided | types.Unstaked)
 		if err := c.updateValidatorRemovePriority(validatorAddr, validator); nil != err {
 			log.Error("Failed to call updateValidatorRemovePriority", "validatorAddr", validatorAddr.Hex(), "error", err)
@@ -285,7 +300,7 @@ func (c *StakeHandler) unStake(validatorAddr basecommon.Address, amount *big.Int
 	return nil
 }
 
-func (c *StakeHandler) slash(handleEventId *big.Int, validatorAddrs []basecommon.Address, amounts []*big.Int) error {
+func (c *StakeHandler) slash(handleEventId *big.Int, validatorAddrs []common.Address, amounts []*big.Int) error {
 	if c.hasSlashProcessed(handleEventId) {
 		return typesdk.NewRevertError("StakeHandler: SLASH_ALREADY_PROCESSED")
 	}
@@ -294,7 +309,7 @@ func (c *StakeHandler) slash(handleEventId *big.Int, validatorAddrs []basecommon
 	}
 
 	queue := types.NewSlashValidatorWithdrawItemQueue(uint64(len(validatorAddrs)))
-	cache := make(map[basecommon.Address]struct{}, 0)
+	cache := make(map[common.Address]struct{}, 0)
 	for i, validatorAddr := range validatorAddrs {
 
 		queue[i] = types.NewSlashValidatorWithdrawItem(validatorAddr, amounts[i])
@@ -342,7 +357,7 @@ func (c *StakeHandler) slash(handleEventId *big.Int, validatorAddrs []basecommon
 	return nil
 }
 
-func (c *StakeHandler) delegate(validatorAddr, delegaterAddr basecommon.Address, amount *big.Int) error {
+func (c *StakeHandler) delegate(validatorAddr, delegaterAddr common.Address, amount *big.Int) error {
 
 	validator := c.getValidator(validatorAddr)
 
@@ -359,7 +374,7 @@ func (c *StakeHandler) delegate(validatorAddr, delegaterAddr basecommon.Address,
 		if delegation.IsNotEmpty() {
 			// NOTE:
 			// Priority must be given to settling commission rewards before proceeding with the `withdraw` operation.
-			if err := c.reward.UpdateDelegationRewardsByStakeEpoch(c.evm.StateDB, delegaterAddr, validatorAddr, validator.Epoch); nil != err {
+			if err := c.rewardModule.UpdateDelegationRewardsByStakeEpoch(c.evm.StateDB, delegaterAddr, validatorAddr, validator.Epoch); nil != err {
 				log.Error("Failed to update delegation rewards by stakeEpoch", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
 					"stakeEpoch", validator.Epoch, "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber, "error", err)
 				return typesdk.NewRevertError("StakeHandler: UPDATE DELEGATION REWARDS BY STAKE EPOCH FAILED")
@@ -401,7 +416,7 @@ func (c *StakeHandler) delegate(validatorAddr, delegaterAddr basecommon.Address,
 	return nil
 }
 
-func (c *StakeHandler) registerStakeWithdrawalByEpoch(validatorAddr basecommon.Address, amount *big.Int, epoch uint64) error {
+func (c *StakeHandler) registerStakeWithdrawalByEpoch(validatorAddr common.Address, amount *big.Int, epoch uint64) error {
 
 	item := db.GetStakeWithdrawalQueueItem(c.evm.StateDB, c.contract.Address(), validatorAddr, epoch)
 	if item.IsNotEmpty() {
@@ -429,11 +444,11 @@ func (c *StakeHandler) registerStakeWithdrawalByEpoch(validatorAddr basecommon.A
 	return nil
 }
 
-func (c *StakeHandler) registerStakeWithdrawal(validatorAddr basecommon.Address, amount *big.Int, wait bool) error {
+func (c *StakeHandler) registerStakeWithdrawal(validatorAddr common.Address, amount *big.Int, wait bool) error {
 	currentEpoch := c.getCurrentEpoch()
 	var releaseEpoch uint64
 	if wait {
-		releaseEpoch = currentEpoch + constants.STAKE_WITHDRAWAL_WAIT_PERIOD
+		releaseEpoch = currentEpoch + c.stakeModule.StakeWithdrawalWaitPeriod()
 	} else {
 		releaseEpoch = currentEpoch
 	}
@@ -450,11 +465,11 @@ func (c *StakeHandler) registerStakeWithdrawal(validatorAddr basecommon.Address,
 	return nil
 }
 
-func (c *StakeHandler) registerDelegateWithdrawal(delegater, validatorAddr basecommon.Address, amount *big.Int, wait bool) error {
+func (c *StakeHandler) registerDelegateWithdrawal(delegater, validatorAddr common.Address, amount *big.Int, wait bool) error {
 	currentEpoch := c.getCurrentEpoch()
 	var releaseEpoch uint64
 	if wait {
-		releaseEpoch = currentEpoch + constants.DELEGATE_WITHDRAWAL_WAIT_PERIOD
+		releaseEpoch = currentEpoch + c.stakeModule.DelegateWithdrawalWaitPeriod()
 	} else {
 		releaseEpoch = currentEpoch
 	}
@@ -471,7 +486,7 @@ func (c *StakeHandler) registerDelegateWithdrawal(delegater, validatorAddr basec
 	return nil
 }
 
-func (c *StakeHandler) syncStateUnStake(validatorAddr basecommon.Address, amount *big.Int) error {
+func (c *StakeHandler) syncStateUnStake(validatorAddr common.Address, amount *big.Int) error {
 
 	data, err := abi.Encode([]interface{}{UNSTAKE_SIG, validatorAddr, amount}, UNSTAKE_PARAMS_TYPE)
 	if nil != err {
@@ -492,7 +507,7 @@ func (c *StakeHandler) syncStateUnStake(validatorAddr basecommon.Address, amount
 	return nil
 }
 
-func (c *StakeHandler) syncStateUnDelegate(validatorAddr, delegaterAddr basecommon.Address, amount *big.Int) error {
+func (c *StakeHandler) syncStateUnDelegate(validatorAddr, delegaterAddr common.Address, amount *big.Int) error {
 	data, err := abi.Encode([]interface{}{UNDELEGATE_SIG, validatorAddr, delegaterAddr, amount}, UNDELEGATE_PARAMS_TYPE)
 	if nil != err {
 		log.Error("Failed to encode undelegate syncState data", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
@@ -512,9 +527,9 @@ func (c *StakeHandler) syncStateUnDelegate(validatorAddr, delegaterAddr basecomm
 	return nil
 }
 
-func (c *StakeHandler) syncStateSlash(validators []basecommon.Address) error {
+func (c *StakeHandler) syncStateSlash(validators []common.Address) error {
 
-	data, err := abi.Encode([]interface{}{SLASH_SIG, validators, constants.SLASHING_PERCENTAGE, constants.SLASH_INCENTIVE_PERCENTAGE}, ROOT_CHAIN_SLASH_PARAMS_TYPE)
+	data, err := abi.Encode([]interface{}{SLASH_SIG, validators, c.stakeModule.SlashingPercentage(), c.stakeModule.SlashIncentivePercentage()}, ROOT_CHAIN_SLASH_PARAMS_TYPE)
 	if nil != err {
 		log.Error("Failed to encode slash syncState data", "validators size", len(validators), "error", err)
 		return typesdk.NewRevertError("encode L2StateSender slash data failed")

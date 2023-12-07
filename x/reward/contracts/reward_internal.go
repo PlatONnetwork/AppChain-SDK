@@ -3,10 +3,25 @@ package contracts
 import (
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/db"
+	rewardtypes "github.com/PlatONnetwork/AppChain-SDK/x/reward/types"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"math/big"
 )
+
+// internal
+
+func (c *RewardManager) SetStageModule(stage rewardtypes.StageModuler) {
+	c.stageModule = stage
+}
+
+func (c *RewardManager) SetStakeModule(stake rewardtypes.StakeModuler) {
+	c.stakeModule = stake
+}
+
+func (c *RewardManager) SetRewardModule(reward rewardtypes.RewardModuler) {
+	c.rewardModule = reward
+}
 
 func (c *RewardManager) updateDelegationRewards(delegaterAddr, validatorAddr basecommon.Address) error {
 	return c.rewardModule.UpdateDelegationRewards(c.evm.StateDB, delegaterAddr, validatorAddr)

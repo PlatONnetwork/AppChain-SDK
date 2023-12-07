@@ -3,7 +3,6 @@ package db
 import (
 	"bytes"
 	"errors"
-	stakecommon "github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	stagedb "github.com/PlatONnetwork/AppChain-SDK/x/stage/db"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -1349,7 +1348,7 @@ func getNumberOfBlocksForRoundValidatorsMap(db sdk.StateDBReader, addr common.Ad
 	return cache
 }
 
-func HasLowBlocksValidator(db sdk.StateDBReader, addr common.Address) bool {
+func HasLowBlocksValidator(db sdk.StateDBReader, addr common.Address, minRoundValidatorBlockNumber uint64) bool {
 	currentRound := stagedb.GetCurrentRound(db, addr)
 	if currentRound == 1 {
 		return false
@@ -1361,18 +1360,18 @@ func HasLowBlocksValidator(db sdk.StateDBReader, addr common.Address) bool {
 	cache := getNumberOfBlocksForRoundValidatorsMap(db, addr, previousRoundValidatorAddrQueue, previousRound)
 
 	for _, number := range cache {
-		if number < stakecommon.MIN_ROUND_VALIDATOR_BLOCK_NUMBER {
+		if number < minRoundValidatorBlockNumber {
 			return true
 		}
 	}
 	return false
 }
 
-func HasNotLowBlocksValidator(db sdk.StateDBReader, addr common.Address) bool {
-	return !HasLowBlocksValidator(db, addr)
+func HasNotLowBlocksValidator(db sdk.StateDBReader, addr common.Address, minRoundValidatorBlockNumber uint64) bool {
+	return !HasLowBlocksValidator(db, addr, minRoundValidatorBlockNumber)
 }
 
-func CheckLowBlocksValidatorForPreviousRound(db sdk.StateDBReader, addr common.Address) types.ValidatorIds {
+func CheckLowBlocksValidatorForPreviousRound(db sdk.StateDBReader, addr common.Address, minRoundValidatorBlockNumber uint64) types.ValidatorIds {
 	currentRound := stagedb.GetCurrentRound(db, addr)
 	if currentRound == 1 {
 		return nil
@@ -1385,7 +1384,7 @@ func CheckLowBlocksValidatorForPreviousRound(db sdk.StateDBReader, addr common.A
 	validators := make(types.ValidatorIds, 0)
 
 	for validatorAddr, number := range cache {
-		if number < stakecommon.MIN_ROUND_VALIDATOR_BLOCK_NUMBER {
+		if number < minRoundValidatorBlockNumber {
 			validators = append(validators, validatorAddr)
 		}
 	}

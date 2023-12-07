@@ -2,11 +2,11 @@ package l1
 
 import (
 	"encoding/json"
+	"github.com/PlatONnetwork/PlatON-Go/log"
 	"math/big"
 
 	"github.com/PlatONnetwork/AppChain-SDK/store"
 	"github.com/PlatONnetwork/PlatON-Go/common"
-	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 )
@@ -33,10 +33,18 @@ func (l *L1) Name() string {
 
 func (l *L1) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
 	var g Genesis
-	raw, _ := data.MarshalJSON()
-	json.Unmarshal(raw, &g)
-	log.Info("Init genesis", "module", "l1", "chainId", g.ChainID, "state", g.State.Hex(), "checkpoint", g.Checkpoint.Hex())
+	raw, err := data.MarshalJSON()
+	if nil != err {
+		log.Error("Failed MarshalJSON l1 Genesis bytes", "error", err)
+	}
+
+	if err := json.Unmarshal(raw, &g); nil != err {
+		log.Error("Failed UnmarshalJSON l1 Genesis", "error", err)
+	}
+
 	l.db.SetChainID(g.ChainID)
 	l.db.SetStateAddress(g.State)
 	l.db.SetCheckpointAddress(g.Checkpoint)
+
+	log.Info("Succeed init genesis", "module", l.Name(), "chainId", g.ChainID, "state", g.State.Hex(), "checkpoint", g.Checkpoint.Hex())
 }

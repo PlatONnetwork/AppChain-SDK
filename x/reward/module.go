@@ -1,39 +1,59 @@
 package reward
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
+	"github.com/PlatONnetwork/AppChain-SDK/x/reward/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/contracts"
 	rewarddb "github.com/PlatONnetwork/AppChain-SDK/x/reward/db"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/types"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/log"
+	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"gopkg.in/urfave/cli.v1"
 	"math/big"
 )
 
 type RewardModule struct {
-	logger log.Logger
-	stage  types.StageModuler
-	stake  types.StakeModuler
+	logger       log.Logger
+	configParams *config.RewardNetworkParams
+	stageModule  types.StageModuler
+	stakeModule  types.StakeModuler
 }
 
 func NewRewardModule(ctx *cli.Context, stage types.StageModuler) *RewardModule {
 	return &RewardModule{
-		logger: log.New("module", "reward"),
-		stage:  stage,
+		logger:       log.New("module", "reward"),
+		configParams: config.DefaultRewardNetworkParams(),
+		stageModule:  stage,
 	}
 }
 
 func (r *RewardModule) SetStakeModule(stake types.StakeModuler) {
-	r.stake = stake
+	r.stakeModule = stake
 }
 
 func (r *RewardModule) Name() string {
 	return "reward"
+}
+
+func (r *RewardModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
+	var conf config.RewardNetworkParams
+	raw, err := data.MarshalJSON()
+	if nil != err {
+		log.Error("Failed MarshalJSON RewardNetworkParams bytes", "error", err)
+	}
+	if err := json.Unmarshal(raw, &conf); nil != err {
+		log.Error("Failed UnmarshalJSON RewardNetworkParams", "error", err)
+	} else {
+		r.configParams = &conf
+	}
+
+	log.Info("Succeed init genesis", "module", r.Name(), "RewardNetworkParams", string(raw))
 }
 
 func (r *RewardModule) Address() basecommon.Address {
@@ -42,8 +62,8 @@ func (r *RewardModule) Address() basecommon.Address {
 
 func (r *RewardModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly bool) ([]byte, error) {
 	rewardManager, _ := contracts.NewRewardManager(evm, contract, readOnly)
-	rewardManager.SetStageModule(r.stage)
-	rewardManager.SetStakeModule(r.stake)
+	rewardManager.SetStageModule(r.stageModule)
+	rewardManager.SetStakeModule(r.stakeModule)
 	rewardManager.SetRewardModule(r)
 	return rewardManager.Run(input)
 }
@@ -51,9 +71,9 @@ func (r *RewardModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, rea
 func (r *RewardModule) BeginBlock(ctx sdk.WorkerContext) {
 	currentBlock := ctx.Backend().CurrentHeader().Number.Uint64()
 	// distribute blocks reward (with round)
-	if r.stage.IsBeginOfCurrentRound(ctx.StateDB(), currentBlock) {
+	if r.stageModule.IsBeginOfCurrentRound(ctx.StateDB(), currentBlock) {
 		if err := r.handleBlocksRewardForPreviousRound(ctx.StateDB(), currentBlock); nil != err {
-			panic(fmt.Sprintf("Failed to handle blocks reward for previous round, currentRound: %d, blockNumber: %d, error: %s", r.stage.GetCurrentRound(ctx.StateDB()), currentBlock, err))
+			panic(fmt.Sprintf("Failed to handle blocks reward for previous round, currentRound: %d, blockNumber: %d, error: %s", r.stageModule.GetCurrentRound(ctx.StateDB()), currentBlock, err))
 		}
 	}
 }
@@ -63,29 +83,29 @@ func (r *RewardModule) EndBlock(ctx sdk.WorkerContext) {
 	currentBlock := ctx.Backend().CurrentHeader().Number.Uint64()
 
 	// distribute epoch reward
-	if r.stage.IsEndOfCurrentEpoch(ctx.StateDB(), currentBlock) {
+	if r.stageModule.IsEndOfCurrentEpoch(ctx.StateDB(), currentBlock) {
 		if err := r.handleEpochReward(ctx.StateDB(), currentBlock); nil != err {
-			panic(fmt.Sprintf("Failed to handle epoch reward, currentEpoch: %d, blockNumber: %d, error: %s", r.stage.GetCurrentEpoch(ctx.StateDB()), currentBlock, err))
+			panic(fmt.Sprintf("Failed to handle epoch reward, currentEpoch: %d, blockNumber: %d, error: %s", r.stageModule.GetCurrentEpoch(ctx.StateDB()), currentBlock, err))
 		}
 	}
 }
 
 func (r *RewardModule) handleBlocksRewardForPreviousRound(stateDB sdk.StateDB, blockNumber uint64) error {
 
-	if r.stage.IsNotBeginOfCurrentRound(stateDB, blockNumber) {
+	if r.stageModule.IsNotBeginOfCurrentRound(stateDB, blockNumber) {
 		return errors.New("block is not endBlock of current epoch")
 	}
 
-	currentRound := r.stage.GetCurrentRound(stateDB)
+	currentRound := r.stageModule.GetCurrentRound(stateDB)
 	handleRound := currentRound - 1
-	previousRoundValidatorIds := r.stake.GetRoundValidatorIds(stateDB, handleRound)
+	previousRoundValidatorIds := r.stakeModule.GetRoundValidatorIds(stateDB, handleRound)
 
 	totalPaidReward := basecommon.Big0
 	for _, validatorAddr := range previousRoundValidatorIds {
 
-		numberOfBlocks := r.stake.GetNumberOfBlocksForRoundValidator(stateDB, validatorAddr, handleRound)
+		numberOfBlocks := r.stakeModule.GetNumberOfBlocksForRoundValidator(stateDB, validatorAddr, handleRound)
 		// got it !
-		blocksReward := new(big.Int).Mul(constants.REWARD_PER_BLOCK, big.NewInt(int64(numberOfBlocks)))
+		blocksReward := new(big.Int).Mul(r.RewardPerBlock(), big.NewInt(int64(numberOfBlocks)))
 
 		// increment validatorEpochReward to validator rewards
 		rewarddb.IncrementPendingValidatorReward(stateDB, r.Address(), validatorAddr, blocksReward)
@@ -96,30 +116,30 @@ func (r *RewardModule) handleBlocksRewardForPreviousRound(stateDB sdk.StateDB, b
 			"blocksReward", blocksReward, "numberOfBlocks", numberOfBlocks, "blockNumber", blockNumber)
 	}
 
-	rewarddb.IncrementPaidRewardPerEpoch(stateDB, r.Address(), r.stage.GetCurrentEpoch(stateDB), totalPaidReward)
+	rewarddb.IncrementPaidRewardPerEpoch(stateDB, r.Address(), r.stageModule.GetCurrentEpoch(stateDB), totalPaidReward)
 	return nil
 }
 
 func (r *RewardModule) handleEpochReward(stateDB sdk.StateDB, blockNumber uint64) error {
 
-	if r.stage.IsNotEndOfCurrentEpoch(stateDB, blockNumber) {
+	if r.stageModule.IsNotEndOfCurrentEpoch(stateDB, blockNumber) {
 		return errors.New("block is not endBlock of current epoch")
 	}
 
-	currentEpoch := r.stage.GetCurrentEpoch(stateDB)
-	epochValidatorIds := r.stake.GetEpochValidatorIds(stateDB, currentEpoch)
+	currentEpoch := r.stageModule.GetCurrentEpoch(stateDB)
+	epochValidatorIds := r.stakeModule.GetEpochValidatorIds(stateDB, currentEpoch)
 
-	perValidatorEpochReward := new(big.Int).Div(constants.REWARD_PER_EPOCH, big.NewInt(int64(len(epochValidatorIds))))
+	perValidatorEpochReward := new(big.Int).Div(r.RewardPerEpoch(), big.NewInt(int64(len(epochValidatorIds))))
 
 	for _, validatorAddr := range epochValidatorIds {
 
-		if r.stake.IsInvalidValidator(stateDB, validatorAddr) {
+		if r.stakeModule.IsInvalidValidator(stateDB, validatorAddr) {
 			continue
 		}
 
-		stakeAmount := r.stake.GetValidatorStakeAmount(stateDB, validatorAddr)
-		delegateAmount := r.stake.GetValidatorDelegateAmount(stateDB, validatorAddr)
-		commissionRate := r.stake.GetValidatorCommissionRate(stateDB, validatorAddr)
+		stakeAmount := r.stakeModule.GetValidatorStakeAmount(stateDB, validatorAddr)
+		delegateAmount := r.stakeModule.GetValidatorDelegateAmount(stateDB, validatorAddr)
+		commissionRate := r.stakeModule.GetValidatorCommissionRate(stateDB, validatorAddr)
 
 		realDelegateEpochReward := basecommon.Big0
 		realValidatorEpochReward := basecommon.Big0
@@ -146,7 +166,7 @@ func (r *RewardModule) handleEpochReward(stateDB sdk.StateDB, blockNumber uint64
 
 			// store delegaterEpochTotalReward and delegaterEpochPerShareReward
 			if err := rewarddb.AppendEpochDelegationRewardPerShareItem(stateDB, r.Address(), validatorAddr,
-				r.stake.GetValidatorStakeEpoch(stateDB, validatorAddr), currentEpoch,
+				r.stakeModule.GetValidatorStakeEpoch(stateDB, validatorAddr), currentEpoch,
 				realDelegateEpochReward, perShareDelegaterEpochReward); nil != err {
 
 				r.logger.Error("Set epoch  delegation reward for per share", "currentEpoch", currentEpoch, "error", err)
@@ -162,20 +182,20 @@ func (r *RewardModule) handleEpochReward(stateDB sdk.StateDB, blockNumber uint64
 			"delegateEpochReward", realDelegateEpochReward, "perShareDelegaterEpochReward", perShareDelegaterEpochReward, "blockNumber", blockNumber)
 
 		// update owner of validator (for with validator reward)
-		newOwner := r.stake.GetValidatorOwner(stateDB, validatorAddr)
+		newOwner := r.stakeModule.GetValidatorOwner(stateDB, validatorAddr)
 		oldOwner := rewarddb.GetValidatorRewardOwner(stateDB, r.Address(), validatorAddr)
 		if newOwner != basecommon.ZeroAddr && newOwner != oldOwner {
 			rewarddb.SetValidatorRewardOwner(stateDB, r.Address(), validatorAddr, newOwner)
 		}
 	}
 
-	rewarddb.IncrementPaidRewardPerEpoch(stateDB, r.Address(), currentEpoch, constants.REWARD_PER_EPOCH)
+	rewarddb.IncrementPaidRewardPerEpoch(stateDB, r.Address(), currentEpoch, r.RewardPerEpoch())
 
 	return nil
 }
 
 func (r *RewardModule) getDelegateSnapshot(stateDB sdk.StateDBReader, delegaterAddr, validatorAddr basecommon.Address, stakeEpoch uint64) *types.DelegationSnapshot {
-	delegateEpoch, delegateAmount := r.stake.GetDelegationFlatten(stateDB, delegaterAddr, validatorAddr, stakeEpoch)
+	delegateEpoch, delegateAmount := r.stakeModule.GetDelegationFlatten(stateDB, delegaterAddr, validatorAddr, stakeEpoch)
 	if delegateEpoch == 0 && delegateAmount == basecommon.Big0 {
 		return nil
 	}
@@ -224,13 +244,13 @@ func (r *RewardModule) aggregationEpochDelegationRewards(stateDB sdk.StateDB, de
 
 func (r *RewardModule) UpdateDelegationRewards(stateDB sdk.StateDB, delegaterAddr, validatorAddr basecommon.Address) error {
 
-	currentEpoch := r.stage.GetCurrentEpoch(stateDB)
+	currentEpoch := r.stageModule.GetCurrentEpoch(stateDB)
 	if currentEpoch == 1 {
 		r.logger.Warn("No epoch reward has been assigned yet", "currentEpoch", currentEpoch)
 		return nil
 	}
 
-	stakeEpochQueue := r.stake.GetEpochByValidatorDelegationRcPending(stateDB, validatorAddr)
+	stakeEpochQueue := r.stakeModule.GetEpochByValidatorDelegationRcPending(stateDB, validatorAddr)
 
 	previousEpoch := currentEpoch - 1
 	delegateRewardSnapshotQueue := types.NewDelegationRewardSnapshotQueue(0)
@@ -255,7 +275,7 @@ func (r *RewardModule) UpdateDelegationRewards(stateDB sdk.StateDB, delegaterAdd
 			return err
 		}
 		// update delegateEpoch of delegation to currentEpoch
-		if err := r.stake.UpdateDelegationEpoch(stateDB, delegaterAddr, validatorAddr, snap.Delegation.StakeEpoch, currentEpoch); nil != err {
+		if err := r.stakeModule.UpdateDelegationEpoch(stateDB, delegaterAddr, validatorAddr, snap.Delegation.StakeEpoch, currentEpoch); nil != err {
 			r.logger.Error("Failed to update delegation epoch", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "stakeEpoch", snap.Delegation.StakeEpoch, "error", err)
 			return err
 		}
@@ -265,7 +285,7 @@ func (r *RewardModule) UpdateDelegationRewards(stateDB sdk.StateDB, delegaterAdd
 }
 func (r *RewardModule) UpdateDelegationRewardsByStakeEpoch(stateDB sdk.StateDB, delegaterAddr, validatorAddr basecommon.Address, stakeEpoch uint64) error {
 
-	currentEpoch := r.stage.GetCurrentEpoch(stateDB)
+	currentEpoch := r.stageModule.GetCurrentEpoch(stateDB)
 	if currentEpoch == 1 {
 		r.logger.Warn("No epoch reward has been assigned yet", "currentEpoch", currentEpoch)
 		return nil
@@ -292,11 +312,18 @@ func (r *RewardModule) UpdateDelegationRewardsByStakeEpoch(stateDB sdk.StateDB, 
 			return err
 		}
 		// update delegateEpoch of delegation to currentEpoch
-		if err := r.stake.UpdateDelegationEpoch(stateDB, delegaterAddr, validatorAddr, snap.Delegation.StakeEpoch, currentEpoch); nil != err {
+		if err := r.stakeModule.UpdateDelegationEpoch(stateDB, delegaterAddr, validatorAddr, snap.Delegation.StakeEpoch, currentEpoch); nil != err {
 			r.logger.Error("Failed to update delegation epoch", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "stakeEpoch", snap.Delegation.StakeEpoch, "error", err)
 			return err
 		}
 	}
 
 	return nil
+}
+
+func (r *RewardModule) RewardPerBlock() *big.Int {
+	return r.configParams.RewardPerBlock
+}
+func (r *RewardModule) RewardPerEpoch() *big.Int {
+	return r.configParams.RewardPerEpoch
 }

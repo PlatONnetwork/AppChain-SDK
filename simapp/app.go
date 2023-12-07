@@ -86,7 +86,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 	manager.SetConsensusExtend(extraVote.Name())
 	//manager.SetWorker(stateSync.Name())
 	manager.SetOrderInit(stateSync.Name(), checkpoint.Name())
-	manager.SetOrderGenesis(l1Module.Name(), stageModule.Name(), vrfModule.Name(), stakeModule.Name())
+	manager.SetOrderGenesis(l1Module.Name(), stageModule.Name(), vrfModule.Name(), stakeModule.Name(), rewardModule.Name())
 	manager.SetOrderBeginBlocker(stageModule.Name(), stakeModule.Name(), rewardModule.Name())
 	manager.SetOrderEndBlocker(stageModule.Name(), vrfModule.Name(), stakeModule.Name(), rewardModule.Name())
 	manager.SetOrderBlockCommiter(stakeModule.Name())

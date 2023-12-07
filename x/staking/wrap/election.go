@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/AlayaNetwork/Alaya-Go/common"
 	"github.com/AlayaNetwork/Alaya-Go/x/xcom"
-	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	staketypes "github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/common/math"
@@ -156,18 +155,18 @@ func electionByProbability(validatorSnapshotQueue staketypes.ValidatorSortSnapsh
 
 // ----------------------------
 
-func ShuffleQueue(db sdk.StateDB, vrfModule staketypes.VRFModuler, currentRoundValidatorSnapshotQueue, validatorSnapshotVRFQueue staketypes.ValidatorSortSnapshotQueue, blockNumber uint64) (staketypes.ValidatorSortSnapshotQueue, error) {
+func ShuffleQueue(db sdk.StateDB, vrfModule staketypes.VRFModuler, currentRoundValidatorSnapshotQueue, validatorSnapshotVRFQueue staketypes.ValidatorSortSnapshotQueue, blockNumber, maxRoundValidatorsSize uint64) (staketypes.ValidatorSortSnapshotQueue, error) {
 
 	currentSize := uint64(len(currentRoundValidatorSnapshotQueue))
 	totalQueue := append(currentRoundValidatorSnapshotQueue, validatorSnapshotVRFQueue...)
 
-	for currentSize > constants.MAX_ROUND_VALIDATORS_SIZE-((constants.MAX_ROUND_VALIDATORS_SIZE-1)/3) && uint64(len(totalQueue)) > constants.MAX_ROUND_VALIDATORS_SIZE {
+	for currentSize > maxRoundValidatorsSize-((maxRoundValidatorsSize-1)/3) && uint64(len(totalQueue)) > maxRoundValidatorsSize {
 		totalQueue = totalQueue[1:]
 		currentSize--
 	}
 
-	if uint64(len(totalQueue)) > constants.MAX_ROUND_VALIDATORS_SIZE {
-		totalQueue = totalQueue[:constants.MAX_ROUND_VALIDATORS_SIZE]
+	if uint64(len(totalQueue)) > maxRoundValidatorsSize {
+		totalQueue = totalQueue[:maxRoundValidatorsSize]
 	}
 
 	nextQueue := make(staketypes.ValidatorSortSnapshotQueue, len(totalQueue))

@@ -53,16 +53,6 @@ func NewVRFHandler(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*VRFHandl
 	return s, nil
 }
 
-// for vrf module
-
-func (c *VRFHandler) SetStageModule(stage vrftypes.StageModuler) {
-	c.stageModule = stage
-}
-
-func (c *VRFHandler) SetStakeModule(stake vrftypes.StakeModuler) {
-	c.stakeModule = stake
-}
-
 func (c *VRFHandler) PushNonceAndProof(nonceAndProof []byte) error {
 
 	if len(nonceAndProof) != 81 { // 81 byte, nonce and proof, flag |nonce |proof, 1byte|32byte|48byte

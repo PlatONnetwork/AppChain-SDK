@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
+	"github.com/PlatONnetwork/AppChain-SDK/x/stage/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/stage/db"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
@@ -14,12 +15,14 @@ import (
 )
 
 type StageModule struct {
-	logger log.Logger
+	logger       log.Logger
+	configParams *config.StageNetworkParams
 }
 
 func NewStageModule(ctx *cli.Context) *StageModule {
 	return &StageModule{
-		logger: log.New("module", "stage"),
+		logger:       log.New("module", "stage"),
+		configParams: config.DefualtStageNetworkParams(),
 	}
 }
 
@@ -28,15 +31,29 @@ func (s *StageModule) Name() string {
 }
 
 func (s *StageModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
-	if err := initRoundItem(db, s.Address()); nil != err {
-		log.Error("Failed initialize round", "error", err)
+
+	var conf config.StageNetworkParams
+	raw, err := data.MarshalJSON()
+	if nil != err {
+		log.Error("Failed MarshalJSON StageNetworkParams bytes", "error", err)
+	}
+	if err := json.Unmarshal(raw, &conf); nil != err {
+		log.Error("Failed UnmarshalJSON StageNetworkParams", "error", err)
+	} else {
+		s.configParams = &conf
+	}
+
+	if err := initGenesisRoundItem(db, s.Address(), s.configParams); nil != err {
+		log.Error("Failed initialize genesis round", "error", err)
 		panic(err)
 	}
 
-	if err := initEpochItem(db, s.Address()); nil != err {
-		log.Error("Failed initialize epoch", "error", err)
+	if err := initGenesisEpochItem(db, s.Address(), s.configParams); nil != err {
+		log.Error("Failed initialize genesis epoch", "error", err)
 		panic(err)
 	}
+
+	log.Info("Succeed init genesis", "module", s.Name(), "StageNetworkParams", string(raw))
 }
 
 func (s *StageModule) Address() basecommon.Address {
@@ -66,7 +83,7 @@ func (s *StageModule) EndBlock(ctx sdk.WorkerContext) {
 	// store next epochItem (at current round endBlock)
 	// NOTE: Only search for the most recent 100 rounds to save resource consumption
 	if db.IsEndOfCurrentRound(ctx.StateDB(), s.Address(), currentBlock) {
-		if err := db.BuildNextRound(ctx.StateDB(), s.Address()); nil != err {
+		if err := db.BuildNextRound(ctx.StateDB(), s.Address(), s.RoundSize()); nil != err {
 			panic(fmt.Sprintf("Failed to build next round, currentRound: %d, blockNumber: %d, error: %s", s.GetCurrentRound(ctx.StateDB()), currentBlock, err))
 		}
 	}
@@ -75,7 +92,7 @@ func (s *StageModule) EndBlock(ctx sdk.WorkerContext) {
 	// and store next epochItem
 	// NOTE: Only search for the most recent 100 epochs to save resource consumption
 	if db.IsEndOfCurrentEpoch(ctx.StateDB(), s.Address(), currentBlock) {
-		if err := db.BuildNextEpoch(ctx.StateDB(), s.Address()); nil != err {
+		if err := db.BuildNextEpoch(ctx.StateDB(), s.Address(), s.EpochSize(), s.RoundSize()); nil != err {
 			panic(fmt.Sprintf("Failed to build next epoch, currentEpoch: %d, blockNumber: %d, error: %s", s.GetCurrentEpoch(ctx.StateDB()), currentBlock, err))
 		}
 	}
@@ -91,7 +108,7 @@ func (s *StageModule) GetCurrentEpoch(stateDB sdk.StateDBReader) uint64 {
 }
 
 func (s *StageModule) IsElectionBlockOnCurrentRound(stateDB sdk.StateDBReader, blockNumber uint64) bool {
-	return db.IsElectionBlockOnCurrentRound(stateDB, s.Address(), blockNumber)
+	return db.IsElectionBlockOnCurrentRound(stateDB, s.Address(), blockNumber, s.RoundValidatorElectionDistance())
 }
 func (s *StageModule) IsElectionBlockOnCurrentEpoch(stateDB sdk.StateDBReader, blockNumber uint64) bool {
 	return db.IsElectionBlockOnCurrentEpoch(stateDB, s.Address(), blockNumber)
@@ -122,7 +139,7 @@ func (s *StageModule) IsEndOfEpoch(stateDB sdk.StateDBReader, blockNumber, size 
 }
 
 func (s *StageModule) IsNotElectionBlockOnCurrentRound(stateDB sdk.StateDBReader, blockNumber uint64) bool {
-	return db.IsNotElectionBlockOnCurrentRound(stateDB, s.Address(), blockNumber)
+	return db.IsNotElectionBlockOnCurrentRound(stateDB, s.Address(), blockNumber, s.RoundValidatorElectionDistance())
 }
 func (s *StageModule) IsNotElectionBlockOnCurrentEpoch(stateDB sdk.StateDBReader, blockNumber uint64) bool {
 	return db.IsNotElectionBlockOnCurrentEpoch(stateDB, s.Address(), blockNumber)
@@ -230,4 +247,14 @@ func (s *StageModule) GetEpochAndBlockBoundByBlockNumber(stateDB sdk.StateDBRead
 	}
 
 	return epoch, startBlock, endBlock
+}
+
+func (s *StageModule) RoundValidatorElectionDistance() uint64 {
+	return s.configParams.RoundValidatorElectionDistance
+}
+func (s *StageModule) RoundSize() uint64 {
+	return s.configParams.RoundSize
+}
+func (s *StageModule) EpochSize() uint64 {
+	return s.configParams.EpochSize
 }

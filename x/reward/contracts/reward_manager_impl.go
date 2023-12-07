@@ -55,20 +55,6 @@ func NewRewardManager(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*Rewar
 	return s, nil
 }
 
-// internal
-
-func (c *RewardManager) SetStageModule(stage rewardtypes.StageModuler) {
-	c.stageModule = stage
-}
-
-func (c *RewardManager) SetStakeModule(stake rewardtypes.StakeModuler) {
-	c.stakeModule = stake
-}
-
-func (c *RewardManager) SetRewardModule(reward rewardtypes.RewardModuler) {
-	c.rewardModule = reward
-}
-
 // external
 func (c *RewardManager) PaidRewardPerEpoch(epochId *big.Int) (*big.Int, error) {
 	return rewarddb.GetPaidRewardPerEpoch(c.evm.StateDB, c.contract.Address(), epochId.Uint64()), nil

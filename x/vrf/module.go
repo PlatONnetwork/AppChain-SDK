@@ -8,6 +8,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/l1"
 	"github.com/PlatONnetwork/AppChain-SDK/x/util"
+	"github.com/PlatONnetwork/AppChain-SDK/x/vrf/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/vrf/contracts"
 	vrfdb "github.com/PlatONnetwork/AppChain-SDK/x/vrf/db"
 	vrftypes "github.com/PlatONnetwork/AppChain-SDK/x/vrf/types"
@@ -32,29 +33,44 @@ var (
 
 type VRFModule struct {
 	logger         log.Logger
+	configParams   *config.VRFNetworkParams
 	nodePrivateKey *ecdsa.PrivateKey
-	stage          vrftypes.StageModuler
-	stake          vrftypes.StakeModuler
+	stageModule    vrftypes.StageModuler
+	stakeModule    vrftypes.StakeModuler
 }
 
 func NewVRFModule(ctx *cli.Context, stage vrftypes.StageModuler) *VRFModule {
 	return &VRFModule{
 		logger:         log.New("module", "vrf"),
 		nodePrivateKey: l1.DecodeNodePrivateKey(ctx),
-		stage:          stage,
+		configParams:   config.DefualtVRFNetworkParams(),
+		stageModule:    stage,
 	}
 }
 
 func (v *VRFModule) SetStakeModule(stake vrftypes.StakeModuler) {
-	v.stake = stake
+	v.stakeModule = stake
 }
 
 func (v *VRFModule) Name() string {
 	return "staking"
 }
 func (v *VRFModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
-	// TODO 初始化 vrf nonce
-	vrfdb.SetNonceAndProof(db, v.Address(), 0, []byte("genesisVRFNonce"))
+	var conf config.VRFNetworkParams
+	raw, err := data.MarshalJSON()
+	if nil != err {
+		log.Error("Failed MarshalJSON VRFNetworkParams bytes", "error", err)
+	}
+	if err := json.Unmarshal(raw, &conf); nil != err {
+		log.Error("Failed UnmarshalJSON VRFNetworkParams", "error", err)
+	} else {
+		v.configParams = &conf
+	}
+
+	// set genesis vrf nonce (32 byte)
+	vrfdb.SetNonceAndProof(db, v.Address(), 0, v.configParams.GenesisVRFNonce.Bytes())
+
+	log.Info("Succeed init genesis", "module", v.Name(), "VRFNetworkParams", string(raw))
 }
 
 func (v *VRFModule) Address() basecommon.Address {
@@ -63,8 +79,8 @@ func (v *VRFModule) Address() basecommon.Address {
 
 func (v *VRFModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly bool) ([]byte, error) {
 	vrfHandler, _ := contracts.NewVRFHandler(evm, contract, readOnly)
-	vrfHandler.SetStageModule(v.stage)
-	vrfHandler.SetStakeModule(v.stake)
+	vrfHandler.SetStageModule(v.stageModule)
+	vrfHandler.SetStakeModule(v.stakeModule)
 	return vrfHandler.Run(input)
 }
 

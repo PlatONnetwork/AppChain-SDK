@@ -42,6 +42,13 @@ type StageModuler interface {
 }
 
 type StakeModuler interface {
+	StakeWithdrawalWaitPeriod() uint64
+	DelegateWithdrawalWaitPeriod() uint64
+	SlashingPercentage() uint64
+	SlashIncentivePercentage() uint64
+	MaxRoundValidatorsSize() uint64
+	MaxEpochValidatorsSize() uint64
+	MinRoundValidatorBlockNumber() uint64
 }
 
 type RewardModuler interface {

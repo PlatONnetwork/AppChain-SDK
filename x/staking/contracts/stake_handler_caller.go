@@ -74,6 +74,34 @@ func (c *StakeHandlerCaller) PendingWithdrawalsOfStake(validator common.Address)
 
 }
 
+func (c *StakeHandlerCaller) VerifyAggregateSignature(blockNumber *big.Int, validatorIndexs []*big.Int, data common.Hash, signatues []byte) (bool, error) {
+	var out []interface{}
+	err := c.BoundContract.Caller(c.to, &out, "verifyAggregateSignature", blockNumber, validatorIndexs, data, signatues)
+
+	if err != nil {
+		return *new(bool), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
+
+	return out0, err
+
+}
+
+func (c *StakeHandlerCaller) VerifyAggregateSignatureByValidators(validators []common.Address, data common.Hash, signatues []byte) (bool, error) {
+	var out []interface{}
+	err := c.BoundContract.Caller(c.to, &out, "verifyAggregateSignatureByValidators", validators, data, signatues)
+
+	if err != nil {
+		return *new(bool), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
+
+	return out0, err
+
+}
+
 func (c *StakeHandlerCaller) WithdrawableOfDelegate(validator common.Address, delegater common.Address) (*big.Int, error) {
 	var out []interface{}
 	err := c.BoundContract.Caller(c.to, &out, "withdrawableOfDelegate", validator, delegater)
@@ -214,6 +242,34 @@ func (c *StakeHandlerDelegateCaller) PendingWithdrawalsOfStake(validator common.
 	}
 
 	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+func (c *StakeHandlerDelegateCaller) VerifyAggregateSignature(blockNumber *big.Int, validatorIndexs []*big.Int, data common.Hash, signatues []byte) (bool, error) {
+	var out []interface{}
+	err := c.BoundContract.DelegateCaller(c.to, &out, "verifyAggregateSignature", blockNumber, validatorIndexs, data, signatues)
+
+	if err != nil {
+		return *new(bool), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
+
+	return out0, err
+
+}
+
+func (c *StakeHandlerDelegateCaller) VerifyAggregateSignatureByValidators(validators []common.Address, data common.Hash, signatues []byte) (bool, error) {
+	var out []interface{}
+	err := c.BoundContract.DelegateCaller(c.to, &out, "verifyAggregateSignatureByValidators", validators, data, signatues)
+
+	if err != nil {
+		return *new(bool), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
 
 	return out0, err
 
