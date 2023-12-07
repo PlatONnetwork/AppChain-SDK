@@ -7,26 +7,28 @@ import (
 )
 
 var (
-	L1GenesisDBName      = "l1sync"
-	chainIdKey           = []byte("chainId")
-	stateAddressKey      = []byte("stateAddress")
-	checkpointAddressKey = []byte("checkpointAddress")
+	L1ConfigParamsDBName     = "l1config"
+	chainIdKey               = []byte("chainId")
+	stateAddressKey          = []byte("stateAddress")
+	checkpointAddressKey     = []byte("checkpointAddress")
+	stakeManagerAddressKey   = []byte("stakeManagerAddress")
+	depositManagerAddressKey = []byte("depositManagerAddress")
 )
 
-type L1GenesisDB struct {
+type l1GenesisDB struct {
 	db store.KVStore
 }
 
-func NewL1GenesisDB(db store.Store) *L1GenesisDB {
-	return &L1GenesisDB{
-		db: db.GetKVStore(L1GenesisDBName),
+func newL1GenesisDB(db store.Store) *l1GenesisDB {
+	return &l1GenesisDB{
+		db: db.GetKVStore(L1ConfigParamsDBName),
 	}
 }
-func (l *L1GenesisDB) SetChainID(chainId *big.Int) error {
+func (l *l1GenesisDB) setChainID(chainId *big.Int) error {
 	return l.db.Set(chainIdKey, chainId.Bytes())
 }
 
-func (l *L1GenesisDB) GetChainID() (*big.Int, error) {
+func (l *l1GenesisDB) getChainID() (*big.Int, error) {
 	value, err := l.db.Get(chainIdKey)
 	if err != nil {
 		return nil, err
@@ -34,26 +36,50 @@ func (l *L1GenesisDB) GetChainID() (*big.Int, error) {
 	return new(big.Int).SetBytes(value), nil
 }
 
-func (l *L1GenesisDB) SetStateAddress(addr common.Address) error {
+func (l *l1GenesisDB) setStateAddress(addr common.Address) error {
 	return l.db.Set(stateAddressKey, addr.Bytes())
 }
 
-func (l *L1GenesisDB) GetStateAddress() (common.Address, error) {
+func (l *l1GenesisDB) getStateAddress() (common.Address, error) {
 	value, err := l.db.Get(stateAddressKey)
 	if err != nil {
-		return common.Address{}, err
+		return common.ZeroAddr, err
 	}
 	return common.BytesToAddress(value), nil
 }
 
-func (l *L1GenesisDB) SetCheckpointAddress(addr common.Address) error {
+func (l *l1GenesisDB) setCheckpointAddress(addr common.Address) error {
 	return l.db.Set(checkpointAddressKey, addr.Bytes())
 }
 
-func (l *L1GenesisDB) GetCheckpointAddress() (common.Address, error) {
+func (l *l1GenesisDB) getCheckpointAddress() (common.Address, error) {
 	value, err := l.db.Get(checkpointAddressKey)
 	if err != nil {
-		return common.Address{}, err
+		return common.ZeroAddr, err
+	}
+	return common.BytesToAddress(value), nil
+}
+
+func (l *l1GenesisDB) setStakeManagerAddress(addr common.Address) error {
+	return l.db.Set(stakeManagerAddressKey, addr.Bytes())
+}
+
+func (l *l1GenesisDB) getStakeManagerAddress() (common.Address, error) {
+	value, err := l.db.Get(stakeManagerAddressKey)
+	if err != nil {
+		return common.ZeroAddr, err
+	}
+	return common.BytesToAddress(value), nil
+}
+
+func (l *l1GenesisDB) setDepositManagerAddress(addr common.Address) error {
+	return l.db.Set(depositManagerAddressKey, addr.Bytes())
+}
+
+func (l *l1GenesisDB) getDepositManagerAddress() (common.Address, error) {
+	value, err := l.db.Get(depositManagerAddressKey)
+	if err != nil {
+		return common.ZeroAddr, err
 	}
 	return common.BytesToAddress(value), nil
 }

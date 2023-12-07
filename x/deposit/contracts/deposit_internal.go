@@ -4,6 +4,7 @@ import (
 	"fmt"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
+	deposittypes "github.com/PlatONnetwork/AppChain-SDK/x/deposit/types"
 	statesenderC "github.com/PlatONnetwork/AppChain-SDK/x/statesender/contracts"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
@@ -26,6 +27,10 @@ var (
 	DEPOSIT_PARAMS_TYPE  = abi.MustNewType("tuple(address depositor, address recipient, uint256 amount)")
 	WITHDRAW_PARAMS_TYPE = abi.MustNewType("tuple(bytes32 sig, address withdrawer, address recipient, uint256 amount)")
 )
+
+func (c *DepositHandler) SetL1Module(l1Module deposittypes.L1Moduler) {
+	c.l1Module = l1Module
+}
 
 func (c *DepositHandler) onDeposit(input []byte) error {
 	decoded, err := abi.Decode(DEPOSIT_PARAMS_TYPE, input)
@@ -70,18 +75,23 @@ func (c *DepositHandler) syncStateWithdraw(withdrawer, recipient basecommon.Addr
 	data, err := abi.Encode([]interface{}{WITHDRAW_SIG, withdrawer, recipient, amount}, WITHDRAW_PARAMS_TYPE)
 	if nil != err {
 		log.Error("Failed to encode withdraw syncState data", "withdrawer", withdrawer.Hex(), "recipient", recipient, "amount", amount, "error", err)
-		return typesdk.NewRevertError(fmt.Sprintf("encode L2StateSender withdraw data %s", err))
+		return typesdk.NewRevertError(fmt.Sprintf("DepositHandler: encode L2StateSender withdraw data %s", err))
 	}
 
 	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, constants.StateSenderAddress)
 	if nil != err {
 		log.Error("Failed to call NewL2StateSenderCaller", "withdrawer", withdrawer.Hex(), "recipient", recipient, "amount", amount, "error", err)
-		return typesdk.NewRevertError(fmt.Sprintf("call withdraw by L2StateSender %s", err))
+		return typesdk.NewRevertError(fmt.Sprintf("DepositHandler: call withdraw by L2StateSender %s", err))
 	}
 
-	if err := l2statesender.SyncState(constants.RootchainDepositManagerAddress, data); nil != err {
+	rootchainDepositManagerAddress, err := c.l1Module.GetDepositManagerAddress()
+	if nil != err {
+		return typesdk.NewRevertError("DepositHandler: NOT FOUND DEPOSIT MANAGER ADDR")
+	}
+
+	if err := l2statesender.SyncState(rootchainDepositManagerAddress, data); nil != err {
 		log.Error("Failed to call SyncState", "withdrawer", withdrawer.Hex(), "recipient", recipient, "amount", amount, "error", err)
-		return typesdk.NewRevertError(fmt.Sprintf("call withdraw by L2StateSender %s", err))
+		return typesdk.NewRevertError(fmt.Sprintf("DepositHandler: call withdraw by L2StateSender %s", err))
 	}
 	return nil
 }

@@ -1,9 +1,13 @@
 package types
 
 import (
-	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 )
+
+type L1Moduler interface {
+	GetStakeManagerAddress() (common.Address, error)
+}
 
 type StageModuler interface {
 	GetCurrentRound(stateDB sdk.StateDBReader) uint64
@@ -52,10 +56,10 @@ type StakeModuler interface {
 }
 
 type RewardModuler interface {
-	UpdateDelegationRewardsByStakeEpoch(stateDB sdk.StateDB, delegaterAddr, validatorAddr basecommon.Address, stakeEpoch uint64) error
+	UpdateDelegationRewardsByStakeEpoch(stateDB sdk.StateDB, delegaterAddr, validatorAddr common.Address, stakeEpoch uint64) error
 }
 
 type VRFModuler interface {
-	GetNonceQueueUtil(stateDB sdk.StateDBReader, blockNumber, size uint64) ([]basecommon.Hash, error)
-	GetCurrentNonce(stateDB sdk.StateDBReader, blockNumber uint64) (basecommon.Hash, error)
+	GetNonceQueueUtil(stateDB sdk.StateDBReader, blockNumber, size uint64) ([]common.Hash, error)
+	GetCurrentNonce(stateDB sdk.StateDBReader, blockNumber uint64) (common.Hash, error)
 }

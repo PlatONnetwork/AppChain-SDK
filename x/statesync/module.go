@@ -3,6 +3,7 @@ package statesync
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/l2"
 	"math/big"
 
@@ -72,7 +73,7 @@ func (s *StateSync) Init() error {
 	}
 	s.privateKey = key.PrivateKey
 
-	l1Sync, err := sync.NewL1Sync(contracts.StateSyncAddress, s.rpcAddress, s.startBlock, s.store)
+	l1Sync, err := sync.NewL1Sync(constants.StateSyncAddress, s.rpcAddress, s.startBlock, s.store)
 	if err != nil {
 		return err
 	}
@@ -82,7 +83,7 @@ func (s *StateSync) Init() error {
 }
 
 func (s *StateSync) Address() common.Address {
-	return contracts.StateSyncAddress
+	return constants.StateSyncAddress
 }
 
 func (s *StateSync) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly bool) ([]byte, error) {

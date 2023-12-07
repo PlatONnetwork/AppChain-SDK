@@ -42,6 +42,11 @@ var (
 )
 
 // internal
+
+func (c *StakeHandler) SetL1Module(l1 types.L1Moduler) {
+	c.l1Module = l1
+}
+
 func (c *StakeHandler) SetStageModule(stage types.StageModuler) {
 	c.stageModule = stage
 }
@@ -492,18 +497,23 @@ func (c *StakeHandler) syncStateUnStake(validatorAddr common.Address, amount *bi
 	data, err := abi.Encode([]interface{}{UNSTAKE_SIG, validatorAddr, amount}, UNSTAKE_PARAMS_TYPE)
 	if nil != err {
 		log.Error("Failed to encode unstake syncState data", "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
-		return typesdk.NewRevertError("encode L2StateSender unstake data failed")
+		return typesdk.NewRevertError("StakeHandler: encode L2StateSender unstake data failed")
 	}
 
 	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, constants.StateSenderAddress)
 	if nil != err {
 		log.Error("Failed to call NewL2StateSenderCaller", "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
-		return typesdk.NewRevertError("call unstake by L2StateSender failed")
+		return typesdk.NewRevertError("StakeHandler: call unstake by L2StateSender failed")
 	}
 
-	if err := l2statesender.SyncState(constants.RootchainStakeManagerAddress, data); nil != err {
+	rootchainStakeManagerAddress, err := c.l1Module.GetStakeManagerAddress()
+	if nil != err {
+		return typesdk.NewRevertError("StakeHandler: NOT FOUND STAKE MANAGER ADDR")
+	}
+
+	if err := l2statesender.SyncState(rootchainStakeManagerAddress, data); nil != err {
 		log.Error("Failed to call SyncState", "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
-		return typesdk.NewRevertError("call unstake by L2StateSender failed")
+		return typesdk.NewRevertError("StakeHandler: call unstake by L2StateSender failed")
 	}
 	return nil
 }
@@ -512,18 +522,23 @@ func (c *StakeHandler) syncStateUnDelegate(validatorAddr, delegaterAddr common.A
 	data, err := abi.Encode([]interface{}{UNDELEGATE_SIG, validatorAddr, delegaterAddr, amount}, UNDELEGATE_PARAMS_TYPE)
 	if nil != err {
 		log.Error("Failed to encode undelegate syncState data", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
-		return typesdk.NewRevertError("encode L2StateSender undelegate data failed")
+		return typesdk.NewRevertError("StakeHandler: encode L2StateSender undelegate data failed")
 	}
 
 	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, constants.StateSenderAddress)
 	if nil != err {
 		log.Error("Failed to call NewL2StateSenderCaller", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
-		return typesdk.NewRevertError("call undelegate by L2StateSender failed")
+		return typesdk.NewRevertError("StakeHandler: call undelegate by L2StateSender failed")
 	}
 
-	if err := l2statesender.SyncState(constants.RootchainStakeManagerAddress, data); nil != err {
+	rootchainStakeManagerAddress, err := c.l1Module.GetStakeManagerAddress()
+	if nil != err {
+		return typesdk.NewRevertError("StakeHandler: NOT FOUND STAKE MANAGER ADDR")
+	}
+
+	if err := l2statesender.SyncState(rootchainStakeManagerAddress, data); nil != err {
 		log.Error("Failed to call SyncState", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
-		return typesdk.NewRevertError("call undelegate by L2StateSender failed")
+		return typesdk.NewRevertError("StakeHandler: call undelegate by L2StateSender failed")
 	}
 	return nil
 }
@@ -533,18 +548,23 @@ func (c *StakeHandler) syncStateSlash(validators []common.Address) error {
 	data, err := abi.Encode([]interface{}{SLASH_SIG, validators, c.stakeModule.SlashingPercentage(), c.stakeModule.SlashIncentivePercentage()}, ROOT_CHAIN_SLASH_PARAMS_TYPE)
 	if nil != err {
 		log.Error("Failed to encode slash syncState data", "validators size", len(validators), "error", err)
-		return typesdk.NewRevertError("encode L2StateSender slash data failed")
+		return typesdk.NewRevertError("StakeHandler: encode L2StateSender slash data failed")
 	}
 
 	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, constants.StateSenderAddress)
 	if nil != err {
 		log.Error("Failed to call NewL2StateSenderCaller", "validators size", len(validators), "error", err)
-		return typesdk.NewRevertError("call slash by L2StateSender failed")
+		return typesdk.NewRevertError("StakeHandler: call slash by L2StateSender failed")
 	}
 
-	if err := l2statesender.SyncState(constants.RootchainStakeManagerAddress, data); nil != err {
+	rootchainStakeManagerAddress, err := c.l1Module.GetStakeManagerAddress()
+	if nil != err {
+		return typesdk.NewRevertError("StakeHandler: NOT FOUND STAKE MANAGER ADDR")
+	}
+
+	if err := l2statesender.SyncState(rootchainStakeManagerAddress, data); nil != err {
 		log.Error("Failed to call SyncState", "validators size", len(validators), "error", err)
-		return typesdk.NewRevertError("call slash by L2StateSender failed")
+		return typesdk.NewRevertError("StakeHandler: call slash by L2StateSender failed")
 	}
 	return nil
 }
@@ -557,19 +577,19 @@ func (c *StakeHandler) verifyBLSAggregateSignature(blockNumber *big.Int, validat
 	validatorSnapQueue := db.GetRoundValidatorSharesSnapshotQueue(c.evm.StateDB, c.contract.Address(), round)
 	if len(validatorSnapQueue) == 0 {
 		log.Error("Not found round validators", "blockNumber", blockNumber, "round", round)
-		return false, typesdk.NewRevertError("round validators not found")
+		return false, typesdk.NewRevertError("StakeHandler: round validators not found")
 	}
 
 	validatorAddrQueue := types.NewValidatorAddrQueue(uint64(0))
 
 	for _, index := range validatorIndexs {
 		if index.Uint64() >= uint64(len(validatorSnapQueue)) {
-			return false, typesdk.NewRevertError(fmt.Sprintf("invalid index, out of bound, index %d, validators size %d",
+			return false, typesdk.NewRevertError(fmt.Sprintf("StakeHandler: invalid index, out of bound, index %d, validators size %d",
 				index.Uint64(), len(validatorSnapQueue)))
 		}
 		snap := validatorSnapQueue[index.Uint64()]
 		if snap.IsEmpty() {
-			return false, typesdk.NewRevertError(fmt.Sprintf("not found validator by index, index %d, validators size %d",
+			return false, typesdk.NewRevertError(fmt.Sprintf("StakeHandler: not found validator by index, index %d, validators size %d",
 				index.Uint64(), len(validatorSnapQueue)))
 		}
 		validatorAddrQueue = append(validatorAddrQueue, snap.ValidatorAddr)
@@ -586,7 +606,7 @@ func (c *StakeHandler) verifyBLSAggregateSignatureByValidators(validatorAddrs []
 		validator := db.GetValidator(c.evm.StateDB, c.contract.Address(), validatorAddr)
 
 		if validator.IsEmpty() {
-			return false, typesdk.NewRevertError(fmt.Sprintf("not found validator by index, validatorAddr %s", validatorAddr.Hex()))
+			return false, typesdk.NewRevertError(fmt.Sprintf("StakeHandler: not found validator by index, validatorAddr %s", validatorAddr.Hex()))
 		}
 
 		pub.Add(validator.BlsKey) // Aggregating BLS pubKey
@@ -594,7 +614,7 @@ func (c *StakeHandler) verifyBLSAggregateSignatureByValidators(validatorAddrs []
 
 	var sig bls.Sign
 	if err := sig.Deserialize(signatues); nil != err {
-		return false, typesdk.NewRevertError("invalid signatures")
+		return false, typesdk.NewRevertError("StakeHandler: invalid signatures")
 	}
 	return sig.Verify(&pub, string(data[:])), nil
 }

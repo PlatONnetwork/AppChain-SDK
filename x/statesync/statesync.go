@@ -2,6 +2,7 @@ package statesync
 
 import (
 	"errors"
+	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/message"
 	"math/big"
 
@@ -125,7 +126,7 @@ func (s *StateSync) createCommitTx(ctx sdk.Context, cm *contracts.StateSyncCommi
 	if err != nil {
 		return nil, err
 	}
-	tx := types.NewTransaction(nonce, contracts.StateSyncAddress, nil, 100000, big.NewInt(0), input)
+	tx := types.NewTransaction(nonce, constants.StateSyncAddress, nil, 100000, big.NewInt(0), input)
 	chainId, _ := ctx.Backend().ChainId()
 	signer := types.NewEIP155Signer(chainId)
 	tx, err = types.SignTx(tx, signer, s.privateKey)
@@ -143,7 +144,7 @@ func (s *StateSync) createExecuteTxs(ctx sdk.Context, proofs [][]common.Hash, ev
 		if err != nil {
 			return nil, err
 		}
-		tx := types.NewTransaction(nonce, contracts.StateSyncAddress, nil, 100000, big.NewInt(0), input)
+		tx := types.NewTransaction(nonce, constants.StateSyncAddress, nil, 100000, big.NewInt(0), input)
 		chainId, _ := ctx.Backend().ChainId()
 		signer := types.NewEIP155Signer(chainId)
 		tx, err = types.SignTx(tx, signer, s.privateKey)
@@ -161,5 +162,5 @@ func (s *StateSync) newStateSyncCallContract(ctx sdk.Context, header *types.Head
 	if err != nil {
 		return nil, err
 	}
-	return contracts.NewStateReceiver(evm, vm.NewContract(vm.AccountRef(from), vm.AccountRef(contracts.StateSyncAddress), big.NewInt(0), 1000000), true)
+	return contracts.NewStateReceiver(evm, vm.NewContract(vm.AccountRef(from), vm.AccountRef(constants.StateSyncAddress), big.NewInt(0), 1000000), true)
 }

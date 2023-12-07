@@ -53,14 +53,14 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		return nil, err
 	}
 
-	l1Module := l1.NewL1(store)
+	l1Module := l1.NewL1Module(store)
 	stateEvent := stateevent.NewModule(store)
 
 	stageModule := stage.NewStageModule(ctx)
 	vrfModule := vrf.NewVRFModule(ctx, stageModule)
-	stakeModule := staking.NewStakeModule(ctx, stageModule)
+	stakeModule := staking.NewStakeModule(ctx, l1Module, stageModule)
 	rewardModule := reward.NewRewardModule(ctx, stageModule)
-	depositModule := deposit.NewDepositModule(ctx)
+	depositModule := deposit.NewDepositModule(ctx, l1Module)
 
 	vrfModule.SetStakeModule(stakeModule)
 	stakeModule.SetRewardModule(rewardModule)
@@ -77,7 +77,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		rootchainTxRelayer,
 		extravote.NewExtraVoteDB(store),
 		stateEvent,
-		l1.NewL1GenesisDB(store))
+		l1Module)
 
 	extraVote := extravote.NewExtraVote(store, []extravote.ExtraVerifier{stateSync, checkpoint})
 

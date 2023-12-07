@@ -57,7 +57,7 @@ func (s *StageModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *
 }
 
 func (s *StageModule) Address() basecommon.Address {
-	return constants.RewardManagerAddress
+	return constants.StageManagerAddress
 }
 
 func (s *StageModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly bool) ([]byte, error) {

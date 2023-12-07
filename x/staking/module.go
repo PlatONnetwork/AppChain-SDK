@@ -33,16 +33,18 @@ type StakeModule struct {
 	logger         log.Logger
 	configParams   *config.StakeNetworkParams
 	nodePrivateKey *ecdsa.PrivateKey
+	l1Module       staketypes.L1Moduler
 	stageModule    staketypes.StageModuler
 	vrfModule      staketypes.VRFModuler
 	rewardModule   staketypes.RewardModuler
 }
 
-func NewStakeModule(ctx *cli.Context, stage staketypes.StageModuler) *StakeModule {
+func NewStakeModule(ctx *cli.Context, l1Module staketypes.L1Moduler, stage staketypes.StageModuler) *StakeModule {
 	return &StakeModule{
 		logger:         log.New("module", "staking"),
 		nodePrivateKey: l1.DecodeNodePrivateKey(ctx),
 		configParams:   config.DefualtStakeNetworkParams(),
+		l1Module:       l1Module,
 		stageModule:    stage,
 	}
 }
@@ -86,6 +88,7 @@ func (s *StakeModule) Address() basecommon.Address {
 
 func (s *StakeModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly bool) ([]byte, error) {
 	stakeHandler, _ := contracts.NewStakeHandler(evm, contract, readOnly)
+	stakeHandler.SetL1Module(s.l1Module)
 	stakeHandler.SetStageModule(s.stageModule)
 	stakeHandler.SetStakeModule(s)
 	stakeHandler.SetRewardModule(s.rewardModule)

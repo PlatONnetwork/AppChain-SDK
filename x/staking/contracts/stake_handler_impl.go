@@ -42,6 +42,7 @@ type StakeHandler struct {
 	contract     *vm.Contract
 	evm          *vm.EVM
 	fallback     func(input []byte) ([]byte, error)
+	l1Module     staketypes.L1Moduler
 	stageModule  staketypes.StageModuler
 	stakeModule  staketypes.StakeModuler
 	rewardModule staketypes.RewardModuler
@@ -85,8 +86,12 @@ func (c *StakeHandler) WithdrawableOfStake(validator common.Address) (*big.Int, 
 
 func (c *StakeHandler) OnStateReceive(id *big.Int, sender common.Address, data []byte) error {
 
-	// todo need to change the inner contract address file path
-	if c.contract.Caller() != constants.StateReceiverAddress || sender != constants.RootchainStakeManagerAddress {
+	rootchainStakeManagerAddress, err := c.l1Module.GetStakeManagerAddress()
+	if nil != err {
+		return typesdk.NewRevertError("StakeHandler: NOT FOUND STAKE MANAGER ADDR")
+	}
+
+	if c.contract.Caller() != constants.StateReceiverAddress || sender != rootchainStakeManagerAddress {
 		return typesdk.NewRevertError("StakeHandler: INVALID_SENDER")
 	}
 	if bytes.Compare(data[:METHODID_SIZE], STAKE_SIG.Bytes()) == 0 {

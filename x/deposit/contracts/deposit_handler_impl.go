@@ -5,7 +5,7 @@ import (
 	"errors"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
-	upgradecontracts "github.com/PlatONnetwork/AppChain-SDK/x/upgradesys/contracts"
+	deposittypes "github.com/PlatONnetwork/AppChain-SDK/x/deposit/types"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
@@ -39,6 +39,7 @@ type DepositHandler struct {
 	contract    *vm.Contract
 	evm         *vm.EVM
 	fallback    func(input []byte) ([]byte, error)
+	l1Module    deposittypes.L1Moduler
 }
 
 func NewDepositHandler(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*DepositHandler, error) {
@@ -53,11 +54,13 @@ func NewDepositHandler(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*Depo
 }
 
 func (c *DepositHandler) OnStateReceive(id *big.Int, sender common.Address, data []byte) error {
-	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
-		return err
+
+	rootchainDepositManagerAddress, err := c.l1Module.GetDepositManagerAddress()
+	if nil != err {
+		return typesdk.NewRevertError("DepositHandler: NOT FOUND DEPOSIT MANAGER ADDR")
 	}
-	// todo need to change the inner contract address file path
-	if c.contract.Caller() != constants.StateReceiverAddress || sender != constants.RootchainDepositManagerAddress {
+
+	if c.contract.Caller() != constants.StateReceiverAddress || sender != rootchainDepositManagerAddress {
 		return typesdk.NewRevertError("DepositHandler: INVALID_SENDER")
 	}
 	if bytes.Compare(data[:METHODID_SIZE], DEPOSIT_SIG.Bytes()) == 0 {
@@ -68,9 +71,6 @@ func (c *DepositHandler) OnStateReceive(id *big.Int, sender common.Address, data
 }
 
 func (c *DepositHandler) Withdraw(recipient common.Address, amount *big.Int) error {
-	if err := upgradecontracts.OnlyInitialized(c.evm.StateDB, c.contract.Address()); err != nil {
-		return err
-	}
 
 	if c.evm.StateDB.GetBalance(c.contract.Caller()).Cmp(amount) < 0 {
 		return typesdk.NewRevertError("DepositHandler: insufficient balance")
