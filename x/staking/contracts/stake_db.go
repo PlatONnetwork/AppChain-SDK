@@ -130,11 +130,11 @@ func (c *StakeHandler) getCurrentRound() uint64 {
 	return c.stageModule.GetCurrentRound(c.evm.StateDB)
 }
 
-func (c *StakeHandler) getEpochValidatorIds(epoch uint64) types.ValidatorIds {
+func (c *StakeHandler) getEpochValidatorIds(epoch uint64) types.ValidatorAddrQueue {
 	return db.GetEpochValidatorIds(c.evm.StateDB, c.contract.Address(), epoch)
 }
 
-func (c *StakeHandler) getRoundValidatorIds(round uint64) types.ValidatorIds {
+func (c *StakeHandler) getRoundValidatorIds(round uint64) types.ValidatorAddrQueue {
 	return db.GetRoundValidatorIds(c.evm.StateDB, c.contract.Address(), round)
 }
 

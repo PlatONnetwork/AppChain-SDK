@@ -158,7 +158,6 @@ func (s *StakeModule) EndBlock(ctx sdk.WorkerContext) {
 
 	// election next epoch validators (at current epoch endBlock)
 	// and store next epochItem
-	// NOTE: Only search for the most recent 100 epochs to save resource consumption
 	if s.stageModule.IsEndOfCurrentEpoch(ctx.StateDB(), currentBlock) {
 		if err := s.electionEpochValidators(ctx, currentBlock); nil != err {
 			panic(fmt.Sprintf("Failed to elected epoch validators, blockNumber: %d, error: %s", currentBlock, err))
@@ -207,11 +206,12 @@ func (s *StakeModule) OnCommit(ctx sdk.ConsensusContext, block *types.Block) err
 }
 
 func (s *StakeModule) IsEndOfRound(ctx sdk.ConsensusContext, blockNumber uint64) bool {
-	// NOTE: Only search for the most recent 100 rounds to save resource consumption
+	// NOTE: Optimization of queries, search for the validator list for the last 100 rounds
 	return s.stageModule.IsEndOfRound(ctx.StateDB(), blockNumber, 100)
 }
 func (s *StakeModule) GetRoundValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error) {
 
+	// NOTE: Optimization of queries, search for the validator list for the last 100 rounds
 	round, startBlock, _ := s.stageModule.GetRoundAndBlockBoundByBlockNumber(ctx.StateDB(), blockNumber, 100)
 
 	validatorSnapQueue := db.GetRoundValidatorSharesSnapshotQueue(ctx.StateDB(), s.Address(), round)
@@ -247,7 +247,7 @@ func (s *StakeModule) BlocksOfRound(ctx sdk.ConsensusContext) uint64 {
 	return s.stageModule.BlocksOfRound(ctx.StateDB(), round)
 }
 func (s *StakeModule) IsEndOfEpoch(ctx sdk.ConsensusContext, blockNumber uint64) bool {
-	// NOTE: Only search for the most recent 100 epochs to save resource consumption
+	// NOTE: Optimization of queries, search for the validator list for the last 100 epochs
 	return s.stageModule.IsEndOfEpoch(ctx.StateDB(), blockNumber, 100)
 }
 func (s *StakeModule) GetEpochValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error) {

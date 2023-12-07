@@ -81,7 +81,6 @@ func (s *StageModule) EndBlock(ctx sdk.WorkerContext) {
 	currentBlock := ctx.Backend().CurrentHeader().Number.Uint64()
 
 	// store next epochItem (at current round endBlock)
-	// NOTE: Only search for the most recent 100 rounds to save resource consumption
 	if db.IsEndOfCurrentRound(ctx.StateDB(), s.Address(), currentBlock) {
 		if err := db.BuildNextRound(ctx.StateDB(), s.Address(), s.RoundSize()); nil != err {
 			panic(fmt.Sprintf("Failed to build next round, currentRound: %d, blockNumber: %d, error: %s", s.GetCurrentRound(ctx.StateDB()), currentBlock, err))
@@ -90,7 +89,6 @@ func (s *StageModule) EndBlock(ctx sdk.WorkerContext) {
 
 	// election next epoch validators (at current epoch endBlock)
 	// and store next epochItem
-	// NOTE: Only search for the most recent 100 epochs to save resource consumption
 	if db.IsEndOfCurrentEpoch(ctx.StateDB(), s.Address(), currentBlock) {
 		if err := db.BuildNextEpoch(ctx.StateDB(), s.Address(), s.EpochSize(), s.RoundSize()); nil != err {
 			panic(fmt.Sprintf("Failed to build next epoch, currentEpoch: %d, blockNumber: %d, error: %s", s.GetCurrentEpoch(ctx.StateDB()), currentBlock, err))
@@ -191,6 +189,7 @@ func (s *StageModule) BlocksOfEpoch(stateDB sdk.StateDBReader, epoch uint64) uin
 func (s *StageModule) GetLastNumber(stateDB sdk.StateDBReader, blockNumber uint64) uint64 {
 	var endBlock uint64
 	currentRound := db.GetCurrentRound(stateDB, s.Address())
+	// NOTE: Optimization of queries, search for the validator list for the last 100 rounds
 	queue := db.GetRoundQueueUtil(stateDB, s.Address(), currentRound, 100)
 	for _, item := range queue {
 		// [startBlock, endBlock) || (startBlock, endBlock]

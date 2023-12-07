@@ -3,13 +3,12 @@ package contracts
 import (
 	"bytes"
 	"errors"
-	"github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
-	staketypes "github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
-	"github.com/PlatONnetwork/PlatON-Go/common/math"
-
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
+	"github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
+	staketypes "github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	platon "github.com/PlatONnetwork/PlatON-Go"
+	"github.com/PlatONnetwork/PlatON-Go/common/math"
 
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
@@ -69,11 +68,11 @@ func (c *StakeHandler) PendingWithdrawalsOfStake(validator common.Address) (*big
 }
 
 func (c *StakeHandler) VerifyAggregateSignature(blockNumber *big.Int, validatorIndexs []*big.Int, data common.Hash, signatues []byte) (bool, error) {
-	panic("implement")
+	return c.verifyBLSAggregateSignature(blockNumber, validatorIndexs, data, signatues)
 }
 
 func (c *StakeHandler) VerifyAggregateSignatureByValidators(validators []common.Address, data common.Hash, signatues []byte) (bool, error) {
-	panic("implement")
+	return c.verifyBLSAggregateSignatureByValidators(validators, data, signatues)
 }
 
 func (c *StakeHandler) WithdrawableOfDelegate(validator common.Address, delegater common.Address) (*big.Int, error) {

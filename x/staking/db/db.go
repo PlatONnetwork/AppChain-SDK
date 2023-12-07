@@ -352,9 +352,9 @@ func RemoveValidatorPriority(db sdk.StateDB, addr common.Address, epoch, stakeIn
 	return nil
 }
 
-func RankPriorityValidatorIds(db sdk.StateDBReader, addr common.Address, size uint64) types.ValidatorIds {
+func RankPriorityValidatorIds(db sdk.StateDBReader, addr common.Address, size uint64) types.ValidatorAddrQueue {
 
-	arr := make(types.ValidatorIds, size)
+	arr := types.NewValidatorAddrQueue(size)
 	var count uint64 = 0
 
 	headItem := getValidatorPriorityByKey(db, addr, EncodePriorityValidatorHeadKey())
@@ -1262,7 +1262,7 @@ func GetEpochValidatorSharesSnapshotQueue(db sdk.StateDBReader, addr common.Addr
 	return nil
 }
 
-func GetEpochValidatorIds(db sdk.StateDBReader, addr common.Address, epoch uint64) types.ValidatorIds {
+func GetEpochValidatorIds(db sdk.StateDBReader, addr common.Address, epoch uint64) types.ValidatorAddrQueue {
 	value := db.GetState(addr, encodeEpochValidatorSharesSnapshotQueueKey(epoch))
 	if len(value) == 0 {
 		return nil
@@ -1273,7 +1273,7 @@ func GetEpochValidatorIds(db sdk.StateDBReader, addr common.Address, epoch uint6
 		return nil
 	}
 
-	ids := make(types.ValidatorIds, len(queue))
+	ids := types.NewValidatorAddrQueue(uint64(len(queue)))
 
 	for i, v := range queue {
 		ids[i] = v.ValidatorAddr
@@ -1303,7 +1303,7 @@ func GetRoundValidatorSharesSnapshotQueue(db sdk.StateDBReader, addr common.Addr
 	return nil
 }
 
-func GetRoundValidatorIds(db sdk.StateDBReader, addr common.Address, round uint64) types.ValidatorIds {
+func GetRoundValidatorIds(db sdk.StateDBReader, addr common.Address, round uint64) types.ValidatorAddrQueue {
 	value := db.GetState(addr, encodeRoundValidatorSharesSnapshotQueueKey(round))
 	if len(value) == 0 {
 		return nil
@@ -1313,7 +1313,7 @@ func GetRoundValidatorIds(db sdk.StateDBReader, addr common.Address, round uint6
 		return nil
 	}
 
-	ids := make(types.ValidatorIds, len(queue))
+	ids := types.NewValidatorAddrQueue(uint64(len(queue)))
 
 	for i, v := range queue {
 		ids[i] = v.ValidatorAddr
@@ -1371,7 +1371,7 @@ func HasNotLowBlocksValidator(db sdk.StateDBReader, addr common.Address, minRoun
 	return !HasLowBlocksValidator(db, addr, minRoundValidatorBlockNumber)
 }
 
-func CheckLowBlocksValidatorForPreviousRound(db sdk.StateDBReader, addr common.Address, minRoundValidatorBlockNumber uint64) types.ValidatorIds {
+func CheckLowBlocksValidatorForPreviousRound(db sdk.StateDBReader, addr common.Address, minRoundValidatorBlockNumber uint64) types.ValidatorAddrQueue {
 	currentRound := stagedb.GetCurrentRound(db, addr)
 	if currentRound == 1 {
 		return nil
@@ -1381,12 +1381,12 @@ func CheckLowBlocksValidatorForPreviousRound(db sdk.StateDBReader, addr common.A
 	previousRoundValidatorAddrQueue := GetRoundValidatorIds(db, addr, previousRound)
 
 	cache := getNumberOfBlocksForRoundValidatorsMap(db, addr, previousRoundValidatorAddrQueue, previousRound)
-	validators := make(types.ValidatorIds, 0)
+	validatorAddrs := types.ValidatorAddrQueue(uint64(0))
 
 	for validatorAddr, number := range cache {
 		if number < minRoundValidatorBlockNumber {
-			validators = append(validators, validatorAddr)
+			validatorAddrs = append(validatorAddrs, validatorAddr)
 		}
 	}
-	return validators
+	return validatorAddrs
 }

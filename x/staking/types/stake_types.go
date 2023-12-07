@@ -269,9 +269,14 @@ func (pv *PriorityValidator) IsNotEmpty() bool {
 	return !pv.IsEmpty()
 }
 
-type ValidatorIds []common.Address
+type ValidatorAddrQueue []common.Address
 
-func (ids ValidatorIds) String() string {
+func NewValidatorAddrQueue(size uint64) ValidatorAddrQueue {
+	queue := make(ValidatorAddrQueue, size)
+	return queue
+}
+
+func (ids ValidatorAddrQueue) String() string {
 	arr := make([]string, len(ids))
 	for i, id := range ids {
 		arr[i] = id.Hex()
@@ -279,7 +284,7 @@ func (ids ValidatorIds) String() string {
 	return "[" + strings.Join(arr, ",") + "]"
 }
 
-func (ids ValidatorIds) Has(validatorId common.Address) bool {
+func (ids ValidatorAddrQueue) Has(validatorId common.Address) bool {
 	for _, id := range ids {
 		if id == validatorId {
 			return true
@@ -288,7 +293,7 @@ func (ids ValidatorIds) Has(validatorId common.Address) bool {
 	return false
 }
 
-func (ids ValidatorIds) Remove(validatorIds ...common.Address) ValidatorIds {
+func (ids ValidatorAddrQueue) Remove(validatorIds ...common.Address) ValidatorAddrQueue {
 	cache := make(map[common.Address]struct{}, 0)
 	for _, id := range validatorIds {
 		cache[id] = struct{}{}
@@ -303,11 +308,11 @@ func (ids ValidatorIds) Remove(validatorIds ...common.Address) ValidatorIds {
 	return ids
 }
 
-func (ids ValidatorIds) IsEmpty() bool {
+func (ids ValidatorAddrQueue) IsEmpty() bool {
 	return len(ids) == 0
 }
 
-func (ids ValidatorIds) IsNotEmpty() bool {
+func (ids ValidatorAddrQueue) IsNotEmpty() bool {
 	return !ids.IsEmpty()
 }
 

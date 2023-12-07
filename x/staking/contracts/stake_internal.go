@@ -3,6 +3,7 @@ package contracts
 import (
 	"crypto/ecdsa"
 	"encoding/hex"
+	"fmt"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
@@ -546,4 +547,54 @@ func (c *StakeHandler) syncStateSlash(validators []common.Address) error {
 		return typesdk.NewRevertError("call slash by L2StateSender failed")
 	}
 	return nil
+}
+
+func (c *StakeHandler) verifyBLSAggregateSignature(blockNumber *big.Int, validatorIndexs []*big.Int, data common.Hash, signatues []byte) (bool, error) {
+
+	// NOTE: Optimization of queries, search for the validator list for the last 100 rounds
+	round, _, _ := c.stageModule.GetRoundAndBlockBoundByBlockNumber(c.evm.StateDB, blockNumber.Uint64(), 100)
+
+	validatorSnapQueue := db.GetRoundValidatorSharesSnapshotQueue(c.evm.StateDB, c.contract.Address(), round)
+	if len(validatorSnapQueue) == 0 {
+		log.Error("Not found round validators", "blockNumber", blockNumber, "round", round)
+		return false, typesdk.NewRevertError("round validators not found")
+	}
+
+	validatorAddrQueue := types.NewValidatorAddrQueue(uint64(0))
+
+	for _, index := range validatorIndexs {
+		if index.Uint64() >= uint64(len(validatorSnapQueue)) {
+			return false, typesdk.NewRevertError(fmt.Sprintf("invalid index, out of bound, index %d, validators size %d",
+				index.Uint64(), len(validatorSnapQueue)))
+		}
+		snap := validatorSnapQueue[index.Uint64()]
+		if snap.IsEmpty() {
+			return false, typesdk.NewRevertError(fmt.Sprintf("not found validator by index, index %d, validators size %d",
+				index.Uint64(), len(validatorSnapQueue)))
+		}
+		validatorAddrQueue = append(validatorAddrQueue, snap.ValidatorAddr)
+	}
+	return c.verifyBLSAggregateSignatureByValidators(validatorAddrQueue, data, signatues)
+}
+
+func (c *StakeHandler) verifyBLSAggregateSignatureByValidators(validatorAddrs []common.Address, data common.Hash, signatues []byte) (bool, error) {
+
+	var pub bls.PublicKey
+
+	for _, validatorAddr := range validatorAddrs {
+
+		validator := db.GetValidator(c.evm.StateDB, c.contract.Address(), validatorAddr)
+
+		if validator.IsEmpty() {
+			return false, typesdk.NewRevertError(fmt.Sprintf("not found validator by index, validatorAddr %s", validatorAddr.Hex()))
+		}
+
+		pub.Add(validator.BlsKey) // Aggregating BLS pubKey
+	}
+
+	var sig bls.Sign
+	if err := sig.Deserialize(signatues); nil != err {
+		return false, typesdk.NewRevertError("invalid signatures")
+	}
+	return sig.Verify(&pub, string(data[:])), nil
 }
