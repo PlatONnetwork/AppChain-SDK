@@ -1381,12 +1381,12 @@ func CheckLowBlocksValidatorForPreviousRound(db sdk.StateDBReader, addr common.A
 	previousRoundValidatorAddrQueue := GetRoundValidatorIds(db, addr, previousRound)
 
 	cache := getNumberOfBlocksForRoundValidatorsMap(db, addr, previousRoundValidatorAddrQueue, previousRound)
-	validatorAddrs := types.ValidatorAddrQueue(uint64(0))
+	validatorAddrQueue := types.NewValidatorAddrQueue(0)
 
 	for validatorAddr, number := range cache {
 		if number < minRoundValidatorBlockNumber {
-			validatorAddrs = append(validatorAddrs, validatorAddr)
+			validatorAddrQueue = append(validatorAddrQueue, validatorAddr)
 		}
 	}
-	return validatorAddrs
+	return validatorAddrQueue
 }

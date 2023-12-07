@@ -48,7 +48,7 @@ func GetCurrentNonceAndProof(db sdk.StateDBReader, addr basecommon.Address, bloc
 }
 
 // from tail to head
-func GetNonceQueueUtil(db sdk.StateDBReader, addr basecommon.Address, blockNumber, size uint64) ([]basecommon.Hash, error) {
+func GetNonceQueueFromTail(db sdk.StateDBReader, addr basecommon.Address, blockNumber, size uint64) ([]basecommon.Hash, error) {
 
 	index := blockNumber
 	count := uint64(0)

@@ -13,6 +13,9 @@ type StageModuler interface {
 	GetCurrentRound(stateDB sdk.StateDBReader) uint64
 	GetCurrentEpoch(stateDB sdk.StateDBReader) uint64
 
+	GetRoundByBlockNumber(stateDB sdk.StateDBReader, blockNumber uint64) (uint64, error)
+	GetEpochByBlockNumber(stateDB sdk.StateDBReader, blockNumber uint64) (uint64, error)
+
 	IsElectionBlockOnCurrentRound(db sdk.StateDBReader, blockNumber uint64) bool
 	IsElectionBlockOnCurrentEpoch(db sdk.StateDBReader, blockNumber uint64) bool
 	IsBeginOfCurrentRound(stateDB sdk.StateDBReader, blockNumber uint64) bool
@@ -60,6 +63,6 @@ type RewardModuler interface {
 }
 
 type VRFModuler interface {
-	GetNonceQueueUtil(stateDB sdk.StateDBReader, blockNumber, size uint64) ([]common.Hash, error)
+	GetNonceQueueFromTail(stateDB sdk.StateDBReader, blockNumber, size uint64) ([]common.Hash, error)
 	GetCurrentNonce(stateDB sdk.StateDBReader, blockNumber uint64) (common.Hash, error)
 }

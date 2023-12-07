@@ -88,7 +88,7 @@ func GetEpochQueueSince(db sdk.StateDBReader, addr common.Address, epoch, size u
 	return queue[:count]
 }
 
-func GetEpochQueueUtil(db sdk.StateDBReader, addr common.Address, epoch, size uint64) types.EpochQueue {
+func GetEpochQueueFromTail(db sdk.StateDBReader, addr common.Address, epoch, size uint64) types.EpochQueue {
 	queue := types.NewEpochQueue(size)
 
 	var count uint64 = 0
@@ -120,7 +120,7 @@ func GetEpochQueueAndIndexSince(db sdk.StateDBReader, addr common.Address, epoch
 	return epochs[:count], queue[:count]
 }
 
-func GetEpochQueueAndIndexUtil(db sdk.StateDBReader, addr common.Address, epoch, size uint64) ([]uint64, types.EpochQueue) {
+func GetEpochQueueAndIndexFromTail(db sdk.StateDBReader, addr common.Address, epoch, size uint64) ([]uint64, types.EpochQueue) {
 	queue := types.NewEpochQueue(size)
 	epochs := make([]uint64, size)
 
@@ -185,7 +185,7 @@ func GetRoundQueueSince(db sdk.StateDBReader, addr common.Address, round, size u
 	return queue[:count]
 }
 
-func GetRoundQueueUtil(db sdk.StateDBReader, addr common.Address, round, size uint64) types.RoundQueue {
+func GetRoundQueueFromTail(db sdk.StateDBReader, addr common.Address, round, size uint64) types.RoundQueue {
 	queue := types.NewRoundQueue(size)
 
 	var count uint64 = 0
@@ -279,7 +279,7 @@ func IsNotElectionBlockOnCurrentRound(db sdk.StateDBReader, addr common.Address,
 func IsBeginOfRound(db sdk.StateDBReader, addr common.Address, blockNumber, size uint64) bool {
 
 	currentRound := GetCurrentRound(db, addr)
-	queue := GetRoundQueueUtil(db, addr, currentRound, size)
+	queue := GetRoundQueueFromTail(db, addr, currentRound, size)
 	for _, item := range queue {
 		if item.StartBlock == blockNumber {
 			return true
@@ -321,7 +321,7 @@ func IsNotBeginOfNextRound(db sdk.StateDBReader, addr common.Address, blockNumbe
 func IsEndOfRound(db sdk.StateDBReader, addr common.Address, blockNumber, size uint64) bool {
 
 	currentRound := GetCurrentRound(db, addr)
-	queue := GetRoundQueueUtil(db, addr, currentRound, size)
+	queue := GetRoundQueueFromTail(db, addr, currentRound, size)
 	for _, item := range queue {
 		if item.EndBlock == blockNumber {
 			return true
@@ -373,7 +373,7 @@ func IsNotElectionBlockOnCurrentEpoch(db sdk.StateDBReader, addr common.Address,
 func IsBeginOfEpoch(db sdk.StateDBReader, addr common.Address, blockNumber, size uint64) bool {
 
 	currentEpoch := GetCurrentEpoch(db, addr)
-	queue := GetEpochQueueUtil(db, addr, currentEpoch, size)
+	queue := GetEpochQueueFromTail(db, addr, currentEpoch, size)
 	for _, item := range queue {
 		if item.StartBlock == blockNumber {
 			return true
@@ -414,7 +414,7 @@ func IsNotBeginOfNextEpoch(db sdk.StateDBReader, addr common.Address, blockNumbe
 
 func IsEndOfEpoch(db sdk.StateDBReader, addr common.Address, blockNumber, size uint64) bool {
 	currentEpoch := GetCurrentEpoch(db, addr)
-	queue := GetEpochQueueUtil(db, addr, currentEpoch, size)
+	queue := GetEpochQueueFromTail(db, addr, currentEpoch, size)
 	for _, item := range queue {
 		if item.EndBlock == blockNumber {
 			return true

@@ -131,7 +131,7 @@ func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) {
 	parentHash := ctx.Backend().CurrentHeader().ParentHash
 	if parentBlock != 0 {
 		parentHeader := ctx.Backend().GetBlock(parentHash, parentBlock).Header()
-		if err := stakewrap.SetNumberOfBlocksForRoundValidator(ctx.StateDB(), parentHeader); nil != err {
+		if err := s.setNumberOfBlocksForRoundValidator(ctx.StateDB(), parentHeader); nil != err {
 			panic(fmt.Sprintf("Failed to set number of blocks for round validators, parentBlock: %d, blockNumber: %d, error: %s", parentBlock, currentBlock, err))
 		}
 	}
@@ -255,6 +255,7 @@ func (s *StakeModule) IsEndOfEpoch(ctx sdk.ConsensusContext, blockNumber uint64)
 }
 func (s *StakeModule) GetEpochValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error) {
 
+	// NOTE: Optimization of queries, search for the validator list for the last 100 epochs
 	epoch, startBlock, _ := s.stageModule.GetEpochAndBlockBoundByBlockNumber(ctx.StateDB(), blockNumber, 100)
 	validatorSnapQueue := db.GetEpochValidatorSharesSnapshotQueue(ctx.StateDB(), s.Address(), epoch)
 	if len(validatorSnapQueue) == 0 {
@@ -321,6 +322,26 @@ func (s *StakeModule) IsCandidateNode(ctx sdk.ConsensusContext, nodeID enode.IDv
 	}
 
 	return false
+}
+
+// internal
+
+func (s *StakeModule) setNumberOfBlocksForRoundValidator(stateDB sdk.StateDB, header *types.Header) error {
+	// Extract the validator public key of the build block based on the signature in the block header
+	sign := header.Signature()
+	sealhash := header.SealHash().Bytes()
+	pk, err := crypto.SigToPub(sealhash, sign)
+	if nil != err {
+		return fmt.Errorf("can not sigToPub %s", err)
+	}
+	round, err := s.stageModule.GetRoundByBlockNumber(stateDB, header.Number.Uint64())
+	if nil != err {
+		return fmt.Errorf("get round by block %s", err)
+	}
+
+	db.IncrementNumberOfBlocksForRoundValidator(stateDB, s.Address(), crypto.PubkeyToAddress(*pk), round, 1)
+
+	return nil
 }
 
 func (s *StakeModule) electionRoundValidators(ctx sdk.WorkerContext, blockNumber uint64) error {

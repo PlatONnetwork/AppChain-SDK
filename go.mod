@@ -5,6 +5,7 @@ go 1.21
 require (
 	github.com/PlatONnetwork/PlatON-Go v1.5.0
 	github.com/stretchr/testify v1.7.0
+	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/test-go/testify v1.1.4
 	github.com/umbracle/ethgo v0.1.3
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
@@ -13,8 +14,6 @@ require (
 )
 
 require (
-	github.com/AlayaNetwork/Alaya-Go v0.16.2 // indirect
-	github.com/AlayaNetwork/graphql-go v1.2.1-0.20211227063951-8d66eefcb4e3 // indirect
 	github.com/PlatONnetwork/wagon v0.6.1-0.20201026015350-67507c2a7b96 // indirect
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/VictoriaMetrics/fastcache v1.6.0 // indirect
@@ -70,7 +69,6 @@ require (
 	github.com/shirou/gopsutil v3.21.4-0.20210419000835-c7a38de76ee5+incompatible // indirect
 	github.com/status-im/keycard-go v0.0.0-20190316090335-8537d3370df4 // indirect
 	github.com/supranational/blst v0.3.11 // indirect
-	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7 // indirect
 	github.com/tealeg/xlsx v1.0.5 // indirect
 	github.com/tklauser/go-sysconf v0.3.11 // indirect
 	github.com/tklauser/numcpus v0.6.0 // indirect
