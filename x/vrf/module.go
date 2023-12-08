@@ -5,8 +5,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/PlatONnetwork/AppChain-SDK/utils"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
-	"github.com/PlatONnetwork/AppChain-SDK/x/l1"
 	"github.com/PlatONnetwork/AppChain-SDK/x/util"
 	"github.com/PlatONnetwork/AppChain-SDK/x/vrf/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/vrf/contracts"
@@ -42,7 +42,7 @@ type VRFModule struct {
 func NewVRFModule(ctx *cli.Context, stage vrftypes.StageModuler) *VRFModule {
 	return &VRFModule{
 		logger:         log.New("module", "vrf"),
-		nodePrivateKey: l1.DecodeNodePrivateKey(ctx),
+		nodePrivateKey: utils.DecodeNodePrivateKey(ctx),
 		configParams:   config.DefualtVRFNetworkParams(),
 		stageModule:    stage,
 	}

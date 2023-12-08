@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/PlatONnetwork/AppChain-SDK/x/l2"
+	"github.com/PlatONnetwork/AppChain-SDK/utils"
 	"github.com/PlatONnetwork/AppChain-SDK/x/statesync"
 	"os"
 
@@ -18,7 +18,7 @@ func main() {
 	x.AddModuleInitFlags(cliApp)
 	checkpoint.AddModuleInitFlags(cliApp)
 	statesync.AddModuleInitFlags(cliApp)
-	l2.AddModuleInitFlags(cliApp)
+	utils.AddModuleInitFlags(cliApp)
 	app.InitApp(cliApp, func(ctx *cli.Context) sdk.App {
 		simApp, err := NewSimApp(ctx)
 		if err != nil {

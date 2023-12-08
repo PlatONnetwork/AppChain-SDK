@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/PlatONnetwork/AppChain-SDK/utils"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
-	"github.com/PlatONnetwork/AppChain-SDK/x/l1"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
@@ -42,7 +42,7 @@ type StakeModule struct {
 func NewStakeModule(ctx *cli.Context, l1Module staketypes.L1Moduler, stage staketypes.StageModuler) *StakeModule {
 	return &StakeModule{
 		logger:         log.New("module", "staking"),
-		nodePrivateKey: l1.DecodeNodePrivateKey(ctx),
+		nodePrivateKey: utils.DecodeNodePrivateKey(ctx),
 		configParams:   config.DefualtStakeNetworkParams(),
 		l1Module:       l1Module,
 		stageModule:    stage,

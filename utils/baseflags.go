@@ -1,4 +1,4 @@
-package l1
+package utils
 
 import (
 	"crypto/ecdsa"
