@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/utils"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
-	"github.com/PlatONnetwork/AppChain-SDK/x/util"
 	"github.com/PlatONnetwork/AppChain-SDK/x/vrf/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/vrf/contracts"
 	vrfdb "github.com/PlatONnetwork/AppChain-SDK/x/vrf/db"
@@ -124,7 +123,7 @@ func (v *VRFModule) EndBlock(ctx sdk.WorkerContext) {
 	header := ctx.Backend().CurrentHeader()
 
 	// not worker validator
-	if util.IsNotWorker(header) {
+	if !ctx.IsWorker() {
 		currentBlock := header.Number.Uint64()
 
 		// get nonceAndProof by block (After the `pushNonceAndProof` transaction was executed)
