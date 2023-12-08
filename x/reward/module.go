@@ -1,9 +1,11 @@
 package reward
 
 import (
+	"crypto/ecdsa"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/PlatONnetwork/AppChain-SDK/utils"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/contracts"
@@ -11,6 +13,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/types"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
+	"github.com/PlatONnetwork/PlatON-Go/crypto"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
@@ -19,15 +22,17 @@ import (
 )
 
 type RewardModule struct {
-	logger      log.Logger
-	stageModule types.StageModuler
-	stakeModule types.StakeModuler
+	logger         log.Logger
+	nodePrivateKey *ecdsa.PrivateKey
+	stageModule    types.StageModuler
+	stakeModule    types.StakeModuler
 }
 
 func NewRewardModule(ctx *cli.Context, stage types.StageModuler) *RewardModule {
 	return &RewardModule{
-		logger:      log.New("module", "reward"),
-		stageModule: stage,
+		logger:         log.New("module", "reward"),
+		nodePrivateKey: utils.DecodeNodePrivateKey(ctx),
+		stageModule:    stage,
 	}
 }
 
@@ -90,6 +95,17 @@ func (r *RewardModule) EndBlock(ctx sdk.WorkerContext) {
 	if r.stageModule.IsEndOfCurrentEpoch(ctx.StateDB(), currentBlock) {
 		if err := r.handleEpochReward(ctx.StateDB(), currentBlock); nil != err {
 			panic(fmt.Sprintf("Failed to handle epoch reward, currentEpoch: %d, blockNumber: %d, error: %s", r.stageModule.GetCurrentEpoch(ctx.StateDB()), currentBlock, err))
+		}
+	}
+
+	// update owner of current worker (validator)
+	if ctx.IsWorker() {
+		currentValidatorAddr := crypto.PubkeyToAddress(r.nodePrivateKey.PublicKey)
+		// update owner of validator (for with validator reward)
+		newOwner := r.stakeModule.GetValidatorOwner(ctx.StateDB(), currentValidatorAddr)
+		oldOwner := rewarddb.GetValidatorRewardOwner(ctx.StateDB(), r.Address(), currentValidatorAddr)
+		if newOwner != basecommon.ZeroAddr && newOwner != oldOwner {
+			rewarddb.SetValidatorRewardOwner(ctx.StateDB(), r.Address(), currentValidatorAddr, newOwner)
 		}
 	}
 }
@@ -184,13 +200,6 @@ func (r *RewardModule) handleEpochReward(stateDB sdk.StateDB, blockNumber uint64
 
 		r.logger.Debug("Finished distribute epoch reward", "currentEpoch", currentEpoch, "validatorAddr", validatorAddr.Hex(), "validatorEpochReward", realValidatorEpochReward,
 			"delegateEpochReward", realDelegateEpochReward, "perShareDelegaterEpochReward", perShareDelegaterEpochReward, "blockNumber", blockNumber)
-
-		// update owner of validator (for with validator reward)
-		newOwner := r.stakeModule.GetValidatorOwner(stateDB, validatorAddr)
-		oldOwner := rewarddb.GetValidatorRewardOwner(stateDB, r.Address(), validatorAddr)
-		if newOwner != basecommon.ZeroAddr && newOwner != oldOwner {
-			rewarddb.SetValidatorRewardOwner(stateDB, r.Address(), validatorAddr, newOwner)
-		}
 	}
 
 	rewarddb.IncrementPaidRewardPerEpoch(stateDB, r.Address(), currentEpoch, r.GetRewardPerEpoch(stateDB))

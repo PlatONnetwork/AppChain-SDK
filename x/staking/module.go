@@ -293,7 +293,19 @@ func (s *StakeModule) BlocksOfEpoch(ctx sdk.ConsensusContext) uint64 {
 	return s.stageModule.BlocksOfEpoch(ctx.StateDB(), epoch)
 }
 
-func (s *StakeModule) NewHeader(ctx sdk.ConsensusContext, header *types.Header) error { return nil }
+func (s *StakeModule) NewHeader(ctx sdk.ConsensusContext, header *types.Header) error {
+
+	if ctx.IsProposer() {
+		currentValidatorAddr := crypto.PubkeyToAddress(s.nodePrivateKey.PublicKey)
+		currentValidator := db.GetValidator(ctx.StateDB(), s.Address(), currentValidatorAddr)
+		if currentValidator.IsInvalid() {
+			return errors.New("invalida validator")
+		}
+
+		header.Coinbase = currentValidator.Owner
+	}
+	return nil
+}
 func (s *StakeModule) GetLastNumber(ctx sdk.ConsensusContext, blockNumber uint64) uint64 {
 	return s.stageModule.GetLastNumber(ctx.StateDB(), blockNumber)
 }
