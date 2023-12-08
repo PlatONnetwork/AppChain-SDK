@@ -5,10 +5,14 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/merkle"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
+	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
+	contracts2 "github.com/PlatONnetwork/AppChain-SDK/x/staking/contracts"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
 	"github.com/PlatONnetwork/PlatON-Go/common"
+	types2 "github.com/PlatONnetwork/PlatON-Go/consensus/cbft/types"
+	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/utils"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
@@ -111,6 +115,38 @@ func (c *StateReceiver) Commit(commitment StateSyncCommitment, index uint64, vot
 }
 
 func (c *StateReceiver) verifySignature(qc *QuorumCert) error {
+	caller, err := contracts2.NewStakeHandlerCaller(c.evm, c.contract, constants.StakeHandlerAddress)
+	if err != nil {
+		return err
+	}
+	sets := utils.BitArray{Bits: qc.ValidatorSet.Bits, Elems: qc.ValidatorSet.Elems}
+	var index []*big.Int
+	for i := uint32(0); i < sets.Size(); i++ {
+		if sets.GetIndex(i) {
+			index = append(index, big.NewInt(int64(i)))
+		}
+	}
+
+	cbftqc := &types2.QuorumCert{
+		Epoch:        qc.Epoch,
+		ViewNumber:   qc.ViewNumber,
+		BlockHash:    qc.BlockHash,
+		BlockNumber:  qc.BlockNumber,
+		BlockIndex:   qc.BlockIndex,
+		ExtendHash:   qc.ExtendHash,
+		ValidatorSet: nil,
+	}
+	data, err := cbftqc.CannibalizeBytes()
+	if err != nil {
+		return err
+	}
+	success, err := caller.VerifyAggregateSignature(new(big.Int).SetUint64(qc.BlockNumber), index, common.BytesToHash(data), qc.Signature)
+	if err != nil {
+		return err
+	}
+	if !success {
+		return errors.New("verify qc failed")
+	}
 	return nil
 }
 

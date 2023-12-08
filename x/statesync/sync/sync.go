@@ -43,9 +43,10 @@ type L1Sync struct {
 	stateSenderAddr common.Address
 	cli             PlatonClient
 	db              *L1SyncDB
+	updateCh        chan struct{}
 }
 
-func NewL1Sync(stateSenderAddr common.Address, url string, start *big.Int, db store.Store) (*L1Sync, error) {
+func NewL1Sync(stateSenderAddr common.Address, url string, start *big.Int, db store.Store, updateCh chan struct{}) (*L1Sync, error) {
 	syncdb := NewL1SyncDB(db)
 	log := log.New("l1sync")
 
@@ -66,6 +67,7 @@ func NewL1Sync(stateSenderAddr common.Address, url string, start *big.Int, db st
 		stateSenderAddr: stateSenderAddr,
 		cli:             cli,
 		db:              syncdb,
+		updateCh:        updateCh,
 	}, nil
 }
 
@@ -151,5 +153,6 @@ func (l *L1Sync) handleLogs(logs []types.Log) error {
 	if err := l.db.WriteStateSenderEvent(events); err != nil {
 		return err
 	}
+	l.updateCh <- struct{}{}
 	return nil
 }

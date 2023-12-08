@@ -81,7 +81,13 @@ func (s *StateSync) PrepareQCImpl(block *protocols.PrepareBlock, votes map[uint3
 func (s *StateSync) MaxSyncId() *big.Int {
 	//TODO 获取验证人列表
 	quorumId := s.p2p.GetQuorumSyncId(nil)
+	if quorumId == nil {
+		quorumId = big.NewInt(0)
+	}
 	id, _ := s.l1Sync.SyncDB().GetMaxSyncId()
+	if id == nil {
+		id = big.NewInt(0)
+	}
 	if id.Cmp(quorumId) > 0 {
 		return quorumId
 	}

@@ -1,10 +1,12 @@
 package statesync
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/utils"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
+	"github.com/PlatONnetwork/PlatON-Go/log"
 	"math/big"
 
 	"github.com/PlatONnetwork/AppChain-SDK/store"
@@ -25,6 +27,7 @@ import (
 
 // 同步 L1 事件， 提供 ExtraData，验证 ExtraData
 type StateSync struct {
+	logger       log.Logger
 	rpcAddress   string
 	keystoreFile string
 	passwordFile string
@@ -36,6 +39,7 @@ type StateSync struct {
 	eventProofDb *EventProofDB
 	backend      sdk.Backend
 	p2p          *SyncP2P
+	syncUpdateCh chan struct{}
 }
 
 // TODO 启动查询合约执行的ID序号，定位同步的起始点
@@ -47,6 +51,7 @@ func NewStateSync(ctx *cli.Context, store store.Store, extraDb *extravote.ExtraV
 	}
 	eventProofDb := NewEventProofDB(store)
 	return &StateSync{
+		logger:       log.New("module", "statesync"),
 		rpcAddress:   ctx.GlobalString(x.RootchainNodeRPCFlag.Name),
 		keystoreFile: ctx.GlobalString(utils.KeystoreFlag.Name),
 		passwordFile: ctx.GlobalString(utils.PasswordFlag.Name),
@@ -55,6 +60,7 @@ func NewStateSync(ctx *cli.Context, store store.Store, extraDb *extravote.ExtraV
 		eventProofDb: eventProofDb,
 		extraDb:      extraDb,
 		p2p:          NewSyncP2P(),
+		syncUpdateCh: make(chan struct{}),
 	}, nil
 }
 
@@ -73,13 +79,34 @@ func (s *StateSync) Init() error {
 	}
 	s.privateKey = key.PrivateKey
 
-	l1Sync, err := sync.NewL1Sync(constants.StateSyncAddress, s.rpcAddress, s.startBlock, s.store)
+	l1Sync, err := sync.NewL1Sync(constants.StateSyncAddress, s.rpcAddress, s.startBlock, s.store, s.syncUpdateCh)
 	if err != nil {
 		return err
 	}
 	s.l1Sync = l1Sync
-
+	go s.p2p.Run(context.Background())
+	go s.p2p.Run(context.Background())
 	return nil
+}
+
+func (s *StateSync) listen(ctx context.Context) error {
+	for {
+		select {
+		case <-s.syncUpdateCh:
+			id, err := s.l1Sync.SyncDB().GetMaxSyncId()
+			if err != nil || id == nil {
+				s.logger.Warn("get max sync id failed", "err", err)
+			}
+			number, err := s.l1Sync.SyncDB().LastBlockNumber()
+			if err != nil || id == nil {
+				s.logger.Warn("get last block number failed", "err", err)
+			}
+			s.p2p.SetSyncStatus(&SyncStatus{Id: id, BlockNumber: number})
+			s.logger.Debug("set sync statue", "id", id, "number", number)
+		case <-ctx.Done():
+			break
+		}
+	}
 }
 
 func (s *StateSync) Address() common.Address {

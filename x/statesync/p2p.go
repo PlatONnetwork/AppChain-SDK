@@ -1,13 +1,19 @@
 package statesync
 
 import (
+	"context"
 	"errors"
 	"math/big"
 	"slices"
 	"sync"
+	"time"
 
 	sdkp2p "github.com/PlatONnetwork/AppChain-SDK/p2p"
 	"github.com/PlatONnetwork/PlatON-Go/p2p"
+)
+
+const (
+	loopInterval = time.Second * 2
 )
 
 type Heartbeat struct {
@@ -57,6 +63,17 @@ func (s *SyncP2P) sendHeartbeat() {
 	s.p2p.Broadcast(nil, nil, &Heartbeat{
 		SyncStatus: *s.syncStatus,
 	})
+}
+func (s *SyncP2P) Run(ctx context.Context) {
+	timer := time.AfterFunc(loopInterval, func() {
+		s.sendHeartbeat()
+	})
+	go func() {
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+		}
+	}()
 }
 
 func (s *SyncP2P) handleMsg(peer sdkp2p.Peer, msg sdkp2p.Message) error {
