@@ -49,13 +49,13 @@ type StageModuler interface {
 }
 
 type StakeModuler interface {
-	StakeWithdrawalWaitPeriod() uint64
-	DelegateWithdrawalWaitPeriod() uint64
-	SlashingPercentage() uint64
-	SlashIncentivePercentage() uint64
-	MaxRoundValidatorsSize() uint64
-	MaxEpochValidatorsSize() uint64
-	MinRoundValidatorBlockNumber() uint64
+	GetStakeWithdrawalWaitPeriod(stateDB sdk.StateDBReader) uint64
+	GetDelegateWithdrawalWaitPeriod(stateDB sdk.StateDBReader) uint64
+	GetSlashingPercentage(stateDB sdk.StateDBReader) uint64
+	GetSlashIncentivePercentage(stateDB sdk.StateDBReader) uint64
+	GetMaxRoundValidatorsSize(stateDB sdk.StateDBReader) uint64
+	GetMaxEpochValidatorsSize(stateDB sdk.StateDBReader) uint64
+	GetMinRoundValidatorBlockNumber(stateDB sdk.StateDBReader) uint64
 }
 
 type RewardModuler interface {

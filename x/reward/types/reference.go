@@ -41,6 +41,6 @@ type StakeModuler interface {
 type RewardModuler interface {
 	UpdateDelegationRewards(stateDB sdk.StateDB, delegaterAddr, validatorAddr basecommon.Address) error
 
-	RewardPerBlock() *big.Int
-	RewardPerEpoch() *big.Int
+	GetRewardPerBlock(stateDB sdk.StateDBReader) *big.Int
+	GetRewardPerEpoch(stateDB sdk.StateDBReader) *big.Int
 }

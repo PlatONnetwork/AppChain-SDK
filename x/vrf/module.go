@@ -33,7 +33,6 @@ var (
 
 type VRFModule struct {
 	logger         log.Logger
-	configParams   *config.VRFNetworkParams
 	nodePrivateKey *ecdsa.PrivateKey
 	stageModule    vrftypes.StageModuler
 	stakeModule    vrftypes.StakeModuler
@@ -43,7 +42,6 @@ func NewVRFModule(ctx *cli.Context, stage vrftypes.StageModuler) *VRFModule {
 	return &VRFModule{
 		logger:         log.New("module", "vrf"),
 		nodePrivateKey: utils.DecodeNodePrivateKey(ctx),
-		configParams:   config.DefualtVRFNetworkParams(),
 		stageModule:    stage,
 	}
 }
@@ -56,19 +54,22 @@ func (v *VRFModule) Name() string {
 	return "staking"
 }
 func (v *VRFModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
-	var conf config.VRFNetworkParams
+
+	configParams := config.DefualtVRFNetworkParams()
 	raw, err := data.MarshalJSON()
 	if nil != err {
 		log.Error("Failed MarshalJSON VRFNetworkParams bytes", "error", err)
 	}
+
+	var conf config.VRFNetworkParams
 	if err := json.Unmarshal(raw, &conf); nil != err {
 		log.Error("Failed UnmarshalJSON VRFNetworkParams", "error", err)
 	} else {
-		v.configParams = &conf
+		configParams = &conf
 	}
 
 	// set genesis vrf nonce (32 byte)
-	vrfdb.SetNonceAndProof(db, v.Address(), 0, v.configParams.GenesisVRFNonce.Bytes())
+	vrfdb.SetNonceAndProof(db, v.Address(), 0, configParams.GenesisVRFNonce.Bytes())
 
 	log.Info("Succeed init genesis", "module", v.Name(), "VRFNetworkParams", string(raw))
 }

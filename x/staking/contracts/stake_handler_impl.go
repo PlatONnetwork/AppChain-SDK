@@ -109,7 +109,7 @@ func (c *StakeHandler) OnStateReceive(id *big.Int, sender common.Address, data [
 
 func (c *StakeHandler) Slash() error {
 
-	validators := db.CheckLowBlocksValidatorForPreviousRound(c.evm.StateDB, c.contract.Address(), c.stakeModule.MinRoundValidatorBlockNumber())
+	validators := db.CheckLowBlocksValidatorForPreviousRound(c.evm.StateDB, c.contract.Address(), c.stakeModule.GetMinRoundValidatorBlockNumber(c.evm.StateDB))
 	// ###### NOTE: ######
 	// remove validator from epoch validators
 	cache := make(map[common.Address]struct{}, 0)
