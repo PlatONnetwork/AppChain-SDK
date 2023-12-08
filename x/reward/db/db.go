@@ -21,6 +21,12 @@ var (
 	ErrInvalidValue = errors.New("invalid value")
 )
 
+// Will be governed in the future
+var (
+	rewardPerBlockKey = []byte("rewardPerBlock")
+	rewardPerEpochKey = []byte("rewardPerEpoch")
+)
+
 var (
 	paidRewardPerEpochKeyPrefix     = []byte("paidRewardPerEpoch")     // "paidRewardPerEpoch":epochId => paidRewards
 	pendingValidatorRewardKeyPrefix = []byte("pendingValidatorReward") // "pendingValidatorReward":validatorAddr => pendingRewards
@@ -32,6 +38,16 @@ var (
 	epochDelegationRewardPerShareItemKeyPrefix = []byte("epochDelegationRewardPerShareItem") // "epochDelegationRewardPerShareItem":validatorAddr:stakeEpoch:rewardEpoch => epochRewardPerDelegationShareItem{ preRewardEpoch, nextRewardEpoch, totalReward, perShareReward}
 )
 
+// ------
+
+func EncodeRewardPerBlock() []byte {
+	return rewardPerBlockKey
+}
+func EncodeRewardPerEpoch() []byte {
+	return rewardPerEpochKey
+}
+
+// ------
 func encodePaidRewardPerEpochKey(epoch uint64) []byte {
 	return append(paidRewardPerEpochKeyPrefix, basecommon.Uint64ToBytes(epoch)...)
 }
@@ -62,26 +78,6 @@ func encodeValidatorRewardOwnerKey(validatorAddr basecommon.Address) []byte {
 	return append(validatorRewardOwnerKeyPrefix, validatorAddr.Bytes()...)
 }
 
-//func encodeDelegaterRewardPendingIndexKey(delegaterAddr, validatorAddr basecommon.Address, stakeEpoch uint64) []byte {
-//	delegaterAddrBytes := delegaterAddr.Bytes()
-//	validatorAddrBytes := validatorAddr.Bytes()
-//	stakeEpochBytes := common.Uint64ToBytes(stakeEpoch)
-//
-//	keyPrefixSize := len(delegaterRewardPendingIndexKeyPrefix)
-//	appendDelegaterSize := keyPrefixSize + len(delegaterAddrBytes)
-//	appendVlidatorAddrSize := appendDelegaterSize + len(validatorAddrBytes)
-//	size := appendVlidatorAddrSize + len(stakeEpochBytes)
-//
-//	key := make([]byte, size)
-//
-//	copy(key[:keyPrefixSize], delegaterRewardPendingIndexKeyPrefix)
-//	copy(key[keyPrefixSize:appendDelegaterSize], delegaterAddrBytes)
-//	copy(key[appendDelegaterSize:appendVlidatorAddrSize], validatorAddrBytes)
-//	copy(key[appendVlidatorAddrSize:], stakeEpochBytes)
-//
-//	return key
-//}
-
 func encodeEpochDelegationRewardPerShareItemKey(validatorAddr basecommon.Address, stakeEpoch, rewardEpoch uint64) []byte {
 
 	validatorAddrBytes := validatorAddr.Bytes()
@@ -101,6 +97,30 @@ func encodeEpochDelegationRewardPerShareItemKey(validatorAddr basecommon.Address
 	copy(key[appendStakeEpochSize:], rewardEpochBytes)
 
 	return key
+}
+
+// ------------------------------------------------------ db methods ------------------------------------------------------
+
+func SetRewardPerBlock(db sdk.StateDB, addr basecommon.Address, value *big.Int) {
+	db.SetState(addr, EncodeRewardPerBlock(), value.Bytes())
+}
+func GetRewardPerBlock(db sdk.StateDBReader, addr basecommon.Address) *big.Int {
+	value := db.GetState(addr, EncodeRewardPerBlock())
+	if len(value) == 0 {
+		return basecommon.Big0
+	}
+	return new(big.Int).SetBytes(value)
+}
+
+func SetRewardPerEpoch(db sdk.StateDB, addr basecommon.Address, value *big.Int) {
+	db.SetState(addr, EncodeRewardPerEpoch(), value.Bytes())
+}
+func GetRewardPerEpoch(db sdk.StateDBReader, addr basecommon.Address) *big.Int {
+	value := db.GetState(addr, EncodeRewardPerEpoch())
+	if len(value) == 0 {
+		return basecommon.Big0
+	}
+	return new(big.Int).SetBytes(value)
 }
 
 // ------

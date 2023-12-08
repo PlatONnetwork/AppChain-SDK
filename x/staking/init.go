@@ -13,7 +13,18 @@ import (
 	"math/big"
 )
 
-func initValidatorPriority(statedb sdk.StateDB, addr common.Address) error {
+func initStakeConfigParams(statedb sdk.StateDB, addr common.Address, stakeNetworkParams *config.StakeNetworkParams) {
+
+	statedb.SetState(addr, stakingdb.EncodeStakeWithdrawalWaitPeriodKey(), common.Uint64ToBytes(stakeNetworkParams.StakeWithdrawalWaitPeriod))
+	statedb.SetState(addr, stakingdb.EncodeDelegateWithdrawalWaitPeriodKey(), common.Uint64ToBytes(stakeNetworkParams.DelegateWithdrawalWaitPeriod))
+	statedb.SetState(addr, stakingdb.EncodeSlashingPercentageKey(), common.Uint64ToBytes(stakeNetworkParams.SlashingPercentage))
+	statedb.SetState(addr, stakingdb.EncodeSlashIncentivePercentageKey(), common.Uint64ToBytes(stakeNetworkParams.SlashIncentivePercentage))
+	statedb.SetState(addr, stakingdb.EncodeMaxRoundValidatorsSizeKey(), common.Uint64ToBytes(stakeNetworkParams.MaxRoundValidatorsSize))
+	statedb.SetState(addr, stakingdb.EncodeMaxEpochValidatorsSizeKey(), common.Uint64ToBytes(stakeNetworkParams.MaxEpochValidatorsSize))
+	statedb.SetState(addr, stakingdb.EncodeMinRoundValidatorBlockNumberKey(), common.Uint64ToBytes(stakeNetworkParams.MinRoundValidatorBlockNumber))
+}
+
+func initValidatorGenesisPriority(statedb sdk.StateDB, addr common.Address) error {
 	head := types.NewPriorityValidator(
 		stakingdb.EncodePriorityValidatorTailKey(),
 		stakingdb.EncodePriorityValidatorTailKey(),
@@ -40,7 +51,7 @@ func initValidatorPriority(statedb sdk.StateDB, addr common.Address) error {
 
 func initValidators(statedb sdk.StateDB, addr common.Address, chainConfig *params.ChainConfig, stakeNetworkParams *config.StakeNetworkParams) error {
 
-	if err := initValidatorPriority(statedb, addr); nil != err {
+	if err := initValidatorGenesisPriority(statedb, addr); nil != err {
 		return err
 	}
 

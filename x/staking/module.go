@@ -31,7 +31,6 @@ import (
 type StakeModule struct {
 	p2p            *stakingp2p.StakingP2P
 	logger         log.Logger
-	configParams   *config.StakeNetworkParams
 	nodePrivateKey *ecdsa.PrivateKey
 	l1Module       staketypes.L1Moduler
 	stageModule    staketypes.StageModuler
@@ -43,7 +42,6 @@ func NewStakeModule(ctx *cli.Context, l1Module staketypes.L1Moduler, stage stake
 	return &StakeModule{
 		logger:         log.New("module", "staking"),
 		nodePrivateKey: utils.DecodeNodePrivateKey(ctx),
-		configParams:   config.DefualtStakeNetworkParams(),
 		l1Module:       l1Module,
 		stageModule:    stage,
 	}
@@ -62,18 +60,23 @@ func (s *StakeModule) Name() string {
 }
 
 func (s *StakeModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
-	var conf config.StakeNetworkParams
+
+	configParams := config.DefualtStakeNetworkParams()
 	raw, err := data.MarshalJSON()
 	if nil != err {
 		log.Error("Failed MarshalJSON StakeNetworkParams bytes", "error", err)
 	}
+
+	var conf config.StakeNetworkParams
 	if err := json.Unmarshal(raw, &conf); nil != err {
 		log.Error("Failed UnmarshalJSON StakeNetworkParams", "error", err)
 	} else {
-		s.configParams = &conf
+		configParams = &conf
 	}
+	// store configParms
+	initStakeConfigParams(db, s.Address(), configParams)
 
-	if err := initValidators(db, s.Address(), chainConfig, s.configParams); nil != err {
+	if err := initValidators(db, s.Address(), chainConfig, configParams); nil != err {
 		log.Error("Failed initialize genesis validators", "error", err)
 		panic(err)
 	}
@@ -104,7 +107,7 @@ func (s *StakeModule) AddTxs(ctx sdk.WorkerContext, local, remote map[basecommon
 	}
 
 	// check low blocks validtors of round, and send slash tx
-	if db.HasNotLowBlocksValidator(ctx.StateDB(), s.Address(), s.MinRoundValidatorBlockNumber()) {
+	if db.HasNotLowBlocksValidator(ctx.StateDB(), s.Address(), s.GetMinRoundValidatorBlockNumber(ctx.StateDB())) {
 		return local, remote
 	}
 
@@ -138,7 +141,7 @@ func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) {
 
 	if s.stageModule.IsBeginOfCurrentRound(ctx.StateDB(), currentBlock) {
 		// check low blocks validators
-		lowBlocksValidatorAddrQueue := db.CheckLowBlocksValidatorForPreviousRound(ctx.StateDB(), s.Address(), s.MinRoundValidatorBlockNumber())
+		lowBlocksValidatorAddrQueue := db.CheckLowBlocksValidatorForPreviousRound(ctx.StateDB(), s.Address(), s.GetMinRoundValidatorBlockNumber(ctx.StateDB()))
 		// update validator status
 		for _, validatorAddr := range lowBlocksValidatorAddrQueue {
 			if err := s.updateValidatorStatus(ctx.StateDB(), validatorAddr, staketypes.Invalided|staketypes.LowBlocks); nil != err {
@@ -424,6 +427,8 @@ func (s *StakeModule) electionRoundValidators(ctx sdk.WorkerContext, blockNumber
 		diffValidatorSnapshotQueue = append(diffValidatorSnapshotQueue, snap)
 	}
 
+	maxRoundValidatorsSize := s.GetMaxRoundValidatorsSize(ctx.StateDB())
+
 	shuffle := func(invalidLen int, currentRoundValidatorQueue, vrfValidatorSnapshotQueue staketypes.ValidatorSortSnapshotQueue, blockNumber uint64) (staketypes.ValidatorSortSnapshotQueue, error) {
 
 		// increase term and use new shares  one by one
@@ -440,13 +445,13 @@ func (s *StakeModule) electionRoundValidators(ctx sdk.WorkerContext, blockNumber
 		copyQueue := make(staketypes.ValidatorSortSnapshotQueue, len(currentRoundValidatorQueue)-invalidLen)
 		// Remove the invalid validators
 		copy(copyQueue, currentRoundValidatorQueue[invalidLen:])
-		return stakewrap.ShuffleQueue(ctx.StateDB(), s.vrfModule, copyQueue, vrfValidatorSnapshotQueue, blockNumber, s.MaxRoundValidatorsSize())
+		return stakewrap.ShuffleQueue(ctx.StateDB(), s.vrfModule, copyQueue, vrfValidatorSnapshotQueue, blockNumber, maxRoundValidatorsSize)
 	}
 
 	var vrfValidatorSnapshotQueue staketypes.ValidatorSortSnapshotQueue
 	var vrfQueueSize uint64
-	if uint64(len(diffValidatorSnapshotQueue)) > s.MaxRoundValidatorsSize() {
-		vrfQueueSize = s.MaxRoundValidatorsSize()
+	if uint64(len(diffValidatorSnapshotQueue)) > maxRoundValidatorsSize {
+		vrfQueueSize = maxRoundValidatorsSize
 	} else {
 		vrfQueueSize = uint64(len(diffValidatorSnapshotQueue))
 	}
@@ -463,8 +468,8 @@ func (s *StakeModule) electionRoundValidators(ctx sdk.WorkerContext, blockNumber
 
 	s.logger.Debug("Call electionRoundValidators statistics",
 		"maybe remove current round validator count", len(maybeRemoveValidatorStatusCache), "unstake invalid validator count",
-		unstakeValidatorAddrCache, "current round validators count", len(currentRoundValidatorSnapQueue), "MAX ROUND VALIDATOR SIZE ", s.MaxRoundValidatorsSize(),
-		"maybe shift validator count", (s.MaxRoundValidatorsSize()-1)/3, "diff queue", len(diffValidatorSnapshotQueue),
+		unstakeValidatorAddrCache, "current round validators count", len(currentRoundValidatorSnapQueue), "MAX ROUND VALIDATOR SIZE ", maxRoundValidatorsSize,
+		"maybe shift validator count", (maxRoundValidatorsSize-1)/3, "diff queue", len(diffValidatorSnapshotQueue),
 		"vrf queue", len(vrfValidatorSnapshotQueue))
 
 	nextRoundValidatorQueue, err := shuffle(len(maybeRemoveValidatorStatusCache), currentRoundValidatorSnapQueue, vrfValidatorSnapshotQueue, blockNumber)
@@ -493,7 +498,7 @@ func (s *StakeModule) electionEpochValidators(ctx sdk.WorkerContext, blockNumber
 		return errors.New("block is not endBlock of current epoch")
 	}
 
-	validatorIds := db.RankPriorityValidatorIds(ctx.StateDB(), s.Address(), s.MaxEpochValidatorsSize())
+	validatorIds := db.RankPriorityValidatorIds(ctx.StateDB(), s.Address(), s.GetMaxEpochValidatorsSize(ctx.StateDB()))
 
 	if len(validatorIds) == 0 {
 		return errors.New("not found validatorIds")
@@ -658,24 +663,25 @@ func (s *StakeModule) UpdateDelegationEpoch(stateDB sdk.StateDB, delegaterAddr, 
 	return db.SetDelegation(stateDB, s.Address(), delegaterAddr, validatorAddr, stakeEpoch, del)
 }
 
-func (s *StakeModule) StakeWithdrawalWaitPeriod() uint64 {
-	return s.configParams.StakeWithdrawalWaitPeriod
+// ------
+func (s *StakeModule) GetStakeWithdrawalWaitPeriod(stateDB sdk.StateDBReader) uint64 {
+	return db.GetStakeWithdrawalWaitPeriod(stateDB, s.Address())
 }
-func (s *StakeModule) DelegateWithdrawalWaitPeriod() uint64 {
-	return s.configParams.DelegateWithdrawalWaitPeriod
+func (s *StakeModule) GetDelegateWithdrawalWaitPeriod(stateDB sdk.StateDBReader) uint64 {
+	return db.GetDelegateWithdrawalWaitPeriod(stateDB, s.Address())
 }
-func (s *StakeModule) SlashingPercentage() uint64 {
-	return s.configParams.SlashingPercentage
+func (s *StakeModule) GetSlashingPercentage(stateDB sdk.StateDBReader) uint64 {
+	return db.GetSlashingPercentage(stateDB, s.Address())
 }
-func (s *StakeModule) SlashIncentivePercentage() uint64 {
-	return s.configParams.SlashIncentivePercentage
+func (s *StakeModule) GetSlashIncentivePercentage(stateDB sdk.StateDBReader) uint64 {
+	return db.GetSlashIncentivePercentage(stateDB, s.Address())
 }
-func (s *StakeModule) MaxRoundValidatorsSize() uint64 {
-	return s.configParams.MaxRoundValidatorsSize
+func (s *StakeModule) GetMaxRoundValidatorsSize(stateDB sdk.StateDBReader) uint64 {
+	return db.GetMaxRoundValidatorsSize(stateDB, s.Address())
 }
-func (s *StakeModule) MaxEpochValidatorsSize() uint64 {
-	return s.configParams.MaxEpochValidatorsSize
+func (s *StakeModule) GetMaxEpochValidatorsSize(stateDB sdk.StateDBReader) uint64 {
+	return db.GetMaxEpochValidatorsSize(stateDB, s.Address())
 }
-func (s *StakeModule) MinRoundValidatorBlockNumber() uint64 {
-	return s.configParams.MinRoundValidatorBlockNumber
+func (s *StakeModule) GetMinRoundValidatorBlockNumber(stateDB sdk.StateDBReader) uint64 {
+	return db.GetMinRoundValidatorBlockNumber(stateDB, s.Address())
 }

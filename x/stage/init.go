@@ -9,6 +9,12 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 )
 
+func initConfigParams(statedb sdk.StateDB, addr common.Address, params *config.StageNetworkParams) {
+	statedb.SetState(addr, stagedb.EncodeRoundValidatorElectionDistanceKey(), common.Uint64ToBytes(params.RoundValidatorElectionDistance))
+	statedb.SetState(addr, stagedb.EncodeRoundSizeKey(), common.Uint64ToBytes(params.RoundSize))
+	statedb.SetState(addr, stagedb.EncodeEpochSizeKey(), common.Uint64ToBytes(params.EpochSize))
+}
+
 func initGenesisEpochItem(statedb sdk.StateDB, addr common.Address, params *config.StageNetworkParams) error {
 
 	zero := types.NewEpochItem(0, 0, 0)

@@ -19,17 +19,15 @@ import (
 )
 
 type RewardModule struct {
-	logger       log.Logger
-	configParams *config.RewardNetworkParams
-	stageModule  types.StageModuler
-	stakeModule  types.StakeModuler
+	logger      log.Logger
+	stageModule types.StageModuler
+	stakeModule types.StakeModuler
 }
 
 func NewRewardModule(ctx *cli.Context, stage types.StageModuler) *RewardModule {
 	return &RewardModule{
-		logger:       log.New("module", "reward"),
-		configParams: config.DefaultRewardNetworkParams(),
-		stageModule:  stage,
+		logger:      log.New("module", "reward"),
+		stageModule: stage,
 	}
 }
 
@@ -42,16 +40,22 @@ func (r *RewardModule) Name() string {
 }
 
 func (r *RewardModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
-	var conf config.RewardNetworkParams
+
+	configParams := config.DefaultRewardNetworkParams()
 	raw, err := data.MarshalJSON()
 	if nil != err {
 		log.Error("Failed MarshalJSON RewardNetworkParams bytes", "error", err)
 	}
+
+	var conf config.RewardNetworkParams
 	if err := json.Unmarshal(raw, &conf); nil != err {
 		log.Error("Failed UnmarshalJSON RewardNetworkParams", "error", err)
 	} else {
-		r.configParams = &conf
+		configParams = &conf
 	}
+
+	// set config params
+	initConfigParams(db, r.Address(), configParams)
 
 	log.Info("Succeed init genesis", "module", r.Name(), "RewardNetworkParams", string(raw))
 }
@@ -105,7 +109,7 @@ func (r *RewardModule) handleBlocksRewardForPreviousRound(stateDB sdk.StateDB, b
 
 		numberOfBlocks := r.stakeModule.GetNumberOfBlocksForRoundValidator(stateDB, validatorAddr, handleRound)
 		// got it !
-		blocksReward := new(big.Int).Mul(r.RewardPerBlock(), big.NewInt(int64(numberOfBlocks)))
+		blocksReward := new(big.Int).Mul(r.GetRewardPerBlock(stateDB), big.NewInt(int64(numberOfBlocks)))
 
 		// increment validatorEpochReward to validator rewards
 		rewarddb.IncrementPendingValidatorReward(stateDB, r.Address(), validatorAddr, blocksReward)
@@ -129,7 +133,7 @@ func (r *RewardModule) handleEpochReward(stateDB sdk.StateDB, blockNumber uint64
 	currentEpoch := r.stageModule.GetCurrentEpoch(stateDB)
 	epochValidatorIds := r.stakeModule.GetEpochValidatorIds(stateDB, currentEpoch)
 
-	perValidatorEpochReward := new(big.Int).Div(r.RewardPerEpoch(), big.NewInt(int64(len(epochValidatorIds))))
+	perValidatorEpochReward := new(big.Int).Div(r.GetRewardPerEpoch(stateDB), big.NewInt(int64(len(epochValidatorIds))))
 
 	for _, validatorAddr := range epochValidatorIds {
 
@@ -189,7 +193,7 @@ func (r *RewardModule) handleEpochReward(stateDB sdk.StateDB, blockNumber uint64
 		}
 	}
 
-	rewarddb.IncrementPaidRewardPerEpoch(stateDB, r.Address(), currentEpoch, r.RewardPerEpoch())
+	rewarddb.IncrementPaidRewardPerEpoch(stateDB, r.Address(), currentEpoch, r.GetRewardPerEpoch(stateDB))
 
 	return nil
 }
@@ -321,9 +325,9 @@ func (r *RewardModule) UpdateDelegationRewardsByStakeEpoch(stateDB sdk.StateDB, 
 	return nil
 }
 
-func (r *RewardModule) RewardPerBlock() *big.Int {
-	return r.configParams.RewardPerBlock
+func (r *RewardModule) GetRewardPerBlock(stateDB sdk.StateDBReader) *big.Int {
+	return rewarddb.GetRewardPerBlock(stateDB, r.Address())
 }
-func (r *RewardModule) RewardPerEpoch() *big.Int {
-	return r.configParams.RewardPerEpoch
+func (r *RewardModule) GetRewardPerEpoch(stateDB sdk.StateDBReader) *big.Int {
+	return rewarddb.GetRewardPerEpoch(stateDB, r.Address())
 }

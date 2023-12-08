@@ -454,7 +454,7 @@ func (c *StakeHandler) registerStakeWithdrawal(validatorAddr common.Address, amo
 	currentEpoch := c.getCurrentEpoch()
 	var releaseEpoch uint64
 	if wait {
-		releaseEpoch = currentEpoch + c.stakeModule.StakeWithdrawalWaitPeriod()
+		releaseEpoch = currentEpoch + c.stakeModule.GetStakeWithdrawalWaitPeriod(c.evm.StateDB)
 	} else {
 		releaseEpoch = currentEpoch
 	}
@@ -475,7 +475,7 @@ func (c *StakeHandler) registerDelegateWithdrawal(delegater, validatorAddr commo
 	currentEpoch := c.getCurrentEpoch()
 	var releaseEpoch uint64
 	if wait {
-		releaseEpoch = currentEpoch + c.stakeModule.DelegateWithdrawalWaitPeriod()
+		releaseEpoch = currentEpoch + c.stakeModule.GetDelegateWithdrawalWaitPeriod(c.evm.StateDB)
 	} else {
 		releaseEpoch = currentEpoch
 	}
@@ -545,7 +545,7 @@ func (c *StakeHandler) syncStateUnDelegate(validatorAddr, delegaterAddr common.A
 
 func (c *StakeHandler) syncStateSlash(validators []common.Address) error {
 
-	data, err := abi.Encode([]interface{}{SLASH_SIG, validators, c.stakeModule.SlashingPercentage(), c.stakeModule.SlashIncentivePercentage()}, ROOT_CHAIN_SLASH_PARAMS_TYPE)
+	data, err := abi.Encode([]interface{}{SLASH_SIG, validators, c.stakeModule.GetSlashingPercentage(c.evm.StateDB), c.stakeModule.GetSlashIncentivePercentage(c.evm.StateDB)}, ROOT_CHAIN_SLASH_PARAMS_TYPE)
 	if nil != err {
 		log.Error("Failed to encode slash syncState data", "validators size", len(validators), "error", err)
 		return typesdk.NewRevertError("StakeHandler: encode L2StateSender slash data failed")

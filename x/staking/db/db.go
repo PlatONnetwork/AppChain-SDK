@@ -22,6 +22,17 @@ var (
 	ErrInvalidValue = errors.New("invalid value")
 )
 
+// Will be governed in the future
+var (
+	stakeWithdrawalWaitPeriodKey    = []byte("stakeWithdrawalWaitPeriod")
+	delegateWithdrawalWaitPeriodKey = []byte("delegateWithdrawalWaitPeriod")
+	slashingPercentageKey           = []byte("slashingPercentage")
+	slashIncentivePercentageKey     = []byte("slashIncentivePercentage")
+	maxRoundValidatorsSizeKey       = []byte("maxRoundValidatorsSize")
+	maxEpochValidatorsSizeKey       = []byte("maxEpochValidatorsSize")
+	minRoundValidatorBlockNumberKey = []byte("minRoundValidatorBlockNumber")
+)
+
 var (
 	validatorNonceKey = []byte("validatorNonce") // "validatorNonce" => nonce (It is a self increasing stake index number)
 
@@ -42,6 +53,31 @@ var (
 	numberOfBlocksForRoundValidatorKeyPrefix = []byte("numberOfBlocksForRoundValidator") // "numberOfBlocksForRoundValidator":validatorAddr:round => numberOfBlocks
 )
 
+// ------
+
+func EncodeStakeWithdrawalWaitPeriodKey() []byte {
+	return stakeWithdrawalWaitPeriodKey
+}
+func EncodeDelegateWithdrawalWaitPeriodKey() []byte {
+	return delegateWithdrawalWaitPeriodKey
+}
+func EncodeSlashingPercentageKey() []byte {
+	return slashingPercentageKey
+}
+func EncodeSlashIncentivePercentageKey() []byte {
+	return slashIncentivePercentageKey
+}
+func EncodeMaxRoundValidatorsSizeKey() []byte {
+	return maxRoundValidatorsSizeKey
+}
+func EncodeMaxEpochValidatorsSizeKey() []byte {
+	return maxEpochValidatorsSizeKey
+}
+func EncodeMinRoundValidatorBlockNumberKey() []byte {
+	return minRoundValidatorBlockNumberKey
+}
+
+// ------
 func EncodePriorityValidatorHeadKey() []byte {
 	return priorityValidatorHeadKey
 }
@@ -187,6 +223,84 @@ func encodeNumberOfBlocksForRoundValidatorKey(validatorAddr common.Address, roun
 
 // ------------------------------------------------------ db methods ------------------------------------------------------
 
+func SetStakeWithdrawalWaitPeriod(db sdk.StateDB, addr common.Address, value uint64) {
+	db.SetState(addr, EncodeStakeWithdrawalWaitPeriodKey(), common.Uint64ToBytes(value))
+}
+func GetStakeWithdrawalWaitPeriod(db sdk.StateDBReader, addr common.Address) uint64 {
+	value := db.GetState(addr, EncodeStakeWithdrawalWaitPeriodKey())
+	if len(value) == 0 {
+		return 0
+	}
+	return common.BytesToUint64(value)
+}
+
+func SetDelegateWithdrawalWaitPeriod(db sdk.StateDB, addr common.Address, value uint64) {
+	db.SetState(addr, EncodeDelegateWithdrawalWaitPeriodKey(), common.Uint64ToBytes(value))
+}
+func GetDelegateWithdrawalWaitPeriod(db sdk.StateDBReader, addr common.Address) uint64 {
+	value := db.GetState(addr, EncodeDelegateWithdrawalWaitPeriodKey())
+	if len(value) == 0 {
+		return 0
+	}
+	return common.BytesToUint64(value)
+}
+
+func SetSlashingPercentage(db sdk.StateDB, addr common.Address, value uint64) {
+	db.SetState(addr, EncodeSlashingPercentageKey(), common.Uint64ToBytes(value))
+}
+func GetSlashingPercentage(db sdk.StateDBReader, addr common.Address) uint64 {
+	value := db.GetState(addr, EncodeSlashingPercentageKey())
+	if len(value) == 0 {
+		return 0
+	}
+	return common.BytesToUint64(value)
+}
+
+func SetSlashIncentivePercentage(db sdk.StateDB, addr common.Address, value uint64) {
+	db.SetState(addr, EncodeSlashIncentivePercentageKey(), common.Uint64ToBytes(value))
+}
+func GetSlashIncentivePercentage(db sdk.StateDBReader, addr common.Address) uint64 {
+	value := db.GetState(addr, EncodeSlashIncentivePercentageKey())
+	if len(value) == 0 {
+		return 0
+	}
+	return common.BytesToUint64(value)
+}
+
+func SetMaxRoundValidatorsSize(db sdk.StateDB, addr common.Address, value uint64) {
+	db.SetState(addr, EncodeMaxRoundValidatorsSizeKey(), common.Uint64ToBytes(value))
+}
+func GetMaxRoundValidatorsSize(db sdk.StateDBReader, addr common.Address) uint64 {
+	value := db.GetState(addr, EncodeMaxRoundValidatorsSizeKey())
+	if len(value) == 0 {
+		return 0
+	}
+	return common.BytesToUint64(value)
+}
+
+func SetMaxEpochValidatorsSize(db sdk.StateDB, addr common.Address, value uint64) {
+	db.SetState(addr, EncodeMaxEpochValidatorsSizeKey(), common.Uint64ToBytes(value))
+}
+func GetMaxEpochValidatorsSize(db sdk.StateDBReader, addr common.Address) uint64 {
+	value := db.GetState(addr, EncodeMaxEpochValidatorsSizeKey())
+	if len(value) == 0 {
+		return 0
+	}
+	return common.BytesToUint64(value)
+}
+
+func SetMinRoundValidatorBlockNumber(db sdk.StateDB, addr common.Address, value uint64) {
+	db.SetState(addr, EncodeMinRoundValidatorBlockNumberKey(), common.Uint64ToBytes(value))
+}
+func GetMinRoundValidatorBlockNumber(db sdk.StateDBReader, addr common.Address) uint64 {
+	value := db.GetState(addr, EncodeMinRoundValidatorBlockNumberKey())
+	if len(value) == 0 {
+		return 0
+	}
+	return common.BytesToUint64(value)
+}
+
+// ------
 func GetValidatorPriority(db sdk.StateDBReader, addr common.Address, epoch, stakeIndex uint64, shares *big.Int) *types.PriorityValidator {
 	return getValidatorPriorityByKey(db, addr, encodePriorityValidatorKey(epoch, stakeIndex, shares))
 }

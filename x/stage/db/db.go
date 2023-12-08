@@ -18,6 +18,13 @@ var (
 	ErrInvalidValue = errors.New("invalid value")
 )
 
+// Will be governed in the future
+var (
+	roundValidatorElectionDistanceKey = []byte("roundValidatorElectionDistance")
+	roundSizeKey                      = []byte("roundSize")
+	epochSizeKey                      = []byte("epochSize")
+)
+
 var (
 	currentEpochKey    = []byte("currentEpoch") // "currentEpoch" => currentEpoch (It is a number)
 	currentRoundKey    = []byte("currentRound") // "currentRound" => currentRound (It is a number)
@@ -25,6 +32,16 @@ var (
 	roundItemKeyPrefix = []byte("roundItem")    // "roundItem":roundId => {preRound, nextRound, startBlock, endBlock}
 )
 
+// ------
+func EncodeRoundValidatorElectionDistanceKey() []byte {
+	return roundValidatorElectionDistanceKey
+}
+func EncodeRoundSizeKey() []byte {
+	return roundSizeKey
+}
+func EncodeEpochSizeKey() []byte { return epochSizeKey }
+
+// ------
 func EncodeEpochItemKey(epoch uint64) []byte {
 	return append(epochItemKeyPrefix, common.Uint64ToBytes(epoch)...)
 }
@@ -33,8 +50,42 @@ func EncodeRoundItemKey(round uint64) []byte {
 	return append(roundItemKeyPrefix, common.Uint64ToBytes(round)...)
 }
 
-// ---------
+// ------------------------------------------------------ db methods ------------------------------------------------------
 
+func SetRoundValidatorElectionDistance(db sdk.StateDB, addr common.Address, value uint64) {
+	db.SetState(addr, EncodeRoundValidatorElectionDistanceKey(), common.Uint64ToBytes(value))
+}
+func GetRoundValidatorElectionDistance(db sdk.StateDBReader, addr common.Address) uint64 {
+	value := db.GetState(addr, EncodeRoundValidatorElectionDistanceKey())
+	if len(value) == 0 {
+		return 0
+	}
+	return common.BytesToUint64(value)
+}
+
+func SetRoundSize(db sdk.StateDB, addr common.Address, value uint64) {
+	db.SetState(addr, EncodeRoundSizeKey(), common.Uint64ToBytes(value))
+}
+func GetRoundSize(db sdk.StateDBReader, addr common.Address) uint64 {
+	value := db.GetState(addr, EncodeRoundSizeKey())
+	if len(value) == 0 {
+		return 0
+	}
+	return common.BytesToUint64(value)
+}
+
+func SetEpochSize(db sdk.StateDB, addr common.Address, value uint64) {
+	db.SetState(addr, EncodeEpochSizeKey(), common.Uint64ToBytes(value))
+}
+func GetEpochSize(db sdk.StateDBReader, addr common.Address) uint64 {
+	value := db.GetState(addr, EncodeEpochSizeKey())
+	if len(value) == 0 {
+		return 0
+	}
+	return common.BytesToUint64(value)
+}
+
+// ------
 func IncrementCurrentEpoch(db sdk.StateDB, addr common.Address) {
 	epoch := GetCurrentEpoch(db, addr)
 	db.SetState(addr, currentEpochKey, common.Uint64ToBytes(epoch+1))
