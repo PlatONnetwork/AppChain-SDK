@@ -163,7 +163,7 @@ func (r *RewardModule) handleEpochReward(stateDB sdk.StateDB, blockNumber uint64
 
 		realDelegateEpochReward := basecommon.Big0
 		realValidatorEpochReward := basecommon.Big0
-		perShareDelegaterEpochReward := basecommon.Big0
+		perShareDelegatorEpochReward := basecommon.Big0
 
 		totalShares := new(big.Int).Add(stakeAmount, delegateAmount)
 		// commissionAmount == perValidatorEpochReward * (commissionRate/ 100) == (perValidatorEpochReward * commissionRate)/ 100
@@ -178,16 +178,16 @@ func (r *RewardModule) handleEpochReward(stateDB sdk.StateDB, blockNumber uint64
 		delegateEpochReward := new(big.Int).Sub(perValidatorEpochReward, validatorEpochReward)
 
 		if delegateAmount.Cmp(basecommon.Big0) != 0 { // has delegate amount
-			perShareDelegaterEpochReward = new(big.Int).Div(delegateEpochReward, delegateAmount)
+			perShareDelegatorEpochReward = new(big.Int).Div(delegateEpochReward, delegateAmount)
 			// ###### NOTE ######
 			// Rolling calculation eliminates the situation where the total `delegateEpochReward` is not evenly divided,
 			// preventing `delegateEpochReward` from not being reduced to zero.
-			realDelegateEpochReward = new(big.Int).Mul(perShareDelegaterEpochReward, delegateAmount)
+			realDelegateEpochReward = new(big.Int).Mul(perShareDelegatorEpochReward, delegateAmount)
 
-			// store delegaterEpochTotalReward and delegaterEpochPerShareReward
+			// store delegatorEpochTotalReward and delegaterEpochPerShareReward
 			if err := rewarddb.AppendEpochDelegationRewardPerShareItem(stateDB, r.Address(), validatorAddr,
 				r.stakeModule.GetValidatorStakeEpoch(stateDB, validatorAddr), currentEpoch,
-				realDelegateEpochReward, perShareDelegaterEpochReward); nil != err {
+				realDelegateEpochReward, perShareDelegatorEpochReward); nil != err {
 
 				r.logger.Error("Set epoch  delegation reward for per share", "currentEpoch", currentEpoch, "error", err)
 				return err
@@ -199,7 +199,7 @@ func (r *RewardModule) handleEpochReward(stateDB sdk.StateDB, blockNumber uint64
 		rewarddb.IncrementPendingValidatorReward(stateDB, r.Address(), validatorAddr, realValidatorEpochReward)
 
 		r.logger.Debug("Finished distribute epoch reward", "currentEpoch", currentEpoch, "validatorAddr", validatorAddr.Hex(), "validatorEpochReward", realValidatorEpochReward,
-			"delegateEpochReward", realDelegateEpochReward, "perShareDelegaterEpochReward", perShareDelegaterEpochReward, "blockNumber", blockNumber)
+			"delegateEpochReward", realDelegateEpochReward, "perShareDelegatorEpochReward", perShareDelegatorEpochReward, "blockNumber", blockNumber)
 	}
 
 	rewarddb.IncrementPaidRewardPerEpoch(stateDB, r.Address(), currentEpoch, r.GetRewardPerEpoch(stateDB))
@@ -248,7 +248,7 @@ func (r *RewardModule) aggregationEpochDelegationRewards(stateDB sdk.StateDB, de
 
 	// increment delegater rewards
 	if totalRewards.Cmp(basecommon.Big0) != 0 {
-		rewarddb.IncrementPendingDelegaterReward(stateDB, r.Address(), delegaterAddr, validatorAddr, totalRewards)
+		rewarddb.IncrementPendingDelegatorReward(stateDB, r.Address(), delegaterAddr, validatorAddr, totalRewards)
 	}
 	return nil
 }

@@ -5,13 +5,13 @@ import "../IL1StateReceiver.sol";
 interface IStakeHandler is IL1StateReceiver {
     event Slashed(uint256 indexed exitId, address[] validators, uint256[] amounts);
     event StakeAdded(address indexed validator, uint256 amount);
-    event DelegationAdded(address indexed delegater, address indexed validator, uint256 amount);
+    event DelegationAdded(address indexed delegator, address indexed validator, uint256 amount);
     event UnStaked(address indexed validator, uint256 amount);
-    event UnDelegated(address indexed delegater, address indexed validator, uint256 amount);
+    event UnDelegated(address indexed delegator, address indexed validator, uint256 amount);
     event StakeWithdrawalRegistered(address indexed validator, uint256 amount);
     event StakeWithdrawal(address indexed validator, uint256 amount);
-    event DelegateWithdrawalRegistered(address indexed delegater, address indexed validator, uint256 amount);
-    event DelegateWithdrawal(address indexed delegater, address indexed validator, uint256 amount);
+    event DelegateWithdrawalRegistered(address indexed delegator, address indexed validator, uint256 amount);
+    event DelegateWithdrawal(address indexed delegator, address indexed validator, uint256 amount);
 
     /// @notice initialises slashing process
     /// @dev system call,
@@ -28,7 +28,7 @@ interface IStakeHandler is IL1StateReceiver {
     /// @notice allows a validator to complete a withdrawal
     function withdrawUnstake(address validator) external; // only owner of validator call
 
-    function withdrawUndelegate(address validator) external; // only delegater call
+    function withdrawUndelegate(address validator) external; // only delegator call
 
     /**
      * @notice Calculates how much can be withdrawn for account in this epoch.
@@ -37,7 +37,7 @@ interface IStakeHandler is IL1StateReceiver {
      */
     function withdrawableOfStake(address validator) external view returns (uint256);
 
-    function withdrawableOfDelegate(address validator, address delegater) external view returns (uint256);
+    function withdrawableOfDelegate(address validator, address delegator) external view returns (uint256);
 
     /**
      * @notice Calculates how much is yet to become withdrawable for account.
@@ -46,7 +46,7 @@ interface IStakeHandler is IL1StateReceiver {
      */
     function pendingWithdrawalsOfStake(address validator) external view returns (uint256);
 
-    function pendingWithdrawalsOfDelegate(address validator, address delegater) external view returns (uint256);
+    function pendingWithdrawalsOfDelegate(address validator, address delegator) external view returns (uint256);
 
     /**
      * @notice Verify the aggregated signature of the validators.

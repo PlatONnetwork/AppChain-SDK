@@ -60,15 +60,15 @@ func (c *RewardManager) PaidRewardPerEpoch(epochId *big.Int) (*big.Int, error) {
 	return rewarddb.GetPaidRewardPerEpoch(c.evm.StateDB, c.contract.Address(), epochId.Uint64()), nil
 }
 
-func (c *RewardManager) PendingDelegaterRewards(validator common.Address) (*big.Int, error) {
-	return rewarddb.GetPendingDelegaterReward(c.evm.StateDB, c.contract.Address(), c.contract.Caller(), validator), nil
+func (c *RewardManager) PendingDelegatorRewards(validator common.Address) (*big.Int, error) {
+	return rewarddb.GetPendingDelegatorReward(c.evm.StateDB, c.contract.Address(), c.contract.Caller(), validator), nil
 }
 
 func (c *RewardManager) PendingValidatorRewards(validator common.Address) (*big.Int, error) {
 	return rewarddb.GetPendingValidatorReward(c.evm.StateDB, c.contract.Address(), validator), nil
 }
 
-func (c *RewardManager) WithdrawDelegaterReward(validator common.Address) error {
+func (c *RewardManager) WithdrawDelegatorReward(validator common.Address) error {
 
 	if err := c.updateDelegationRewards(c.contract.Caller(), validator); nil != err {
 		return typesdk.NewRevertError(fmt.Sprintf("RewardManager: can not update delegation rewards, %s", err))
@@ -79,10 +79,10 @@ func (c *RewardManager) WithdrawDelegaterReward(validator common.Address) error 
 		return err
 	}
 
-	if err := c.addLogEmitDelegaterRewardWithdrawalEvent(validator, rewards, c.contract.Caller()); nil != err {
+	if err := c.addLogEmitDelegatorRewardWithdrawalEvent(validator, rewards, c.contract.Caller()); nil != err {
 		return err
 	}
-	log.Info("WithdrawDelegaterReward for", "validator", validator.Hex(), "rewards", rewards, "delegater", c.contract.Caller().Hex(),
+	log.Info("WithdrawDelegatorReward for", "validator", validator.Hex(), "rewards", rewards, "delegator", c.contract.Caller().Hex(),
 		"currentEpoch", c.stageModule.GetCurrentEpoch(c.evm.StateDB), "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }

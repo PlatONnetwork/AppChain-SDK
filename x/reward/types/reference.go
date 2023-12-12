@@ -34,12 +34,12 @@ type StakeModuler interface {
 
 	// for reward contract
 	GetEpochByValidatorDelegationRcPending(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) []uint64
-	GetDelegationFlatten(stateDB sdk.StateDBReader, delegaterAddr, validatorAddr basecommon.Address, stakeEpoch uint64) (uint64, *big.Int)
-	UpdateDelegationEpoch(stateDB sdk.StateDB, delegaterAddr, validatorAddr basecommon.Address, stakeEpoch, delegateEpoch uint64) error
+	GetDelegationFlatten(stateDB sdk.StateDBReader, delegatorAddr, validatorAddr basecommon.Address, stakeEpoch uint64) (uint64, *big.Int)
+	UpdateDelegationEpoch(stateDB sdk.StateDB, delegatorAddr, validatorAddr basecommon.Address, stakeEpoch, delegateEpoch uint64) error
 }
 
 type RewardModuler interface {
-	UpdateDelegationRewards(stateDB sdk.StateDB, delegaterAddr, validatorAddr basecommon.Address) error
+	UpdateDelegationRewards(stateDB sdk.StateDB, delegatorAddr, validatorAddr basecommon.Address) error
 
 	GetRewardPerBlock(stateDB sdk.StateDBReader) *big.Int
 	GetRewardPerEpoch(stateDB sdk.StateDBReader) *big.Int

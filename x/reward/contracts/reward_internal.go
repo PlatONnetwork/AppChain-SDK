@@ -23,12 +23,12 @@ func (c *RewardManager) SetRewardModule(reward rewardtypes.RewardModuler) {
 	c.rewardModule = reward
 }
 
-func (c *RewardManager) updateDelegationRewards(delegaterAddr, validatorAddr basecommon.Address) error {
-	return c.rewardModule.UpdateDelegationRewards(c.evm.StateDB, delegaterAddr, validatorAddr)
+func (c *RewardManager) updateDelegationRewards(delegatorAddr, validatorAddr basecommon.Address) error {
+	return c.rewardModule.UpdateDelegationRewards(c.evm.StateDB, delegatorAddr, validatorAddr)
 }
 
-func (c *RewardManager) withdrawDelegationRewards(delegaterAddr, validatorAddr basecommon.Address) (*big.Int, error) {
-	rewards := db.GetPendingDelegaterReward(c.evm.StateDB, c.contract.Address(), delegaterAddr, validatorAddr)
+func (c *RewardManager) withdrawDelegationRewards(delegatorAddr, validatorAddr basecommon.Address) (*big.Int, error) {
+	rewards := db.GetPendingDelegatorReward(c.evm.StateDB, c.contract.Address(), delegatorAddr, validatorAddr)
 	if rewards.Cmp(basecommon.Big0) != 0 {
 		return basecommon.Big0, nil
 	}
@@ -39,8 +39,8 @@ func (c *RewardManager) withdrawDelegationRewards(delegaterAddr, validatorAddr b
 		return basecommon.Big0, typesdk.NewRevertError("RewardManager: insufficient balance on reward pool")
 	}
 
-	db.DecrementPendingDelegaterReward(c.evm.StateDB, c.contract.Address(), delegaterAddr, validatorAddr, rewards)
-	c.evm.Context.Transfer(c.evm.StateDB, c.contract.Address(), delegaterAddr, rewards)
+	db.DecrementPendingDelegatorReward(c.evm.StateDB, c.contract.Address(), delegatorAddr, validatorAddr, rewards)
+	c.evm.Context.Transfer(c.evm.StateDB, c.contract.Address(), delegatorAddr, rewards)
 
 	return rewards, nil
 }
