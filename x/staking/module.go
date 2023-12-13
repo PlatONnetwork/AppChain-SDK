@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/PlatONnetwork/AppChain-SDK/utils"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/contracts"
@@ -28,6 +27,10 @@ import (
 	"math/big"
 )
 
+const (
+	MODULE_NAME_STAKING = "staking"
+)
+
 type StakeModule struct {
 	p2p            *stakingp2p.StakingP2P
 	logger         log.Logger
@@ -40,10 +43,9 @@ type StakeModule struct {
 
 func NewStakeModule(ctx *cli.Context, l1Module staketypes.L1Moduler, stage staketypes.StageModuler) *StakeModule {
 	return &StakeModule{
-		logger:         log.New("module", "staking"),
-		nodePrivateKey: utils.DecodeNodePrivateKey(ctx),
-		l1Module:       l1Module,
-		stageModule:    stage,
+		logger:      log.New("module", MODULE_NAME_STAKING),
+		l1Module:    l1Module,
+		stageModule: stage,
 	}
 }
 
@@ -56,7 +58,12 @@ func (s *StakeModule) SetVRFModule(vrf staketypes.VRFModuler) {
 }
 
 func (s *StakeModule) Name() string {
-	return "staking"
+	return MODULE_NAME_STAKING
+}
+
+func (s *StakeModule) Init(ctx sdk.InitContext) error {
+	s.nodePrivateKey = ctx.NodeKey()
+	return nil
 }
 
 func (s *StakeModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {

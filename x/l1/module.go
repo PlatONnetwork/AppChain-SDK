@@ -11,6 +11,10 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 )
 
+const (
+	MODULE_NAME_L1 = "l1"
+)
+
 type L1ConfigParams struct {
 	ChainID        *big.Int       `json:"chainId"`
 	State          common.Address `json:"state"`
@@ -30,7 +34,7 @@ func NewL1Module(db store.Store) *L1Module {
 }
 
 func (l *L1Module) Name() string {
-	return "l1"
+	return MODULE_NAME_L1
 }
 
 func (l *L1Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {

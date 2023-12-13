@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/PlatONnetwork/AppChain-SDK/utils"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/contracts"
@@ -21,6 +20,10 @@ import (
 	"math/big"
 )
 
+const (
+	MODULE_NAME_REWARD = "reward"
+)
+
 type RewardModule struct {
 	logger         log.Logger
 	nodePrivateKey *ecdsa.PrivateKey
@@ -30,9 +33,8 @@ type RewardModule struct {
 
 func NewRewardModule(ctx *cli.Context, stage types.StageModuler) *RewardModule {
 	return &RewardModule{
-		logger:         log.New("module", "reward"),
-		nodePrivateKey: utils.DecodeNodePrivateKey(ctx),
-		stageModule:    stage,
+		logger:      log.New("module", MODULE_NAME_REWARD),
+		stageModule: stage,
 	}
 }
 
@@ -41,7 +43,12 @@ func (r *RewardModule) SetStakeModule(stake types.StakeModuler) {
 }
 
 func (r *RewardModule) Name() string {
-	return "reward"
+	return MODULE_NAME_REWARD
+}
+
+func (r *RewardModule) Init(ctx sdk.InitContext) error {
+	r.nodePrivateKey = ctx.NodeKey()
+	return nil
 }
 
 func (r *RewardModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {

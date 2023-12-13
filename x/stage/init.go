@@ -1,6 +1,7 @@
 package stage
 
 import (
+	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/x/stage/config"
 	stagedb "github.com/PlatONnetwork/AppChain-SDK/x/stage/db"
 	"github.com/PlatONnetwork/AppChain-SDK/x/stage/types"
@@ -16,6 +17,8 @@ func initConfigParams(statedb sdk.StateDB, addr common.Address, params *config.S
 }
 
 func initGenesisEpochItem(statedb sdk.StateDB, addr common.Address, params *config.StageNetworkParams) error {
+
+	fmt.Printf("addr: %s", addr.Hex())
 
 	zero := types.NewEpochItem(0, 0, 0)
 	epoch := types.NewEpochItem(1, params.EpochSize, params.EpochSize/params.RoundSize)
@@ -34,6 +37,8 @@ func initGenesisEpochItem(statedb sdk.StateDB, addr common.Address, params *conf
 }
 
 func initGenesisRoundItem(statedb sdk.StateDB, addr common.Address, params *config.StageNetworkParams) error {
+
+	fmt.Printf("addr: %s", addr.Hex())
 
 	zero := types.NewRoundItem(0, 0)
 	round := types.NewRoundItem(1, params.RoundSize)

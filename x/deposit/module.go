@@ -10,6 +10,10 @@ import (
 	"gopkg.in/urfave/cli.v1"
 )
 
+const (
+	MODULE_NAME_DEPOSIT = "deposit"
+)
+
 type DepositModule struct {
 	logger   log.Logger
 	l1Module deposittypes.L1Moduler
@@ -18,13 +22,13 @@ type DepositModule struct {
 func NewDepositModule(ctx *cli.Context, l1Module deposittypes.L1Moduler) *DepositModule {
 
 	return &DepositModule{
-		logger:   log.New("module", "deposit"),
+		logger:   log.New("module", MODULE_NAME_DEPOSIT),
 		l1Module: l1Module,
 	}
 }
 
 func (d *DepositModule) Name() string {
-	return "deposit"
+	return MODULE_NAME_DEPOSIT
 }
 
 func (d *DepositModule) Address() basecommon.Address {

@@ -9,18 +9,22 @@ import (
 	"gopkg.in/urfave/cli.v1"
 )
 
+const (
+	MODULE_NAME_WITHDRAW = "withdraw"
+)
+
 type WithdrawModule struct {
 	logger log.Logger
 }
 
 func NewWithdrawModule(ctx *cli.Context) *WithdrawModule {
 	return &WithdrawModule{
-		logger: log.New("module", "withdraw"),
+		logger: log.New("module", MODULE_NAME_WITHDRAW),
 	}
 }
 
 func (w *WithdrawModule) Name() string {
-	return "withdraw"
+	return MODULE_NAME_WITHDRAW
 }
 
 func (w *WithdrawModule) Address() basecommon.Address {

@@ -14,18 +14,22 @@ import (
 	"gopkg.in/urfave/cli.v1"
 )
 
+const (
+	MODULE_NAME_STAGE = "stage"
+)
+
 type StageModule struct {
 	logger log.Logger
 }
 
 func NewStageModule(ctx *cli.Context) *StageModule {
 	return &StageModule{
-		logger: log.New("module", "stage"),
+		logger: log.New("module", MODULE_NAME_STAGE),
 	}
 }
 
 func (s *StageModule) Name() string {
-	return "stage"
+	return MODULE_NAME_STAGE
 }
 
 func (s *StageModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
@@ -231,6 +235,8 @@ func (s *StageModule) BlocksOfEpoch(stateDB sdk.StateDBReader, epoch uint64) uin
 
 func (s *StageModule) GetLastNumber(stateDB sdk.StateDBReader, blockNumber uint64) uint64 {
 	var endBlock uint64
+	addr := s.Address()
+	fmt.Printf("addr: %s", addr.Hex())
 	currentRound := db.GetCurrentRound(stateDB, s.Address())
 	item := db.GetRoundItem(stateDB, s.Address(), currentRound)
 	// NOTE: Optimization processing, compare with the current round first,

@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/PlatONnetwork/AppChain-SDK/utils"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/vrf/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/vrf/contracts"
@@ -26,6 +25,10 @@ import (
 	"math/big"
 )
 
+const (
+	MODULE_NAME_VRF = "vrf"
+)
+
 var (
 	NonceStorageKey = []byte("nonceStorageKey")
 )
@@ -39,9 +42,8 @@ type VRFModule struct {
 
 func NewVRFModule(ctx *cli.Context, stage vrftypes.StageModuler) *VRFModule {
 	return &VRFModule{
-		logger:         log.New("module", "vrf"),
-		nodePrivateKey: utils.DecodeNodePrivateKey(ctx),
-		stageModule:    stage,
+		logger:      log.New("module", MODULE_NAME_VRF),
+		stageModule: stage,
 	}
 }
 
@@ -50,8 +52,14 @@ func (v *VRFModule) SetStakeModule(stake vrftypes.StakeModuler) {
 }
 
 func (v *VRFModule) Name() string {
-	return "vrf"
+	return MODULE_NAME_VRF
 }
+
+func (v *VRFModule) Init(ctx sdk.InitContext) error {
+	v.nodePrivateKey = ctx.NodeKey()
+	return nil
+}
+
 func (v *VRFModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
 
 	configParams := config.DefualtVRFNetworkParams()
