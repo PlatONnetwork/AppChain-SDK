@@ -135,17 +135,11 @@ func (l *L1Sync) scanLogs(ctx context.Context, start, end uint64) error {
 func (l *L1Sync) handleLogs(logs []types.Log) error {
 	var events []*StateSender
 	for _, log := range logs {
-		event := SyncAbi.Events["StateSynced"]
-		args, err := event.Inputs.Unpack(log.Data)
+		event, err := UnpackLog(log)
 		if err != nil {
 			return err
 		}
-		events = append(events, &StateSender{
-			Id:       args[0].(*big.Int),
-			Sender:   args[1].(common.Address),
-			Receiver: args[2].(common.Address),
-			Data:     args[3].([]byte),
-		})
+		events = append(events, event)
 	}
 	if len(events) != 0 {
 		l.db.SetMaxSyncId(events[len(events)-1].Id)
@@ -153,6 +147,41 @@ func (l *L1Sync) handleLogs(logs []types.Log) error {
 	if err := l.db.WriteStateSenderEvent(events); err != nil {
 		return err
 	}
-	l.updateCh <- struct{}{}
+	if l.updateCh != nil {
+		l.updateCh <- struct{}{}
+	}
 	return nil
+}
+
+func UnpackLog(log types.Log) (*StateSender, error) {
+	out := new(StateSender)
+	event := SyncAbi.Events["StateSynced"]
+	// Anonymous events are not supported.
+	if len(log.Topics) == 0 {
+		return nil, errors.New("no event signature")
+	}
+	if log.Topics[0] != event.ID {
+		return nil, errors.New("event signature mismatch")
+	}
+	if len(log.Data) > 0 {
+		v, err := event.Inputs.Unpack(log.Data)
+		if err != nil {
+			return nil, err
+		}
+		event.Inputs.Copy(out, v)
+		if err != nil {
+			return nil, err
+		}
+	}
+	var indexed abi.Arguments
+	for _, arg := range event.Inputs {
+		if arg.Indexed {
+			indexed = append(indexed, arg)
+		}
+	}
+	err := abi.ParseTopics(out, indexed, log.Topics[1:])
+	if err != nil {
+		return nil, err
+	}
+	return out, err
 }
