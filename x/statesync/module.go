@@ -7,6 +7,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/utils"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/PlatON-Go/log"
+	"github.com/PlatONnetwork/PlatON-Go/rlp"
 	"math/big"
 
 	"github.com/PlatONnetwork/AppChain-SDK/store"
@@ -85,7 +86,8 @@ func (s *StateSync) Init() error {
 	}
 	s.l1Sync = l1Sync
 	go s.p2p.Run(context.Background())
-	go s.p2p.Run(context.Background())
+	go s.l1Sync.Run(context.Background())
+	go s.listen(context.Background())
 	return nil
 }
 
@@ -137,41 +139,71 @@ func (s *StateSync) AddTxs(ctx sdk.WorkerContext, local, remote map[common.Addre
 	//创建commitment
 	receiver, err := s.newStateSyncCallContract(ctx, ctx.Header())
 	if err != nil {
+		s.logger.Warn("New state sync caller failed", "err", err)
 		return local, remote
 	}
 	syncId, err := receiver.GetStateSyncId()
 	if err != nil {
+		s.logger.Warn("Get state sync id failed", "err", err)
 		return local, remote
 	}
-	commitment, err := receiver.GetCommitmentByStateSyncId(syncId)
-	if err != nil {
-		return local, remote
+	start := new(big.Int).Add(syncId, big.NewInt(1))
+	if syncId.Cmp(big.NewInt(0)) != 0 {
+		commitment, err := receiver.GetCommitmentByStateSyncId(syncId)
+		if err != nil {
+			s.logger.Warn("Get commitment state sync id failed", "err", err)
+			return local, remote
+		}
+		start = new(big.Int).Add(commitment.EndId, big.NewInt(1))
 	}
-	start := new(big.Int).Add(commitment.EndId, big.NewInt(1))
 	match, err := s.eventProofDb.FindProofRoot(start)
 	if err != nil {
+		s.logger.Warn("Find proof root failed", "start", start, "err", err)
 		return local, remote
 	}
+	s.logger.Debug("Find proof root", "proof", match)
 	blockHash := s.eventProofDb.GetRootBlock(match.Root)
 
 	block := ctx.Backend().GetBlockByHash(blockHash)
 	_, qc, err := types2.DecodeExtra(block.ExtraData())
 	if err != nil {
+		s.logger.Warn("Decode extra failed", "start", start, "err", err)
 		return local, remote
 	}
-	index, voteProof, err := s.extraDb.GetProof(qc.Epoch, qc.ViewNumber, qc.BlockIndex, match.Root[:])
+	leaf, _ := rlp.EncodeToBytes(match)
+	index, voteProof, err := s.extraDb.GetProof(qc.Epoch, qc.ViewNumber, qc.BlockIndex, leaf)
+	if err != nil {
+		s.logger.Warn("Extra get proof failed", "qc", qc, "err", err)
+		return local, remote
+	}
 	from := crypto.PubkeyToAddress(s.privateKey.PublicKey)
 	nonce, err := ctx.Backend().GetPoolNonce(from)
 	if err != nil {
+		s.logger.Warn("Get pool nonce failed", "nonce", nonce, "err", err)
 		return local, remote
 	}
 	cmtx, err := s.createCommitTx(ctx, match, index, qc, voteProof, nonce)
 	if err != nil {
+		s.logger.Warn("Create commit tx failed", "err", err)
 		return local, remote
 	}
 
 	//创建 event proof
-	eventId := new(big.Int).Add(syncId, big.NewInt(1))
+	executedId, err := receiver.GetExecutedId()
+	if err != nil {
+		s.logger.Warn("Get executed id failed", "err", err)
+		return local, remote
+	}
+	if syncId.Cmp(big.NewInt(0)) == 0 && executedId.Cmp(big.NewInt(0)) == 0 {
+		local[from] = append(local[from], cmtx)
+		return local, remote
+	}
+	eventId := new(big.Int).Add(executedId, big.NewInt(1))
+	commitment, err := receiver.GetCommitmentByStateSyncId(eventId)
+	if err != nil {
+		s.logger.Warn("Get commitment state sync id failed", "err", err)
+		return local, remote
+	}
 	var events []*sync.StateSender
 	var proofs [][]common.Hash
 	for {
@@ -179,12 +211,15 @@ func (s *StateSync) AddTxs(ctx sdk.WorkerContext, local, remote map[common.Addre
 		if event == nil || err != nil {
 			break
 		}
-		proof, err := s.eventProofDb.GetProof(match.Root, eventId)
-		if event == nil || err != nil {
+		proof, err := s.eventProofDb.GetProof(commitment.Root, eventId)
+		if err != nil {
+			s.logger.Warn("Get proof failed", "root", commitment.Root, "eventid", eventId, "err", err)
 			break
 		}
 		events = append(events, event)
 		proofs = append(proofs, proof)
+		eventId = eventId.Add(eventId, big.NewInt(1))
+		s.logger.Debug("Get executed event", "eventid", eventId)
 	}
 	exTxs, err := s.createExecuteTxs(ctx, proofs, events, nonce+1)
 	if err != nil {
