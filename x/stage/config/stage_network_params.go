@@ -1,6 +1,9 @@
 package config
 
-import "github.com/PlatONnetwork/AppChain-SDK/x/constants"
+import (
+	"fmt"
+	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
+)
 
 type StageNetworkParams struct {
 	// The number of blocks  between the block height of the election next round validator
@@ -16,4 +19,9 @@ func DefualtStageNetworkParams() *StageNetworkParams {
 		RoundSize:                      constants.ROUND_SIZE,
 		EpochSize:                      constants.EPOCH_SIZE,
 	}
+}
+
+func (params *StageNetworkParams) String() string {
+	return fmt.Sprintf(`{"roundValidatorElectionDistance": %d,"roundSize": %d, "epochSize": %d}`,
+		params.RoundValidatorElectionDistance, params.RoundSize, params.EpochSize)
 }

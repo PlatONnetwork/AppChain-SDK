@@ -70,7 +70,7 @@ func (v *VRFModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *pa
 	// set genesis vrf nonce (32 byte)
 	vrfdb.SetNonceAndProof(db, v.Address(), 0, configParams.GenesisVRFNonce.Bytes())
 
-	log.Info("Succeed init genesis", "module", v.Name(), "VRFNetworkParams", string(raw))
+	log.Info("Succeed init genesis", "module", v.Name(), "VRFNetworkParams", configParams.String())
 }
 
 func (v *VRFModule) Address() basecommon.Address {

@@ -1,13 +1,10 @@
 package types
 
 import (
-	"crypto/ecdsa"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"github.com/PlatONnetwork/PlatON-Go/common"
-	"github.com/PlatONnetwork/PlatON-Go/crypto"
-	"github.com/PlatONnetwork/PlatON-Go/crypto/bls"
+	"github.com/PlatONnetwork/PlatON-Go/p2p/enode"
 	"math/big"
 	"strings"
 )
@@ -93,15 +90,17 @@ type Validator struct {
 	Owner          common.Address
 	StakeAmount    *big.Int
 	DelegateAmount *big.Int
-	PubKey         *ecdsa.PublicKey
-	BlsKey         *bls.PublicKey
+	//PubKey         *ecdsa.PublicKey
+	//BlsKey         *bls.PublicKey
+	PubKey         enode.IDv0
+	BlsKey         []byte
 	Status         ValidatorStatus
 	CommissionRate uint64
 	Epoch          uint64
 	StakeIndex     uint64
 }
 
-func NewValidator(owner common.Address, stakeAmount, delegateAmount *big.Int, blsKey *bls.PublicKey, pubKey *ecdsa.PublicKey, commissionRate, epoch, stakeIndex uint64) *Validator {
+func NewValidator(owner common.Address, stakeAmount, delegateAmount *big.Int, blsKey []byte, pubKey enode.IDv0, commissionRate, epoch, stakeIndex uint64) *Validator {
 	return &Validator{
 		Owner:          owner,
 		StakeAmount:    stakeAmount,
@@ -115,12 +114,17 @@ func NewValidator(owner common.Address, stakeAmount, delegateAmount *big.Int, bl
 }
 
 func (v *Validator) String() string {
+	//blsKey := bls.PublicKey{}
+	//(&blsKey).DeserializeUncompressed(v.BlsKey)
 	return fmt.Sprintf(`{"Owner": "%s","StakeAmount": "%d","DelegateAmount": "%d","PubKey": %s,"BlsKey": %s,"Status": %d,"CommissionRate": "%d", "Epoch": "%d", "StakeIndex": "%d"}`,
 		fmt.Sprintf("%x", v.Owner.Bytes()),
 		v.StakeAmount,
 		v.DelegateAmount,
-		hex.EncodeToString(crypto.FromECDSAPub(v.PubKey)),
-		hex.EncodeToString(v.BlsKey.Serialize()),
+		fmt.Sprintf("%x", v.PubKey.Bytes()),
+		fmt.Sprintf("%x", v.BlsKey),
+		//hex.EncodeToString(crypto.FromECDSAPub(v.PubKey)),
+		//hex.EncodeToString((&blsKey).Serialize()),
+
 		v.Status,
 		v.CommissionRate,
 		v.Epoch,

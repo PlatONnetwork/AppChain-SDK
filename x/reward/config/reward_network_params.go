@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"math/big"
 )
@@ -15,4 +16,8 @@ func DefaultRewardNetworkParams() *RewardNetworkParams {
 		RewardPerBlock: constants.REWARD_PER_BLOCK,
 		RewardPerEpoch: constants.REWARD_PER_EPOCH,
 	}
+}
+
+func (params *RewardNetworkParams) String() string {
+	return fmt.Sprintf(`{"rewardPerBlock": %d,"rewardPerEpoch": %d}`, params.RewardPerBlock, params.RewardPerEpoch)
 }

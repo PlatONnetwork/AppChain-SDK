@@ -62,7 +62,7 @@ func (r *RewardModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig 
 	// set config params
 	initConfigParams(db, r.Address(), configParams)
 
-	log.Info("Succeed init genesis", "module", r.Name(), "RewardNetworkParams", string(raw))
+	log.Info("Succeed init genesis", "module", r.Name(), "RewardNetworkParams", configParams.String())
 }
 
 func (r *RewardModule) Address() basecommon.Address {

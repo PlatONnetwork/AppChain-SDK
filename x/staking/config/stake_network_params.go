@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 )
@@ -35,4 +36,9 @@ func DefualtStakeNetworkParams() *StakeNetworkParams {
 		MaxEpochValidatorsSize:       constants.MAX_EPOCH_VALIDATORS_SIZE,
 		MinRoundValidatorBlockNumber: constants.MIN_ROUND_VALIDATOR_BLOCK_NUMBER,
 	}
+}
+
+func (params *StakeNetworkParams) String() string {
+	return fmt.Sprintf(`{"genesisStakeAmount": %d,"genesisValidatorOwner": "%s", "stakeWithdrawalWaitPeriod": %d, "delegateWithdrawalWaitPeriod": %d, "slashingPercentage": %d, "slashIncentivePercentage": %d, "maxRoundValidatorsSize": %d, "maxEpochValidatorsSize": %d, "minRoundValidatorBlockNumber": %d}`,
+		params.GenesisStakeAmount, params.GenesisValidatorOwner.Hex(), params.StakeWithdrawalWaitPeriod, params.DelegateWithdrawalWaitPeriod, params.SlashingPercentage, params.SlashIncentivePercentage, params.MaxRoundValidatorsSize, params.MaxEpochValidatorsSize, params.MinRoundValidatorBlockNumber)
 }

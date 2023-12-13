@@ -56,7 +56,7 @@ func (s *StageModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *
 		panic(err)
 	}
 
-	log.Info("Succeed init genesis", "module", s.Name(), "StageNetworkParams", string(raw))
+	log.Info("Succeed init genesis", "module", s.Name(), "StageNetworkParams", configParams.String())
 }
 
 func (s *StageModule) Address() basecommon.Address {

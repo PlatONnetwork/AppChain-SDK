@@ -81,7 +81,7 @@ func (s *StakeModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *
 		panic(err)
 	}
 
-	log.Info("Succeed init genesis", "module", s.Name(), "StakeNetworkParams", string(raw))
+	log.Info("Succeed init genesis", "module", s.Name(), "StakeNetworkParams", configParams.String())
 
 }
 
@@ -205,7 +205,8 @@ func (s *StakeModule) OnCommit(ctx sdk.ConsensusContext, block *types.Block) err
 
 	for _, id := range diffIds {
 		v := db.GetValidator(ctx.StateDB(), s.Address(), id)
-		s.p2p.Addnode(enode.NewV4(v.PubKey, nil, 0, 0).URLv4())
+		pubkey, _ := v.PubKey.Pubkey()
+		s.p2p.Addnode(enode.NewV4(pubkey, nil, 0, 0).URLv4())
 	}
 
 	return nil
@@ -233,12 +234,16 @@ func (s *StakeModule) GetRoundValidator(ctx sdk.ConsensusContext, blockNumber ui
 		if v.IsInvalid() {
 			continue
 		}
+		pubkey, _ := v.PubKey.Pubkey()
+		blsKey := bls.PublicKey{}
+		(&blsKey).DeserializeUncompressed(v.BlsKey)
+
 		validator := &cbfttypes.ValidateNode{
 			Index:     uint32(i),
 			Address:   basecommon.NodeAddress(snap.ValidatorAddr),
-			PubKey:    v.PubKey,
-			NodeID:    enode.PubkeyToIDV4(v.PubKey),
-			BlsPubKey: v.BlsKey,
+			PubKey:    pubkey,
+			NodeID:    enode.PubkeyToIDV4(pubkey),
+			BlsPubKey: &blsKey,
 		}
 		valMap[validator.NodeID] = validator
 	}
@@ -273,12 +278,17 @@ func (s *StakeModule) GetEpochValidator(ctx sdk.ConsensusContext, blockNumber ui
 		if v.IsInvalid() {
 			continue
 		}
+
+		pubkey, _ := v.PubKey.Pubkey()
+		blsKey := bls.PublicKey{}
+		(&blsKey).DeserializeUncompressed(v.BlsKey)
+
 		validator := &cbfttypes.ValidateNode{
 			Index:     uint32(i),
 			Address:   basecommon.NodeAddress(snap.ValidatorAddr),
-			PubKey:    v.PubKey,
-			NodeID:    enode.PubkeyToIDV4(v.PubKey),
-			BlsPubKey: v.BlsKey,
+			PubKey:    pubkey,
+			NodeID:    enode.PubkeyToIDV4(pubkey),
+			BlsPubKey: &blsKey,
 		}
 		valMap[validator.NodeID] = validator
 	}
@@ -330,8 +340,8 @@ func (s *StakeModule) IsCandidateNode(ctx sdk.ConsensusContext, nodeID enode.IDv
 		if v.IsInvalid() {
 			continue
 		}
-
-		if enode.PubkeyToIDV4(v.PubKey) == nodeID.ID() {
+		pubkey, _ := v.PubKey.Pubkey()
+		if enode.PubkeyToIDV4(pubkey) == nodeID.ID() {
 			return true
 		}
 	}
@@ -602,14 +612,18 @@ func (s *StakeModule) GetValidatorECDSAPubKey(stateDB sdk.StateDBReader, validat
 	if validator.IsEmpty() {
 		return nil
 	}
-	return validator.PubKey
+	pubkey, _ := validator.PubKey.Pubkey()
+
+	return pubkey
 }
 func (s *StakeModule) GetValidatorBLSPubKey(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) *bls.PublicKey {
 	validator := db.GetValidator(stateDB, s.Address(), validatorAddr)
 	if validator.IsEmpty() {
 		return nil
 	}
-	return validator.BlsKey
+	blsKey := bls.PublicKey{}
+	(&blsKey).DeserializeUncompressed(validator.BlsKey)
+	return &blsKey
 }
 func (s *StakeModule) GetValidatorCommissionRate(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) uint64 {
 	validator := db.GetValidator(stateDB, s.Address(), validatorAddr)
