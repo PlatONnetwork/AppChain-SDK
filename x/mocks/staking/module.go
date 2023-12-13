@@ -50,11 +50,11 @@ func (m *Module) Name() string {
 	return ModuleName
 }
 
-func (m *Module) IsEndOfRound(blockNumber uint64) bool {
+func (m *Module) IsEndOfRound(ctx sdk.ConsensusContext, blockNumber uint64) bool {
 	return blockNumber%NumberBlocksOfEpoch == 0
 }
 
-func (m *Module) BlocksOfRound() uint64 {
+func (m *Module) BlocksOfRound(ctx sdk.ConsensusContext) uint64 {
 	return NumberBlocksOfEpoch
 }
 
@@ -106,8 +106,11 @@ func (m *Module) GetLastNumber(ctx sdk.ConsensusContext, blockNumber uint64) uin
 	return lastBlockNumber
 }
 
-func (m *Module) GetRoundValidator(ctx sdk.Context, blockNumber uint64) (*cbfttypes.Validators, error) {
+func (m *Module) GetValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error) {
+	return m.GetRoundValidator(ctx, blockNumber)
+}
 
+func (m *Module) GetRoundValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error) {
 	if m.validators == nil {
 		val, err := m.store.Get([]byte(ValidatorKey))
 		if err != nil {

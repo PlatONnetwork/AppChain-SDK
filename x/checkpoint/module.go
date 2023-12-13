@@ -12,6 +12,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint/contractsapi/checkpoint_manager"
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint/storage"
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint/types"
+	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/keystore"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/protocols"
@@ -75,8 +76,7 @@ func NewModule(
 		return nil, err
 	}
 
-	// FIXME: set L2StateSender contract address
-	m.l2StateSenderAddr = common.ZeroAddr
+	m.l2StateSenderAddr = constants.StateSenderAddress
 	m.checkpointManagerAddr = checkpointAddr
 
 	stateEvent.Subscribe(m)
@@ -372,7 +372,7 @@ func (m *Module) submitCheckpoint(ctx sdk.ConsensusContext, latestNumber uint64,
 			return err
 		}
 
-		blockNumber = initialBlockNumber + blocksOfEpoch
+		blockNumber = blockNumber + blocksOfEpoch
 	}
 	return nil
 }

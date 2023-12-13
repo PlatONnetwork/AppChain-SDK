@@ -1,7 +1,7 @@
 package types
 
 import (
-	stateevent "github.com/PlatONnetwork/AppChain-SDK/x/state_event"
+	"github.com/PlatONnetwork/AppChain-SDK/x/stateevent"
 )
 
 type StateEvent interface {

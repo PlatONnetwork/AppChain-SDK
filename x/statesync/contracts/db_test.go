@@ -18,6 +18,9 @@ func TestDB(t *testing.T) {
 	evm := newEVM(statedb, vm.Config{}, vm.TxContext{}, new(contractsApp))
 	contract := vm.NewContract(vm.AccountRef(from), vm.AccountRef(to), nil, 10000000)
 	stateReceiver, _ := NewStateReceiver(evm, contract, false)
+	stateReceiver.verifyQCFunc = func(qc *QuorumCert) error {
+		return nil
+	}
 	stateReceiver.SetLastCommittedId(big.NewInt(10))
 	require.Equal(t, big.NewInt(10), stateReceiver.GetLastCommittedId())
 	stateReceiver.SetExecutedId(big.NewInt(11))

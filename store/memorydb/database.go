@@ -85,7 +85,7 @@ func (db *Database) Get(key []byte) ([]byte, error) {
 	if entry, ok := db.db[string(key)]; ok {
 		return common.CopyBytes(entry), nil
 	}
-	return nil, errMemorydbNotFound
+	return nil, nil
 }
 
 // Put inserts the given value into the key-value store.

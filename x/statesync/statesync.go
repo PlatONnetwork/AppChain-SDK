@@ -15,7 +15,6 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
-	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 )
@@ -23,31 +22,40 @@ import (
 func (s *StateSync) ExtendDataImpl(ctx sdk.Context, epoch, view uint64, index uint32, header *types.Header) []byte {
 	receiver, err := s.newStateSyncCallContract(ctx, header)
 	if err != nil {
-		log.Error("Failed to new state sync call contract", "err", err)
+		s.logger.Error("Failed to new state sync call contract", "err", err)
 		return nil
 	}
 	syncId, err := receiver.GetStateSyncId()
 	if err != nil {
+		s.logger.Error("Get state sync id failed", "err", err)
 		return nil
 	}
-	commitment, err := receiver.GetCommitmentByStateSyncId(syncId)
-	if err != nil {
-		return nil
+	start := new(big.Int).Add(syncId, big.NewInt(1))
+	if syncId.Cmp(big.NewInt(0)) != 0 {
+		commitment, err := receiver.GetCommitmentByStateSyncId(syncId)
+		if err != nil {
+			s.logger.Error("Get commitment state sync id failed", "err", err)
+			return nil
+		}
+		start = new(big.Int).Add(commitment.EndId, big.NewInt(1))
 	}
-	start := new(big.Int).Add(commitment.EndId, big.NewInt(1))
 	end := s.MaxSyncId()
 	if start.Cmp(end) > 0 {
+		s.logger.Info("Sync id had sync finish")
 		return nil
 	}
 	root, err := s.GenProof(epoch, view, index, start, end)
 	if err != nil {
+		s.logger.Error("Get proof failed", "err", err)
 		return nil
 	}
 
 	raw, err := rlp.EncodeToBytes(&contracts.StateSyncCommitment{StartId: start, EndId: end, Root: root})
 	if err != nil {
+		s.logger.Error("Encode state sync commitment failed", "err", err)
 		return nil
 	}
+	s.logger.Info("Create state sync commitment extra success", "start", start, "end", end, "root", root)
 	return raw
 }
 
@@ -60,11 +68,14 @@ func (s *StateSync) VerifyExtendDataImpl(epoch, view uint64, index uint32, heade
 	rlp.DecodeBytes(data, &commitment)
 	root, err := s.GenProof(epoch, view, index, commitment.StartId, commitment.EndId)
 	if err != nil {
+		s.logger.Warn("Gen proof failed", "err", err)
 		return err
 	}
 	if root != commitment.Root {
+		s.logger.Warn("State sync root hash is invalid", "root", root, "commitment", commitment.Root)
 		return errors.New("state sync root hash is invalid")
 	}
+	s.logger.Info("Verify commitment extend data success", "commitment", commitment)
 	return nil
 }
 
@@ -74,21 +85,18 @@ func (s *StateSync) PrepareQCImpl(block *protocols.PrepareBlock, votes map[uint3
 	if root == common.ZeroHash {
 		return
 	}
-
+	s.logger.Info("Insert root hash to the db", "root", root, "block", block.Block.Hash())
 	s.eventProofDb.InsertRootBlock(root, block.Block.Hash())
 }
 
 func (s *StateSync) MaxSyncId() *big.Int {
 	//TODO 获取验证人列表
 	quorumId := s.p2p.GetQuorumSyncId(nil)
-	if quorumId == nil {
-		quorumId = big.NewInt(0)
-	}
 	id, _ := s.l1Sync.SyncDB().GetMaxSyncId()
 	if id == nil {
 		id = big.NewInt(0)
 	}
-	if id.Cmp(quorumId) > 0 {
+	if quorumId != nil && id.Cmp(quorumId) > 0 {
 		return quorumId
 	}
 	return id
@@ -100,6 +108,7 @@ func (s *StateSync) GenProof(epoch, view uint64, index uint32, start, end *big.I
 	}
 	events, err := s.l1Sync.SyncDB().FindStateSenderEvent(start, end)
 	if err != nil {
+		s.logger.Warn("Find state sender event failed", "start", start, "end", end)
 		return common.Hash{}, nil
 	}
 	leafId := make(map[*big.Int]common.Hash)
@@ -115,8 +124,11 @@ func (s *StateSync) GenProof(epoch, view uint64, index uint32, start, end *big.I
 	}
 	trie, err := merkle.NewMerkleTree(trieNodes)
 	if err := s.eventProofDb.InsertProof(epoch, view, index, start, end, leafId, trie); err != nil {
+		s.logger.Warn("Insert proof failed", "err", err)
 		return common.Hash{}, nil
 	}
+	s.logger.Debug("Gen proof success", "start", start, "end", end)
+
 	return trie.Hash(), nil
 }
 
@@ -128,7 +140,11 @@ func (s *StateSync) createCommitTx(ctx sdk.Context, cm *contracts.StateSyncCommi
 		BlockNumber: qc.BlockNumber,
 		BlockIndex:  qc.BlockIndex,
 		ExtendHash:  qc.ExtendHash,
-	}, qc.Signature[:], qc.ValidatorSet.Bits, qc.ValidatorSet.Bytes())
+		Signature:   qc.Signature[:],
+		ValidatorSet: contracts.BitArray{
+			Bits:  qc.ValidatorSet.Bits,
+			Elems: qc.ValidatorSet.Elems,
+		}})
 	if err != nil {
 		return nil, err
 	}

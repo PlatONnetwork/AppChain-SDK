@@ -60,9 +60,13 @@ func (s *SyncP2P) Protocols() []p2p.Protocol {
 	return s.p2p.Protocol()
 }
 func (s *SyncP2P) sendHeartbeat() {
-	s.p2p.Broadcast(nil, nil, &Heartbeat{
-		SyncStatus: *s.syncStatus,
-	})
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	if s.syncStatus != nil {
+		s.p2p.Broadcast(nil, nil, &Heartbeat{
+			SyncStatus: *s.syncStatus,
+		})
+	}
 }
 func (s *SyncP2P) Run(ctx context.Context) {
 	timer := time.AfterFunc(loopInterval, func() {
