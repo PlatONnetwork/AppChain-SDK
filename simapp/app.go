@@ -89,7 +89,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 	manager.SetOrderGenesis(l1Module.Name(), stageModule.Name(), vrfModule.Name(), stakeModule.Name(), rewardModule.Name())
 	manager.SetOrderBeginBlocker(stageModule.Name(), stakeModule.Name(), rewardModule.Name())
 	manager.SetOrderEndBlocker(stageModule.Name(), vrfModule.Name(), stakeModule.Name(), rewardModule.Name())
-	manager.SetOrderBlockCommiter(stakeModule.Name())
+	manager.SetOrderBlockCommiter(stakeModule.Name(), stateEvent.Name(), checkpoint.Name())
 
 	app := &SimApp{}
 	baseApp, err := baseapp.NewBaseApp("simapp", store, manager)

@@ -372,7 +372,7 @@ func (m *Module) submitCheckpoint(ctx sdk.ConsensusContext, latestNumber uint64,
 			return err
 		}
 
-		blockNumber = initialBlockNumber + blocksOfEpoch
+		blockNumber = blockNumber + blocksOfEpoch
 	}
 	return nil
 }
