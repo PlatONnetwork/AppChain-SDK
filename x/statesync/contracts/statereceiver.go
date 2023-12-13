@@ -3,6 +3,7 @@ package contracts
 import (
 	"encoding/hex"
 	"errors"
+	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
@@ -300,11 +301,11 @@ func (c *StateReceiver) EmitNewCommitmentEvent(startId *big.Int, endId *big.Int,
 
 func (c *StateReceiver) EmitStateSyncResultEvent(counter *big.Int, status bool, message []byte) (*types.Log, error) {
 	event := c.abi.Events["StateSyncResult"]
-	hashes, err := abi.PackTopics(event.Inputs, counter, status, message)
+	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, counter, status, message)
 	if err != nil {
 		return nil, err
 	}
-	data, err := event.Inputs.Pack(counter, status, message)
+	data, err := contracts.PackEventData(event.Inputs, counter, status, message)
 	if err != nil {
 		return nil, err
 	}
