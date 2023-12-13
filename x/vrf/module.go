@@ -50,7 +50,7 @@ func (v *VRFModule) SetStakeModule(stake vrftypes.StakeModuler) {
 }
 
 func (v *VRFModule) Name() string {
-	return "staking"
+	return "vrf"
 }
 func (v *VRFModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
 
@@ -115,9 +115,6 @@ func (v *VRFModule) AddTxs(ctx sdk.WorkerContext, local, remote map[basecommon.A
 	return local, remote
 }
 
-func (v *VRFModule) BeginBlock(ctx sdk.WorkerContext) {
-
-}
 func (v *VRFModule) EndBlock(ctx sdk.WorkerContext) {
 
 	header := ctx.Backend().CurrentHeader()

@@ -313,10 +313,12 @@ func TestPrivateKey(t *testing.T) {
 	// address: 0x5AC3D0154832bA77CB34c5de3Ef67f1acfbd4730
 	// address: 0x5c8Fb7c7746417b551B953DEac5dE42E06871B2f
 	// address: 0x35E1EC7b136DeF2E2d561F7E003deE2CBEf3C4c9
+	// 0x72776072703AD32b29A3546063c801b3Af7a28e9
 	priKeyArr := []*ecdsa.PrivateKey{
 		crypto.HexMustToECDSA("f55e740c5099295ca16bccd53b868cdf648645812e36ba1e45442db433f99580"),
 		crypto.HexMustToECDSA("3f3775f651d33432fa32f52f7a37876992feca6f64bb5f4ae21d5673c9ea5e75"),
 		crypto.HexMustToECDSA("8ffc52602366ca88ac29743732984eb58b5df03758e717fa7d160a73333d238d"),
+		crypto.HexMustToECDSA("eb7a0b9f4bf4927049b29ce4c717cf4956e3e644437a6b28fe90b17b7b1d4b4a"),
 	}
 
 	for i, privateKey := range priKeyArr {
@@ -325,4 +327,18 @@ func TestPrivateKey(t *testing.T) {
 		fmt.Printf("publicKey: %s\n", hex.EncodeToString(crypto.FromECDSAPub(&privateKey.PublicKey)[1:]))
 		fmt.Printf("address: %s\n", crypto.PubkeyToAddress(privateKey.PublicKey).Hex())
 	}
+}
+
+func TestGenesisVRFNonceHash(t *testing.T) {
+	fmt.Printf("genesis vrf nonce hash: %s", common.BytesToHash([]byte("genesisVRFNonce")).Hex())
+}
+
+// 0xf22c7e0702483b876d22ebC6Ac0542C7ffF9A4Eb
+func TestAddressToBech32(t *testing.T) {
+	//addr := common.HexToAddress("0xf22c7e0702483b876d22ebC6Ac0542C7ffF9A4Eb")
+	//fmt.Printf("address: %s\nbech32: %s\n", addr.Hex(), addr.Bech32())
+	//assert.Equal(t, addr, common.MustBech32ToAddress(addr.Bech32()), "mismatching")
+
+	addr := common.HexToAddress("0xB0568bF61e3E7AF10623054b9169Eb8030271D10")
+	fmt.Printf("address: %s\nbech32: %s\n", addr.Hex(), addr.Bech32())
 }

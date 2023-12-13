@@ -11,15 +11,15 @@ type StakeNetworkParams struct {
 	// (Suggest a value greater than or equal to the "minStack" parameter set in
 	// the StackManager contract in the root chain,
 	// and must be used to perform the same 'GenesisValidator stack' on the root chain`)
-	GenesisStakeAmount           uint64
-	GenesisValidatorOwner        common.Address // The account can be used to perform 'unstack' operations on 'GenesisValidator'
-	StakeWithdrawalWaitPeriod    uint64         // Asset lock up period after unstake (unit: epoch)
-	DelegateWithdrawalWaitPeriod uint64         // Asset lock up period after undelegate (unit: epoch)
-	SlashingPercentage           uint64         // To be read through NetworkParams later
-	SlashIncentivePercentage     uint64         // Exitor reward, to be read through NetworkParams later
-	MaxRoundValidatorsSize       uint64         // Maximum number of validators for each round
-	MaxEpochValidatorsSize       uint64         // Maximum number of validators for each epoch
-	MinRoundValidatorBlockNumber uint64         // Minimum blocks quantity threshold for validators in one round
+	GenesisStakeAmount           uint64         `json:"genesisStakeAmount"`
+	GenesisValidatorOwner        common.Address `json:"genesisValidatorOwner"`        // The account can be used to perform 'unstack' operations on 'GenesisValidator'
+	StakeWithdrawalWaitPeriod    uint64         `json:"stakeWithdrawalWaitPeriod"`    // Asset lock up period after unstake (unit: epoch)
+	DelegateWithdrawalWaitPeriod uint64         `json:"delegateWithdrawalWaitPeriod"` // Asset lock up period after undelegate (unit: epoch)
+	SlashingPercentage           uint64         `json:"slashingPercentage"`           // To be read through NetworkParams later
+	SlashIncentivePercentage     uint64         `json:"slashIncentivePercentage"`     // Exitor reward, to be read through NetworkParams later
+	MaxRoundValidatorsSize       uint64         `json:"maxRoundValidatorsSize"`       // Maximum number of validators for each round
+	MaxEpochValidatorsSize       uint64         `json:"maxEpochValidatorsSize"`       // Maximum number of validators for each epoch
+	MinRoundValidatorBlockNumber uint64         `json:"minRoundValidatorBlockNumber"` // Minimum blocks quantity threshold for validators in one round
 
 }
 

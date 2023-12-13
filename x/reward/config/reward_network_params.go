@@ -6,8 +6,8 @@ import (
 )
 
 type RewardNetworkParams struct {
-	RewardPerBlock *big.Int // The validator receives rewards for each block builded
-	RewardPerEpoch *big.Int // The validator receives rewards based on 'stack shares' for each epoch
+	RewardPerBlock *big.Int `json:"rewardPerBlock"` // The validator receives rewards for each block builded
+	RewardPerEpoch *big.Int `json:"rewardPerEpoch"` // The validator receives rewards based on 'stack shares' for each epoch
 }
 
 func DefaultRewardNetworkParams() *RewardNetworkParams {
