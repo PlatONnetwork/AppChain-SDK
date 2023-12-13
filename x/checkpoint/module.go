@@ -87,7 +87,7 @@ func (m *Module) Name() string {
 	return types.ModuleName
 }
 
-func (m *Module) Init() error {
+func (m *Module) Init(ctx sdk.InitContext) error {
 	if err := m.txRelayer.Init(); err != nil {
 		return err
 	}

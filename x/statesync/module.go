@@ -69,7 +69,7 @@ func (s *StateSync) Name() string {
 	return "statesync"
 }
 
-func (s *StateSync) Init() error {
+func (s *StateSync) Init(ctx sdk.InitContext) error {
 	if s.rpcAddress == "" {
 		return fmt.Errorf("node rpc address not set")
 	}

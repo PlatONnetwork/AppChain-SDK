@@ -22,7 +22,7 @@ type Module interface {
 }
 
 type InitModule interface {
-	Init() error
+	Init(ctx sdk.InitContext) error
 }
 
 type ContractModule interface {
@@ -214,13 +214,13 @@ func (m *Manager) SetOrderTransaction(moduleNames ...string) {
 	m.OrderTransaction = moduleNames
 }
 
-func (m *Manager) Init() error {
+func (m *Manager) InitChain(ctx sdk.InitContext) error {
 	log.Info("Init modules for sdk")
 	for _, moduleName := range m.OrderInit {
 		mod := m.Modules[moduleName]
 		if module, ok := mod.(InitModule); ok {
 			log.Info("Init for module", "module", moduleName)
-			if err := module.Init(); err != nil {
+			if err := module.Init(ctx); err != nil {
 				log.Error("Failed to init module", "module", moduleName, "err", err)
 				return err
 			}

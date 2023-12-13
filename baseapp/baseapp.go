@@ -51,16 +51,16 @@ func (app *BaseApp) ChainID() *big.Int {
 }
 
 func (app *BaseApp) Start() error {
-	return app.manager.Init()
+	return nil
 }
 
 func (app *BaseApp) Stop() error {
 	return nil
 }
 
-func (app *BaseApp) InitChain(ctx sdk.Context) error {
+func (app *BaseApp) InitChain(ctx sdk.InitContext) error {
 	app.chainID, _ = ctx.Backend().ChainId()
-	return nil
+	return app.manager.InitChain(ctx)
 }
 
 func (app *BaseApp) Contracts() []sdk.SDKContract {
