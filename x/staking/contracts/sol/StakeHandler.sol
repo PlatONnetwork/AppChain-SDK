@@ -20,7 +20,7 @@ contract StakeHandler is IStakeHandler {
     /// @notice allows a validator to complete a withdrawal
     function withdrawUnstake(address validator) external {} // only owner of validator call
 
-    function withdrawUndelegate(address validator) external {} // only delegater call
+    function withdrawUndelegate(address validator) external {} // only delegator call
 
     /**
      * @notice Calculates how much can be withdrawn for account in this epoch.
@@ -31,7 +31,7 @@ contract StakeHandler is IStakeHandler {
         return 0;
     }
 
-    function withdrawableOfDelegate(address validator, address delegater) external view returns (uint256) {
+    function withdrawableOfDelegate(address validator, address delegator) external view returns (uint256) {
         return 0;
     }
 
@@ -44,7 +44,7 @@ contract StakeHandler is IStakeHandler {
         return 0;
     }
 
-    function pendingWithdrawalsOfDelegate(address validator, address delegater) external view returns (uint256) {
+    function pendingWithdrawalsOfDelegate(address validator, address delegator) external view returns (uint256) {
         return 0;
     }
 

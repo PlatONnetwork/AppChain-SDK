@@ -60,9 +60,9 @@ func (c *RewardManagerCaller) PaidRewardPerEpoch(epochId *big.Int) (*big.Int, er
 
 }
 
-func (c *RewardManagerCaller) PendingDelegaterRewards(validator common.Address) (*big.Int, error) {
+func (c *RewardManagerCaller) PendingDelegatorRewards(validator common.Address) (*big.Int, error) {
 	var out []interface{}
-	err := c.BoundContract.Caller(c.to, &out, "pendingDelegaterRewards", validator)
+	err := c.BoundContract.Caller(c.to, &out, "pendingDelegatorRewards", validator)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -88,9 +88,9 @@ func (c *RewardManagerCaller) PendingValidatorRewards(validator common.Address) 
 
 }
 
-func (c *RewardManagerCaller) WithdrawDelegaterReward(validator common.Address) error {
+func (c *RewardManagerCaller) WithdrawDelegatorReward(validator common.Address) error {
 	var out []interface{}
-	err := c.BoundContract.Caller(c.to, &out, "withdrawDelegaterReward", validator)
+	err := c.BoundContract.Caller(c.to, &out, "withdrawDelegatorReward", validator)
 
 	if err != nil {
 		return err
@@ -143,9 +143,9 @@ func (c *RewardManagerDelegateCaller) PaidRewardPerEpoch(epochId *big.Int) (*big
 
 }
 
-func (c *RewardManagerDelegateCaller) PendingDelegaterRewards(validator common.Address) (*big.Int, error) {
+func (c *RewardManagerDelegateCaller) PendingDelegatorRewards(validator common.Address) (*big.Int, error) {
 	var out []interface{}
-	err := c.BoundContract.DelegateCaller(c.to, &out, "pendingDelegaterRewards", validator)
+	err := c.BoundContract.DelegateCaller(c.to, &out, "pendingDelegatorRewards", validator)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -171,9 +171,9 @@ func (c *RewardManagerDelegateCaller) PendingValidatorRewards(validator common.A
 
 }
 
-func (c *RewardManagerDelegateCaller) WithdrawDelegaterReward(validator common.Address) error {
+func (c *RewardManagerDelegateCaller) WithdrawDelegatorReward(validator common.Address) error {
 	var out []interface{}
-	err := c.BoundContract.DelegateCaller(c.to, &out, "withdrawDelegaterReward", validator)
+	err := c.BoundContract.DelegateCaller(c.to, &out, "withdrawDelegatorReward", validator)
 
 	if err != nil {
 		return err

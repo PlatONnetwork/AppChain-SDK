@@ -6,7 +6,7 @@ contract RewardManager is IRewardManager {
     /// @notice withdraws pending rewards for the sender (validator)
     function withdrawValidatorReward(address validator) external {}
 
-    function withdrawDelegaterReward(address validator) external {}
+    function withdrawDelegatorReward(address validator) external {}
 
     /// @notice returns the total reward (epoch reward and blocks reward) paid for the given epoch
     function paidRewardPerEpoch(uint256 epochId) external view returns (uint256) {
@@ -18,7 +18,7 @@ contract RewardManager is IRewardManager {
         return 0;
     }
 
-    function pendingDelegaterRewards(address validator) external view returns (uint256) {
+    function pendingDelegatorRewards(address validator) external view returns (uint256) {
         return 0;
     }
 }

@@ -30,11 +30,11 @@ var (
 var (
 	paidRewardPerEpochKeyPrefix     = []byte("paidRewardPerEpoch")     // "paidRewardPerEpoch":epochId => paidRewards
 	pendingValidatorRewardKeyPrefix = []byte("pendingValidatorReward") // "pendingValidatorReward":validatorAddr => pendingRewards
-	pendingDelegaterRewardKeyPrefix = []byte("pendingDelegaterReward") // "pendingDelegaterReward":delegaterAddr:validatorAddr => pendingRewards
+	pendingDelegatorRewardKeyPrefix = []byte("pendingDelegatorReward") // "pendingDelegatorReward":delegatorAddr:validatorAddr => pendingRewards
 
 	validatorRewardOwnerKeyPrefix = []byte("validatorRewardOwner") // "validatorRewardOwner":validatorAddr => ownerAddr
 
-	//delegaterRewardPendingIndexKeyPrefix       = []byte("delegaterRewardPendingIndex")       // "delegaterRewardPendingIndex":delegaterAddr:validatorAddr:stakeEpoch => needRewardEpoch
+	//delegatorRewardPendingIndexKeyPrefix       = []byte("delegatorRewardPendingIndex")       // "delegatorRewardPendingIndex":delegatorAddr:validatorAddr:stakeEpoch => needRewardEpoch
 	epochDelegationRewardPerShareItemKeyPrefix = []byte("epochDelegationRewardPerShareItem") // "epochDelegationRewardPerShareItem":validatorAddr:stakeEpoch:rewardEpoch => epochRewardPerDelegationShareItem{ preRewardEpoch, nextRewardEpoch, totalReward, perShareReward}
 )
 
@@ -56,20 +56,20 @@ func encodePendingValidatorRewardKey(validatorAddr basecommon.Address) []byte {
 	return append(pendingValidatorRewardKeyPrefix, validatorAddr.Bytes()...)
 }
 
-func encodePendingDelegaterRewardKey(delegaterAddr, validatorAddr basecommon.Address) []byte {
+func encodePendingDelegatorRewardKey(delegatorAddr, validatorAddr basecommon.Address) []byte {
 
-	delegaterAddrBytes := delegaterAddr.Bytes()
+	delegatorAddrBytes := delegatorAddr.Bytes()
 	validatorAddrBytes := validatorAddr.Bytes()
 
-	keyPrefixSize := len(pendingDelegaterRewardKeyPrefix)
-	appendDelegaterAddrSize := keyPrefixSize + len(delegaterAddrBytes)
-	size := appendDelegaterAddrSize + len(validatorAddrBytes)
+	keyPrefixSize := len(pendingDelegatorRewardKeyPrefix)
+	appendDelegatorAddrSize := keyPrefixSize + len(delegatorAddrBytes)
+	size := appendDelegatorAddrSize + len(validatorAddrBytes)
 
 	key := make([]byte, size)
 
-	copy(key[:keyPrefixSize], pendingDelegaterRewardKeyPrefix)
-	copy(key[keyPrefixSize:appendDelegaterAddrSize], delegaterAddrBytes)
-	copy(key[appendDelegaterAddrSize:], validatorAddrBytes)
+	copy(key[:keyPrefixSize], pendingDelegatorRewardKeyPrefix)
+	copy(key[keyPrefixSize:appendDelegatorAddrSize], delegatorAddrBytes)
+	copy(key[appendDelegatorAddrSize:], validatorAddrBytes)
 
 	return key
 }
@@ -166,25 +166,25 @@ func GetPendingValidatorReward(db sdk.StateDBReader, addr, validatorAddr basecom
 	return number
 }
 
-func IncrementPendingDelegaterReward(db sdk.StateDB, addr basecommon.Address, delegaterAddr, validatorAddr basecommon.Address, increment *big.Int) {
-	number := GetPendingDelegaterReward(db, addr, delegaterAddr, validatorAddr)
+func IncrementPendingDelegatorReward(db sdk.StateDB, addr basecommon.Address, delegaterAddr, validatorAddr basecommon.Address, increment *big.Int) {
+	number := GetPendingDelegatorReward(db, addr, delegaterAddr, validatorAddr)
 	number = new(big.Int).Add(number, increment)
-	db.SetState(addr, encodePendingDelegaterRewardKey(delegaterAddr, validatorAddr), number.Bytes())
+	db.SetState(addr, encodePendingDelegatorRewardKey(delegaterAddr, validatorAddr), number.Bytes())
 }
 
-func DecrementPendingDelegaterReward(db sdk.StateDB, addr basecommon.Address, delegaterAddr, validatorAddr basecommon.Address, decrement *big.Int) {
-	number := GetPendingDelegaterReward(db, addr, delegaterAddr, validatorAddr)
+func DecrementPendingDelegatorReward(db sdk.StateDB, addr basecommon.Address, delegaterAddr, validatorAddr basecommon.Address, decrement *big.Int) {
+	number := GetPendingDelegatorReward(db, addr, delegaterAddr, validatorAddr)
 
 	if number.Cmp(decrement) <= 0 {
-		db.SetState(addr, encodePendingDelegaterRewardKey(delegaterAddr, validatorAddr), []byte{})
+		db.SetState(addr, encodePendingDelegatorRewardKey(delegaterAddr, validatorAddr), []byte{})
 	} else {
 		number = new(big.Int).Sub(number, decrement)
-		db.SetState(addr, encodePendingDelegaterRewardKey(delegaterAddr, validatorAddr), number.Bytes())
+		db.SetState(addr, encodePendingDelegatorRewardKey(delegaterAddr, validatorAddr), number.Bytes())
 	}
 }
 
-func GetPendingDelegaterReward(db sdk.StateDBReader, addr basecommon.Address, delegaterAddr, validatorAddr basecommon.Address) *big.Int {
-	value := db.GetState(addr, encodePendingDelegaterRewardKey(delegaterAddr, validatorAddr))
+func GetPendingDelegatorReward(db sdk.StateDBReader, addr basecommon.Address, delegaterAddr, validatorAddr basecommon.Address) *big.Int {
+	value := db.GetState(addr, encodePendingDelegatorRewardKey(delegaterAddr, validatorAddr))
 	number := basecommon.Big0
 	if len(value) != 0 {
 		number = new(big.Int).SetBytes(value)

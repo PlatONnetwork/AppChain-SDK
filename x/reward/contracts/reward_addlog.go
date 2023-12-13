@@ -38,10 +38,10 @@ func (c *RewardManager) addLogEmitBlockRewardEvent(epochId *big.Int, validators 
 	return nil
 }
 
-func (c *RewardManager) addLogEmitDelegaterRewardWithdrawalEvent(validator basecommon.Address, amount *big.Int, caller basecommon.Address) error {
-	log, err := c.EmitDelegaterRewardWithdrawalEvent(validator, amount, caller)
+func (c *RewardManager) addLogEmitDelegatorRewardWithdrawalEvent(validator basecommon.Address, amount *big.Int, caller basecommon.Address) error {
+	log, err := c.EmitDelegatorRewardWithdrawalEvent(validator, amount, caller)
 	if nil != err {
-		baselog.Error("Failed to emit DelegaterRewardWithdrawalEvent", "validator", validator.Hex(), "amount", amount, "caller", caller.Hex(), "error", err)
+		baselog.Error("Failed to emit DelegatorRewardWithdrawalEvent", "validator", validator.Hex(), "amount", amount, "caller", caller.Hex(), "error", err)
 		return typesdk.NewRevertError(fmt.Sprintf("RewardManager: %s", err))
 	}
 	c.evm.StateDB.AddLog(log)

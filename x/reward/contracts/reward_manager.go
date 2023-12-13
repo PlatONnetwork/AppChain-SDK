@@ -29,7 +29,7 @@ var (
 )
 
 var (
-	ABI    = "[{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"epochId\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"address[]\",\"name\":\"validators\",\"type\":\"address[]\"},{\"indexed\":false,\"internalType\":\"uint256[]\",\"name\":\"amounts\",\"type\":\"uint256[]\"}],\"name\":\"BlockReward\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"validator\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"caller\",\"type\":\"address\"}],\"name\":\"DelegaterRewardWithdrawal\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"epochId\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"address[]\",\"name\":\"validators\",\"type\":\"address[]\"},{\"indexed\":false,\"internalType\":\"uint256[]\",\"name\":\"amounts\",\"type\":\"uint256[]\"}],\"name\":\"EpochReward\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"epochId\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"totalReward\",\"type\":\"uint256\"}],\"name\":\"RewardDistributed\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"validator\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"caller\",\"type\":\"address\"}],\"name\":\"ValidatorRewardWithdrawal\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"epochId\",\"type\":\"uint256\"}],\"name\":\"paidRewardPerEpoch\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"validator\",\"type\":\"address\"}],\"name\":\"pendingDelegaterRewards\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"validator\",\"type\":\"address\"}],\"name\":\"pendingValidatorRewards\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"validator\",\"type\":\"address\"}],\"name\":\"withdrawDelegaterReward\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"validator\",\"type\":\"address\"}],\"name\":\"withdrawValidatorReward\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
+	ABI    = "[{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"epochId\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"address[]\",\"name\":\"validators\",\"type\":\"address[]\"},{\"indexed\":false,\"internalType\":\"uint256[]\",\"name\":\"amounts\",\"type\":\"uint256[]\"}],\"name\":\"BlockReward\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"validator\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"caller\",\"type\":\"address\"}],\"name\":\"DelegatorRewardWithdrawal\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"epochId\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"address[]\",\"name\":\"validators\",\"type\":\"address[]\"},{\"indexed\":false,\"internalType\":\"uint256[]\",\"name\":\"amounts\",\"type\":\"uint256[]\"}],\"name\":\"EpochReward\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"epochId\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"totalReward\",\"type\":\"uint256\"}],\"name\":\"RewardDistributed\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"validator\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"caller\",\"type\":\"address\"}],\"name\":\"ValidatorRewardWithdrawal\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"epochId\",\"type\":\"uint256\"}],\"name\":\"paidRewardPerEpoch\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"validator\",\"type\":\"address\"}],\"name\":\"pendingDelegatorRewards\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"validator\",\"type\":\"address\"}],\"name\":\"pendingValidatorRewards\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"validator\",\"type\":\"address\"}],\"name\":\"withdrawDelegatorReward\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"validator\",\"type\":\"address\"}],\"name\":\"withdrawValidatorReward\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
 	Abi, _ = abi.JSON(strings.NewReader(ABI))
 )
 
@@ -51,10 +51,10 @@ func (c *RewardManager) initMethodEntry() {
 
 	c.methodEntry = map[string]func([]byte) ([]byte, error){
 		"07358b99": c.PaidRewardPerEpochEntry,
-		"8b3f0301": c.PendingDelegaterRewardsEntry,
+		"08abda72": c.PendingDelegatorRewardsEntry,
 		"a617627c": c.PendingValidatorRewardsEntry,
 
-		"eecd58a1": c.WithdrawDelegaterRewardEntry,
+		"346683f0": c.WithdrawDelegatorRewardEntry,
 		"5bc0f928": c.WithdrawValidatorRewardEntry,
 	}
 
@@ -88,9 +88,9 @@ func (c *RewardManager) PaidRewardPerEpochEntry(input []byte) ([]byte, error) {
 	return output, err
 }
 
-func (c *RewardManager) PendingDelegaterRewardsEntry(input []byte) ([]byte, error) {
+func (c *RewardManager) PendingDelegatorRewardsEntry(input []byte) ([]byte, error) {
 
-	method := c.abi.Methods["pendingDelegaterRewards"]
+	method := c.abi.Methods["pendingDelegatorRewards"]
 
 	var err error
 
@@ -99,7 +99,7 @@ func (c *RewardManager) PendingDelegaterRewardsEntry(input []byte) ([]byte, erro
 		return nil, err
 	}
 
-	res0, err := c.PendingDelegaterRewards(*abi.ConvertType(args[0], new(common.Address)).(*common.Address))
+	res0, err := c.PendingDelegatorRewards(*abi.ConvertType(args[0], new(common.Address)).(*common.Address))
 	if err != nil {
 		if r, ok := err.(*typesdk.RevertError); ok {
 			return r.ReturnData, vm.ErrExecutionReverted
@@ -144,9 +144,9 @@ func (c *RewardManager) PendingValidatorRewardsEntry(input []byte) ([]byte, erro
 	return output, err
 }
 
-func (c *RewardManager) WithdrawDelegaterRewardEntry(input []byte) ([]byte, error) {
+func (c *RewardManager) WithdrawDelegatorRewardEntry(input []byte) ([]byte, error) {
 
-	method := c.abi.Methods["withdrawDelegaterReward"]
+	method := c.abi.Methods["withdrawDelegatorReward"]
 
 	var err error
 
@@ -155,7 +155,7 @@ func (c *RewardManager) WithdrawDelegaterRewardEntry(input []byte) ([]byte, erro
 		return nil, err
 	}
 
-	err = c.WithdrawDelegaterReward(*abi.ConvertType(args[0], new(common.Address)).(*common.Address))
+	err = c.WithdrawDelegatorReward(*abi.ConvertType(args[0], new(common.Address)).(*common.Address))
 	if err != nil {
 		if r, ok := err.(*typesdk.RevertError); ok {
 			return r.ReturnData, vm.ErrExecutionReverted
@@ -208,8 +208,8 @@ func (c *RewardManager) EmitBlockRewardEvent(epochId *big.Int, validators []comm
 	}, nil
 }
 
-func (c *RewardManager) EmitDelegaterRewardWithdrawalEvent(validator common.Address, amount *big.Int, caller common.Address) (*types.Log, error) {
-	event := c.abi.Events["DelegaterRewardWithdrawal"]
+func (c *RewardManager) EmitDelegatorRewardWithdrawalEvent(validator common.Address, amount *big.Int, caller common.Address) (*types.Log, error) {
+	event := c.abi.Events["DelegatorRewardWithdrawal"]
 	hashes, err := abi.PackTopics(event.Inputs, validator, amount, caller)
 	if err != nil {
 		return nil, err
