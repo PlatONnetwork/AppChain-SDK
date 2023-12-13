@@ -15,7 +15,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/extravote"
 	"github.com/PlatONnetwork/AppChain-SDK/x/l1"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking"
-	stateevent "github.com/PlatONnetwork/AppChain-SDK/x/state_event"
+	"github.com/PlatONnetwork/AppChain-SDK/x/stateevent"
 	"github.com/PlatONnetwork/AppChain-SDK/x/statesync"
 	"github.com/PlatONnetwork/AppChain-SDK/x/txrelayer"
 	"github.com/PlatONnetwork/PlatON-Go/cmd/utils"
