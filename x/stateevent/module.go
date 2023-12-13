@@ -6,8 +6,8 @@ import (
 
 	"github.com/PlatONnetwork/AppChain-SDK/store"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
-	"github.com/PlatONnetwork/AppChain-SDK/x/state_event/storage"
-	"github.com/PlatONnetwork/AppChain-SDK/x/state_event/types"
+	"github.com/PlatONnetwork/AppChain-SDK/x/stateevent/storage"
+	"github.com/PlatONnetwork/AppChain-SDK/x/stateevent/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	ctypes "github.com/PlatONnetwork/PlatON-Go/consensus/cbft/types"
 	coretypes "github.com/PlatONnetwork/PlatON-Go/core/types"

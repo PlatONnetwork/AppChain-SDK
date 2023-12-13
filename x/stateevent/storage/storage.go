@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 
 	"github.com/PlatONnetwork/AppChain-SDK/store"
-	"github.com/PlatONnetwork/AppChain-SDK/x/state_event/types"
+	"github.com/PlatONnetwork/AppChain-SDK/x/stateevent/types"
 )
 
 type Storage struct {
