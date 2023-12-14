@@ -19,7 +19,8 @@ func GenerateNonceAndProof(db sdk.StateDBReader, addr basecommon.Address, blockN
 
 	parentNonce, err := GetPreviousNonce(db, addr, blockNumber)
 	if nil != err {
-		return nil, fmt.Errorf("can not get previous vrf nonce, %v", err)
+		//return nil, fmt.Errorf("can not get previous vrf nonce, blockNumber: %d, %v", blockNumber, err)
+		panic(fmt.Errorf("can not get previous vrf nonce, blockNumber: %d, %v", blockNumber, err))
 	}
 	nonceAndProof, err := vrf.Prove(key, parentNonce.Bytes())
 	if nil != err {

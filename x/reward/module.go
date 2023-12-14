@@ -65,7 +65,8 @@ func (r *RewardModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig 
 	} else {
 		configParams = &conf
 	}
-
+	// init reward manager account nonce
+	initAccountNonce(db, r.Address())
 	// set config params
 	initConfigParams(db, r.Address(), configParams)
 

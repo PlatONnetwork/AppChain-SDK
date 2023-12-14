@@ -47,6 +47,8 @@ func (s *StageModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *
 		configParams = &conf
 	}
 
+	// init stage manager account nonce
+	initAccountNonce(db, s.Address())
 	// set config params
 	initConfigParams(db, s.Address(), configParams)
 

@@ -67,7 +67,6 @@ func (s *StakeModule) Init(ctx sdk.InitContext) error {
 }
 
 func (s *StakeModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
-
 	configParams := config.DefualtStakeNetworkParams()
 	raw, err := data.MarshalJSON()
 	if nil != err {
@@ -80,6 +79,9 @@ func (s *StakeModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *
 	} else {
 		configParams = &conf
 	}
+
+	// init staking handler account nonce
+	initAccountNonce(db, s.Address())
 	// store configParms
 	initStakeConfigParams(db, s.Address(), configParams)
 

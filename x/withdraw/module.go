@@ -1,11 +1,14 @@
 package withdraw
 
 import (
+	"encoding/json"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/withdraw/contracts"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/log"
+	"github.com/PlatONnetwork/PlatON-Go/params"
+	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -25,6 +28,11 @@ func NewWithdrawModule(ctx *cli.Context) *WithdrawModule {
 
 func (w *WithdrawModule) Name() string {
 	return MODULE_NAME_WITHDRAW
+}
+
+func (w *WithdrawModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
+	// init withdraw manager  account nonce
+	initAccountNonce(db, w.Address())
 }
 
 func (w *WithdrawModule) Address() basecommon.Address {

@@ -4,6 +4,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/deposit"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward"
 	"github.com/PlatONnetwork/AppChain-SDK/x/stage"
+	"github.com/PlatONnetwork/AppChain-SDK/x/statesender"
 	"github.com/PlatONnetwork/AppChain-SDK/x/vrf"
 	"path/filepath"
 
@@ -61,6 +62,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 	stakeModule := staking.NewStakeModule(ctx, l1Module, stageModule)
 	rewardModule := reward.NewRewardModule(ctx, stageModule)
 	depositModule := deposit.NewDepositModule(ctx, l1Module)
+	l2StateSender := statesender.NewStateSenderModule(ctx)
 
 	vrfModule.SetStakeModule(stakeModule)
 	stakeModule.SetRewardModule(rewardModule)
@@ -85,8 +87,9 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 	manager.SetElection(stakeModule.Name())
 	manager.SetConsensusExtend(extraVote.Name())
 	//manager.SetWorker(stateSync.Name())
+	manager.SetOrderTransaction(stateSync.Name(), vrfModule.Name(), stakeModule.Name())
 	manager.SetOrderInit(stateSync.Name(), checkpoint.Name(), vrfModule.Name(), stakeModule.Name(), rewardModule.Name())
-	manager.SetOrderGenesis(l1Module.Name(), stageModule.Name(), vrfModule.Name(), stakeModule.Name(), rewardModule.Name())
+	manager.SetOrderGenesis(l1Module.Name(), stageModule.Name(), vrfModule.Name(), stakeModule.Name(), rewardModule.Name(), depositModule.Name(), l2StateSender.Name())
 	manager.SetOrderBeginBlocker(stageModule.Name(), stakeModule.Name(), rewardModule.Name())
 	manager.SetOrderEndBlocker(stageModule.Name(), vrfModule.Name(), stakeModule.Name(), rewardModule.Name())
 	manager.SetOrderBlockCommiter(stakeModule.Name(), stateEvent.Name(), checkpoint.Name())

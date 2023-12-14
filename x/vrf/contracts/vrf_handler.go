@@ -11,6 +11,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/event"
+	"github.com/PlatONnetwork/PlatON-Go/log"
 	"math/big"
 	"strings"
 )
@@ -38,6 +39,7 @@ func (c *VRFHandler) Run(input []byte) ([]byte, error) {
 		return nil, errors.New("input too short")
 	}
 	id := input[0:4]
+	log.Info("Start execute vrf contract", "blockNumber", c.evm.Context.BlockNumber.Uint64(), "methId", hex.EncodeToString(id), "input", input)
 	entry, ok := c.methodEntry[hex.EncodeToString(id)]
 	if !ok {
 		if c.fallback != nil {

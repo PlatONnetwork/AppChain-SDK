@@ -23,7 +23,8 @@ func (c *VRFHandler) verifyNonceAndProof(validatorAddr basecommon.Address, block
 	previousNonce, err := vrfwrap.GetPreviousNonce(c.evm.StateDB, c.contract.Address(), blockNumber)
 	if nil != err {
 		log.Error("Failed to get previous vrf nonce", "blockNumber", blockNumber, "error", err)
-		return typesdk.NewRevertError("VRFHandler: can not get previous vrf nonce")
+		//return typesdk.NewRevertError("VRFHandler: can not get previous vrf nonce")
+		panic("VRFHandler: can not get previous vrf nonce")
 	}
 
 	pubKey := c.stakeModule.GetValidatorECDSAPubKey(c.evm.StateDB, validatorAddr)

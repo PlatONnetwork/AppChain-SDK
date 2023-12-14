@@ -10,6 +10,10 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 )
 
+func initAccountNonce(statedb sdk.StateDB, addr common.Address) {
+	statedb.SetNonce(addr, 1)
+}
+
 func initConfigParams(statedb sdk.StateDB, addr common.Address, params *config.StageNetworkParams) {
 	statedb.SetState(addr, stagedb.EncodeRoundValidatorElectionDistanceKey(), common.Uint64ToBytes(params.RoundValidatorElectionDistance))
 	statedb.SetState(addr, stagedb.EncodeRoundSizeKey(), common.Uint64ToBytes(params.RoundSize))

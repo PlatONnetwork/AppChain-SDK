@@ -119,6 +119,8 @@ func (w WorkContext) Header() *types.Header {
 	return w.header
 }
 
+func (w WorkContext) IsWorker() bool { return false }
+
 type ConsensusContext struct {
 	EpochNumber      uint64
 	ViewNumber       uint64
@@ -152,6 +154,11 @@ func (c ConsensusContext) Header() *types.Header {
 }
 
 func (c ConsensusContext) StateDB() sdk.StateDBReader {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c ConsensusContext) ParentStateDB() sdk.StateDBReader {
 	//TODO implement me
 	panic("implement me")
 }
