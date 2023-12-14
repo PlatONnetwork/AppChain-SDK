@@ -72,7 +72,11 @@ func (s *StageModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, read
 }
 
 func (s *StageModule) BeginBlock(ctx sdk.WorkerContext) {
-	currentBlock := ctx.Backend().CurrentHeader().Number.Uint64()
+
+	currentBlock := ctx.Header().Number.Uint64()
+	if currentBlock == 0 {
+		return
+	}
 	// NOTE: change current round at new round startBlock
 	if db.IsBeginOfNextRound(ctx.StateDB(), s.Address(), currentBlock) {
 		db.InrementCurrentRound(ctx.StateDB(), s.Address())
@@ -85,7 +89,10 @@ func (s *StageModule) BeginBlock(ctx sdk.WorkerContext) {
 
 func (s *StageModule) EndBlock(ctx sdk.WorkerContext) {
 
-	currentBlock := ctx.Backend().CurrentHeader().Number.Uint64()
+	currentBlock := ctx.Header().Number.Uint64()
+	if currentBlock == 0 {
+		return
+	}
 
 	// store next epochItem (at current round endBlock)
 	if db.IsEndOfCurrentRound(ctx.StateDB(), s.Address(), currentBlock) {
@@ -235,8 +242,7 @@ func (s *StageModule) BlocksOfEpoch(stateDB sdk.StateDBReader, epoch uint64) uin
 
 func (s *StageModule) GetLastNumber(stateDB sdk.StateDBReader, blockNumber uint64) uint64 {
 	var endBlock uint64
-	addr := s.Address()
-	fmt.Printf("addr: %s", addr.Hex())
+
 	currentRound := db.GetCurrentRound(stateDB, s.Address())
 	item := db.GetRoundItem(stateDB, s.Address(), currentRound)
 	// NOTE: Optimization processing, compare with the current round first,

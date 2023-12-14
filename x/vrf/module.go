@@ -12,8 +12,6 @@ import (
 	vrftypes "github.com/PlatONnetwork/AppChain-SDK/x/vrf/types"
 	vrfwrap "github.com/PlatONnetwork/AppChain-SDK/x/vrf/wrap"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
-	"reflect"
-
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
@@ -93,20 +91,18 @@ func (v *VRFModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOn
 }
 
 func (v *VRFModule) AddTxs(ctx sdk.WorkerContext, local, remote map[basecommon.Address]types.Transactions) (map[basecommon.Address]types.Transactions, map[basecommon.Address]types.Transactions) {
-	wctx, ok := ctx.(sdk.WorkerContext)
-	if !ok {
-		v.logger.Error("Unexpeced sdk context", "ctx", reflect.TypeOf(ctx).String())
+
+	blockNumber := ctx.Header().Number.Uint64()
+	if blockNumber == 0 {
 		return local, remote
 	}
-
-	blockNumber := ctx.Backend().CurrentHeader().Number.Uint64()
 	from := crypto.PubkeyToAddress(v.nodePrivateKey.PublicKey)
 
 	// generate nonceAndProof by validator pubKey and previousNonce
 	// nonAndProof: 81 byte
 	// flag |nonce |proof
 	// 1byte|32byte|48byte
-	nonceAndProof, err := v.GenerateNonceAndProof(wctx, blockNumber)
+	nonceAndProof, err := v.GenerateNonceAndProof(ctx, blockNumber)
 	if nil != err {
 		return local, remote
 	}
@@ -125,7 +121,7 @@ func (v *VRFModule) AddTxs(ctx sdk.WorkerContext, local, remote map[basecommon.A
 
 func (v *VRFModule) EndBlock(ctx sdk.WorkerContext) {
 
-	header := ctx.Backend().CurrentHeader()
+	header := ctx.Header()
 
 	// not worker validator
 	if !ctx.IsWorker() {

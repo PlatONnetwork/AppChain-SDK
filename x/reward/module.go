@@ -85,7 +85,11 @@ func (r *RewardModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, rea
 }
 
 func (r *RewardModule) BeginBlock(ctx sdk.WorkerContext) {
-	currentBlock := ctx.Backend().CurrentHeader().Number.Uint64()
+
+	currentBlock := ctx.Header().Number.Uint64()
+	if currentBlock == 0 {
+		return
+	}
 	// distribute blocks reward (with round)
 	if r.stageModule.IsBeginOfCurrentRound(ctx.StateDB(), currentBlock) {
 		if err := r.handleBlocksRewardForPreviousRound(ctx.StateDB(), currentBlock); nil != err {
@@ -96,7 +100,10 @@ func (r *RewardModule) BeginBlock(ctx sdk.WorkerContext) {
 
 func (r *RewardModule) EndBlock(ctx sdk.WorkerContext) {
 
-	currentBlock := ctx.Backend().CurrentHeader().Number.Uint64()
+	currentBlock := ctx.Header().Number.Uint64()
+	if currentBlock == 0 {
+		return
+	}
 
 	// distribute epoch reward
 	if r.stageModule.IsEndOfCurrentEpoch(ctx.StateDB(), currentBlock) {
@@ -124,6 +131,10 @@ func (r *RewardModule) handleBlocksRewardForPreviousRound(stateDB sdk.StateDB, b
 	}
 
 	currentRound := r.stageModule.GetCurrentRound(stateDB)
+	if currentRound == 0 {
+		return nil
+	}
+
 	handleRound := currentRound - 1
 	previousRoundValidatorIds := r.stakeModule.GetRoundValidatorIds(stateDB, handleRound)
 
@@ -139,7 +150,7 @@ func (r *RewardModule) handleBlocksRewardForPreviousRound(stateDB sdk.StateDB, b
 
 		totalPaidReward = new(big.Int).Add(totalPaidReward, blocksReward)
 
-		r.logger.Debug("Finished distribute blocks reward", "currentRound", currentRound, "handle round", handleRound, "validatorAddr", validatorAddr.Hex(),
+		r.logger.Debug("Finished distribute blocks reward", "currentRound", currentRound, "handleRound", handleRound, "validatorAddr", validatorAddr.Hex(),
 			"blocksReward", blocksReward, "numberOfBlocks", numberOfBlocks, "blockNumber", blockNumber)
 	}
 

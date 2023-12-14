@@ -107,7 +107,10 @@ func (s *StakeModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, read
 
 func (s *StakeModule) AddTxs(ctx sdk.WorkerContext, local, remote map[basecommon.Address]types.Transactions) (map[basecommon.Address]types.Transactions, map[basecommon.Address]types.Transactions) {
 
-	blockNumber := ctx.Backend().CurrentHeader().Number.Uint64()
+	blockNumber := ctx.Header().Number.Uint64()
+	if blockNumber == 0 {
+		return local, remote
+	}
 
 	if s.stageModule.IsNotBeginOfCurrentRound(ctx.StateDB(), blockNumber) {
 		return local, remote
@@ -134,11 +137,14 @@ func (s *StakeModule) AddTxs(ctx sdk.WorkerContext, local, remote map[basecommon
 
 func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) {
 
-	currentBlock := ctx.Backend().CurrentHeader().Number.Uint64()
+	currentBlock := ctx.Header().Number.Uint64()
+	if currentBlock == 0 {
+		return
+	}
 
 	// increase the number of validator blocks generated from the previous block
 	parentBlock := currentBlock - 1
-	parentHash := ctx.Backend().CurrentHeader().ParentHash
+	parentHash := ctx.Header().ParentHash
 	if parentBlock != 0 {
 		parentHeader := ctx.Backend().GetBlock(parentHash, parentBlock).Header()
 		if err := s.setNumberOfBlocksForRoundValidator(ctx.StateDB(), parentHeader); nil != err {
@@ -160,7 +166,10 @@ func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) {
 }
 func (s *StakeModule) EndBlock(ctx sdk.WorkerContext) {
 
-	currentBlock := ctx.Backend().CurrentHeader().Number.Uint64()
+	currentBlock := ctx.Header().Number.Uint64()
+	if currentBlock == 0 {
+		return
+	}
 
 	// election next round validators (at cuurent round electionBlock)
 	if s.stageModule.IsElectionBlockOnCurrentRound(ctx.StateDB(), currentBlock) {
@@ -243,7 +252,7 @@ func (s *StakeModule) GetRoundValidator(ctx sdk.ConsensusContext, blockNumber ui
 		}
 		pubkey, _ := v.PubKey.Pubkey()
 		blsKey := bls.PublicKey{}
-		(&blsKey).DeserializeUncompressed(v.BlsKey)
+		(&blsKey).Deserialize(v.BlsKey)
 
 		validator := &cbfttypes.ValidateNode{
 			Index:     uint32(i),
@@ -314,7 +323,8 @@ func (s *StakeModule) NewHeader(ctx sdk.ConsensusContext, header *types.Header) 
 
 	if ctx.IsProposer() {
 		currentValidatorAddr := crypto.PubkeyToAddress(s.nodePrivateKey.PublicKey)
-		currentValidator := db.GetValidator(ctx.StateDB(), s.Address(), currentValidatorAddr)
+
+		currentValidator := db.GetValidator(ctx.ParentStateDB(), s.Address(), currentValidatorAddr)
 		if currentValidator.IsInvalid() {
 			return errors.New("invalida validator")
 		}

@@ -38,8 +38,6 @@ func initGenesisEpochItem(statedb sdk.StateDB, addr common.Address, params *conf
 
 func initGenesisRoundItem(statedb sdk.StateDB, addr common.Address, params *config.StageNetworkParams) error {
 
-	fmt.Printf("addr: %s", addr.Hex())
-
 	zero := types.NewRoundItem(0, 0)
 	round := types.NewRoundItem(1, params.RoundSize)
 	zvalue, err := rlp.EncodeToBytes(zero)

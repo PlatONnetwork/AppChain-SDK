@@ -86,9 +86,10 @@ func initValidators(statedb sdk.StateDB, addr common.Address, chainConfig *param
 
 		stakeIndex := stakingdb.IncrementValidatorNonce(statedb, addr)
 
-		if err := stakingdb.SetValidator(statedb, addr, validatorAddr, types.NewValidator(
+		validator := types.NewValidator(
 			stakeNetworkParams.GenesisValidatorOwner, genesisStakeAmount, genesisDelegateAmount,
-			initialNode.BlsPubKey.Serialize(), initialNode.Node.IDv0(), 0, 1, stakeIndex)); nil != err {
+			initialNode.BlsPubKey.Serialize(), initialNode.Node.IDv0(), 0, 1, stakeIndex)
+		if err := stakingdb.SetValidator(statedb, addr, validatorAddr, validator); nil != err {
 			return fmt.Errorf("set validator info '%s' %s", validatorAddr, err)
 		}
 
