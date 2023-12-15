@@ -66,30 +66,34 @@ func (s *StakeModule) Init(ctx sdk.InitContext) error {
 	return nil
 }
 
-func (s *StakeModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
-
+func (s *StakeModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
 	configParams := config.DefualtStakeNetworkParams()
 	raw, err := data.MarshalJSON()
 	if nil != err {
 		log.Error("Failed MarshalJSON StakeNetworkParams bytes", "error", err)
+		return err
 	}
 
 	var conf config.StakeNetworkParams
 	if err := json.Unmarshal(raw, &conf); nil != err {
 		log.Error("Failed UnmarshalJSON StakeNetworkParams", "error", err)
+		return err
 	} else {
 		configParams = &conf
 	}
+
+	// init staking handler account nonce
+	initAccountNonce(db, s.Address())
 	// store configParms
 	initStakeConfigParams(db, s.Address(), configParams)
 
 	if err := initValidators(db, s.Address(), chainConfig, configParams); nil != err {
 		log.Error("Failed initialize genesis validators", "error", err)
-		panic(err)
+		return err
 	}
 
 	log.Info("Succeed init genesis", "module", s.Name(), "StakeNetworkParams", configParams.String())
-
+	return nil
 }
 
 func (s *StakeModule) Address() basecommon.Address {
@@ -107,7 +111,10 @@ func (s *StakeModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, read
 
 func (s *StakeModule) AddTxs(ctx sdk.WorkerContext, local, remote map[basecommon.Address]types.Transactions) (map[basecommon.Address]types.Transactions, map[basecommon.Address]types.Transactions) {
 
-	blockNumber := ctx.Backend().CurrentHeader().Number.Uint64()
+	blockNumber := ctx.Header().Number.Uint64()
+	if blockNumber == 0 {
+		return local, remote
+	}
 
 	if s.stageModule.IsNotBeginOfCurrentRound(ctx.StateDB(), blockNumber) {
 		return local, remote
@@ -132,17 +139,20 @@ func (s *StakeModule) AddTxs(ctx sdk.WorkerContext, local, remote map[basecommon
 	return local, remote
 }
 
-func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) {
+func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) error {
 
-	currentBlock := ctx.Backend().CurrentHeader().Number.Uint64()
+	currentBlock := ctx.Header().Number.Uint64()
+	if currentBlock == 0 {
+		return nil
+	}
 
 	// increase the number of validator blocks generated from the previous block
 	parentBlock := currentBlock - 1
-	parentHash := ctx.Backend().CurrentHeader().ParentHash
+	parentHash := ctx.Header().ParentHash
 	if parentBlock != 0 {
 		parentHeader := ctx.Backend().GetBlock(parentHash, parentBlock).Header()
 		if err := s.setNumberOfBlocksForRoundValidator(ctx.StateDB(), parentHeader); nil != err {
-			panic(fmt.Sprintf("Failed to set number of blocks for round validators, parentBlock: %d, blockNumber: %d, error: %s", parentBlock, currentBlock, err))
+			return fmt.Errorf("can not set number of blocks for round validators, %s, parentBlock: %d", err, parentBlock)
 		}
 	}
 
@@ -152,20 +162,23 @@ func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) {
 		// update validator status
 		for _, validatorAddr := range lowBlocksValidatorAddrQueue {
 			if err := s.updateValidatorStatus(ctx.StateDB(), validatorAddr, staketypes.Invalided|staketypes.LowBlocks); nil != err {
-				panic(fmt.Sprintf("Failed to update validator status to [lowBlocks], validator: %s, blockNumber: %d, error: %s", validatorAddr.Hex(), currentBlock, err))
+				return fmt.Errorf("can not update validator status to [lowBlocks], %s, validator: %s", err, validatorAddr.Hex())
 			}
 		}
 	}
-
+	return nil
 }
-func (s *StakeModule) EndBlock(ctx sdk.WorkerContext) {
+func (s *StakeModule) EndBlock(ctx sdk.WorkerContext) error {
 
-	currentBlock := ctx.Backend().CurrentHeader().Number.Uint64()
+	currentBlock := ctx.Header().Number.Uint64()
+	if currentBlock == 0 {
+		return nil
+	}
 
 	// election next round validators (at cuurent round electionBlock)
 	if s.stageModule.IsElectionBlockOnCurrentRound(ctx.StateDB(), currentBlock) {
 		if err := s.electionRoundValidators(ctx, currentBlock); nil != err {
-			panic(fmt.Sprintf("Failed to elected round validators, blockNumber: %d, error: %s", currentBlock, err))
+			return fmt.Errorf("can not elected round validators, %s", err)
 		}
 	}
 
@@ -173,9 +186,10 @@ func (s *StakeModule) EndBlock(ctx sdk.WorkerContext) {
 	// and store next epochItem
 	if s.stageModule.IsEndOfCurrentEpoch(ctx.StateDB(), currentBlock) {
 		if err := s.electionEpochValidators(ctx, currentBlock); nil != err {
-			panic(fmt.Sprintf("Failed to elected epoch validators, blockNumber: %d, error: %s", currentBlock, err))
+			return fmt.Errorf("can not elected epoch validators, %s", err)
 		}
 	}
+	return nil
 }
 
 func (s *StakeModule) OnCommit(ctx sdk.ConsensusContext, block *types.Block) error {
@@ -243,7 +257,7 @@ func (s *StakeModule) GetRoundValidator(ctx sdk.ConsensusContext, blockNumber ui
 		}
 		pubkey, _ := v.PubKey.Pubkey()
 		blsKey := bls.PublicKey{}
-		(&blsKey).DeserializeUncompressed(v.BlsKey)
+		(&blsKey).Deserialize(v.BlsKey)
 
 		validator := &cbfttypes.ValidateNode{
 			Index:     uint32(i),
@@ -314,7 +328,8 @@ func (s *StakeModule) NewHeader(ctx sdk.ConsensusContext, header *types.Header) 
 
 	if ctx.IsProposer() {
 		currentValidatorAddr := crypto.PubkeyToAddress(s.nodePrivateKey.PublicKey)
-		currentValidator := db.GetValidator(ctx.StateDB(), s.Address(), currentValidatorAddr)
+
+		currentValidator := db.GetValidator(ctx.ParentStateDB(), s.Address(), currentValidatorAddr)
 		if currentValidator.IsInvalid() {
 			return errors.New("invalida validator")
 		}

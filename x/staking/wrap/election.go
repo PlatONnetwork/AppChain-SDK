@@ -207,7 +207,7 @@ func orderValidatorQueueByRandom(db sdk.StateDB, vrfModule staketypes.VRFModuler
 
 	historyNonceQueue, err := vrfModule.GetNonceQueueFromTail(db, blockNumber-1, uint64(len(validatorSnapshotQueue)))
 	if nil != err {
-		return nil, err
+		return nil, fmt.Errorf("GetNonceQueueFromTail, %s", err)
 	}
 	if len(historyNonceQueue) != len(validatorSnapshotQueue) {
 		return nil, fmt.Errorf("had not enough history vrf nonces")

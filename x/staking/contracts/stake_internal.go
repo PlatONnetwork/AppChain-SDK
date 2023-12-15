@@ -5,6 +5,7 @@ import (
 	"fmt"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
+	"github.com/PlatONnetwork/AppChain-SDK/x/staking/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	statesenderC "github.com/PlatONnetwork/AppChain-SDK/x/statesender/contracts"
@@ -94,12 +95,17 @@ func (c *StakeHandler) onStake(input []byte) error {
 		return typesdk.NewRevertError("StakeHandler: INVALID_BLSKEY")
 	}
 
-	//blsKey := bls.PublicKey{}
-	//(&blsKey).DeserializeUncompressed(blsKeyBytes)
+	if len(blsKeyBytes) != config.BLS_PUBKEY_SIZE {
+		return typesdk.NewRevertError("StakeHandler: INVALID_BLSKEY_SIZE")
+	}
 
 	pubKeyBytes, ok := res["pubKey"].([]byte)
 	if !ok {
 		return typesdk.NewRevertError("StakeHandler: INVALID_PUBKEY")
+	}
+
+	if len(pubKeyBytes) != config.ECDSA_PUBKEY_SIZE {
+		return typesdk.NewRevertError("StakeHandler: INVALID_PUBKEY_SIZE")
 	}
 
 	pubKey, err := crypto.UnmarshalPubkey(pubKeyBytes)

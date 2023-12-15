@@ -37,15 +37,17 @@ func (l *L1Module) Name() string {
 	return MODULE_NAME_L1
 }
 
-func (l *L1Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
+func (l *L1Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error{
 	var g L1ConfigParams
 	raw, err := data.MarshalJSON()
 	if nil != err {
 		log.Error("Failed MarshalJSON l1 L1ConfigParams bytes", "error", err)
+		return err
 	}
 
 	if err := json.Unmarshal(raw, &g); nil != err {
 		log.Error("Failed UnmarshalJSON l1 L1ConfigParams", "error", err)
+		return err
 	}
 
 	l.db.setChainID(g.ChainID)
@@ -55,6 +57,7 @@ func (l *L1Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *par
 	l.db.setDepositManagerAddress(g.DepositManager)
 
 	log.Info("Succeed init genesis", "module", l.Name(), "chainId", g.ChainID, "state", g.State.Hex(), "checkpoint", g.Checkpoint.Hex(), "stakeManager", g.StakeManager.Hex(), "depositManager", g.DepositManager.Hex())
+	return nil
 }
 
 // extern

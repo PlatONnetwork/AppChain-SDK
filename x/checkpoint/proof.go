@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
+
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint/contractsapi"
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint/types"
-	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
 )
 
 func (m *Module) generateExitProof(exitID uint64) (types.Proof, error) {
@@ -68,7 +69,7 @@ func (m *Module) generateExitProof(exitID uint64) (types.Proof, error) {
 
 func (m *Module) getCheckpointBlock(blockNumber *big.Int) (bool, *big.Int, error) {
 	checkpointABI := contractsapi.CheckpointManagerABI
-	method := "getcheckpointBlock"
+	method := "getCheckpointBlock"
 	input, err := checkpointABI.Pack(method, blockNumber)
 	if err != nil {
 		return false, nil, err
@@ -83,9 +84,7 @@ func (m *Module) getCheckpointBlock(blockNumber *big.Int) (bool, *big.Int, error
 	}
 
 	out0 := *abi.ConvertType(res[0], new(bool)).(*bool)
-	out1 := *abi.ConvertType(res[1], new(big.Int)).(**big.Int)
+	out1 := abi.ConvertType(res[1], new(big.Int)).(*big.Int)
 
 	return out0, out1, err
 }
-
-func (m *Module) getCheckpoint() {}

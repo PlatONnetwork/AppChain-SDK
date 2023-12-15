@@ -198,6 +198,9 @@ func (s *StateSync) addCommitTx(ctx sdk.WorkerContext, receiver *contracts.State
 		s.logger.Warn("Find proof root failed", "start", start, "err", err)
 		return nil, errors.New(fmt.Sprintf("find proof failed start:%d", start.Uint64()))
 	}
+	if match == nil {
+		return local, remote
+	}
 	s.logger.Debug("Find proof root", "proof", match)
 	blockHash := s.eventProofDb.GetRootBlock(match.Root)
 

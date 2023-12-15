@@ -132,7 +132,11 @@ func GetEpochQueueSince(db sdk.StateDBReader, addr common.Address, epoch, size u
 	index := epoch
 
 	for index != currentEpoch+1 && count < size {
-		queue[count] = GetEpochItem(db, addr, index)
+		item := GetEpochItem(db, addr, index)
+		if item.IsEmpty() {
+			break
+		}
+		queue[count] = item
 		index++
 		count++
 	}
@@ -146,7 +150,11 @@ func GetEpochQueueFromTail(db sdk.StateDBReader, addr common.Address, epoch, siz
 
 	index := epoch
 	for index != 0 && count < size {
-		queue[count] = GetEpochItem(db, addr, index)
+		item := GetEpochItem(db, addr, index)
+		if item.IsEmpty() {
+			break
+		}
+		queue[count] = item
 		index--
 		count++
 	}
@@ -163,7 +171,11 @@ func GetEpochQueueAndIndexSince(db sdk.StateDBReader, addr common.Address, epoch
 	index := epoch
 
 	for index != currentEpoch+1 && count < size {
-		queue[count] = GetEpochItem(db, addr, index)
+		item := GetEpochItem(db, addr, index)
+		if item.IsEmpty() {
+			break
+		}
+		queue[count] = item
 		epochs[count] = index
 		index++
 		count++
@@ -179,7 +191,11 @@ func GetEpochQueueAndIndexFromTail(db sdk.StateDBReader, addr common.Address, ep
 
 	index := epoch
 	for index != 0 && count < size {
-		queue[count] = GetEpochItem(db, addr, index)
+		item := GetEpochItem(db, addr, index)
+		if item.IsEmpty() {
+			break
+		}
+		queue[count] = item
 		epochs[count] = index
 		index--
 		count++
@@ -229,7 +245,11 @@ func GetRoundQueueSince(db sdk.StateDBReader, addr common.Address, round, size u
 	index := round
 
 	for index != currentEpoch+1 && count < size {
-		queue[count] = GetRoundItem(db, addr, index)
+		item := GetRoundItem(db, addr, index)
+		if item.IsEmpty() {
+			break
+		}
+		queue[count] = item
 		index++
 		count++
 	}
@@ -243,7 +263,11 @@ func GetRoundQueueFromTail(db sdk.StateDBReader, addr common.Address, round, siz
 
 	index := round
 	for index != 0 && count < size {
-		queue[count] = GetRoundItem(db, addr, index)
+		item := GetRoundItem(db, addr, index)
+		if item.IsEmpty() {
+			break
+		}
+		queue[count] = item
 		index--
 		count++
 	}
@@ -260,7 +284,11 @@ func GetRoundQueueAndIndexSince(db sdk.StateDBReader, addr common.Address, round
 	index := round
 
 	for index != currentRound+1 && count < size {
-		queue[count] = GetRoundItem(db, addr, index)
+		item := GetRoundItem(db, addr, index)
+		if item.IsEmpty() {
+			break
+		}
+		queue[count] = item
 		rounds[count] = index
 		index++
 		count++
@@ -276,7 +304,11 @@ func GetRoundQueueAndIndexFromTail(db sdk.StateDBReader, addr common.Address, ro
 
 	index := round
 	for index != 0 && count < size {
-		queue[count] = GetRoundItem(db, addr, index)
+		item := GetRoundItem(db, addr, index)
+		if item.IsEmpty() {
+			break
+		}
+		queue[count] = item
 		rounds[count] = index
 		index--
 		count++

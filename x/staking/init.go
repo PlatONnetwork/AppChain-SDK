@@ -13,15 +13,19 @@ import (
 	"math/big"
 )
 
-func initStakeConfigParams(statedb sdk.StateDB, addr common.Address, stakeNetworkParams *config.StakeNetworkParams) {
+func initAccountNonce(statedb sdk.StateDB, addr common.Address) {
+	statedb.SetNonce(addr, 1)
+}
 
-	statedb.SetState(addr, stakingdb.EncodeStakeWithdrawalWaitPeriodKey(), common.Uint64ToBytes(stakeNetworkParams.StakeWithdrawalWaitPeriod))
-	statedb.SetState(addr, stakingdb.EncodeDelegateWithdrawalWaitPeriodKey(), common.Uint64ToBytes(stakeNetworkParams.DelegateWithdrawalWaitPeriod))
-	statedb.SetState(addr, stakingdb.EncodeSlashingPercentageKey(), common.Uint64ToBytes(stakeNetworkParams.SlashingPercentage))
-	statedb.SetState(addr, stakingdb.EncodeSlashIncentivePercentageKey(), common.Uint64ToBytes(stakeNetworkParams.SlashIncentivePercentage))
-	statedb.SetState(addr, stakingdb.EncodeMaxRoundValidatorsSizeKey(), common.Uint64ToBytes(stakeNetworkParams.MaxRoundValidatorsSize))
-	statedb.SetState(addr, stakingdb.EncodeMaxEpochValidatorsSizeKey(), common.Uint64ToBytes(stakeNetworkParams.MaxEpochValidatorsSize))
-	statedb.SetState(addr, stakingdb.EncodeMinRoundValidatorBlockNumberKey(), common.Uint64ToBytes(stakeNetworkParams.MinRoundValidatorBlockNumber))
+func initStakeConfigParams(statedb sdk.StateDB, addr common.Address, configParams *config.StakeNetworkParams) {
+
+	statedb.SetState(addr, stakingdb.EncodeStakeWithdrawalWaitPeriodKey(), common.Uint64ToBytes(configParams.StakeWithdrawalWaitPeriod))
+	statedb.SetState(addr, stakingdb.EncodeDelegateWithdrawalWaitPeriodKey(), common.Uint64ToBytes(configParams.DelegateWithdrawalWaitPeriod))
+	statedb.SetState(addr, stakingdb.EncodeSlashingPercentageKey(), common.Uint64ToBytes(configParams.SlashingPercentage))
+	statedb.SetState(addr, stakingdb.EncodeSlashIncentivePercentageKey(), common.Uint64ToBytes(configParams.SlashIncentivePercentage))
+	statedb.SetState(addr, stakingdb.EncodeMaxRoundValidatorsSizeKey(), common.Uint64ToBytes(configParams.MaxRoundValidatorsSize))
+	statedb.SetState(addr, stakingdb.EncodeMaxEpochValidatorsSizeKey(), common.Uint64ToBytes(configParams.MaxEpochValidatorsSize))
+	statedb.SetState(addr, stakingdb.EncodeMinRoundValidatorBlockNumberKey(), common.Uint64ToBytes(configParams.MinRoundValidatorBlockNumber))
 }
 
 func initValidatorGenesisPriority(statedb sdk.StateDB, addr common.Address) error {
@@ -49,7 +53,7 @@ func initValidatorGenesisPriority(statedb sdk.StateDB, addr common.Address) erro
 	return nil
 }
 
-func initValidators(statedb sdk.StateDB, addr common.Address, chainConfig *params.ChainConfig, stakeNetworkParams *config.StakeNetworkParams) error {
+func initValidators(statedb sdk.StateDB, addr common.Address, chainConfig *params.ChainConfig, configParams *config.StakeNetworkParams) error {
 
 	if err := initValidatorGenesisPriority(statedb, addr); nil != err {
 		return err
@@ -57,8 +61,8 @@ func initValidators(statedb sdk.StateDB, addr common.Address, chainConfig *param
 
 	genesisValidatorQueueSize := uint64(len(chainConfig.Cbft.InitialNodes))
 
-	if stakeNetworkParams.MaxRoundValidatorsSize <= uint64(len(chainConfig.Cbft.InitialNodes)) {
-		genesisValidatorQueueSize = stakeNetworkParams.MaxRoundValidatorsSize
+	if configParams.MaxRoundValidatorsSize <= uint64(len(chainConfig.Cbft.InitialNodes)) {
+		genesisValidatorQueueSize = configParams.MaxRoundValidatorsSize
 	} else {
 		genesisValidatorQueueSize = uint64(len(chainConfig.Cbft.InitialNodes))
 	}
@@ -67,7 +71,7 @@ func initValidators(statedb sdk.StateDB, addr common.Address, chainConfig *param
 
 	validatorShareSnapshotQueue := types.NewValidatorSharesSnapshotQueue(0)
 
-	genesisStakeAmount := new(big.Int).SetUint64(stakeNetworkParams.GenesisStakeAmount)
+	genesisStakeAmount := new(big.Int).SetUint64(configParams.GenesisStakeAmount)
 	genesisDelegateAmount := common.Big0
 
 	cache := make(map[common.Address]struct{}, 0)
@@ -86,9 +90,10 @@ func initValidators(statedb sdk.StateDB, addr common.Address, chainConfig *param
 
 		stakeIndex := stakingdb.IncrementValidatorNonce(statedb, addr)
 
-		if err := stakingdb.SetValidator(statedb, addr, validatorAddr, types.NewValidator(
-			stakeNetworkParams.GenesisValidatorOwner, genesisStakeAmount, genesisDelegateAmount,
-			initialNode.BlsPubKey.Serialize(), initialNode.Node.IDv0(), 0, 1, stakeIndex)); nil != err {
+		validator := types.NewValidator(
+			configParams.GenesisValidatorOwner, genesisStakeAmount, genesisDelegateAmount,
+			initialNode.BlsPubKey.Serialize(), initialNode.Node.IDv0(), 0, 1, stakeIndex)
+		if err := stakingdb.SetValidator(statedb, addr, validatorAddr, validator); nil != err {
 			return fmt.Errorf("set validator info '%s' %s", validatorAddr, err)
 		}
 
@@ -105,8 +110,8 @@ func initValidators(statedb sdk.StateDB, addr common.Address, chainConfig *param
 		epochValidatorSnapshotQueue types.ValidatorSortSnapshotQueue
 	)
 
-	if uint64(len(validatorShareSnapshotQueue)) > stakeNetworkParams.MaxRoundValidatorsSize {
-		roundValidatorSnapshotQueue = validatorShareSnapshotQueue[:stakeNetworkParams.MaxRoundValidatorsSize]
+	if uint64(len(validatorShareSnapshotQueue)) > configParams.MaxRoundValidatorsSize {
+		roundValidatorSnapshotQueue = validatorShareSnapshotQueue[:configParams.MaxRoundValidatorsSize]
 	} else {
 		roundValidatorSnapshotQueue = validatorShareSnapshotQueue
 	}
@@ -119,8 +124,8 @@ func initValidators(statedb sdk.StateDB, addr common.Address, chainConfig *param
 		return fmt.Errorf("set genesis validatorQueue for round %d, %s", 1, err)
 	}
 
-	if uint64(len(validatorShareSnapshotQueue)) > stakeNetworkParams.MaxEpochValidatorsSize {
-		epochValidatorSnapshotQueue = validatorShareSnapshotQueue[:stakeNetworkParams.MaxEpochValidatorsSize]
+	if uint64(len(validatorShareSnapshotQueue)) > configParams.MaxEpochValidatorsSize {
+		epochValidatorSnapshotQueue = validatorShareSnapshotQueue[:configParams.MaxEpochValidatorsSize]
 	} else {
 		epochValidatorSnapshotQueue = validatorShareSnapshotQueue
 	}
