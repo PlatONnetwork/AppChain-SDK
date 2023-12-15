@@ -46,6 +46,7 @@ func (cd *CheckpointData) String() string {
 		cd.EpochNumber,
 		cd.ViewNumber,
 		cd.BlockIndex,
+		cd.BlockNumber,
 		cd.BlockHash.Hex(),
 		cd.CurrentValidatorsHash.String(),
 		cd.NextValidatorsHash.String(),

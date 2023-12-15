@@ -79,6 +79,8 @@ func (m *Module) OnCommit(ctx sdk.ConsensusContext, block *coretypes.Block) erro
 func (m *Module) Subscribe(subscriber EventSubscriber) {
 	m.subscriberIDCounter++
 	subscriberID := m.subscriberIDCounter
+	m.subscribers[subscriberID] = subscriber
+
 	for address, filters := range subscriber.GetLogFilters() {
 		existingAddressFilters, exist := m.allFilters[address]
 		if !exist {
