@@ -88,10 +88,6 @@ func (m *Module) Name() string {
 }
 
 func (m *Module) Init(ctx sdk.InitContext) error {
-	if err := m.txRelayer.Init(); err != nil {
-		return err
-	}
-
 	if m.keystoreFile == "" {
 		return fmt.Errorf("checkpoint.keystore not set")
 	}

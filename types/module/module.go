@@ -68,17 +68,17 @@ type ElectionModule interface {
 
 type GenesisModule interface {
 	Module
-	InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage)
+	InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error
 }
 
 type BeginBlockerModule interface {
 	Module
-	BeginBlock(ctx sdk.WorkerContext)
+	BeginBlock(ctx sdk.WorkerContext) error
 }
 
 type EndBlockerModule interface {
 	Module
-	EndBlock(ctx sdk.WorkerContext)
+	EndBlock(ctx sdk.WorkerContext) error
 }
 
 type WorkerModule interface {
@@ -404,30 +404,34 @@ func (m *Manager) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *para
 		mod := m.Modules[moduleName]
 		if module, ok := mod.(GenesisModule); ok {
 			log.Info("Running initialization for module ", "module", moduleName)
-			module.InitGenesis(ctx, db, chainConfig, data[moduleName])
+			if err := module.InitGenesis(ctx, db, chainConfig, data[moduleName]); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
 }
 
-func (m *Manager) BeginBlock(ctx sdk.WorkerContext) {
+func (m *Manager) BeginBlock(ctx sdk.WorkerContext) error {
 	for _, moduleName := range m.OrderBeginBlocker {
 		if module, ok := m.Modules[moduleName].(BeginBlockerModule); ok {
-			module.BeginBlock(ctx)
-		} else {
-			continue
+			if err := module.BeginBlock(ctx); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
-func (m *Manager) EndBlock(ctx sdk.WorkerContext) {
+func (m *Manager) EndBlock(ctx sdk.WorkerContext) error {
 	for _, moduleName := range m.OrderEndBlocker {
 		if module, ok := m.Modules[moduleName].(EndBlockerModule); ok {
-			module.EndBlock(ctx)
-		} else {
-			continue
+			if err := module.EndBlock(ctx); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
 func (m *Manager) SortTxs(ctx sdk.WorkerContext, local, remote map[common.Address]types.Transactions) (types.Transactions, error) {

@@ -3,6 +3,7 @@ package stage
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/stage/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/stage/db"
@@ -32,17 +33,19 @@ func (s *StageModule) Name() string {
 	return MODULE_NAME_STAGE
 }
 
-func (s *StageModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
+func (s *StageModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
 
 	configParams := config.DefualtStageNetworkParams()
 	raw, err := data.MarshalJSON()
 	if nil != err {
 		log.Error("Failed MarshalJSON StageNetworkParams bytes", "error", err)
+		return err
 	}
 
 	var conf config.StageNetworkParams
 	if err := json.Unmarshal(raw, &conf); nil != err {
 		log.Error("Failed UnmarshalJSON StageNetworkParams", "error", err)
+		return err
 	} else {
 		configParams = &conf
 	}
@@ -54,15 +57,16 @@ func (s *StageModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *
 
 	if err := initGenesisRoundItem(db, s.Address(), configParams); nil != err {
 		log.Error("Failed initialize genesis round", "error", err)
-		panic(err)
+		return err
 	}
 
 	if err := initGenesisEpochItem(db, s.Address(), configParams); nil != err {
 		log.Error("Failed initialize genesis epoch", "error", err)
-		panic(err)
+		return err
 	}
 
 	log.Info("Succeed init genesis", "module", s.Name(), "StageNetworkParams", configParams.String())
+	return nil
 }
 
 func (s *StageModule) Address() basecommon.Address {
@@ -73,11 +77,11 @@ func (s *StageModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, read
 	return nil, nil
 }
 
-func (s *StageModule) BeginBlock(ctx sdk.WorkerContext) {
+func (s *StageModule) BeginBlock(ctx sdk.WorkerContext) error {
 
 	currentBlock := ctx.Header().Number.Uint64()
 	if currentBlock == 0 {
-		return
+		return nil
 	}
 	// NOTE: change current round at new round startBlock
 	if db.IsBeginOfNextRound(ctx.StateDB(), s.Address(), currentBlock) {
@@ -87,19 +91,20 @@ func (s *StageModule) BeginBlock(ctx sdk.WorkerContext) {
 	if db.IsBeginOfNextEpoch(ctx.StateDB(), s.Address(), currentBlock) {
 		db.IncrementCurrentEpoch(ctx.StateDB(), s.Address())
 	}
+	return nil
 }
 
-func (s *StageModule) EndBlock(ctx sdk.WorkerContext) {
+func (s *StageModule) EndBlock(ctx sdk.WorkerContext) error {
 
 	currentBlock := ctx.Header().Number.Uint64()
 	if currentBlock == 0 {
-		return
+		return nil
 	}
 
 	// store next epochItem (at current round endBlock)
 	if db.IsEndOfCurrentRound(ctx.StateDB(), s.Address(), currentBlock) {
 		if err := db.BuildNextRound(ctx.StateDB(), s.Address(), s.GetRoundSize(ctx.StateDB())); nil != err {
-			panic(fmt.Sprintf("Failed to build next round, currentRound: %d, blockNumber: %d, error: %s", s.GetCurrentRound(ctx.StateDB()), currentBlock, err))
+			return fmt.Errorf("Failed to build next round, currentRound: %d, blockNumber: %d, error: %s", s.GetCurrentRound(ctx.StateDB()), currentBlock, err)
 		}
 	}
 
@@ -107,9 +112,10 @@ func (s *StageModule) EndBlock(ctx sdk.WorkerContext) {
 	// and store next epochItem
 	if db.IsEndOfCurrentEpoch(ctx.StateDB(), s.Address(), currentBlock) {
 		if err := db.BuildNextEpoch(ctx.StateDB(), s.Address(), s.GetEpochSize(ctx.StateDB()), s.GetRoundSize(ctx.StateDB())); nil != err {
-			panic(fmt.Sprintf("Failed to build next epoch, currentEpoch: %d, blockNumber: %d, error: %s", s.GetCurrentEpoch(ctx.StateDB()), currentBlock, err))
+			return fmt.Errorf("Failed to build next epoch, currentEpoch: %d, blockNumber: %d, error: %s", s.GetCurrentEpoch(ctx.StateDB()), currentBlock, err)
 		}
 	}
+	return nil
 }
 
 // extern

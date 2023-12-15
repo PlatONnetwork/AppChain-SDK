@@ -5,11 +5,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
-	"github.com/PlatONnetwork/AppChain-SDK/x/vrf/config"
-	"github.com/PlatONnetwork/AppChain-SDK/x/vrf/contracts"
-	vrftypes "github.com/PlatONnetwork/AppChain-SDK/x/vrf/types"
-	vrfwrap "github.com/PlatONnetwork/AppChain-SDK/x/vrf/wrap"
+	"math/big"
+	"time"
+
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
@@ -19,8 +17,12 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"gopkg.in/urfave/cli.v1"
-	"math/big"
-	"time"
+
+	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
+	"github.com/PlatONnetwork/AppChain-SDK/x/vrf/config"
+	"github.com/PlatONnetwork/AppChain-SDK/x/vrf/contracts"
+	vrftypes "github.com/PlatONnetwork/AppChain-SDK/x/vrf/types"
+	vrfwrap "github.com/PlatONnetwork/AppChain-SDK/x/vrf/wrap"
 )
 
 const (
@@ -58,17 +60,19 @@ func (v *VRFModule) Init(ctx sdk.InitContext) error {
 	return nil
 }
 
-func (v *VRFModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
+func (v *VRFModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
 
 	configParams := config.DefualtVRFNetworkParams()
 	raw, err := data.MarshalJSON()
 	if nil != err {
 		log.Error("Failed MarshalJSON VRFNetworkParams bytes", "error", err)
+		return err
 	}
 
 	var conf config.VRFNetworkParams
 	if err := json.Unmarshal(raw, &conf); nil != err {
 		log.Error("Failed UnmarshalJSON VRFNetworkParams", "error", err)
+		return err
 	} else {
 		configParams = &conf
 	}
@@ -76,6 +80,7 @@ func (v *VRFModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *pa
 	initAccountNonce(db, v.Address())
 	initGenesisVRFNonce(db, v.Address(), chainConfig, configParams)
 	log.Info("Succeed init genesis", "module", v.Name(), "VRFNetworkParams", configParams.String())
+	return nil
 }
 
 func (v *VRFModule) Address() basecommon.Address {
@@ -122,7 +127,7 @@ func (v *VRFModule) AddTxs(ctx sdk.WorkerContext, local, remote map[basecommon.A
 	return local, remote
 }
 
-func (v *VRFModule) EndBlock(ctx sdk.WorkerContext) {
+func (v *VRFModule) EndBlock(ctx sdk.WorkerContext) error {
 
 	header := ctx.Header()
 
@@ -133,7 +138,7 @@ func (v *VRFModule) EndBlock(ctx sdk.WorkerContext) {
 		// get nonceAndProof by block (After the `pushNonceAndProof` transaction was executed)
 		nonceAndProof, err := vrfwrap.GetCurrentNonceAndProof(ctx.StateDB(), v.Address(), currentBlock)
 		if nil != err {
-			panic(fmt.Sprintf("Failed to get current nonceAndProof, blockNumber: %d, error: %s", currentBlock, err))
+			return fmt.Errorf("Failed to get current nonceAndProof, blockNumber: %d, error: %s", currentBlock, err)
 		}
 
 		// Extract the validator public key of the build block based on the signature in the block header
@@ -141,14 +146,15 @@ func (v *VRFModule) EndBlock(ctx sdk.WorkerContext) {
 		sealhash := header.SealHash().Bytes()
 		pk, err := crypto.SigToPub(sealhash, sign)
 		if err != nil {
-			panic(fmt.Sprintf("Failed to handle sigToPub, blockNumber: %d, error: %s", currentBlock, err))
+			return fmt.Errorf("Failed to handle sigToPub, blockNumber: %d, error: %s", currentBlock, err)
 		}
 
 		// verify nonce and
 		if err := v.VerifyVrf(ctx, currentBlock, nonceAndProof, pk); nil != err {
-			panic(fmt.Sprintf("Failed to verify vrf nonce and proof, blockNumber: %d, error: %s", currentBlock, err))
+			return fmt.Errorf("Failed to verify vrf nonce and proof, blockNumber: %d, error: %s", currentBlock, err)
 		}
 	}
+	return nil
 }
 
 func (v *VRFModule) GenerateNonceAndProof(ctx sdk.WorkerContext, blockNumber uint64) ([]byte, error) {
