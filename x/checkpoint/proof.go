@@ -87,5 +87,3 @@ func (m *Module) getCheckpointBlock(blockNumber *big.Int) (bool, *big.Int, error
 
 	return out0, out1, err
 }
-
-func (m *Module) getCheckpoint() {}
