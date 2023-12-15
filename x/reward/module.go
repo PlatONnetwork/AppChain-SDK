@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/PlatONnetwork/AppChain-SDK/utils"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/contracts"
@@ -21,6 +20,10 @@ import (
 	"math/big"
 )
 
+const (
+	MODULE_NAME_REWARD = "reward"
+)
+
 type RewardModule struct {
 	logger         log.Logger
 	nodePrivateKey *ecdsa.PrivateKey
@@ -30,9 +33,8 @@ type RewardModule struct {
 
 func NewRewardModule(ctx *cli.Context, stage types.StageModuler) *RewardModule {
 	return &RewardModule{
-		logger:         log.New("module", "reward"),
-		nodePrivateKey: utils.DecodeNodePrivateKey(ctx),
-		stageModule:    stage,
+		logger:      log.New("module", MODULE_NAME_REWARD),
+		stageModule: stage,
 	}
 }
 
@@ -41,7 +43,12 @@ func (r *RewardModule) SetStakeModule(stake types.StakeModuler) {
 }
 
 func (r *RewardModule) Name() string {
-	return "reward"
+	return MODULE_NAME_REWARD
+}
+
+func (r *RewardModule) Init(ctx sdk.InitContext) error {
+	r.nodePrivateKey = ctx.NodeKey()
+	return nil
 }
 
 func (r *RewardModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
@@ -58,11 +65,12 @@ func (r *RewardModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig 
 	} else {
 		configParams = &conf
 	}
-
+	// init reward manager account nonce
+	initAccountNonce(db, r.Address())
 	// set config params
 	initConfigParams(db, r.Address(), configParams)
 
-	log.Info("Succeed init genesis", "module", r.Name(), "RewardNetworkParams", string(raw))
+	log.Info("Succeed init genesis", "module", r.Name(), "RewardNetworkParams", configParams.String())
 }
 
 func (r *RewardModule) Address() basecommon.Address {
@@ -78,7 +86,11 @@ func (r *RewardModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, rea
 }
 
 func (r *RewardModule) BeginBlock(ctx sdk.WorkerContext) {
-	currentBlock := ctx.Backend().CurrentHeader().Number.Uint64()
+
+	currentBlock := ctx.Header().Number.Uint64()
+	if currentBlock == 0 {
+		return
+	}
 	// distribute blocks reward (with round)
 	if r.stageModule.IsBeginOfCurrentRound(ctx.StateDB(), currentBlock) {
 		if err := r.handleBlocksRewardForPreviousRound(ctx.StateDB(), currentBlock); nil != err {
@@ -89,7 +101,10 @@ func (r *RewardModule) BeginBlock(ctx sdk.WorkerContext) {
 
 func (r *RewardModule) EndBlock(ctx sdk.WorkerContext) {
 
-	currentBlock := ctx.Backend().CurrentHeader().Number.Uint64()
+	currentBlock := ctx.Header().Number.Uint64()
+	if currentBlock == 0 {
+		return
+	}
 
 	// distribute epoch reward
 	if r.stageModule.IsEndOfCurrentEpoch(ctx.StateDB(), currentBlock) {
@@ -117,6 +132,10 @@ func (r *RewardModule) handleBlocksRewardForPreviousRound(stateDB sdk.StateDB, b
 	}
 
 	currentRound := r.stageModule.GetCurrentRound(stateDB)
+	if currentRound == 0 {
+		return nil
+	}
+
 	handleRound := currentRound - 1
 	previousRoundValidatorIds := r.stakeModule.GetRoundValidatorIds(stateDB, handleRound)
 
@@ -132,7 +151,7 @@ func (r *RewardModule) handleBlocksRewardForPreviousRound(stateDB sdk.StateDB, b
 
 		totalPaidReward = new(big.Int).Add(totalPaidReward, blocksReward)
 
-		r.logger.Debug("Finished distribute blocks reward", "currentRound", currentRound, "handle round", handleRound, "validatorAddr", validatorAddr.Hex(),
+		r.logger.Debug("Finished distribute blocks reward", "currentRound", currentRound, "handleRound", handleRound, "validatorAddr", validatorAddr.Hex(),
 			"blocksReward", blocksReward, "numberOfBlocks", numberOfBlocks, "blockNumber", blockNumber)
 	}
 

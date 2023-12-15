@@ -161,6 +161,9 @@ func (s *StateSync) AddTxs(ctx sdk.WorkerContext, local, remote map[common.Addre
 		s.logger.Warn("Find proof root failed", "start", start, "err", err)
 		return local, remote
 	}
+	if match == nil {
+		return local, remote
+	}
 	s.logger.Debug("Find proof root", "proof", match)
 	blockHash := s.eventProofDb.GetRootBlock(match.Root)
 

@@ -5,16 +5,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/PlatONnetwork/AppChain-SDK/utils"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/vrf/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/vrf/contracts"
-	vrfdb "github.com/PlatONnetwork/AppChain-SDK/x/vrf/db"
 	vrftypes "github.com/PlatONnetwork/AppChain-SDK/x/vrf/types"
 	vrfwrap "github.com/PlatONnetwork/AppChain-SDK/x/vrf/wrap"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
-	"reflect"
-
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
@@ -24,6 +20,11 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"gopkg.in/urfave/cli.v1"
 	"math/big"
+	"time"
+)
+
+const (
+	MODULE_NAME_VRF = "vrf"
 )
 
 var (
@@ -39,9 +40,8 @@ type VRFModule struct {
 
 func NewVRFModule(ctx *cli.Context, stage vrftypes.StageModuler) *VRFModule {
 	return &VRFModule{
-		logger:         log.New("module", "vrf"),
-		nodePrivateKey: utils.DecodeNodePrivateKey(ctx),
-		stageModule:    stage,
+		logger:      log.New("module", MODULE_NAME_VRF),
+		stageModule: stage,
 	}
 }
 
@@ -50,8 +50,14 @@ func (v *VRFModule) SetStakeModule(stake vrftypes.StakeModuler) {
 }
 
 func (v *VRFModule) Name() string {
-	return "staking"
+	return MODULE_NAME_VRF
 }
+
+func (v *VRFModule) Init(ctx sdk.InitContext) error {
+	v.nodePrivateKey = ctx.NodeKey()
+	return nil
+}
+
 func (v *VRFModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
 
 	configParams := config.DefualtVRFNetworkParams()
@@ -66,11 +72,10 @@ func (v *VRFModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *pa
 	} else {
 		configParams = &conf
 	}
-
-	// set genesis vrf nonce (32 byte)
-	vrfdb.SetNonceAndProof(db, v.Address(), 0, configParams.GenesisVRFNonce.Bytes())
-
-	log.Info("Succeed init genesis", "module", v.Name(), "VRFNetworkParams", string(raw))
+	// init vrf manager  account nonce
+	initAccountNonce(db, v.Address())
+	initGenesisVRFNonce(db, v.Address(), chainConfig, configParams)
+	log.Info("Succeed init genesis", "module", v.Name(), "VRFNetworkParams", configParams.String())
 }
 
 func (v *VRFModule) Address() basecommon.Address {
@@ -85,20 +90,20 @@ func (v *VRFModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOn
 }
 
 func (v *VRFModule) AddTxs(ctx sdk.WorkerContext, local, remote map[basecommon.Address]types.Transactions) (map[basecommon.Address]types.Transactions, map[basecommon.Address]types.Transactions) {
-	wctx, ok := ctx.(sdk.WorkerContext)
-	if !ok {
-		v.logger.Error("Unexpeced sdk context", "ctx", reflect.TypeOf(ctx).String())
+
+	start := time.Now()
+
+	blockNumber := ctx.Header().Number.Uint64()
+	if blockNumber == 0 {
 		return local, remote
 	}
-
-	blockNumber := ctx.Backend().CurrentHeader().Number.Uint64()
 	from := crypto.PubkeyToAddress(v.nodePrivateKey.PublicKey)
 
 	// generate nonceAndProof by validator pubKey and previousNonce
 	// nonAndProof: 81 byte
 	// flag |nonce |proof
 	// 1byte|32byte|48byte
-	nonceAndProof, err := v.GenerateNonceAndProof(wctx, blockNumber)
+	nonceAndProof, err := v.GenerateNonceAndProof(ctx, blockNumber)
 	if nil != err {
 		return local, remote
 	}
@@ -112,15 +117,15 @@ func (v *VRFModule) AddTxs(ctx sdk.WorkerContext, local, remote map[basecommon.A
 		local[from] = make(types.Transactions, 0)
 	}
 	local[from] = append(local[from], pushNonceAndProofTx)
+	end := time.Now()
+	duration := end.Sub(start)
+	v.logger.Warn("create pushNonceAndProof tx duration", "blockNumber", blockNumber, "start", start.UnixNano()/1e6, "end", end.UnixNano()/1e6, "duration", duration.Milliseconds(), "txHash", pushNonceAndProofTx.Hash().Hex(), "from", from.Hex(), "txData", pushNonceAndProofTx.Data())
 	return local, remote
 }
 
-func (v *VRFModule) BeginBlock(ctx sdk.WorkerContext) {
-
-}
 func (v *VRFModule) EndBlock(ctx sdk.WorkerContext) {
 
-	header := ctx.Backend().CurrentHeader()
+	header := ctx.Header()
 
 	// not worker validator
 	if !ctx.IsWorker() {
@@ -150,10 +155,10 @@ func (v *VRFModule) EndBlock(ctx sdk.WorkerContext) {
 func (v *VRFModule) GenerateNonceAndProof(ctx sdk.WorkerContext, blockNumber uint64) ([]byte, error) {
 	nonceAndProof, err := vrfwrap.GenerateNonceAndProof(ctx.StateDB(), v.Address(), blockNumber, v.nodePrivateKey)
 	if nil != err {
-		v.logger.Error(err.Error(), "blockNumber", blockNumber)
+		v.logger.Error("Failed to generate vrf nonceAndProof", "blockNumber", blockNumber, "error", err)
 		return nil, err
 	}
-	v.logger.Info("Succeed to generate vrf nonce and proof", "blockNumber", blockNumber, "nonceAndProof", hex.EncodeToString(nonceAndProof),
+	v.logger.Info("Succeed to generate vrf nonceAndProof", "blockNumber", blockNumber, "nonceAndProof", hex.EncodeToString(nonceAndProof),
 		"nodeId", enode.PublicKeyToIDv0(&(v.nodePrivateKey.PublicKey)).String())
 	return nonceAndProof, nil
 }
@@ -167,7 +172,7 @@ func (v *VRFModule) VerifyVrf(ctx sdk.WorkerContext, blockNumber uint64, nonceAn
 	}
 
 	if err := vrfwrap.VerifyVrf(nonceAndProof, previousNonce, key); nil != err {
-		v.logger.Error(err.Error(), "blockNumber", blockNumber, "nonceAndProof", hex.EncodeToString(nonceAndProof), "data", previousNonce.Hex())
+		v.logger.Error("Failed to verify vrf", "blockNumber", blockNumber, "nonceAndProof", hex.EncodeToString(nonceAndProof), "data", previousNonce.Hex(), "error", err)
 		return err
 	}
 	v.logger.Info("Succeed to verify vrf nonceAndProof", "blockNumber", blockNumber, "nonceAndProof", hex.EncodeToString(nonceAndProof), "data", previousNonce.Hex())
@@ -176,10 +181,13 @@ func (v *VRFModule) VerifyVrf(ctx sdk.WorkerContext, blockNumber uint64, nonceAn
 
 func (v *VRFModule) createPushNonceAndProofTx(ctx sdk.WorkerContext, nonceAndProof []byte) (*types.Transaction, error) {
 
-	input, err := contracts.Abi.Methods["pushNonceAndProof"].Inputs.Pack(nonceAndProof)
+	mehtod := contracts.Abi.Methods["pushNonceAndProof"]
+
+	input, err := mehtod.Inputs.Pack(nonceAndProof)
 	if nil != err {
 		return nil, err
 	}
+	input = append(mehtod.ID, input...)
 	from := crypto.PubkeyToAddress(v.nodePrivateKey.PublicKey)
 	txNonce, err := ctx.Backend().GetPoolNonce(from)
 	if nil != err {

@@ -1,13 +1,14 @@
 package config
 
 import (
+	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"math/big"
 )
 
 type RewardNetworkParams struct {
-	RewardPerBlock *big.Int // The validator receives rewards for each block builded
-	RewardPerEpoch *big.Int // The validator receives rewards based on 'stack shares' for each epoch
+	RewardPerBlock *big.Int `json:"rewardPerBlock"` // The validator receives rewards for each block builded
+	RewardPerEpoch *big.Int `json:"rewardPerEpoch"` // The validator receives rewards based on 'stack shares' for each epoch
 }
 
 func DefaultRewardNetworkParams() *RewardNetworkParams {
@@ -15,4 +16,8 @@ func DefaultRewardNetworkParams() *RewardNetworkParams {
 		RewardPerBlock: constants.REWARD_PER_BLOCK,
 		RewardPerEpoch: constants.REWARD_PER_EPOCH,
 	}
+}
+
+func (params *RewardNetworkParams) String() string {
+	return fmt.Sprintf(`{"rewardPerBlock": %d,"rewardPerEpoch": %d}`, params.RewardPerBlock, params.RewardPerEpoch)
 }

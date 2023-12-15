@@ -14,18 +14,22 @@ import (
 	"gopkg.in/urfave/cli.v1"
 )
 
+const (
+	MODULE_NAME_STAGE = "stage"
+)
+
 type StageModule struct {
 	logger log.Logger
 }
 
 func NewStageModule(ctx *cli.Context) *StageModule {
 	return &StageModule{
-		logger: log.New("module", "stage"),
+		logger: log.New("module", MODULE_NAME_STAGE),
 	}
 }
 
 func (s *StageModule) Name() string {
-	return "stage"
+	return MODULE_NAME_STAGE
 }
 
 func (s *StageModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
@@ -43,6 +47,8 @@ func (s *StageModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *
 		configParams = &conf
 	}
 
+	// init stage manager account nonce
+	initAccountNonce(db, s.Address())
 	// set config params
 	initConfigParams(db, s.Address(), configParams)
 
@@ -56,7 +62,7 @@ func (s *StageModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *
 		panic(err)
 	}
 
-	log.Info("Succeed init genesis", "module", s.Name(), "StageNetworkParams", string(raw))
+	log.Info("Succeed init genesis", "module", s.Name(), "StageNetworkParams", configParams.String())
 }
 
 func (s *StageModule) Address() basecommon.Address {
@@ -68,7 +74,11 @@ func (s *StageModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, read
 }
 
 func (s *StageModule) BeginBlock(ctx sdk.WorkerContext) {
-	currentBlock := ctx.Backend().CurrentHeader().Number.Uint64()
+
+	currentBlock := ctx.Header().Number.Uint64()
+	if currentBlock == 0 {
+		return
+	}
 	// NOTE: change current round at new round startBlock
 	if db.IsBeginOfNextRound(ctx.StateDB(), s.Address(), currentBlock) {
 		db.InrementCurrentRound(ctx.StateDB(), s.Address())
@@ -81,7 +91,10 @@ func (s *StageModule) BeginBlock(ctx sdk.WorkerContext) {
 
 func (s *StageModule) EndBlock(ctx sdk.WorkerContext) {
 
-	currentBlock := ctx.Backend().CurrentHeader().Number.Uint64()
+	currentBlock := ctx.Header().Number.Uint64()
+	if currentBlock == 0 {
+		return
+	}
 
 	// store next epochItem (at current round endBlock)
 	if db.IsEndOfCurrentRound(ctx.StateDB(), s.Address(), currentBlock) {
@@ -231,6 +244,7 @@ func (s *StageModule) BlocksOfEpoch(stateDB sdk.StateDBReader, epoch uint64) uin
 
 func (s *StageModule) GetLastNumber(stateDB sdk.StateDBReader, blockNumber uint64) uint64 {
 	var endBlock uint64
+
 	currentRound := db.GetCurrentRound(stateDB, s.Address())
 	item := db.GetRoundItem(stateDB, s.Address(), currentRound)
 	// NOTE: Optimization processing, compare with the current round first,

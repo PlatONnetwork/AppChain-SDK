@@ -1,6 +1,7 @@
 package stage
 
 import (
+	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/x/stage/config"
 	stagedb "github.com/PlatONnetwork/AppChain-SDK/x/stage/db"
 	"github.com/PlatONnetwork/AppChain-SDK/x/stage/types"
@@ -9,6 +10,10 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 )
 
+func initAccountNonce(statedb sdk.StateDB, addr common.Address) {
+	statedb.SetNonce(addr, 1)
+}
+
 func initConfigParams(statedb sdk.StateDB, addr common.Address, params *config.StageNetworkParams) {
 	statedb.SetState(addr, stagedb.EncodeRoundValidatorElectionDistanceKey(), common.Uint64ToBytes(params.RoundValidatorElectionDistance))
 	statedb.SetState(addr, stagedb.EncodeRoundSizeKey(), common.Uint64ToBytes(params.RoundSize))
@@ -16,6 +21,8 @@ func initConfigParams(statedb sdk.StateDB, addr common.Address, params *config.S
 }
 
 func initGenesisEpochItem(statedb sdk.StateDB, addr common.Address, params *config.StageNetworkParams) error {
+
+	fmt.Printf("addr: %s", addr.Hex())
 
 	zero := types.NewEpochItem(0, 0, 0)
 	epoch := types.NewEpochItem(1, params.EpochSize, params.EpochSize/params.RoundSize)

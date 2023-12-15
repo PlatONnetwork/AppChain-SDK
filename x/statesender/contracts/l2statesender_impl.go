@@ -3,6 +3,7 @@ package contracts
 import (
 	"errors"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
+	"github.com/PlatONnetwork/AppChain-SDK/x/statesender/db"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
@@ -35,27 +36,44 @@ type L2StateSender struct {
 	contract    *vm.Contract
 	evm         *vm.EVM
 	fallback    func(input []byte) ([]byte, error)
+	maxLength   uint64
 }
 
 func NewL2StateSender(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*L2StateSender, error) {
 	s := &L2StateSender{
-		abi:      &Abi,
-		evm:      evm,
-		contract: contract,
-		readOnly: readOnly,
+		abi:       &Abi,
+		evm:       evm,
+		contract:  contract,
+		readOnly:  readOnly,
+		maxLength: 2048,
 	}
 	s.initMethodEntry()
 	return s, nil
 }
 
 func (c *L2StateSender) MAXLENGTH() (*big.Int, error) {
-	panic("implement")
+	return new(big.Int).SetUint64(c.maxLength), nil
 }
 
 func (c *L2StateSender) Counter() (*big.Int, error) {
-	panic("implement")
+	return db.GetCounter(c.evm.StateDB, c.contract.Address()), nil
 }
 
 func (c *L2StateSender) SyncState(receiver common.Address, data []byte) error {
-	panic("implement")
+
+	// check receiver
+	if receiver == common.ZeroAddr {
+		return typesdk.NewRevertError("L2StateSender: INVALID_RECEIVER")
+	}
+
+	// check data length
+	if uint64(len(data)) > c.maxLength {
+		return typesdk.NewRevertError("L2StateSender: EXCEEDS_MAX_LENGTH")
+	}
+	// State sync id will start with 1
+	counter := db.IncrementCounter(c.evm.StateDB, c.contract.Address())
+	if err := c.addLogL2StateSyncedEvent(counter, c.contract.Caller(), receiver, data); nil != err {
+		return err
+	}
+	return nil
 }

@@ -1,7 +1,6 @@
 package contracts
 
 import (
-	"crypto/ecdsa"
 	"encoding/hex"
 	"fmt"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
@@ -13,6 +12,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
 	"github.com/PlatONnetwork/PlatON-Go/crypto/bls"
 	"github.com/PlatONnetwork/PlatON-Go/log"
+	"github.com/PlatONnetwork/PlatON-Go/p2p/enode"
 	"github.com/umbracle/ethgo"
 	"github.com/umbracle/ethgo/abi"
 	"math/big"
@@ -93,8 +93,9 @@ func (c *StakeHandler) onStake(input []byte) error {
 	if !ok {
 		return typesdk.NewRevertError("StakeHandler: INVALID_BLSKEY")
 	}
-	blsKey := bls.PublicKey{}
-	(&blsKey).DeserializeUncompressed(blsKeyBytes)
+
+	//blsKey := bls.PublicKey{}
+	//(&blsKey).DeserializeUncompressed(blsKeyBytes)
 
 	pubKeyBytes, ok := res["pubKey"].([]byte)
 	if !ok {
@@ -114,7 +115,7 @@ func (c *StakeHandler) onStake(input []byte) error {
 		return typesdk.NewRevertError("StakeHandler: INVALID_PUBKEY_AND_VALIDATOR")
 	}
 
-	return c.stake(common.Address(validatorAddr), common.Address(ownerAddr), amount, commissionRate.Uint64(), &blsKey, pubKey)
+	return c.stake(common.Address(validatorAddr), common.Address(ownerAddr), amount, commissionRate.Uint64(), blsKeyBytes, enode.MustBytesToIDv0(crypto.FromECDSAPub(pubKey)))
 }
 
 func (c *StakeHandler) onAddStake(input []byte) error {
@@ -203,7 +204,7 @@ func (c *StakeHandler) onDelegate(input []byte) error {
 	return c.delegate(common.Address(validatorAddr), common.Address(delegterAddr), amount)
 }
 
-func (c *StakeHandler) stake(validatorAddr, owner common.Address, amount *big.Int, commissionRate uint64, blsKey *bls.PublicKey, pubKey *ecdsa.PublicKey) error {
+func (c *StakeHandler) stake(validatorAddr, owner common.Address, amount *big.Int, commissionRate uint64, blsKey []byte, pubKey enode.IDv0) error {
 	// ## NOTE ##
 	//
 	// Because there is a validator's stake information in the rootchain,
@@ -224,8 +225,8 @@ func (c *StakeHandler) stake(validatorAddr, owner common.Address, amount *big.In
 		return err
 	}
 
-	log.Info("Stake for", "validator", validatorAddr.Hex(), "owner", owner.Hex(), "amount", amount, "blsKey", string(blsKey.Bytes()),
-		"pubKey", hex.EncodeToString(crypto.FromECDSAPub(pubKey)), "epoch", c.getCurrentEpoch(), "stakeIndex", stakeIndex, "blockNumber", c.evm.Context.BlockNumber.Uint64())
+	log.Info("Stake for", "validator", validatorAddr.Hex(), "owner", owner.Hex(), "amount", amount, "blsKey", fmt.Sprintf("%x", blsKey),
+		"pubKey", fmt.Sprintf("%x", pubKey.Bytes()), "epoch", c.getCurrentEpoch(), "stakeIndex", stakeIndex, "blockNumber", c.evm.Context.BlockNumber.Uint64())
 	return nil
 }
 
@@ -609,7 +610,10 @@ func (c *StakeHandler) verifyBLSAggregateSignatureByValidators(validatorAddrs []
 			return false, typesdk.NewRevertError(fmt.Sprintf("StakeHandler: not found validator by index, validatorAddr %s", validatorAddr.Hex()))
 		}
 
-		pub.Add(validator.BlsKey) // Aggregating BLS pubKey
+		blsKey := bls.PublicKey{}
+		(&blsKey).DeserializeUncompressed(validator.BlsKey)
+
+		pub.Add(&blsKey) // Aggregating BLS pubKey
 	}
 
 	var sig bls.Sign

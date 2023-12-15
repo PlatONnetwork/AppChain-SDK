@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/PlatONnetwork/AppChain-SDK/utils"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/contracts"
@@ -28,6 +27,10 @@ import (
 	"math/big"
 )
 
+const (
+	MODULE_NAME_STAKING = "staking"
+)
+
 type StakeModule struct {
 	p2p            *stakingp2p.StakingP2P
 	logger         log.Logger
@@ -40,10 +43,9 @@ type StakeModule struct {
 
 func NewStakeModule(ctx *cli.Context, l1Module staketypes.L1Moduler, stage staketypes.StageModuler) *StakeModule {
 	return &StakeModule{
-		logger:         log.New("module", "staking"),
-		nodePrivateKey: utils.DecodeNodePrivateKey(ctx),
-		l1Module:       l1Module,
-		stageModule:    stage,
+		logger:      log.New("module", MODULE_NAME_STAKING),
+		l1Module:    l1Module,
+		stageModule: stage,
 	}
 }
 
@@ -56,11 +58,15 @@ func (s *StakeModule) SetVRFModule(vrf staketypes.VRFModuler) {
 }
 
 func (s *StakeModule) Name() string {
-	return "staking"
+	return MODULE_NAME_STAKING
+}
+
+func (s *StakeModule) Init(ctx sdk.InitContext) error {
+	s.nodePrivateKey = ctx.NodeKey()
+	return nil
 }
 
 func (s *StakeModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
-
 	configParams := config.DefualtStakeNetworkParams()
 	raw, err := data.MarshalJSON()
 	if nil != err {
@@ -73,6 +79,9 @@ func (s *StakeModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *
 	} else {
 		configParams = &conf
 	}
+
+	// init staking handler account nonce
+	initAccountNonce(db, s.Address())
 	// store configParms
 	initStakeConfigParams(db, s.Address(), configParams)
 
@@ -81,7 +90,7 @@ func (s *StakeModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *
 		panic(err)
 	}
 
-	log.Info("Succeed init genesis", "module", s.Name(), "StakeNetworkParams", string(raw))
+	log.Info("Succeed init genesis", "module", s.Name(), "StakeNetworkParams", configParams.String())
 
 }
 
@@ -100,7 +109,10 @@ func (s *StakeModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, read
 
 func (s *StakeModule) AddTxs(ctx sdk.WorkerContext, local, remote map[basecommon.Address]types.Transactions) (map[basecommon.Address]types.Transactions, map[basecommon.Address]types.Transactions) {
 
-	blockNumber := ctx.Backend().CurrentHeader().Number.Uint64()
+	blockNumber := ctx.Header().Number.Uint64()
+	if blockNumber == 0 {
+		return local, remote
+	}
 
 	if s.stageModule.IsNotBeginOfCurrentRound(ctx.StateDB(), blockNumber) {
 		return local, remote
@@ -127,11 +139,14 @@ func (s *StakeModule) AddTxs(ctx sdk.WorkerContext, local, remote map[basecommon
 
 func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) {
 
-	currentBlock := ctx.Backend().CurrentHeader().Number.Uint64()
+	currentBlock := ctx.Header().Number.Uint64()
+	if currentBlock == 0 {
+		return
+	}
 
 	// increase the number of validator blocks generated from the previous block
 	parentBlock := currentBlock - 1
-	parentHash := ctx.Backend().CurrentHeader().ParentHash
+	parentHash := ctx.Header().ParentHash
 	if parentBlock != 0 {
 		parentHeader := ctx.Backend().GetBlock(parentHash, parentBlock).Header()
 		if err := s.setNumberOfBlocksForRoundValidator(ctx.StateDB(), parentHeader); nil != err {
@@ -153,7 +168,10 @@ func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) {
 }
 func (s *StakeModule) EndBlock(ctx sdk.WorkerContext) {
 
-	currentBlock := ctx.Backend().CurrentHeader().Number.Uint64()
+	currentBlock := ctx.Header().Number.Uint64()
+	if currentBlock == 0 {
+		return
+	}
 
 	// election next round validators (at cuurent round electionBlock)
 	if s.stageModule.IsElectionBlockOnCurrentRound(ctx.StateDB(), currentBlock) {
@@ -205,7 +223,8 @@ func (s *StakeModule) OnCommit(ctx sdk.ConsensusContext, block *types.Block) err
 
 	for _, id := range diffIds {
 		v := db.GetValidator(ctx.StateDB(), s.Address(), id)
-		s.p2p.Addnode(enode.NewV4(v.PubKey, nil, 0, 0).URLv4())
+		pubkey, _ := v.PubKey.Pubkey()
+		s.p2p.Addnode(enode.NewV4(pubkey, nil, 0, 0).URLv4())
 	}
 
 	return nil
@@ -233,12 +252,16 @@ func (s *StakeModule) GetRoundValidator(ctx sdk.ConsensusContext, blockNumber ui
 		if v.IsInvalid() {
 			continue
 		}
+		pubkey, _ := v.PubKey.Pubkey()
+		blsKey := bls.PublicKey{}
+		(&blsKey).Deserialize(v.BlsKey)
+
 		validator := &cbfttypes.ValidateNode{
 			Index:     uint32(i),
 			Address:   basecommon.NodeAddress(snap.ValidatorAddr),
-			PubKey:    v.PubKey,
-			NodeID:    enode.PubkeyToIDV4(v.PubKey),
-			BlsPubKey: v.BlsKey,
+			PubKey:    pubkey,
+			NodeID:    enode.PubkeyToIDV4(pubkey),
+			BlsPubKey: &blsKey,
 		}
 		valMap[validator.NodeID] = validator
 	}
@@ -273,12 +296,17 @@ func (s *StakeModule) GetEpochValidator(ctx sdk.ConsensusContext, blockNumber ui
 		if v.IsInvalid() {
 			continue
 		}
+
+		pubkey, _ := v.PubKey.Pubkey()
+		blsKey := bls.PublicKey{}
+		(&blsKey).DeserializeUncompressed(v.BlsKey)
+
 		validator := &cbfttypes.ValidateNode{
 			Index:     uint32(i),
 			Address:   basecommon.NodeAddress(snap.ValidatorAddr),
-			PubKey:    v.PubKey,
-			NodeID:    enode.PubkeyToIDV4(v.PubKey),
-			BlsPubKey: v.BlsKey,
+			PubKey:    pubkey,
+			NodeID:    enode.PubkeyToIDV4(pubkey),
+			BlsPubKey: &blsKey,
 		}
 		valMap[validator.NodeID] = validator
 	}
@@ -297,7 +325,8 @@ func (s *StakeModule) NewHeader(ctx sdk.ConsensusContext, header *types.Header) 
 
 	if ctx.IsProposer() {
 		currentValidatorAddr := crypto.PubkeyToAddress(s.nodePrivateKey.PublicKey)
-		currentValidator := db.GetValidator(ctx.StateDB(), s.Address(), currentValidatorAddr)
+
+		currentValidator := db.GetValidator(ctx.ParentStateDB(), s.Address(), currentValidatorAddr)
 		if currentValidator.IsInvalid() {
 			return errors.New("invalida validator")
 		}
@@ -330,8 +359,8 @@ func (s *StakeModule) IsCandidateNode(ctx sdk.ConsensusContext, nodeID enode.IDv
 		if v.IsInvalid() {
 			continue
 		}
-
-		if enode.PubkeyToIDV4(v.PubKey) == nodeID.ID() {
+		pubkey, _ := v.PubKey.Pubkey()
+		if enode.PubkeyToIDV4(pubkey) == nodeID.ID() {
 			return true
 		}
 	}
@@ -602,14 +631,18 @@ func (s *StakeModule) GetValidatorECDSAPubKey(stateDB sdk.StateDBReader, validat
 	if validator.IsEmpty() {
 		return nil
 	}
-	return validator.PubKey
+	pubkey, _ := validator.PubKey.Pubkey()
+
+	return pubkey
 }
 func (s *StakeModule) GetValidatorBLSPubKey(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) *bls.PublicKey {
 	validator := db.GetValidator(stateDB, s.Address(), validatorAddr)
 	if validator.IsEmpty() {
 		return nil
 	}
-	return validator.BlsKey
+	blsKey := bls.PublicKey{}
+	(&blsKey).DeserializeUncompressed(validator.BlsKey)
+	return &blsKey
 }
 func (s *StakeModule) GetValidatorCommissionRate(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) uint64 {
 	validator := db.GetValidator(stateDB, s.Address(), validatorAddr)
