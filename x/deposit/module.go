@@ -34,9 +34,10 @@ func (d *DepositModule) Name() string {
 	return MODULE_NAME_DEPOSIT
 }
 
-func (d *DepositModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
+func (d *DepositModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
 	// init deposit handler  account nonce
 	initAccountNonce(db, d.Address())
+	return nil
 }
 
 func (d *DepositModule) Address() basecommon.Address {

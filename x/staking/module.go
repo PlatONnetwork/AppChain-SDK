@@ -152,7 +152,7 @@ func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) error {
 	if parentBlock != 0 {
 		parentHeader := ctx.Backend().GetBlock(parentHash, parentBlock).Header()
 		if err := s.setNumberOfBlocksForRoundValidator(ctx.StateDB(), parentHeader); nil != err {
-			return fmt.Errorf("Failed to set number of blocks for round validators, parentBlock: %d, blockNumber: %d, error: %s", parentBlock, currentBlock, err)
+			return fmt.Errorf("can not set number of blocks for round validators, %s, parentBlock: %d", err, parentBlock)
 		}
 	}
 
@@ -162,7 +162,7 @@ func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) error {
 		// update validator status
 		for _, validatorAddr := range lowBlocksValidatorAddrQueue {
 			if err := s.updateValidatorStatus(ctx.StateDB(), validatorAddr, staketypes.Invalided|staketypes.LowBlocks); nil != err {
-				return fmt.Errorf("Failed to update validator status to [lowBlocks], validator: %s, blockNumber: %d, error: %s", validatorAddr.Hex(), currentBlock, err)
+				return fmt.Errorf("can not update validator status to [lowBlocks], %s, validator: %s", err, validatorAddr.Hex())
 			}
 		}
 	}
@@ -178,7 +178,7 @@ func (s *StakeModule) EndBlock(ctx sdk.WorkerContext) error {
 	// election next round validators (at cuurent round electionBlock)
 	if s.stageModule.IsElectionBlockOnCurrentRound(ctx.StateDB(), currentBlock) {
 		if err := s.electionRoundValidators(ctx, currentBlock); nil != err {
-			return fmt.Errorf("Failed to elected round validators, blockNumber: %d, error: %s", currentBlock, err)
+			return fmt.Errorf("can not elected round validators, %s", err)
 		}
 	}
 
@@ -186,7 +186,7 @@ func (s *StakeModule) EndBlock(ctx sdk.WorkerContext) error {
 	// and store next epochItem
 	if s.stageModule.IsEndOfCurrentEpoch(ctx.StateDB(), currentBlock) {
 		if err := s.electionEpochValidators(ctx, currentBlock); nil != err {
-			return fmt.Errorf("Failed to elected epoch validators, blockNumber: %d, error: %s", currentBlock, err)
+			return fmt.Errorf("can not elected epoch validators, %s", err)
 		}
 	}
 	return nil

@@ -104,7 +104,7 @@ func (s *StageModule) EndBlock(ctx sdk.WorkerContext) error {
 	// store next epochItem (at current round endBlock)
 	if db.IsEndOfCurrentRound(ctx.StateDB(), s.Address(), currentBlock) {
 		if err := db.BuildNextRound(ctx.StateDB(), s.Address(), s.GetRoundSize(ctx.StateDB())); nil != err {
-			return fmt.Errorf("Failed to build next round, currentRound: %d, blockNumber: %d, error: %s", s.GetCurrentRound(ctx.StateDB()), currentBlock, err)
+			return fmt.Errorf("can not build next round, %s, currentRound: %d", err, s.GetCurrentRound(ctx.StateDB()))
 		}
 	}
 
@@ -112,7 +112,7 @@ func (s *StageModule) EndBlock(ctx sdk.WorkerContext) error {
 	// and store next epochItem
 	if db.IsEndOfCurrentEpoch(ctx.StateDB(), s.Address(), currentBlock) {
 		if err := db.BuildNextEpoch(ctx.StateDB(), s.Address(), s.GetEpochSize(ctx.StateDB()), s.GetRoundSize(ctx.StateDB())); nil != err {
-			return fmt.Errorf("Failed to build next epoch, currentEpoch: %d, blockNumber: %d, error: %s", s.GetCurrentEpoch(ctx.StateDB()), currentBlock, err)
+			return fmt.Errorf("can not build next epoch, %s, currentEpoch: %d", err, s.GetCurrentEpoch(ctx.StateDB()))
 		}
 	}
 	return nil

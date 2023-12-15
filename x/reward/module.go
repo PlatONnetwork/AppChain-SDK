@@ -98,7 +98,7 @@ func (r *RewardModule) BeginBlock(ctx sdk.WorkerContext) error {
 	// distribute blocks reward (with round)
 	if r.stageModule.IsBeginOfCurrentRound(ctx.StateDB(), currentBlock) {
 		if err := r.handleBlocksRewardForPreviousRound(ctx.StateDB(), currentBlock); nil != err {
-			return fmt.Errorf("Failed to handle blocks reward for previous round, currentRound: %d, blockNumber: %d, error: %s", r.stageModule.GetCurrentRound(ctx.StateDB()), currentBlock, err)
+			return fmt.Errorf("can not handle blocks reward for previous round, %s, currentRound: %d", err, r.stageModule.GetCurrentRound(ctx.StateDB()))
 		}
 	}
 	return nil
@@ -114,7 +114,7 @@ func (r *RewardModule) EndBlock(ctx sdk.WorkerContext) error {
 	// distribute epoch reward
 	if r.stageModule.IsEndOfCurrentEpoch(ctx.StateDB(), currentBlock) {
 		if err := r.handleEpochReward(ctx.StateDB(), currentBlock); nil != err {
-			return fmt.Errorf("Failed to handle epoch reward, currentEpoch: %d, blockNumber: %d, error: %s", r.stageModule.GetCurrentEpoch(ctx.StateDB()), currentBlock, err)
+			return fmt.Errorf("can not handle epoch reward, %s, currentEpoch: %d", err, r.stageModule.GetCurrentEpoch(ctx.StateDB()))
 		}
 	}
 

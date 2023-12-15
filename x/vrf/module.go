@@ -138,7 +138,7 @@ func (v *VRFModule) EndBlock(ctx sdk.WorkerContext) error {
 		// get nonceAndProof by block (After the `pushNonceAndProof` transaction was executed)
 		nonceAndProof, err := vrfwrap.GetCurrentNonceAndProof(ctx.StateDB(), v.Address(), currentBlock)
 		if nil != err {
-			return fmt.Errorf("Failed to get current nonceAndProof, blockNumber: %d, error: %s", currentBlock, err)
+			return fmt.Errorf("can not get current nonceAndProof, %s", err)
 		}
 
 		// Extract the validator public key of the build block based on the signature in the block header
@@ -146,12 +146,12 @@ func (v *VRFModule) EndBlock(ctx sdk.WorkerContext) error {
 		sealhash := header.SealHash().Bytes()
 		pk, err := crypto.SigToPub(sealhash, sign)
 		if err != nil {
-			return fmt.Errorf("Failed to handle sigToPub, blockNumber: %d, error: %s", currentBlock, err)
+			return fmt.Errorf("can not handle sigToPub, %s", err)
 		}
 
 		// verify nonce and
 		if err := v.VerifyVrf(ctx, currentBlock, nonceAndProof, pk); nil != err {
-			return fmt.Errorf("Failed to verify vrf nonce and proof, blockNumber: %d, error: %s", currentBlock, err)
+			return fmt.Errorf("can not verify vrf nonce and proof, %s", err)
 		}
 	}
 	return nil
