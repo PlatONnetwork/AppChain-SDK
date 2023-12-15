@@ -118,8 +118,7 @@ func (v *VRFModule) AddTxs(ctx sdk.WorkerContext, local, remote map[basecommon.A
 	}
 	local[from] = append(local[from], pushNonceAndProofTx)
 	end := time.Now()
-	duration := end.Sub(start)
-	v.logger.Warn("create pushNonceAndProof tx duration", "blockNumber", blockNumber, "start", start.UnixNano()/1e6, "end", end.UnixNano()/1e6, "duration", duration.Milliseconds(), "txHash", pushNonceAndProofTx.Hash().Hex(), "from", from.Hex(), "txData", pushNonceAndProofTx.Data())
+	v.logger.Warn("create pushNonceAndProof tx duration", "blockNumber", blockNumber, "start", basecommon.Millis(start), "end", basecommon.Millis(end), "duration", end.Sub(start), "txHash", pushNonceAndProofTx.Hash().Hex(), "from", from.Hex())
 	return local, remote
 }
 
@@ -153,13 +152,15 @@ func (v *VRFModule) EndBlock(ctx sdk.WorkerContext) {
 }
 
 func (v *VRFModule) GenerateNonceAndProof(ctx sdk.WorkerContext, blockNumber uint64) ([]byte, error) {
+	start := time.Now()
 	nonceAndProof, err := vrfwrap.GenerateNonceAndProof(ctx.StateDB(), v.Address(), blockNumber, v.nodePrivateKey)
 	if nil != err {
 		v.logger.Error("Failed to generate vrf nonceAndProof", "blockNumber", blockNumber, "error", err)
 		return nil, err
 	}
+	end := time.Now()
 	v.logger.Info("Succeed to generate vrf nonceAndProof", "blockNumber", blockNumber, "nonceAndProof", hex.EncodeToString(nonceAndProof),
-		"nodeId", enode.PublicKeyToIDv0(&(v.nodePrivateKey.PublicKey)).String())
+		"nodeId", enode.PublicKeyToIDv0(&(v.nodePrivateKey.PublicKey)).String(), "start", basecommon.Millis(start), "end", basecommon.Millis(end), "duration", end.Sub(start))
 	return nonceAndProof, nil
 }
 
