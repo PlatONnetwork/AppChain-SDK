@@ -103,14 +103,15 @@ func (c *StateReceiver) Commit(commitment StateSyncCommitment, index uint64, vot
 
 	value, _ := rlp.EncodeToBytes(&commitment)
 
-	if err := merkle.VerifyProof(index, crypto.Keccak256Hash(value).Bytes(), voteProof, qc.ExtendHash); err != nil {
+	if err := merkle.VerifyProof(index, value, voteProof, qc.ExtendHash); err != nil {
 		return typesdk.NewRevertError("StateReceiver: MERKLE_VERIFICATION_FAILED")
 	}
 
 	c.SetCommitment(&commitment)
 
 	c.SetLastCommittedId(commitment.EndId)
-
+	log, _ := c.EmitNewCommitmentEvent(commitment.StartId, commitment.EndId, commitment.Root)
+	c.stateDb.AddLog(log)
 	return nil
 }
 
@@ -165,6 +166,9 @@ func (c *StateReceiver) Execute(proof []common.Hash, obj StateSync) error {
 		return typesdk.NewRevertError("StateReceiver: MERKLE_VERIFICATION_FAILED")
 	}
 	c.SetExecutedId(obj.Id)
+	result, err := CallOnStateReceive(c.evm, c.contract, c.contract.Gas, &obj)
+	log, _ := c.EmitStateSyncResultEvent(obj.Id, err == nil, result)
+	c.stateDb.AddLog(log)
 	return nil
 }
 func (c *StateReceiver) GetExecutedId() (*big.Int, error) {

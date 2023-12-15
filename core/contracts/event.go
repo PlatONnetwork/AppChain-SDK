@@ -6,7 +6,7 @@ import (
 )
 
 func PackEventTopics(id common.Hash, inputs abi.Arguments, query ...interface{}) ([]common.Hash, error) {
-	hashes, err := abi.PackTopics(inputs, query)
+	hashes, err := abi.PackTopics(inputs, query...)
 	if err != nil {
 		return nil, err
 	}
