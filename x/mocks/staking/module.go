@@ -58,14 +58,15 @@ func (m *Module) BlocksOfRound(ctx sdk.ConsensusContext) uint64 {
 	return NumberBlocksOfEpoch
 }
 
-func (m *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
+func (m *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
 	nodes := convertToValidatorNodes(chainConfig.Cbft.InitialNodes)
 	val, err := rlp.EncodeToBytes(nodes)
 	if err != nil {
-		panic(fmt.Sprintf("validators rlp error: %v", err))
+		return fmt.Errorf("validators rlp error: %v", err)
 	}
 
 	m.store.Set([]byte(ValidatorKey), val)
+	return nil
 }
 
 func (m *Module) NewHeader(ctx sdk.ConsensusContext, header *types.Header) error {

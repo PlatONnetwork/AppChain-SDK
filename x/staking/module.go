@@ -66,16 +66,18 @@ func (s *StakeModule) Init(ctx sdk.InitContext) error {
 	return nil
 }
 
-func (s *StakeModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
+func (s *StakeModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
 	configParams := config.DefualtStakeNetworkParams()
 	raw, err := data.MarshalJSON()
 	if nil != err {
 		log.Error("Failed MarshalJSON StakeNetworkParams bytes", "error", err)
+		return err
 	}
 
 	var conf config.StakeNetworkParams
 	if err := json.Unmarshal(raw, &conf); nil != err {
 		log.Error("Failed UnmarshalJSON StakeNetworkParams", "error", err)
+		return err
 	} else {
 		configParams = &conf
 	}
@@ -87,11 +89,11 @@ func (s *StakeModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *
 
 	if err := initValidators(db, s.Address(), chainConfig, configParams); nil != err {
 		log.Error("Failed initialize genesis validators", "error", err)
-		panic(err)
+		return err
 	}
 
 	log.Info("Succeed init genesis", "module", s.Name(), "StakeNetworkParams", configParams.String())
-
+	return nil
 }
 
 func (s *StakeModule) Address() basecommon.Address {
@@ -137,11 +139,11 @@ func (s *StakeModule) AddTxs(ctx sdk.WorkerContext, local, remote map[basecommon
 	return local, remote
 }
 
-func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) {
+func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) error {
 
 	currentBlock := ctx.Header().Number.Uint64()
 	if currentBlock == 0 {
-		return
+		return nil
 	}
 
 	// increase the number of validator blocks generated from the previous block
@@ -150,7 +152,7 @@ func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) {
 	if parentBlock != 0 {
 		parentHeader := ctx.Backend().GetBlock(parentHash, parentBlock).Header()
 		if err := s.setNumberOfBlocksForRoundValidator(ctx.StateDB(), parentHeader); nil != err {
-			panic(fmt.Sprintf("Failed to set number of blocks for round validators, parentBlock: %d, blockNumber: %d, error: %s", parentBlock, currentBlock, err))
+			return fmt.Errorf("Failed to set number of blocks for round validators, parentBlock: %d, blockNumber: %d, error: %s", parentBlock, currentBlock, err)
 		}
 	}
 
@@ -160,23 +162,23 @@ func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) {
 		// update validator status
 		for _, validatorAddr := range lowBlocksValidatorAddrQueue {
 			if err := s.updateValidatorStatus(ctx.StateDB(), validatorAddr, staketypes.Invalided|staketypes.LowBlocks); nil != err {
-				panic(fmt.Sprintf("Failed to update validator status to [lowBlocks], validator: %s, blockNumber: %d, error: %s", validatorAddr.Hex(), currentBlock, err))
+				return fmt.Errorf("Failed to update validator status to [lowBlocks], validator: %s, blockNumber: %d, error: %s", validatorAddr.Hex(), currentBlock, err)
 			}
 		}
 	}
-
+	return nil
 }
-func (s *StakeModule) EndBlock(ctx sdk.WorkerContext) {
+func (s *StakeModule) EndBlock(ctx sdk.WorkerContext) error {
 
 	currentBlock := ctx.Header().Number.Uint64()
 	if currentBlock == 0 {
-		return
+		return nil
 	}
 
 	// election next round validators (at cuurent round electionBlock)
 	if s.stageModule.IsElectionBlockOnCurrentRound(ctx.StateDB(), currentBlock) {
 		if err := s.electionRoundValidators(ctx, currentBlock); nil != err {
-			panic(fmt.Sprintf("Failed to elected round validators, blockNumber: %d, error: %s", currentBlock, err))
+			return fmt.Errorf("Failed to elected round validators, blockNumber: %d, error: %s", currentBlock, err)
 		}
 	}
 
@@ -184,9 +186,10 @@ func (s *StakeModule) EndBlock(ctx sdk.WorkerContext) {
 	// and store next epochItem
 	if s.stageModule.IsEndOfCurrentEpoch(ctx.StateDB(), currentBlock) {
 		if err := s.electionEpochValidators(ctx, currentBlock); nil != err {
-			panic(fmt.Sprintf("Failed to elected epoch validators, blockNumber: %d, error: %s", currentBlock, err))
+			return fmt.Errorf("Failed to elected epoch validators, blockNumber: %d, error: %s", currentBlock, err)
 		}
 	}
+	return nil
 }
 
 func (s *StakeModule) OnCommit(ctx sdk.ConsensusContext, block *types.Block) error {

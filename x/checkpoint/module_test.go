@@ -285,7 +285,7 @@ func TestBuildRoot(t *testing.T) {
 func TestGenerateExitProof(t *testing.T) {
 	store := memorydb.New()
 	txRelayer := txrelayer.NewModule("https://devnet2openapi2.platon.network/rpc", txrelayer.DefaultReceiptTimeout, txrelayer.DefaultNumRetries)
-	err := txRelayer.Init()
+	err := txRelayer.Init(nil)
 	require.NoError(t, err)
 	m := &Module{
 		logger:                log.New("module", "checkpoint"),

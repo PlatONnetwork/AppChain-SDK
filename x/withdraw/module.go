@@ -30,9 +30,10 @@ func (w *WithdrawModule) Name() string {
 	return MODULE_NAME_WITHDRAW
 }
 
-func (w *WithdrawModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
+func (w *WithdrawModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
 	// init withdraw manager  account nonce
 	initAccountNonce(db, w.Address())
+	return nil
 }
 
 func (w *WithdrawModule) Address() basecommon.Address {

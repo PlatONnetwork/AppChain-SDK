@@ -120,12 +120,12 @@ func (app *BaseApp) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *pa
 	return app.manager.InitGenesis(ctx, db, chainConfig, data)
 }
 
-func (app *BaseApp) BeginBlock(ctx sdk.WorkerContext) {
-	app.manager.BeginBlock(ctx)
+func (app *BaseApp) BeginBlock(ctx sdk.WorkerContext) error {
+	return app.manager.BeginBlock(ctx)
 }
 
-func (app *BaseApp) EndBlock(ctx sdk.WorkerContext) {
-	app.manager.EndBlock(ctx)
+func (app *BaseApp) EndBlock(ctx sdk.WorkerContext) error {
+	return app.manager.EndBlock(ctx)
 }
 
 func (app *BaseApp) SortTxs(ctx sdk.WorkerContext, local, remote map[common.Address]types.Transactions) (types.Transactions, error) {

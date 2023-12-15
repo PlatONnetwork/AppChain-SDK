@@ -1,7 +1,6 @@
 package txrelayer
 
 import (
-	"fmt"
 	"math/big"
 	"testing"
 
@@ -11,8 +10,6 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
 	"github.com/google/uuid"
 	"github.com/test-go/testify/assert"
-
-	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint/contractsapi"
 )
 
 var (
@@ -22,7 +19,7 @@ var (
 
 func newTxRelayer(rpcAddr string) *Module {
 	txRelayer := NewModule(rpcAddr, DefaultReceiptTimeout, DefaultNumRetries)
-	txRelayer.Init()
+	txRelayer.Init(nil)
 	return txRelayer
 }
 
@@ -40,8 +37,6 @@ func TestCall(t *testing.T) {
 
 func TestSendTransaction(t *testing.T) {
 	m := newTxRelayer("https://devnet2openapi2.platon.network/rpc")
-	err := m.Init()
-	assert.NoError(t, err)
 
 	privateKey := crypto.HexMustToECDSA(privateKeyHex)
 	id, err := uuid.NewRandom()

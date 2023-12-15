@@ -83,12 +83,12 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 
 	extraVote := extravote.NewExtraVote(store, []extravote.ExtraVerifier{stateSync, checkpoint})
 
-	manager := module.NewManager(stateSync, stateEvent, l1Module, extraVote, checkpoint, stageModule, vrfModule, stakeModule, rewardModule, depositModule)
+	manager := module.NewManager(stateSync, stateEvent, l1Module, extraVote, rootchainTxRelayer, checkpoint, stageModule, vrfModule, stakeModule, rewardModule, depositModule)
 	manager.SetElection(stakeModule.Name())
 	manager.SetConsensusExtend(extraVote.Name())
 	//manager.SetWorker(stateSync.Name())
 	manager.SetOrderTransaction(stateSync.Name(), vrfModule.Name(), stakeModule.Name())
-	manager.SetOrderInit(stateSync.Name(), checkpoint.Name(), vrfModule.Name(), stakeModule.Name(), rewardModule.Name())
+	manager.SetOrderInit(stateSync.Name(), rootchainTxRelayer.Name(), checkpoint.Name(), vrfModule.Name(), stakeModule.Name(), rewardModule.Name())
 	manager.SetOrderGenesis(l1Module.Name(), stageModule.Name(), vrfModule.Name(), stakeModule.Name(), rewardModule.Name(), depositModule.Name(), l2StateSender.Name())
 	manager.SetOrderBeginBlocker(stageModule.Name(), stakeModule.Name(), rewardModule.Name())
 	manager.SetOrderEndBlocker(stageModule.Name(), vrfModule.Name(), stakeModule.Name(), rewardModule.Name())
