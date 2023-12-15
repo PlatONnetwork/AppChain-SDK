@@ -4,10 +4,11 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	"github.com/PlatONnetwork/PlatON-Go/rlp"
+
 	"github.com/PlatONnetwork/AppChain-SDK/store"
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint/contractsapi"
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint/types"
-	"github.com/PlatONnetwork/PlatON-Go/rlp"
 )
 
 type Storage struct {
@@ -36,7 +37,7 @@ func (s *Storage) InsertExitEvent(exitEvent *contractsapi.ExitEvent) error {
 
 func (s *Storage) GetExitEventsByEpoch(epoch uint64) ([]*contractsapi.ExitEvent, error) {
 	exitEvents := make([]*contractsapi.ExitEvent, 0)
-	it := s.kv.NewIterator([]byte{}, exitEventPrefix(epoch))
+	it := s.kv.NewIterator(exitEventPrefix(epoch), nil)
 	for it.Next() {
 		var exitEvent contractsapi.ExitEvent
 		if err := rlp.DecodeBytes(it.Value(), &exitEvent); err != nil {
@@ -68,10 +69,6 @@ func (s *Storage) GetExitEvent(exitID uint64) (*contractsapi.ExitEvent, error) {
 		return nil, err
 	}
 	return &exitEvent, nil
-}
-
-func checkpointKey(blockNumber uint64) []byte {
-	return []byte(fmt.Sprintf(types.CheckpointKeyTpl, blockNumber))
 }
 
 func exitEventKey(epoch, evID uint64) []byte {
