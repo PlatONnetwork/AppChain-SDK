@@ -14,6 +14,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/ethclient"
 	"github.com/PlatONnetwork/PlatON-Go/log"
+	"github.com/PlatONnetwork/PlatON-Go/sdk"
 )
 
 const (
@@ -26,6 +27,7 @@ const (
 
 var (
 	_ module.Module = (*Module)(nil)
+	_ module.InitModule = (*Module)(nil)
 )
 
 type Module struct {
@@ -49,7 +51,7 @@ func (m *Module) Name() string {
 	return ModuleName
 }
 
-func (m *Module) Init() error {
+func (m *Module) Init(ctx sdk.InitContext) error {
 	if m.rpcAddress == "" {
 		return fmt.Errorf("node rpc address not set")
 	}

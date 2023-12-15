@@ -30,9 +30,10 @@ func (s *StateSenderModule) Name() string {
 	return MODULE_NAME_STATE_SENDER
 }
 
-func (s *StateSenderModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
+func (s *StateSenderModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
 	// init l2 state sender  account nonce
 	initAccountNonce(db, s.Address())
+	return nil
 }
 
 func (s *StateSenderModule) Address() basecommon.Address {

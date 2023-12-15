@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
+
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/contracts"
@@ -17,7 +19,6 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"gopkg.in/urfave/cli.v1"
-	"math/big"
 )
 
 const (
@@ -51,17 +52,19 @@ func (r *RewardModule) Init(ctx sdk.InitContext) error {
 	return nil
 }
 
-func (r *RewardModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
+func (r *RewardModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
 
 	configParams := config.DefaultRewardNetworkParams()
 	raw, err := data.MarshalJSON()
 	if nil != err {
 		log.Error("Failed MarshalJSON RewardNetworkParams bytes", "error", err)
+		return err
 	}
 
 	var conf config.RewardNetworkParams
 	if err := json.Unmarshal(raw, &conf); nil != err {
 		log.Error("Failed UnmarshalJSON RewardNetworkParams", "error", err)
+		return err
 	} else {
 		configParams = &conf
 	}
@@ -71,6 +74,7 @@ func (r *RewardModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig 
 	initConfigParams(db, r.Address(), configParams)
 
 	log.Info("Succeed init genesis", "module", r.Name(), "RewardNetworkParams", configParams.String())
+	return nil
 }
 
 func (r *RewardModule) Address() basecommon.Address {
@@ -85,31 +89,32 @@ func (r *RewardModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, rea
 	return rewardManager.Run(input)
 }
 
-func (r *RewardModule) BeginBlock(ctx sdk.WorkerContext) {
+func (r *RewardModule) BeginBlock(ctx sdk.WorkerContext) error {
 
 	currentBlock := ctx.Header().Number.Uint64()
 	if currentBlock == 0 {
-		return
+		return nil
 	}
 	// distribute blocks reward (with round)
 	if r.stageModule.IsBeginOfCurrentRound(ctx.StateDB(), currentBlock) {
 		if err := r.handleBlocksRewardForPreviousRound(ctx.StateDB(), currentBlock); nil != err {
-			panic(fmt.Sprintf("Failed to handle blocks reward for previous round, currentRound: %d, blockNumber: %d, error: %s", r.stageModule.GetCurrentRound(ctx.StateDB()), currentBlock, err))
+			return fmt.Errorf("Failed to handle blocks reward for previous round, currentRound: %d, blockNumber: %d, error: %s", r.stageModule.GetCurrentRound(ctx.StateDB()), currentBlock, err)
 		}
 	}
+	return nil
 }
 
-func (r *RewardModule) EndBlock(ctx sdk.WorkerContext) {
+func (r *RewardModule) EndBlock(ctx sdk.WorkerContext) error {
 
 	currentBlock := ctx.Header().Number.Uint64()
 	if currentBlock == 0 {
-		return
+		return nil
 	}
 
 	// distribute epoch reward
 	if r.stageModule.IsEndOfCurrentEpoch(ctx.StateDB(), currentBlock) {
 		if err := r.handleEpochReward(ctx.StateDB(), currentBlock); nil != err {
-			panic(fmt.Sprintf("Failed to handle epoch reward, currentEpoch: %d, blockNumber: %d, error: %s", r.stageModule.GetCurrentEpoch(ctx.StateDB()), currentBlock, err))
+			return fmt.Errorf("Failed to handle epoch reward, currentEpoch: %d, blockNumber: %d, error: %s", r.stageModule.GetCurrentEpoch(ctx.StateDB()), currentBlock, err)
 		}
 	}
 
@@ -123,6 +128,7 @@ func (r *RewardModule) EndBlock(ctx sdk.WorkerContext) {
 			rewarddb.SetValidatorRewardOwner(ctx.StateDB(), r.Address(), currentValidatorAddr, newOwner)
 		}
 	}
+	return nil
 }
 
 func (r *RewardModule) handleBlocksRewardForPreviousRound(stateDB sdk.StateDB, blockNumber uint64) error {
