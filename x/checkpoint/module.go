@@ -121,6 +121,7 @@ func (m *Module) GetLogFilters() map[common.Address][]common.Hash {
 }
 
 func (m *Module) ProcessLog(ctx sdk.ConsensusContext, header *coretypes.Header, qc *ctypes.QuorumCert, log *coretypes.Log) error {
+	m.logger.Debug("Process log", "blockNumber", header.Number, "qc", qc.String(), "eventID", log.Topics[0].Hex(), "data", common.Bytes2Hex(log.Data))
 	epoch := qc.Epoch
 	block := qc.BlockNumber
 	var i uint64 = 0

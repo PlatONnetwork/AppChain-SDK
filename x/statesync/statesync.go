@@ -133,7 +133,8 @@ func (s *StateSync) GenProof(epoch, view uint64, index uint32, start, end *big.I
 }
 
 func (s *StateSync) createCommitTx(ctx sdk.Context, cm *contracts.StateSyncCommitment, index uint64, qc *types2.QuorumCert, voteProof []common.Hash, nonce uint64) (*types.Transaction, error) {
-	input, err := contracts.Abi.Methods["commit"].Inputs.Pack(cm, index, voteProof, &contracts.QuorumCert{
+	method := contracts.Abi.Methods["commit"]
+	input, err := method.Inputs.Pack(cm, index, voteProof, &contracts.QuorumCert{
 		Epoch:       qc.Epoch,
 		ViewNumber:  qc.ViewNumber,
 		BlockHash:   qc.BlockHash,
@@ -148,7 +149,8 @@ func (s *StateSync) createCommitTx(ctx sdk.Context, cm *contracts.StateSyncCommi
 	if err != nil {
 		return nil, err
 	}
-	tx := types.NewTransaction(nonce, constants.StateSyncAddress, nil, 100000, big.NewInt(0), input)
+	input = append(method.ID, input...)
+	tx := types.NewTransaction(nonce, constants.StateSyncAddress, nil, 3000000, big.NewInt(0), input)
 	chainId, _ := ctx.Backend().ChainId()
 	signer := types.NewEIP155Signer(chainId)
 	tx, err = types.SignTx(tx, signer, s.privateKey)
@@ -160,13 +162,15 @@ func (s *StateSync) createCommitTx(ctx sdk.Context, cm *contracts.StateSyncCommi
 }
 
 func (s *StateSync) createExecuteTxs(ctx sdk.Context, proofs [][]common.Hash, events []*sync.StateSender, nonce uint64) ([]*types.Transaction, error) {
+	method := contracts.Abi.Methods["execute"]
 	var txs []*types.Transaction
 	for i, proof := range proofs {
-		input, err := contracts.Abi.Methods["execute"].Inputs.Pack(proof, events[i])
+		input, err := method.Inputs.Pack(proof, events[i])
 		if err != nil {
 			return nil, err
 		}
-		tx := types.NewTransaction(nonce, constants.StateSyncAddress, nil, 100000, big.NewInt(0), input)
+		input = append(method.ID, input...)
+		tx := types.NewTransaction(nonce, constants.StateSyncAddress, nil, 3000000, big.NewInt(0), input)
 		chainId, _ := ctx.Backend().ChainId()
 		signer := types.NewEIP155Signer(chainId)
 		tx, err = types.SignTx(tx, signer, s.privateKey)

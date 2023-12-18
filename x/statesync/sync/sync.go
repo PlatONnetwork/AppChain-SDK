@@ -49,7 +49,7 @@ type L1Sync struct {
 func NewL1Sync(stateSenderAddr common.Address, url string, start *big.Int, db store.Store, updateCh chan struct{}) (*L1Sync, error) {
 	syncdb := NewL1SyncDB(db)
 	log := log.New("module", "l1sync")
-
+	syncdb.SetLastBlockNumber(big.NewInt(0))
 	cli, err := ethclient.Dial(url)
 	if err != nil {
 		return nil, err
@@ -76,13 +76,15 @@ func (l *L1Sync) Run(ctx context.Context) {
 		l.log.Info("l1 sync is not start")
 		return
 	}
-	timer := time.AfterFunc(scanBlockInterval, func() {
-		l.scanRootChain(ctx)
-	})
+	ticker := time.NewTicker(scanBlockInterval)
 	go func() {
-		select {
-		case <-ctx.Done():
-			timer.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				l.scanRootChain(ctx)
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 }

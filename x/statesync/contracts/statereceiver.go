@@ -283,7 +283,7 @@ func (c *StateReceiver) GetStateSyncIdEntry(input []byte) ([]byte, error) {
 
 func (c *StateReceiver) EmitNewCommitmentEvent(startId *big.Int, endId *big.Int, root common.Hash) (*types.Log, error) {
 	event := c.abi.Events["NewCommitment"]
-	hashes, err := abi.PackTopics(event.Inputs, startId, endId, root)
+	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, startId, endId, root)
 	if err != nil {
 		return nil, err
 	}

@@ -3,10 +3,13 @@ package statesync
 import (
 	"context"
 	"crypto/ecdsa"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/utils"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/PlatON-Go/log"
+	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
 	"math/big"
 
@@ -43,8 +46,6 @@ type StateSync struct {
 	syncUpdateCh chan struct{}
 }
 
-// TODO 启动查询合约执行的ID序号，定位同步的起始点
-// TODO 动态的清理数据库数据
 func NewStateSync(ctx *cli.Context, store store.Store, extraDb *extravote.ExtraVoteDB) (*StateSync, error) {
 	var start *big.Int
 	if ctx.GlobalIsSet(StartBlockFlag.Name) {
@@ -63,6 +64,9 @@ func NewStateSync(ctx *cli.Context, store store.Store, extraDb *extravote.ExtraV
 		p2p:          NewSyncP2P(),
 		syncUpdateCh: make(chan struct{}),
 	}, nil
+}
+func (s *StateSync) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
+	db.SetNonce(constants.StateSyncAddress, 1)
 }
 
 func (s *StateSync) Name() string {
@@ -136,30 +140,63 @@ func (s *StateSync) PrepareQC(ctx sdk.ConsensusContext, block *protocols.Prepare
 	s.PrepareQCImpl(block, votes)
 }
 func (s *StateSync) AddTxs(ctx sdk.WorkerContext, local, remote map[common.Address]types.Transactions) (map[common.Address]types.Transactions, map[common.Address]types.Transactions) {
-	//创建commitment
-	receiver, err := s.newStateSyncCallContract(ctx, ctx.Header())
+	block := ctx.Backend().GetBlock(ctx.Header().ParentHash, ctx.Header().Number.Uint64()-1)
+	if block == nil {
+		s.logger.Warn("Get block failed", "number", ctx.Header().Number.Uint64()-1)
+		return local, remote
+	}
+	receiver, err := s.newStateSyncCallContract(ctx, block.Header())
 	if err != nil {
 		s.logger.Warn("New state sync caller failed", "err", err)
 		return local, remote
 	}
+	from := crypto.PubkeyToAddress(s.privateKey.PublicKey)
+
+	nonce, err := ctx.Backend().GetPoolNonce(from)
+	if err != nil {
+		s.logger.Warn("Get pool nonce failed", "nonce", nonce, "err", err)
+		return local, remote
+	}
+	cmtx, err := s.addCommitTx(ctx, receiver, nonce)
+	if err == nil {
+		if local[from] == nil {
+			local[from] = types.Transactions{}
+		}
+		local[from] = append(local[from], cmtx)
+		nonce += 1
+	}
+	//创建 event proof
+	exTxs, err := s.addExecutedTx(ctx, receiver, nonce)
+	if err != nil {
+		s.logger.Warn("Get executed txs failed", "err", err)
+		return local, remote
+	}
+	if local[from] == nil {
+		local[from] = types.Transactions{}
+	}
+	local[from] = append(local[from], exTxs...)
+	return local, remote
+}
+
+func (s *StateSync) addCommitTx(ctx sdk.WorkerContext, receiver *contracts.StateReceiver, nonce uint64) (*types.Transaction, error) {
 	syncId, err := receiver.GetStateSyncId()
 	if err != nil {
 		s.logger.Warn("Get state sync id failed", "err", err)
-		return local, remote
+		return nil, err
 	}
 	start := new(big.Int).Add(syncId, big.NewInt(1))
 	if syncId.Cmp(big.NewInt(0)) != 0 {
 		commitment, err := receiver.GetCommitmentByStateSyncId(syncId)
 		if err != nil {
 			s.logger.Warn("Get commitment state sync id failed", "err", err)
-			return local, remote
+			return nil, err
 		}
 		start = new(big.Int).Add(commitment.EndId, big.NewInt(1))
 	}
 	match, err := s.eventProofDb.FindProofRoot(start)
-	if err != nil {
+	if match == nil || err != nil {
 		s.logger.Warn("Find proof root failed", "start", start, "err", err)
-		return local, remote
+		return nil, errors.New(fmt.Sprintf("find proof failed start:%d", start.Uint64()))
 	}
 	if match == nil {
 		return local, remote
@@ -168,44 +205,48 @@ func (s *StateSync) AddTxs(ctx sdk.WorkerContext, local, remote map[common.Addre
 	blockHash := s.eventProofDb.GetRootBlock(match.Root)
 
 	block := ctx.Backend().GetBlockByHash(blockHash)
+	if block == nil {
+		s.logger.Warn("Get block failed", "hash", blockHash)
+		return nil, errors.New(fmt.Sprintf("get block failed:%s", blockHash.Hex()))
+	}
 	_, qc, err := types2.DecodeExtra(block.ExtraData())
 	if err != nil {
 		s.logger.Warn("Decode extra failed", "start", start, "err", err)
-		return local, remote
+		return nil, err
 	}
 	leaf, _ := rlp.EncodeToBytes(match)
 	index, voteProof, err := s.extraDb.GetProof(qc.Epoch, qc.ViewNumber, qc.BlockIndex, leaf)
 	if err != nil {
 		s.logger.Warn("Extra get proof failed", "qc", qc, "err", err)
-		return local, remote
+		return nil, err
 	}
-	from := crypto.PubkeyToAddress(s.privateKey.PublicKey)
-	nonce, err := ctx.Backend().GetPoolNonce(from)
-	if err != nil {
-		s.logger.Warn("Get pool nonce failed", "nonce", nonce, "err", err)
-		return local, remote
-	}
+
 	cmtx, err := s.createCommitTx(ctx, match, index, qc, voteProof, nonce)
 	if err != nil {
 		s.logger.Warn("Create commit tx failed", "err", err)
-		return local, remote
+		return nil, err
 	}
+	return cmtx, nil
+}
 
-	//创建 event proof
+func (s *StateSync) addExecutedTx(ctx sdk.WorkerContext, receiver *contracts.StateReceiver, nonce uint64) ([]*types.Transaction, error) {
+	syncId, err := receiver.GetStateSyncId()
+	if err != nil {
+		return nil, err
+	}
 	executedId, err := receiver.GetExecutedId()
 	if err != nil {
 		s.logger.Warn("Get executed id failed", "err", err)
-		return local, remote
+		return nil, err
 	}
 	if syncId.Cmp(big.NewInt(0)) == 0 && executedId.Cmp(big.NewInt(0)) == 0 {
-		local[from] = append(local[from], cmtx)
-		return local, remote
+		return nil, errors.New("contract commitment is empty")
 	}
 	eventId := new(big.Int).Add(executedId, big.NewInt(1))
 	commitment, err := receiver.GetCommitmentByStateSyncId(eventId)
 	if err != nil {
 		s.logger.Warn("Get commitment state sync id failed", "err", err)
-		return local, remote
+		return nil, err
 	}
 	var events []*sync.StateSender
 	var proofs [][]common.Hash
@@ -224,14 +265,9 @@ func (s *StateSync) AddTxs(ctx sdk.WorkerContext, local, remote map[common.Addre
 		eventId = eventId.Add(eventId, big.NewInt(1))
 		s.logger.Debug("Get executed event", "eventid", eventId)
 	}
-	exTxs, err := s.createExecuteTxs(ctx, proofs, events, nonce+1)
+	exTxs, err := s.createExecuteTxs(ctx, proofs, events, nonce)
 	if err != nil {
-		return local, remote
+		return nil, err
 	}
-	if local[from] == nil {
-		local[from] = types.Transactions{}
-	}
-	local[from] = append(local[from], cmtx)
-	local[from] = append(local[from], exTxs...)
-	return local, remote
+	return exTxs, nil
 }
