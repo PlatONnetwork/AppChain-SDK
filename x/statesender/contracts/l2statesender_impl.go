@@ -2,6 +2,7 @@ package contracts
 
 import (
 	"errors"
+	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/x/statesender/db"
 	platon "github.com/PlatONnetwork/PlatON-Go"
@@ -35,6 +36,8 @@ type L2StateSender struct {
 	readOnly    bool
 	contract    *vm.Contract
 	evm         *vm.EVM
+	burner      contracts.Burn
+	stateDb     *contracts.StateDB
 	fallback    func(input []byte) ([]byte, error)
 	maxLength   uint64
 }
@@ -44,6 +47,8 @@ func NewL2StateSender(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*L2Sta
 		abi:       &Abi,
 		evm:       evm,
 		contract:  contract,
+		burner:    contracts.NewBurner(contract),
+		stateDb:   contracts.NewStateDB(evm, contract),
 		readOnly:  readOnly,
 		maxLength: 2048,
 	}

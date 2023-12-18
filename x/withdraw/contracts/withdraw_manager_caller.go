@@ -57,9 +57,9 @@ func (c *WithdrawManagerCaller) Deposit(recipient common.Address, amount *big.In
 
 }
 
-func (c *WithdrawManagerCaller) OnStateReceive(id *big.Int, sender common.Address, data []byte) error {
+func (c *WithdrawManagerCaller) OnStateReceive(arg0 *big.Int, sender common.Address, data []byte) error {
 	var out []interface{}
-	err := c.BoundContract.Caller(c.to, &out, "onStateReceive", id, sender, data)
+	err := c.BoundContract.Caller(c.to, &out, "onStateReceive", arg0, sender, data)
 
 	if err != nil {
 		return err
@@ -98,9 +98,9 @@ func (c *WithdrawManagerDelegateCaller) Deposit(recipient common.Address, amount
 
 }
 
-func (c *WithdrawManagerDelegateCaller) OnStateReceive(id *big.Int, sender common.Address, data []byte) error {
+func (c *WithdrawManagerDelegateCaller) OnStateReceive(arg0 *big.Int, sender common.Address, data []byte) error {
 	var out []interface{}
-	err := c.BoundContract.DelegateCaller(c.to, &out, "onStateReceive", id, sender, data)
+	err := c.BoundContract.DelegateCaller(c.to, &out, "onStateReceive", arg0, sender, data)
 
 	if err != nil {
 		return err

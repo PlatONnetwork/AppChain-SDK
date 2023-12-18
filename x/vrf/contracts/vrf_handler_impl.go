@@ -3,6 +3,7 @@ package contracts
 import (
 	"encoding/hex"
 	"errors"
+	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	vrftypes "github.com/PlatONnetwork/AppChain-SDK/x/vrf/types"
 	platon "github.com/PlatONnetwork/PlatON-Go"
@@ -37,6 +38,8 @@ type VRFHandler struct {
 	readOnly    bool
 	contract    *vm.Contract
 	evm         *vm.EVM
+	burner      contracts.Burn
+	stateDb     *contracts.StateDB
 	fallback    func(input []byte) ([]byte, error)
 	stageModule vrftypes.StageModuler
 	stakeModule vrftypes.StakeModuler
@@ -47,6 +50,8 @@ func NewVRFHandler(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*VRFHandl
 		abi:      &Abi,
 		evm:      evm,
 		contract: contract,
+		burner:   contracts.NewBurner(contract),
+		stateDb:  contracts.NewStateDB(evm, contract),
 		readOnly: readOnly,
 	}
 	s.initMethodEntry()

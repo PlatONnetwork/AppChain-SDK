@@ -3,6 +3,7 @@ package contracts
 import (
 	"bytes"
 	"errors"
+	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	deposittypes "github.com/PlatONnetwork/AppChain-SDK/x/deposit/types"
@@ -38,6 +39,8 @@ type DepositHandler struct {
 	readOnly    bool
 	contract    *vm.Contract
 	evm         *vm.EVM
+	burner      contracts.Burn
+	stateDb     *contracts.StateDB
 	fallback    func(input []byte) ([]byte, error)
 	l1Module    deposittypes.L1Moduler
 }
@@ -47,6 +50,8 @@ func NewDepositHandler(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*Depo
 		abi:      &Abi,
 		evm:      evm,
 		contract: contract,
+		burner:   contracts.NewBurner(contract),
+		stateDb:  contracts.NewStateDB(evm, contract),
 		readOnly: readOnly,
 	}
 	s.initMethodEntry()

@@ -3,6 +3,7 @@ package contracts
 import (
 	"encoding/hex"
 	"errors"
+	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
@@ -29,11 +30,25 @@ var (
 )
 
 var (
-	ABI    = "[{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"depositor\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"L2MintableCoinDeposit\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"withdrawer\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"L2MintableCoinWithdraw\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"deposit\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"id\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"sender\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"name\":\"onStateReceive\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
+	ABI    = "[{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"depositor\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"L2MintableCoinDeposit\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"withdrawer\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"L2MintableCoinWithdraw\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"deposit\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"sender\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"name\":\"onStateReceive\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
 	Abi, _ = abi.JSON(strings.NewReader(ABI))
 )
 
-func (c *WithdrawManager) Run(input []byte) ([]byte, error) {
+func (c *WithdrawManager) Run(input []byte) (ret []byte, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			switch e := r.(type) {
+			case error:
+				if r, ok := e.(*typesdk.RevertError); ok {
+					ret, err = r.ReturnData, vm.ErrExecutionReverted
+				} else {
+					ret, err = nil, e
+				}
+			default:
+				ret, err = typesdk.UndefinedError, vm.ErrExecutionReverted
+			}
+		}
+	}()
 	if len(input) < 4 {
 		return nil, errors.New("input too short")
 	}
@@ -105,11 +120,11 @@ func (c *WithdrawManager) OnStateReceiveEntry(input []byte) ([]byte, error) {
 
 func (c *WithdrawManager) EmitL2MintableCoinDepositEvent(recipient common.Address, depositor common.Address, amount *big.Int) (*types.Log, error) {
 	event := c.abi.Events["L2MintableCoinDeposit"]
-	hashes, err := abi.PackTopics(event.Inputs, recipient, depositor, amount)
+	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, recipient, depositor, amount)
 	if err != nil {
 		return nil, err
 	}
-	data, err := event.Inputs.Pack(recipient, depositor, amount)
+	data, err := contracts.PackEventData(event.Inputs, recipient, depositor, amount)
 	if err != nil {
 		return nil, err
 	}
@@ -123,11 +138,11 @@ func (c *WithdrawManager) EmitL2MintableCoinDepositEvent(recipient common.Addres
 
 func (c *WithdrawManager) EmitL2MintableCoinWithdrawEvent(recipient common.Address, withdrawer common.Address, amount *big.Int) (*types.Log, error) {
 	event := c.abi.Events["L2MintableCoinWithdraw"]
-	hashes, err := abi.PackTopics(event.Inputs, recipient, withdrawer, amount)
+	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, recipient, withdrawer, amount)
 	if err != nil {
 		return nil, err
 	}
-	data, err := event.Inputs.Pack(recipient, withdrawer, amount)
+	data, err := contracts.PackEventData(event.Inputs, recipient, withdrawer, amount)
 	if err != nil {
 		return nil, err
 	}

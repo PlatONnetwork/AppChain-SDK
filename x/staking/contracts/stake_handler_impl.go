@@ -3,6 +3,7 @@ package contracts
 import (
 	"bytes"
 	"errors"
+	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
@@ -41,6 +42,8 @@ type StakeHandler struct {
 	readOnly     bool
 	contract     *vm.Contract
 	evm          *vm.EVM
+	burner      contracts.Burn
+	stateDb     *contracts.StateDB
 	fallback     func(input []byte) ([]byte, error)
 	l1Module     staketypes.L1Moduler
 	stageModule  staketypes.StageModuler
@@ -53,6 +56,8 @@ func NewStakeHandler(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*StakeH
 		abi:      &Abi,
 		evm:      evm,
 		contract: contract,
+		burner:   contracts.NewBurner(contract),
+		stateDb:  contracts.NewStateDB(evm, contract),
 		readOnly: readOnly,
 	}
 	s.initMethodEntry()

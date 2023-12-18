@@ -3,6 +3,7 @@ package contracts
 import (
 	"encoding/hex"
 	"errors"
+	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
@@ -33,7 +34,21 @@ var (
 	Abi, _ = abi.JSON(strings.NewReader(ABI))
 )
 
-func (c *DepositHandler) Run(input []byte) ([]byte, error) {
+func (c *DepositHandler) Run(input []byte) (ret []byte, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			switch e := r.(type) {
+			case error:
+				if r, ok := e.(*typesdk.RevertError); ok {
+					ret, err = r.ReturnData, vm.ErrExecutionReverted
+				} else {
+					ret, err = nil, e
+				}
+			default:
+				ret, err = typesdk.UndefinedError, vm.ErrExecutionReverted
+			}
+		}
+	}()
 	if len(input) < 4 {
 		return nil, errors.New("input too short")
 	}
@@ -105,11 +120,11 @@ func (c *DepositHandler) WithdrawEntry(input []byte) ([]byte, error) {
 
 func (c *DepositHandler) EmitL2CoinDepositEvent(recipient common.Address, depositor common.Address, amount *big.Int) (*types.Log, error) {
 	event := c.abi.Events["L2CoinDeposit"]
-	hashes, err := abi.PackTopics(event.Inputs, recipient, depositor, amount)
+	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, recipient, depositor, amount)
 	if err != nil {
 		return nil, err
 	}
-	data, err := event.Inputs.Pack(recipient, depositor, amount)
+	data, err := contracts.PackEventData(event.Inputs, recipient, depositor, amount)
 	if err != nil {
 		return nil, err
 	}
@@ -123,11 +138,11 @@ func (c *DepositHandler) EmitL2CoinDepositEvent(recipient common.Address, deposi
 
 func (c *DepositHandler) EmitL2CoinWithdrawEvent(recipient common.Address, withdrawer common.Address, amount *big.Int) (*types.Log, error) {
 	event := c.abi.Events["L2CoinWithdraw"]
-	hashes, err := abi.PackTopics(event.Inputs, recipient, withdrawer, amount)
+	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, recipient, withdrawer, amount)
 	if err != nil {
 		return nil, err
 	}
-	data, err := event.Inputs.Pack(recipient, withdrawer, amount)
+	data, err := contracts.PackEventData(event.Inputs, recipient, withdrawer, amount)
 	if err != nil {
 		return nil, err
 	}
