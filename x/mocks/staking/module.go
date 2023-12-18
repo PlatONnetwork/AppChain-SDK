@@ -54,7 +54,7 @@ func (m *Module) IsEndOfRound(ctx sdk.ConsensusContext, blockNumber uint64) bool
 	return blockNumber%NumberBlocksOfEpoch == 0
 }
 
-func (m *Module) BlocksOfRound(ctx sdk.ConsensusContext) uint64 {
+func (m *Module) BlocksOfRound(ctx sdk.ConsensusContext, blockNumber uint64) uint64 {
 	return NumberBlocksOfEpoch
 }
 

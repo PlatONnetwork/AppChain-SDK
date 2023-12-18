@@ -340,7 +340,7 @@ func (m *Module) submitCheckpoint(ctx sdk.ConsensusContext, latestNumber uint64,
 		"latest checkpoint block", lastCheckpointBlockNumber,
 		"checkpoint block", latestNumber)
 
-	blocksOfEpoch := m.staking.BlocksOfRound(ctx)
+	blocksOfEpoch := m.staking.BlocksOfRound(ctx, lastCheckpointBlockNumber+1) // next round
 	initialBlockNumber := lastCheckpointBlockNumber + blocksOfEpoch
 
 	for blockNumber := initialBlockNumber; blockNumber <= latestNumber; {
@@ -369,6 +369,7 @@ func (m *Module) submitCheckpoint(ctx sdk.ConsensusContext, latestNumber uint64,
 			return err
 		}
 
+		blocksOfEpoch = m.staking.BlocksOfRound(ctx, blockNumber+1) // next round
 		blockNumber = blockNumber + blocksOfEpoch
 	}
 	return nil
