@@ -79,7 +79,7 @@ func (s *mockStaking) GetRoundValidator(ctx sdk.ConsensusContext, blockNumber ui
 	return &cbfttypes.Validators{}, nil
 }
 
-func (s *mockStaking) BlocksOfRound(ctx sdk.ConsensusContext) uint64 {
+func (s *mockStaking) BlocksOfRound(ctx sdk.ConsensusContext, blockNumber uint64) uint64 {
 	return 250
 }
 

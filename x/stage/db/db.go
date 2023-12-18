@@ -203,6 +203,23 @@ func GetEpochQueueAndIndexFromTail(db sdk.StateDBReader, addr common.Address, ep
 	return epochs[:count], queue[:count]
 }
 
+func GetEpochItemAndIndexByBlockNumber(db sdk.StateDBReader, addr common.Address, blockNumber uint64) (uint64, *types.EpochItem) {
+
+	index := GetCurrentEpoch(db, addr)
+	item := GetEpochItem(db, addr, index)
+	for index != 0 {
+		if item.IsEmpty() {
+			break
+		}
+		if item.StartBlock <= blockNumber && item.EndBlock >= blockNumber {
+			break
+		}
+		index--
+		item = GetEpochItem(db, addr, index)
+	}
+	return index, item
+}
+
 func SetEpochItem(db sdk.StateDB, addr common.Address, epoch uint64, item *types.EpochItem) error {
 	value, err := rlp.EncodeToBytes(item)
 	if nil != err {
@@ -314,6 +331,23 @@ func GetRoundQueueAndIndexFromTail(db sdk.StateDBReader, addr common.Address, ro
 		count++
 	}
 	return rounds[:count], queue[:count]
+}
+
+func GetRoundItemAndIndexByBlockNumber(db sdk.StateDBReader, addr common.Address, blockNumber uint64) (uint64, *types.RoundItem) {
+
+	index := GetCurrentRound(db, addr)
+	item := GetRoundItem(db, addr, index)
+	for index != 0 {
+		if item.IsEmpty() {
+			break
+		}
+		if item.StartBlock <= blockNumber && item.EndBlock >= blockNumber {
+			break
+		}
+		index--
+		item = GetRoundItem(db, addr, index)
+	}
+	return index, item
 }
 
 func SetRoundItem(db sdk.StateDB, addr common.Address, round uint64, item *types.RoundItem) error {

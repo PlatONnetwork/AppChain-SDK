@@ -127,44 +127,14 @@ func (s *StageModule) GetCurrentEpoch(stateDB sdk.StateDBReader) uint64 {
 	return db.GetCurrentEpoch(stateDB, s.Address())
 }
 
-func (s *StageModule) GetRoundByBlockNumber(stateDB sdk.StateDBReader, blockNumber uint64) (uint64, error) {
-	currentRound := db.GetCurrentRound(stateDB, s.Address())
-	item := db.GetRoundItem(stateDB, s.Address(), currentRound)
-	// NOTE: Optimization processing, compare with the current round first,
-	//       otherwise continue to compare with the previous round
-	if item.StartBlock <= blockNumber && item.EndBlock >= blockNumber {
-		return currentRound, nil
-	}
-	// NOTE: Optimization of queries, search for the validator list for the last 100 rounds
-	rounds, queue := db.GetRoundQueueAndIndexFromTail(stateDB, s.Address(), currentRound-1, 100)
-
-	for i, item := range queue {
-		// [startBlock, endBlock) || (startBlock, endBlock]
-		if item.StartBlock <= blockNumber && item.EndBlock >= blockNumber {
-			return rounds[i], nil
-		}
-	}
-	return 0, db.ErrNotFound
+func (s *StageModule) GetRoundByBlockNumber(stateDB sdk.StateDBReader, blockNumber uint64) uint64 {
+	round, _ := db.GetRoundItemAndIndexByBlockNumber(stateDB, s.Address(), blockNumber)
+	return round
 }
 
-func (s *StageModule) GetEpochByBlockNumber(stateDB sdk.StateDBReader, blockNumber uint64) (uint64, error) {
-	currentEpoch := db.GetCurrentEpoch(stateDB, s.Address())
-	item := db.GetEpochItem(stateDB, s.Address(), currentEpoch)
-	// NOTE: Optimization processing, compare with the current epoch first,
-	//       otherwise continue to compare with the previous epoch
-	if item.StartBlock <= blockNumber && item.EndBlock >= blockNumber {
-		return currentEpoch, nil
-	}
-	// NOTE: Optimization of queries, search for the validator list for the last 100 epochs
-	epochs, queue := db.GetEpochQueueAndIndexFromTail(stateDB, s.Address(), currentEpoch-1, 100)
-
-	for i, item := range queue {
-		// [startBlock, endBlock) || (startBlock, endBlock]
-		if item.StartBlock <= blockNumber && item.EndBlock >= blockNumber {
-			return epochs[i], nil
-		}
-	}
-	return 0, db.ErrNotFound
+func (s *StageModule) GetEpochByBlockNumber(stateDB sdk.StateDBReader, blockNumber uint64) uint64 {
+	epoch, _ := db.GetEpochItemAndIndexByBlockNumber(stateDB, s.Address(), blockNumber)
+	return epoch
 }
 
 func (s *StageModule) IsElectionBlockOnCurrentRound(stateDB sdk.StateDBReader, blockNumber uint64) bool {
@@ -191,11 +161,13 @@ func (s *StageModule) IsEndOfCurrentRound(stateDB sdk.StateDBReader, blockNumber
 func (s *StageModule) IsEndOfCurrentEpoch(stateDB sdk.StateDBReader, blockNumber uint64) bool {
 	return db.IsEndOfCurrentEpoch(stateDB, s.Address(), blockNumber)
 }
-func (s *StageModule) IsEndOfRound(stateDB sdk.StateDBReader, blockNumber, size uint64) bool {
-	return db.IsEndOfRound(stateDB, s.Address(), blockNumber, size)
+func (s *StageModule) IsEndOfRound(stateDB sdk.StateDBReader, blockNumber uint64) bool {
+	_, item := db.GetRoundItemAndIndexByBlockNumber(stateDB, s.Address(), blockNumber)
+	return item.EndBlock == blockNumber
 }
-func (s *StageModule) IsEndOfEpoch(stateDB sdk.StateDBReader, blockNumber, size uint64) bool {
-	return db.IsEndOfEpoch(stateDB, s.Address(), blockNumber, size)
+func (s *StageModule) IsEndOfEpoch(stateDB sdk.StateDBReader, blockNumber uint64) bool {
+	_, item := db.GetEpochItemAndIndexByBlockNumber(stateDB, s.Address(), blockNumber)
+	return item.EndBlock == blockNumber
 }
 
 func (s *StageModule) IsNotElectionBlockOnCurrentRound(stateDB sdk.StateDBReader, blockNumber uint64) bool {
@@ -223,11 +195,11 @@ func (s *StageModule) IsNotEndOfCurrentEpoch(stateDB sdk.StateDBReader, blockNum
 	return db.IsNotEndOfCurrentEpoch(stateDB, s.Address(), blockNumber)
 }
 
-func (s *StageModule) IsNotEndOfRound(stateDB sdk.StateDBReader, blockNumber, size uint64) bool {
-	return db.IsNotEndOfRound(stateDB, s.Address(), blockNumber, size)
+func (s *StageModule) IsNotEndOfRound(stateDB sdk.StateDBReader, blockNumber uint64) bool {
+	return !s.IsEndOfRound(stateDB, blockNumber)
 }
-func (s *StageModule) IsNotEndOfEpoch(stateDB sdk.StateDBReader, blockNumber, size uint64) bool {
-	return db.IsNotEndOfEpoch(stateDB, s.Address(), blockNumber, size)
+func (s *StageModule) IsNotEndOfEpoch(stateDB sdk.StateDBReader, blockNumber uint64) bool {
+	return !s.IsEndOfEpoch(stateDB, blockNumber)
 }
 
 func (s *StageModule) BlocksOfRound(stateDB sdk.StateDBReader, round uint64) uint64 {
@@ -249,98 +221,18 @@ func (s *StageModule) BlocksOfEpoch(stateDB sdk.StateDBReader, epoch uint64) uin
 }
 
 func (s *StageModule) GetLastNumber(stateDB sdk.StateDBReader, blockNumber uint64) uint64 {
-	var endBlock uint64
-
-	currentRound := db.GetCurrentRound(stateDB, s.Address())
-	item := db.GetRoundItem(stateDB, s.Address(), currentRound)
-	// NOTE: Optimization processing, compare with the current round first,
-	//       otherwise continue to compare with the previous round
-	if item.StartBlock <= blockNumber && item.EndBlock >= blockNumber {
-		return item.EndBlock
-	}
-	// NOTE: Optimization of queries, search for the validator list for the last 100 rounds
-	queue := db.GetRoundQueueFromTail(stateDB, s.Address(), currentRound-1, 100)
-	for _, item := range queue {
-		// [startBlock, endBlock) || (startBlock, endBlock]
-		if item.StartBlock <= blockNumber && item.EndBlock >= blockNumber {
-
-			endBlock = item.EndBlock
-
-			break
-		}
-	}
-	return endBlock
+	_, item := db.GetRoundItemAndIndexByBlockNumber(stateDB, s.Address(), blockNumber)
+	return item.EndBlock
 }
 
-func (s *StageModule) GetRoundAndBlockBoundByBlockNumber(stateDB sdk.StateDBReader, blockNumber, size uint64) (uint64, uint64, uint64) {
-
-	if size == 0 {
-		return 0, 0, 0
-	}
-
-	currentRound := db.GetCurrentRound(stateDB, s.Address())
-	item := db.GetRoundItem(stateDB, s.Address(), currentRound)
-	// NOTE: Optimization processing, compare with the current round first,
-	//       otherwise continue to compare with the previous round
-	if item.StartBlock <= blockNumber && item.EndBlock >= blockNumber {
-		return currentRound, item.StartBlock, item.EndBlock
-	}
-
-	var (
-		round      uint64
-		startBlock uint64
-		endBlock   uint64
-	)
-
-	// NOTE: continue
-	rounds, queue := db.GetRoundQueueAndIndexFromTail(stateDB, s.Address(), currentRound-1, size-1)
-	for i, item := range queue {
-		// [startBlock, endBlock) || (startBlock, endBlock]
-		if item.StartBlock <= blockNumber && item.EndBlock >= blockNumber {
-
-			round = rounds[i]
-			startBlock = item.StartBlock
-			endBlock = item.EndBlock
-			break
-		}
-	}
-	return round, startBlock, endBlock
+func (s *StageModule) GetRoundAndBlockBoundByBlockNumber(stateDB sdk.StateDBReader, blockNumber uint64) (uint64, uint64, uint64) {
+	round, item := db.GetRoundItemAndIndexByBlockNumber(stateDB, s.Address(), blockNumber)
+	return round, item.StartBlock, item.EndBlock
 }
 
-func (s *StageModule) GetEpochAndBlockBoundByBlockNumber(stateDB sdk.StateDBReader, blockNumber, size uint64) (uint64, uint64, uint64) {
-
-	if size == 0 {
-		return 0, 0, 0
-	}
-
-	currentEpoch := db.GetCurrentEpoch(stateDB, s.Address())
-	item := db.GetEpochItem(stateDB, s.Address(), currentEpoch)
-	// NOTE: Optimization processing, compare with the current epoch first,
-	//       otherwise continue to compare with the previous epoch
-	if item.StartBlock <= blockNumber && item.EndBlock >= blockNumber {
-		return currentEpoch, item.StartBlock, item.EndBlock
-	}
-
-	var (
-		epoch      uint64
-		startBlock uint64
-		endBlock   uint64
-	)
-
-	// NOTE: conitnue
-	epochs, queue := db.GetEpochQueueAndIndexFromTail(stateDB, s.Address(), currentEpoch-1, size-1)
-	for i, item := range queue {
-		// [startBlock, endBlock) || (startBlock, endBlock]
-		if item.StartBlock <= blockNumber && item.EndBlock >= blockNumber {
-
-			epoch = epochs[i]
-			startBlock = item.StartBlock
-			endBlock = item.EndBlock
-			break
-		}
-	}
-
-	return epoch, startBlock, endBlock
+func (s *StageModule) GetEpochAndBlockBoundByBlockNumber(stateDB sdk.StateDBReader, blockNumber uint64) (uint64, uint64, uint64) {
+	epoch, item := db.GetEpochItemAndIndexByBlockNumber(stateDB, s.Address(), blockNumber)
+	return epoch, item.StartBlock, item.EndBlock
 }
 
 func (s *StageModule) GetRoundValidatorElectionDistance(stateDB sdk.StateDBReader) uint64 {

@@ -578,8 +578,7 @@ func (c *StakeHandler) syncStateSlash(validators []common.Address) error {
 
 func (c *StakeHandler) verifyBLSAggregateSignature(blockNumber *big.Int, validatorIndexs []*big.Int, data common.Hash, signatues []byte) (bool, error) {
 
-	// NOTE: Optimization of queries, search for the validator list for the last 100 rounds
-	round, _, _ := c.stageModule.GetRoundAndBlockBoundByBlockNumber(c.evm.StateDB, blockNumber.Uint64(), 100)
+	round, _, _ := c.stageModule.GetRoundAndBlockBoundByBlockNumber(c.evm.StateDB, blockNumber.Uint64())
 
 	validatorSnapQueue := db.GetRoundValidatorSharesSnapshotQueue(c.evm.StateDB, c.contract.Address(), round)
 	if len(validatorSnapQueue) == 0 {

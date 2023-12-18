@@ -131,6 +131,9 @@ func initValidators(statedb sdk.StateDB, addr common.Address, chainConfig *param
 	}
 
 	// set epoch validator queue
+	if err := stakingdb.SetEpochValidatorSharesSnapshotQueue(statedb, addr, 0, epochValidatorSnapshotQueue); nil != err {
+		return fmt.Errorf("set genesis validatorQueue for epoch %d, %s", 0, err)
+	}
 	if err := stakingdb.SetEpochValidatorSharesSnapshotQueue(statedb, addr, 1, epochValidatorSnapshotQueue); nil != err {
 		return fmt.Errorf("set genesis validatorQueue for epoch %d, %s", 1, err)
 	}
