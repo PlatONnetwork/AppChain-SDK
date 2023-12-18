@@ -298,7 +298,7 @@ func (s *StakeModule) GetEpochValidator(ctx sdk.ConsensusContext, blockNumber ui
 
 		pubkey, _ := v.PubKey.Pubkey()
 		blsKey := bls.PublicKey{}
-		(&blsKey).DeserializeUncompressed(v.BlsKey)
+		(&blsKey).Deserialize(v.BlsKey)
 
 		validator := &cbfttypes.ValidateNode{
 			Index:     uint32(i),
@@ -637,7 +637,7 @@ func (s *StakeModule) GetValidatorBLSPubKey(stateDB sdk.StateDBReader, validator
 		return nil
 	}
 	blsKey := bls.PublicKey{}
-	(&blsKey).DeserializeUncompressed(validator.BlsKey)
+	(&blsKey).Deserialize(validator.BlsKey)
 	return &blsKey
 }
 func (s *StakeModule) GetValidatorCommissionRate(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) uint64 {
