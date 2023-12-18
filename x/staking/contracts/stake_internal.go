@@ -619,7 +619,7 @@ func (c *StakeHandler) verifyBLSAggregateSignatureByValidators(validatorAddrs []
 		}
 
 		blsKey := bls.PublicKey{}
-		(&blsKey).DeserializeUncompressed(validator.BlsKey)
+		(&blsKey).Deserialize(validator.BlsKey)
 
 		pub.Add(&blsKey) // Aggregating BLS pubKey
 	}

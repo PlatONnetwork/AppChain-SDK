@@ -116,7 +116,7 @@ func NewValidator(owner common.Address, stakeAmount, delegateAmount *big.Int, bl
 
 func (v *Validator) String() string {
 	//blsKey := bls.PublicKey{}
-	//(&blsKey).DeserializeUncompressed(v.BlsKey)
+	//(&blsKey).Deserialize(v.BlsKey)
 	return fmt.Sprintf(`{"Owner": "%s","StakeAmount": "%d","DelegateAmount": "%d","PubKey": %s,"BlsKey": %s,"Status": %d,"CommissionRate": "%d", "Epoch": "%d", "StakeIndex": "%d"}`,
 		fmt.Sprintf("%x", v.Owner.Bytes()),
 		v.StakeAmount,
