@@ -141,6 +141,17 @@ func (c *StakeHandler) Slash() error {
 		return err
 	}
 
+	// NOTE: update validator status (add log for lowBlocks)
+	for _, validatorAddr := range validators {
+		validator := c.getValidator(validatorAddr)
+		if validator.IsEmpty() {
+			continue
+		}
+		if err := c.addLogUpdateValidatorStatusEvent(validatorAddr, new(big.Int).SetUint64(uint64(validator.Status))); nil != err {
+			return err
+		}
+	}
+
 	log.Info("Slash for", "validator size", len(validators), "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }

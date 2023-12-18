@@ -12,6 +12,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
+	"github.com/PlatONnetwork/PlatON-Go/crypto/vrf"
 	"github.com/PlatONnetwork/PlatON-Go/event"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"math/big"
@@ -75,6 +76,9 @@ func (c *VRFHandler) PushNonceAndProof(nonceAndProof []byte) error {
 	}
 
 	c.setNonceAndProof(currentBlock, nonceAndProof)
+	if err := c.addLogVRFNonceAddedEvent(c.evm.Context.BlockNumber, vrf.ProofToHash(nonceAndProof)); nil != err {
+		return err
+	}
 
 	log.Info("PushNonceAndProof for", "validatorAddr", validatorAddr, "nonceAndProof", hex.EncodeToString(nonceAndProof),
 		"currentEpoch", c.stageModule.GetCurrentEpoch(c.evm.StateDB), "blockNumber", c.evm.Context.BlockNumber)

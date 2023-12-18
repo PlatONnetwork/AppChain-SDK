@@ -303,6 +303,9 @@ func (c *StakeHandler) unStake(validatorAddr common.Address, amount *big.Int) er
 			log.Error("Failed to call updateValidatorRemovePriority", "validatorAddr", validatorAddr.Hex(), "error", err)
 			return typesdk.NewRevertError("StakeHandler: can not update validator priority")
 		}
+		if err := c.addLogUpdateValidatorStatusEvent(validatorAddr, new(big.Int).SetUint64(uint64(validator.Status))); nil != err {
+			return err
+		}
 	} else {
 		if err := c.updateValidatorByPriority(validatorAddr, validator); nil != err {
 			log.Error("Failed to call updateValidatorByPriority", "validatorAddr", validatorAddr.Hex(), "error", err)
@@ -616,7 +619,7 @@ func (c *StakeHandler) verifyBLSAggregateSignatureByValidators(validatorAddrs []
 		}
 
 		blsKey := bls.PublicKey{}
-		(&blsKey).DeserializeUncompressed(validator.BlsKey)
+		(&blsKey).Deserialize(validator.BlsKey)
 
 		pub.Add(&blsKey) // Aggregating BLS pubKey
 	}
