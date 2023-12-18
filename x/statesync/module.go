@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/utils"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
+	"github.com/PlatONnetwork/AppChain-SDK/x/l1"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
@@ -40,13 +41,14 @@ type StateSync struct {
 	privateKey   *ecdsa.PrivateKey
 	extraDb      *extravote.ExtraVoteDB
 	l1Sync       *sync.L1Sync
+	l1Module     *l1.L1Module
 	eventProofDb *EventProofDB
 	backend      sdk.Backend
 	p2p          *SyncP2P
 	syncUpdateCh chan struct{}
 }
 
-func NewStateSync(ctx *cli.Context, store store.Store, extraDb *extravote.ExtraVoteDB) (*StateSync, error) {
+func NewStateSync(ctx *cli.Context, l1Module *l1.L1Module, store store.Store, extraDb *extravote.ExtraVoteDB) (*StateSync, error) {
 	var start *big.Int
 	if ctx.GlobalIsSet(StartBlockFlag.Name) {
 		start = new(big.Int).SetUint64(ctx.GlobalUint64(StartBlockFlag.Name))
@@ -61,12 +63,15 @@ func NewStateSync(ctx *cli.Context, store store.Store, extraDb *extravote.ExtraV
 		store:        store,
 		eventProofDb: eventProofDb,
 		extraDb:      extraDb,
+		l1Module:     l1Module,
 		p2p:          NewSyncP2P(),
 		syncUpdateCh: make(chan struct{}),
 	}, nil
 }
-func (s *StateSync) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) {
+func (s *StateSync) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
 	db.SetNonce(constants.StateSyncAddress, 1)
+	s.logger.Info("Set StateSync Nonce", "nonce", 1)
+	return nil
 }
 
 func (s *StateSync) Name() string {
@@ -83,8 +88,11 @@ func (s *StateSync) Init(ctx sdk.InitContext) error {
 		return err
 	}
 	s.privateKey = key.PrivateKey
-
-	l1Sync, err := sync.NewL1Sync(constants.StateSyncAddress, s.rpcAddress, s.startBlock, s.store, s.syncUpdateCh)
+	stateAddress, err := s.l1Module.GetStateAddress()
+	if err != nil {
+		return err
+	}
+	l1Sync, err := sync.NewL1Sync(stateAddress, s.rpcAddress, s.startBlock, s.store, s.syncUpdateCh)
 	if err != nil {
 		return err
 	}
@@ -204,7 +212,7 @@ func (s *StateSync) addCommitTx(ctx sdk.WorkerContext, receiver *contracts.State
 
 	block := ctx.Backend().GetBlockByHash(blockHash)
 	if block == nil {
-		s.logger.Warn("Get block failed", "hash", blockHash)
+		s.logger.Warn("Get block failed", "hash", blockHash.Hex())
 		return nil, errors.New(fmt.Sprintf("get block failed:%s", blockHash.Hex()))
 	}
 	_, qc, err := types2.DecodeExtra(block.ExtraData())

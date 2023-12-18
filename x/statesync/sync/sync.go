@@ -49,7 +49,9 @@ type L1Sync struct {
 func NewL1Sync(stateSenderAddr common.Address, url string, start *big.Int, db store.Store, updateCh chan struct{}) (*L1Sync, error) {
 	syncdb := NewL1SyncDB(db)
 	log := log.New("module", "l1sync")
-	syncdb.SetLastBlockNumber(big.NewInt(0))
+	if last, _ := syncdb.LastBlockNumber(); (last == nil || last.Uint64() == 0) && start != nil {
+		syncdb.SetLastBlockNumber(start)
+	}
 	cli, err := ethclient.Dial(url)
 	if err != nil {
 		return nil, err

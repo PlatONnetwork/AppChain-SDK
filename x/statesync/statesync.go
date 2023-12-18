@@ -39,6 +39,10 @@ func (s *StateSync) ExtendDataImpl(ctx sdk.Context, epoch, view uint64, index ui
 		}
 		start = new(big.Int).Add(commitment.EndId, big.NewInt(1))
 	}
+	if match, _ := s.eventProofDb.FindProofRoot(start); match != nil {
+		s.logger.Info("Had gen proof root", "start", start)
+		return nil
+	}
 	end := s.MaxSyncId()
 	if start.Cmp(end) > 0 {
 		s.logger.Info("Sync id had sync finish")
