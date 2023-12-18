@@ -58,8 +58,7 @@ func NewWithdrawManager(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*Wit
 
 func (c *WithdrawManager) OnStateReceive(id *big.Int, sender common.Address, data []byte) error {
 
-	// todo need to change the inner contract address file path
-	if c.contract.Caller() != constants.StateReceiverAddress || sender != rootchainWithdrawHandlerAddress {
+	if c.contract.Caller() != constants.StateSyncAddress || sender != rootchainWithdrawHandlerAddress {
 		return typesdk.NewRevertError("WithdrawManager: INVALID_SENDER")
 	}
 	if bytes.Compare(data[:METHODID_SIZE], WITHDRAW_SIG.Bytes()) == 0 {

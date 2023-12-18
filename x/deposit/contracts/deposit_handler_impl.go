@@ -65,7 +65,7 @@ func (c *DepositHandler) OnStateReceive(id *big.Int, sender common.Address, data
 		return typesdk.NewRevertError("DepositHandler: NOT FOUND DEPOSIT MANAGER ADDR")
 	}
 
-	if c.contract.Caller() != constants.StateReceiverAddress || sender != rootchainDepositManagerAddress {
+	if c.contract.Caller() != constants.StateSyncAddress || sender != rootchainDepositManagerAddress {
 		return typesdk.NewRevertError("DepositHandler: INVALID_SENDER")
 	}
 	if bytes.Compare(data[:METHODID_SIZE], DEPOSIT_SIG.Bytes()) == 0 {

@@ -42,8 +42,8 @@ type StakeHandler struct {
 	readOnly     bool
 	contract     *vm.Contract
 	evm          *vm.EVM
-	burner      contracts.Burn
-	stateDb     *contracts.StateDB
+	burner       contracts.Burn
+	stateDb      *contracts.StateDB
 	fallback     func(input []byte) ([]byte, error)
 	l1Module     staketypes.L1Moduler
 	stageModule  staketypes.StageModuler
@@ -96,7 +96,7 @@ func (c *StakeHandler) OnStateReceive(id *big.Int, sender common.Address, data [
 		return typesdk.NewRevertError("StakeHandler: NOT FOUND STAKE MANAGER ADDR")
 	}
 
-	if c.contract.Caller() != constants.StateReceiverAddress || sender != rootchainStakeManagerAddress {
+	if c.contract.Caller() != constants.StateSyncAddress || sender != rootchainStakeManagerAddress {
 		return typesdk.NewRevertError("StakeHandler: INVALID_SENDER")
 	}
 	if bytes.Compare(data[:METHODID_SIZE], STAKE_SIG.Bytes()) == 0 {
