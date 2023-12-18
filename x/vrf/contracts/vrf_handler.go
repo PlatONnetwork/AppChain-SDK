@@ -3,6 +3,7 @@ package contracts
 import (
 	"encoding/hex"
 	"errors"
+	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
@@ -11,7 +12,6 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/event"
-	"github.com/PlatONnetwork/PlatON-Go/log"
 	"math/big"
 	"strings"
 )
@@ -34,12 +34,25 @@ var (
 	Abi, _ = abi.JSON(strings.NewReader(ABI))
 )
 
-func (c *VRFHandler) Run(input []byte) ([]byte, error) {
+func (c *VRFHandler) Run(input []byte) (ret []byte, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			switch e := r.(type) {
+			case error:
+				if r, ok := e.(*typesdk.RevertError); ok {
+					ret, err = r.ReturnData, vm.ErrExecutionReverted
+				} else {
+					ret, err = nil, e
+				}
+			default:
+				ret, err = typesdk.UndefinedError, vm.ErrExecutionReverted
+			}
+		}
+	}()
 	if len(input) < 4 {
 		return nil, errors.New("input too short")
 	}
 	id := input[0:4]
-	log.Info("Start execute vrf contract", "blockNumber", c.evm.Context.BlockNumber.Uint64(), "methId", hex.EncodeToString(id), "input", input)
 	entry, ok := c.methodEntry[hex.EncodeToString(id)]
 	if !ok {
 		if c.fallback != nil {
@@ -83,11 +96,11 @@ func (c *VRFHandler) PushNonceAndProofEntry(input []byte) ([]byte, error) {
 
 func (c *VRFHandler) EmitVRFNonceAddedEvent(block *big.Int, nonce []byte) (*types.Log, error) {
 	event := c.abi.Events["VRFNonceAdded"]
-	hashes, err := abi.PackTopics(event.Inputs, block, nonce)
+	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, block, nonce)
 	if err != nil {
 		return nil, err
 	}
-	data, err := event.Inputs.Pack(block, nonce)
+	data, err := contracts.PackEventData(event.Inputs, block, nonce)
 	if err != nil {
 		return nil, err
 	}

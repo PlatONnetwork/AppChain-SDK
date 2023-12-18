@@ -20,8 +20,9 @@ const (
 	LowThreshold                             // 0100: The validator's stake was lower than minimum stake threshold
 	Duplicated                               // 1000: The validator was duplicate block or duplicate signature
 	Unstaked                                 // 0010,0000: The validator was unstaked
-	Valided      = 0                         // 0000: The validator was activated
-	NotExist     = 1 << 31                   // 1000,xxxx,... : The validator is not exist
+	//Slashed                                  // 0100,0000: The validator was slashed
+	Valided  = 0       // 0000: The validator was activated
+	NotExist = 1 << 31 // 1000,xxxx,... : The validator is not exist
 )
 
 type ValidatorStatus uint32

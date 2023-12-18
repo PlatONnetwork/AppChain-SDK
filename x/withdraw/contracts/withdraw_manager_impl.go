@@ -3,6 +3,7 @@ package contracts
 import (
 	"bytes"
 	"errors"
+	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	platon "github.com/PlatONnetwork/PlatON-Go"
@@ -37,6 +38,8 @@ type WithdrawManager struct {
 	readOnly    bool
 	contract    *vm.Contract
 	evm         *vm.EVM
+	burner      contracts.Burn
+	stateDb     *contracts.StateDB
 	fallback    func(input []byte) ([]byte, error)
 }
 
@@ -45,6 +48,8 @@ func NewWithdrawManager(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*Wit
 		abi:      &Abi,
 		evm:      evm,
 		contract: contract,
+		burner:   contracts.NewBurner(contract),
+		stateDb:  contracts.NewStateDB(evm, contract),
 		readOnly: readOnly,
 	}
 	s.initMethodEntry()
@@ -53,8 +58,7 @@ func NewWithdrawManager(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*Wit
 
 func (c *WithdrawManager) OnStateReceive(id *big.Int, sender common.Address, data []byte) error {
 
-	// todo need to change the inner contract address file path
-	if c.contract.Caller() != constants.StateReceiverAddress || sender != rootchainWithdrawHandlerAddress {
+	if c.contract.Caller() != constants.StateSyncAddress || sender != rootchainWithdrawHandlerAddress {
 		return typesdk.NewRevertError("WithdrawManager: INVALID_SENDER")
 	}
 	if bytes.Compare(data[:METHODID_SIZE], WITHDRAW_SIG.Bytes()) == 0 {

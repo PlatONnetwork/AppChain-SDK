@@ -3,6 +3,7 @@ package contracts
 import (
 	"encoding/hex"
 	"errors"
+	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	vrftypes "github.com/PlatONnetwork/AppChain-SDK/x/vrf/types"
 	platon "github.com/PlatONnetwork/PlatON-Go"
@@ -11,6 +12,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
+	"github.com/PlatONnetwork/PlatON-Go/crypto/vrf"
 	"github.com/PlatONnetwork/PlatON-Go/event"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"math/big"
@@ -37,6 +39,8 @@ type VRFHandler struct {
 	readOnly    bool
 	contract    *vm.Contract
 	evm         *vm.EVM
+	burner      contracts.Burn
+	stateDb     *contracts.StateDB
 	fallback    func(input []byte) ([]byte, error)
 	stageModule vrftypes.StageModuler
 	stakeModule vrftypes.StakeModuler
@@ -47,6 +51,8 @@ func NewVRFHandler(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*VRFHandl
 		abi:      &Abi,
 		evm:      evm,
 		contract: contract,
+		burner:   contracts.NewBurner(contract),
+		stateDb:  contracts.NewStateDB(evm, contract),
 		readOnly: readOnly,
 	}
 	s.initMethodEntry()
@@ -70,6 +76,9 @@ func (c *VRFHandler) PushNonceAndProof(nonceAndProof []byte) error {
 	}
 
 	c.setNonceAndProof(currentBlock, nonceAndProof)
+	if err := c.addLogVRFNonceAddedEvent(c.evm.Context.BlockNumber, vrf.ProofToHash(nonceAndProof)); nil != err {
+		return err
+	}
 
 	log.Info("PushNonceAndProof for", "validatorAddr", validatorAddr, "nonceAndProof", hex.EncodeToString(nonceAndProof),
 		"currentEpoch", c.stageModule.GetCurrentEpoch(c.evm.StateDB), "blockNumber", c.evm.Context.BlockNumber)

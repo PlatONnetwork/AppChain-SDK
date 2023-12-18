@@ -3,6 +3,7 @@ package contracts
 import (
 	"errors"
 	"fmt"
+	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	rewarddb "github.com/PlatONnetwork/AppChain-SDK/x/reward/db"
 	rewardtypes "github.com/PlatONnetwork/AppChain-SDK/x/reward/types"
@@ -38,6 +39,8 @@ type RewardManager struct {
 	readOnly     bool
 	contract     *vm.Contract
 	evm          *vm.EVM
+	burner       contracts.Burn
+	stateDb      *contracts.StateDB
 	fallback     func(input []byte) ([]byte, error)
 	stageModule  rewardtypes.StageModuler
 	stakeModule  rewardtypes.StakeModuler
@@ -49,6 +52,8 @@ func NewRewardManager(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*Rewar
 		abi:      &Abi,
 		evm:      evm,
 		contract: contract,
+		burner:   contracts.NewBurner(contract),
+		stateDb:  contracts.NewStateDB(evm, contract),
 		readOnly: readOnly,
 	}
 	s.initMethodEntry()

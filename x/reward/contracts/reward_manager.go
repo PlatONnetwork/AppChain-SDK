@@ -3,6 +3,7 @@ package contracts
 import (
 	"encoding/hex"
 	"errors"
+	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
@@ -33,7 +34,21 @@ var (
 	Abi, _ = abi.JSON(strings.NewReader(ABI))
 )
 
-func (c *RewardManager) Run(input []byte) ([]byte, error) {
+func (c *RewardManager) Run(input []byte) (ret []byte, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			switch e := r.(type) {
+			case error:
+				if r, ok := e.(*typesdk.RevertError); ok {
+					ret, err = r.ReturnData, vm.ErrExecutionReverted
+				} else {
+					ret, err = nil, e
+				}
+			default:
+				ret, err = typesdk.UndefinedError, vm.ErrExecutionReverted
+			}
+		}
+	}()
 	if len(input) < 4 {
 		return nil, errors.New("input too short")
 	}
@@ -192,11 +207,11 @@ func (c *RewardManager) WithdrawValidatorRewardEntry(input []byte) ([]byte, erro
 
 func (c *RewardManager) EmitBlockRewardEvent(epochId *big.Int, validators []common.Address, amounts []*big.Int) (*types.Log, error) {
 	event := c.abi.Events["BlockReward"]
-	hashes, err := abi.PackTopics(event.Inputs, epochId, validators, amounts)
+	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, epochId, validators, amounts)
 	if err != nil {
 		return nil, err
 	}
-	data, err := event.Inputs.Pack(epochId, validators, amounts)
+	data, err := contracts.PackEventData(event.Inputs, epochId, validators, amounts)
 	if err != nil {
 		return nil, err
 	}
@@ -210,11 +225,11 @@ func (c *RewardManager) EmitBlockRewardEvent(epochId *big.Int, validators []comm
 
 func (c *RewardManager) EmitDelegatorRewardWithdrawalEvent(validator common.Address, amount *big.Int, caller common.Address) (*types.Log, error) {
 	event := c.abi.Events["DelegatorRewardWithdrawal"]
-	hashes, err := abi.PackTopics(event.Inputs, validator, amount, caller)
+	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, validator, amount, caller)
 	if err != nil {
 		return nil, err
 	}
-	data, err := event.Inputs.Pack(validator, amount, caller)
+	data, err := contracts.PackEventData(event.Inputs, validator, amount, caller)
 	if err != nil {
 		return nil, err
 	}
@@ -228,11 +243,11 @@ func (c *RewardManager) EmitDelegatorRewardWithdrawalEvent(validator common.Addr
 
 func (c *RewardManager) EmitEpochRewardEvent(epochId *big.Int, validators []common.Address, amounts []*big.Int) (*types.Log, error) {
 	event := c.abi.Events["EpochReward"]
-	hashes, err := abi.PackTopics(event.Inputs, epochId, validators, amounts)
+	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, epochId, validators, amounts)
 	if err != nil {
 		return nil, err
 	}
-	data, err := event.Inputs.Pack(epochId, validators, amounts)
+	data, err := contracts.PackEventData(event.Inputs, epochId, validators, amounts)
 	if err != nil {
 		return nil, err
 	}
@@ -246,11 +261,11 @@ func (c *RewardManager) EmitEpochRewardEvent(epochId *big.Int, validators []comm
 
 func (c *RewardManager) EmitRewardDistributedEvent(epochId *big.Int, totalReward *big.Int) (*types.Log, error) {
 	event := c.abi.Events["RewardDistributed"]
-	hashes, err := abi.PackTopics(event.Inputs, epochId, totalReward)
+	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, epochId, totalReward)
 	if err != nil {
 		return nil, err
 	}
-	data, err := event.Inputs.Pack(epochId, totalReward)
+	data, err := contracts.PackEventData(event.Inputs, epochId, totalReward)
 	if err != nil {
 		return nil, err
 	}
@@ -264,11 +279,11 @@ func (c *RewardManager) EmitRewardDistributedEvent(epochId *big.Int, totalReward
 
 func (c *RewardManager) EmitValidatorRewardWithdrawalEvent(validator common.Address, amount *big.Int, caller common.Address) (*types.Log, error) {
 	event := c.abi.Events["ValidatorRewardWithdrawal"]
-	hashes, err := abi.PackTopics(event.Inputs, validator, amount, caller)
+	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, validator, amount, caller)
 	if err != nil {
 		return nil, err
 	}
-	data, err := event.Inputs.Pack(validator, amount, caller)
+	data, err := contracts.PackEventData(event.Inputs, validator, amount, caller)
 	if err != nil {
 		return nil, err
 	}

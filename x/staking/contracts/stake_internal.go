@@ -5,6 +5,7 @@ import (
 	"fmt"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
+	"github.com/PlatONnetwork/AppChain-SDK/x/staking/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	statesenderC "github.com/PlatONnetwork/AppChain-SDK/x/statesender/contracts"
@@ -94,12 +95,17 @@ func (c *StakeHandler) onStake(input []byte) error {
 		return typesdk.NewRevertError("StakeHandler: INVALID_BLSKEY")
 	}
 
-	//blsKey := bls.PublicKey{}
-	//(&blsKey).DeserializeUncompressed(blsKeyBytes)
+	if len(blsKeyBytes) != config.BLS_PUBKEY_SIZE {
+		return typesdk.NewRevertError("StakeHandler: INVALID_BLSKEY_SIZE")
+	}
 
 	pubKeyBytes, ok := res["pubKey"].([]byte)
 	if !ok {
 		return typesdk.NewRevertError("StakeHandler: INVALID_PUBKEY")
+	}
+
+	if len(pubKeyBytes) != config.ECDSA_PUBKEY_SIZE {
+		return typesdk.NewRevertError("StakeHandler: INVALID_PUBKEY_SIZE")
 	}
 
 	pubKey, err := crypto.UnmarshalPubkey(pubKeyBytes)
@@ -296,6 +302,9 @@ func (c *StakeHandler) unStake(validatorAddr common.Address, amount *big.Int) er
 		if err := c.updateValidatorRemovePriority(validatorAddr, validator); nil != err {
 			log.Error("Failed to call updateValidatorRemovePriority", "validatorAddr", validatorAddr.Hex(), "error", err)
 			return typesdk.NewRevertError("StakeHandler: can not update validator priority")
+		}
+		if err := c.addLogUpdateValidatorStatusEvent(validatorAddr, new(big.Int).SetUint64(uint64(validator.Status))); nil != err {
+			return err
 		}
 	} else {
 		if err := c.updateValidatorByPriority(validatorAddr, validator); nil != err {
@@ -572,8 +581,7 @@ func (c *StakeHandler) syncStateSlash(validators []common.Address) error {
 
 func (c *StakeHandler) verifyBLSAggregateSignature(blockNumber *big.Int, validatorIndexs []*big.Int, data common.Hash, signatues []byte) (bool, error) {
 
-	// NOTE: Optimization of queries, search for the validator list for the last 100 rounds
-	round, _, _ := c.stageModule.GetRoundAndBlockBoundByBlockNumber(c.evm.StateDB, blockNumber.Uint64(), 100)
+	round, _, _ := c.stageModule.GetRoundAndBlockBoundByBlockNumber(c.evm.StateDB, blockNumber.Uint64())
 
 	validatorSnapQueue := db.GetRoundValidatorSharesSnapshotQueue(c.evm.StateDB, c.contract.Address(), round)
 	if len(validatorSnapQueue) == 0 {

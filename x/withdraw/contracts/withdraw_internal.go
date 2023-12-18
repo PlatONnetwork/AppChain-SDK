@@ -84,7 +84,6 @@ func (c *WithdrawManager) syncStateDeposit(depositor, recipient basecommon.Addre
 		log.Error("Failed to call NewL2StateSenderCaller", "depositor", depositor.Hex(), "recipient", recipient, "amount", amount, "error", err)
 		return typesdk.NewRevertError(fmt.Sprintf("call deposit by L2StateSender %s", err))
 	}
-	// todo need to change the inner contract address file path
 	if err := l2statesender.SyncState(rootchainWithdrawHandlerAddress, data); nil != err {
 		log.Error("Failed to call SyncState", "depositor", depositor.Hex(), "recipient", recipient, "amount", amount, "error", err)
 		return typesdk.NewRevertError(fmt.Sprintf("call deposit by L2StateSender %s", err))

@@ -3,6 +3,7 @@ package contracts
 import (
 	"bytes"
 	"errors"
+	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
@@ -41,6 +42,8 @@ type StakeHandler struct {
 	readOnly     bool
 	contract     *vm.Contract
 	evm          *vm.EVM
+	burner       contracts.Burn
+	stateDb      *contracts.StateDB
 	fallback     func(input []byte) ([]byte, error)
 	l1Module     staketypes.L1Moduler
 	stageModule  staketypes.StageModuler
@@ -53,6 +56,8 @@ func NewStakeHandler(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*StakeH
 		abi:      &Abi,
 		evm:      evm,
 		contract: contract,
+		burner:   contracts.NewBurner(contract),
+		stateDb:  contracts.NewStateDB(evm, contract),
 		readOnly: readOnly,
 	}
 	s.initMethodEntry()
@@ -91,7 +96,7 @@ func (c *StakeHandler) OnStateReceive(id *big.Int, sender common.Address, data [
 		return typesdk.NewRevertError("StakeHandler: NOT FOUND STAKE MANAGER ADDR")
 	}
 
-	if c.contract.Caller() != constants.StateReceiverAddress || sender != rootchainStakeManagerAddress {
+	if c.contract.Caller() != constants.StateSyncAddress || sender != rootchainStakeManagerAddress {
 		return typesdk.NewRevertError("StakeHandler: INVALID_SENDER")
 	}
 	if bytes.Compare(data[:METHODID_SIZE], STAKE_SIG.Bytes()) == 0 {
@@ -134,6 +139,17 @@ func (c *StakeHandler) Slash() error {
 
 	if err := c.syncStateSlash(validators); nil != err {
 		return err
+	}
+
+	// NOTE: update validator status (add log for lowBlocks)
+	for _, validatorAddr := range validators {
+		validator := c.getValidator(validatorAddr)
+		if validator.IsEmpty() {
+			continue
+		}
+		if err := c.addLogUpdateValidatorStatusEvent(validatorAddr, new(big.Int).SetUint64(uint64(validator.Status))); nil != err {
+			return err
+		}
 	}
 
 	log.Info("Slash for", "validator size", len(validators), "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber)

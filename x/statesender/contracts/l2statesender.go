@@ -3,6 +3,7 @@ package contracts
 import (
 	"encoding/hex"
 	"errors"
+	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
@@ -33,7 +34,21 @@ var (
 	Abi, _ = abi.JSON(strings.NewReader(ABI))
 )
 
-func (c *L2StateSender) Run(input []byte) ([]byte, error) {
+func (c *L2StateSender) Run(input []byte) (ret []byte, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			switch e := r.(type) {
+			case error:
+				if r, ok := e.(*typesdk.RevertError); ok {
+					ret, err = r.ReturnData, vm.ErrExecutionReverted
+				} else {
+					ret, err = nil, e
+				}
+			default:
+				ret, err = typesdk.UndefinedError, vm.ErrExecutionReverted
+			}
+		}
+	}()
 	if len(input) < 4 {
 		return nil, errors.New("input too short")
 	}
@@ -129,11 +144,11 @@ func (c *L2StateSender) SyncStateEntry(input []byte) ([]byte, error) {
 
 func (c *L2StateSender) EmitL2StateSyncedEvent(id *big.Int, sender common.Address, receiver common.Address, callData []byte) (*types.Log, error) {
 	event := c.abi.Events["L2StateSynced"]
-	hashes, err := abi.PackTopics(event.Inputs, id, sender, receiver, callData)
+	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, id, sender, receiver, callData)
 	if err != nil {
 		return nil, err
 	}
-	data, err := event.Inputs.Pack(id, sender, receiver, callData)
+	data, err := contracts.PackEventData(event.Inputs, id, sender, receiver, callData)
 	if err != nil {
 		return nil, err
 	}

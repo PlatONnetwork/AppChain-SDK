@@ -152,7 +152,7 @@ func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) error {
 	if parentBlock != 0 {
 		parentHeader := ctx.Backend().GetBlock(parentHash, parentBlock).Header()
 		if err := s.setNumberOfBlocksForRoundValidator(ctx.StateDB(), parentHeader); nil != err {
-			return fmt.Errorf("Failed to set number of blocks for round validators, parentBlock: %d, blockNumber: %d, error: %s", parentBlock, currentBlock, err)
+			return fmt.Errorf("can not set number of blocks for round validators, %s, parentBlock: %d", err, parentBlock)
 		}
 	}
 
@@ -162,7 +162,7 @@ func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) error {
 		// update validator status
 		for _, validatorAddr := range lowBlocksValidatorAddrQueue {
 			if err := s.updateValidatorStatus(ctx.StateDB(), validatorAddr, staketypes.Invalided|staketypes.LowBlocks); nil != err {
-				return fmt.Errorf("Failed to update validator status to [lowBlocks], validator: %s, blockNumber: %d, error: %s", validatorAddr.Hex(), currentBlock, err)
+				return fmt.Errorf("can not update validator status to [lowBlocks], %s, validator: %s", err, validatorAddr.Hex())
 			}
 		}
 	}
@@ -178,7 +178,7 @@ func (s *StakeModule) EndBlock(ctx sdk.WorkerContext) error {
 	// election next round validators (at cuurent round electionBlock)
 	if s.stageModule.IsElectionBlockOnCurrentRound(ctx.StateDB(), currentBlock) {
 		if err := s.electionRoundValidators(ctx, currentBlock); nil != err {
-			return fmt.Errorf("Failed to elected round validators, blockNumber: %d, error: %s", currentBlock, err)
+			return fmt.Errorf("can not elected round validators, %s", err)
 		}
 	}
 
@@ -186,7 +186,7 @@ func (s *StakeModule) EndBlock(ctx sdk.WorkerContext) error {
 	// and store next epochItem
 	if s.stageModule.IsEndOfCurrentEpoch(ctx.StateDB(), currentBlock) {
 		if err := s.electionEpochValidators(ctx, currentBlock); nil != err {
-			return fmt.Errorf("Failed to elected epoch validators, blockNumber: %d, error: %s", currentBlock, err)
+			return fmt.Errorf("can not elected epoch validators, %s", err)
 		}
 	}
 	return nil
@@ -234,13 +234,11 @@ func (s *StakeModule) OnCommit(ctx sdk.ConsensusContext, block *types.Block) err
 }
 
 func (s *StakeModule) IsEndOfRound(ctx sdk.ConsensusContext, blockNumber uint64) bool {
-	// NOTE: Optimization of queries, search for the validator list for the last 100 rounds
-	return s.stageModule.IsEndOfRound(ctx.StateDB(), blockNumber, 100)
+	return s.stageModule.IsEndOfRound(ctx.StateDB(), blockNumber)
 }
 func (s *StakeModule) GetRoundValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error) {
 
-	// NOTE: Optimization of queries, search for the validator list for the last 100 rounds
-	round, startBlock, _ := s.stageModule.GetRoundAndBlockBoundByBlockNumber(ctx.StateDB(), blockNumber, 100)
+	round, startBlock, _ := s.stageModule.GetRoundAndBlockBoundByBlockNumber(ctx.StateDB(), blockNumber)
 
 	validatorSnapQueue := db.GetRoundValidatorSharesSnapshotQueue(ctx.StateDB(), s.Address(), round)
 	if len(validatorSnapQueue) == 0 {
@@ -274,18 +272,16 @@ func (s *StakeModule) GetRoundValidator(ctx sdk.ConsensusContext, blockNumber ui
 		ValidBlockNumber: startBlock,
 	}, nil
 }
-func (s *StakeModule) BlocksOfRound(ctx sdk.ConsensusContext) uint64 {
-	round := s.stageModule.GetCurrentRound(ctx.StateDB())
+func (s *StakeModule) BlocksOfRound(ctx sdk.ConsensusContext, blockNumber uint64) uint64 {
+	round := s.stageModule.GetRoundByBlockNumber(ctx.StateDB(), blockNumber)
 	return s.stageModule.BlocksOfRound(ctx.StateDB(), round)
 }
 func (s *StakeModule) IsEndOfEpoch(ctx sdk.ConsensusContext, blockNumber uint64) bool {
-	// NOTE: Optimization of queries, search for the validator list for the last 100 epochs
-	return s.stageModule.IsEndOfEpoch(ctx.StateDB(), blockNumber, 100)
+	return s.stageModule.IsEndOfEpoch(ctx.StateDB(), blockNumber)
 }
 func (s *StakeModule) GetEpochValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error) {
 
-	// NOTE: Optimization of queries, search for the validator list for the last 100 epochs
-	epoch, startBlock, _ := s.stageModule.GetEpochAndBlockBoundByBlockNumber(ctx.StateDB(), blockNumber, 100)
+	epoch, startBlock, _ := s.stageModule.GetEpochAndBlockBoundByBlockNumber(ctx.StateDB(), blockNumber)
 	validatorSnapQueue := db.GetEpochValidatorSharesSnapshotQueue(ctx.StateDB(), s.Address(), epoch)
 	if len(validatorSnapQueue) == 0 {
 		s.logger.Error("Not found epoch validators", "blockNumber", blockNumber, "epoch", epoch)
@@ -319,8 +315,8 @@ func (s *StakeModule) GetEpochValidator(ctx sdk.ConsensusContext, blockNumber ui
 		ValidBlockNumber: startBlock,
 	}, nil
 }
-func (s *StakeModule) BlocksOfEpoch(ctx sdk.ConsensusContext) uint64 {
-	epoch := s.stageModule.GetCurrentEpoch(ctx.StateDB())
+func (s *StakeModule) BlocksOfEpoch(ctx sdk.ConsensusContext, blockNumber uint64) uint64 {
+	epoch := s.stageModule.GetEpochByBlockNumber(ctx.StateDB(), blockNumber)
 	return s.stageModule.BlocksOfEpoch(ctx.StateDB(), epoch)
 }
 
@@ -381,10 +377,7 @@ func (s *StakeModule) setNumberOfBlocksForRoundValidator(stateDB sdk.StateDB, he
 	if nil != err {
 		return fmt.Errorf("can not sigToPub %s", err)
 	}
-	round, err := s.stageModule.GetRoundByBlockNumber(stateDB, header.Number.Uint64())
-	if nil != err {
-		return fmt.Errorf("get round by block %s", err)
-	}
+	round := s.stageModule.GetRoundByBlockNumber(stateDB, header.Number.Uint64())
 
 	db.IncrementNumberOfBlocksForRoundValidator(stateDB, s.Address(), crypto.PubkeyToAddress(*pk), round, 1)
 
