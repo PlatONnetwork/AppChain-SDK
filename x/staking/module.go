@@ -109,20 +109,20 @@ func (s *StakeModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, read
 	return stakeHandler.Run(input)
 }
 
-func (s *StakeModule) AddTxs(ctx sdk.WorkerContext, local, remote map[basecommon.Address]types.Transactions) (map[basecommon.Address]types.Transactions, map[basecommon.Address]types.Transactions) {
+func (s *StakeModule) AddTxs(ctx sdk.WorkerContext, local map[basecommon.Address]types.Transactions) (map[basecommon.Address]types.Transactions, error) {
 
 	blockNumber := ctx.Header().Number.Uint64()
 	if blockNumber == 0 {
-		return local, remote
+		return local, nil
 	}
 
 	if s.stageModule.IsNotBeginOfCurrentRound(ctx.StateDB(), blockNumber) {
-		return local, remote
+		return local, nil
 	}
 
 	// check low blocks validtors of round, and send slash tx
 	if db.HasNotLowBlocksValidator(ctx.StateDB(), s.Address(), s.GetMinRoundValidatorBlockNumber(ctx.StateDB())) {
-		return local, remote
+		return local, nil
 	}
 
 	from := crypto.PubkeyToAddress(s.nodePrivateKey.PublicKey)
@@ -146,19 +146,19 @@ func (s *StakeModule) AddTxs(ctx sdk.WorkerContext, local, remote map[basecommon
 		txNonce, err = ctx.Backend().GetPoolNonce(from)
 		if nil != err {
 			s.logger.Error("Failed to get txNonce from txPool", "blockNumber", blockNumber, "error", err)
-			return local, remote
+			return local, err
 		}
 	}
 	slashTx, err := s.createSlashTx(ctx, txNonce)
 	if nil != err {
 		s.logger.Error("Failed to create slash tx", "blockNumber", blockNumber, "error", err)
-		return local, remote
+		return local, err
 	}
 	if nil == local[from] {
 		local[from] = make(types.Transactions, 0)
 	}
 	local[from] = append(local[from], slashTx)
-	return local, remote
+	return local, nil
 }
 
 func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) error {

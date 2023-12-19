@@ -130,7 +130,7 @@ func (v *VRFModule) AddTxs(ctx sdk.WorkerContext, local map[basecommon.Address]t
 		txNonce, err = ctx.Backend().GetPoolNonce(from)
 		if nil != err {
 			v.logger.Error("Failed to get txNonce from txPool", "blockNumber", blockNumber, "error", err)
-			return local, remote
+			return local, nil
 		}
 	}
 
@@ -149,7 +149,6 @@ func (v *VRFModule) AddTxs(ctx sdk.WorkerContext, local map[basecommon.Address]t
 }
 
 func (v *VRFModule) EndBlock(ctx sdk.WorkerContext) error {
-
 	header := ctx.Header()
 
 	// not worker validator
