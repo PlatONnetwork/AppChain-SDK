@@ -12,6 +12,7 @@ interface IStakeHandler is IL1StateReceiver {
     event StakeWithdrawal(address indexed validator, uint256 amount);
     event DelegateWithdrawalRegistered(address indexed delegator, address indexed validator, uint256 amount);
     event DelegateWithdrawal(address indexed delegator, address indexed validator, uint256 amount);
+    event UpdateValidatorStatus(address indexed validator, uint256 status);
 
     /// @notice initialises slashing process
     /// @dev system call,
