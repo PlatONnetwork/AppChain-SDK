@@ -88,7 +88,7 @@ type WorkerModule interface {
 
 type TransactionModule interface {
 	Module
-	AddTxs(ctx sdk.WorkerContext, local, remote map[common.Address]types.Transactions) (map[common.Address]types.Transactions, map[common.Address]types.Transactions)
+	AddTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions) (map[common.Address]types.Transactions, error)
 }
 
 type Manager struct {
@@ -434,15 +434,26 @@ func (m *Manager) EndBlock(ctx sdk.WorkerContext) error {
 	return nil
 }
 
-func (m *Manager) SortTxs(ctx sdk.WorkerContext, local, remote map[common.Address]types.Transactions) (types.Transactions, error) {
-	for _, moduleName := range m.OrderTransaction {
-		if module, ok := m.Modules[moduleName].(TransactionModule); ok {
-			local, remote = module.AddTxs(ctx, local, remote)
-		} else {
-			continue
+func (m *Manager) AddTxs(ctx sdk.WorkerContext) (types.Transactions, error) {
+	local := make(map[common.Address]types.Transactions, 0)
+	var err error
+	for _, module := range m.Modules {
+		if txModule, ok := module.(TransactionModule); ok {
+			local,err = txModule.AddTxs(ctx, local)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
+	allTxs := make(types.Transactions, 0)
+	for _, txs := range local {
+		allTxs = append(allTxs, txs...)
+	}
+	return allTxs, nil
+}
+
+func (m *Manager) SortTxs(ctx sdk.WorkerContext, local, remote map[common.Address]types.Transactions) (types.Transactions, error) {
 	if module, ok := m.Modules[m.Worker].(WorkerModule); ok {
 		return module.SortTxs(ctx, local, remote)
 	}

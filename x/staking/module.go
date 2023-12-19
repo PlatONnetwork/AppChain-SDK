@@ -170,9 +170,8 @@ func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) error {
 
 	// increase the number of validator blocks generated from the previous block
 	parentBlock := currentBlock - 1
-	parentHash := ctx.Header().ParentHash
 	if parentBlock != 0 {
-		parentHeader := ctx.Backend().GetBlock(parentHash, parentBlock).Header()
+		parentHeader := ctx.ParentBlock().Header()
 		if err := s.setNumberOfBlocksForRoundValidator(ctx.StateDB(), parentHeader); nil != err {
 			return fmt.Errorf("can not set number of blocks for round validators, %s, parentBlock: %d", err, parentBlock)
 		}
