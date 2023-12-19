@@ -94,13 +94,13 @@ func (v *VRFModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOn
 	return vrfHandler.Run(input)
 }
 
-func (v *VRFModule) AddTxs(ctx sdk.WorkerContext, local, remote map[basecommon.Address]types.Transactions) (map[basecommon.Address]types.Transactions, map[basecommon.Address]types.Transactions) {
+func (v *VRFModule) AddTxs(ctx sdk.WorkerContext, local map[basecommon.Address]types.Transactions) (map[basecommon.Address]types.Transactions, error) {
 
 	start := time.Now()
 
 	blockNumber := ctx.Header().Number.Uint64()
 	if blockNumber == 0 {
-		return local, remote
+		return local, nil
 	}
 	from := crypto.PubkeyToAddress(v.nodePrivateKey.PublicKey)
 
@@ -110,13 +110,13 @@ func (v *VRFModule) AddTxs(ctx sdk.WorkerContext, local, remote map[basecommon.A
 	// 1byte|32byte|48byte
 	nonceAndProof, err := v.GenerateNonceAndProof(ctx, blockNumber)
 	if nil != err {
-		return local, remote
+		return local, err
 	}
 
 	pushNonceAndProofTx, err := v.createPushNonceAndProofTx(ctx, nonceAndProof)
 	if nil != err {
 		v.logger.Error("Failed to create pushNonceAndProof tx", "blockNumber", blockNumber, "error", err)
-		return local, remote
+		return local, err
 	}
 	if nil == local[from] {
 		local[from] = make(types.Transactions, 0)
@@ -124,7 +124,7 @@ func (v *VRFModule) AddTxs(ctx sdk.WorkerContext, local, remote map[basecommon.A
 	local[from] = append(local[from], pushNonceAndProofTx)
 	end := time.Now()
 	v.logger.Warn("create pushNonceAndProof tx duration", "blockNumber", blockNumber, "start", basecommon.Millis(start), "end", basecommon.Millis(end), "duration", end.Sub(start), "txHash", pushNonceAndProofTx.Hash().Hex(), "from", from.Hex())
-	return local, remote
+	return local, nil
 }
 
 func (v *VRFModule) EndBlock(ctx sdk.WorkerContext) error {

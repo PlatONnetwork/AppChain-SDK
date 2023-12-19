@@ -6,12 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
+
 	"github.com/PlatONnetwork/AppChain-SDK/utils"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
-	"math/big"
 
 	"github.com/PlatONnetwork/AppChain-SDK/store"
 	"github.com/PlatONnetwork/AppChain-SDK/x"
@@ -139,23 +140,23 @@ func (s *StateSync) VerifyExtendData(ctx sdk.ConsensusContext, data []byte) erro
 func (s *StateSync) PrepareQC(ctx sdk.ConsensusContext, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote) {
 	s.PrepareQCImpl(block, votes)
 }
-func (s *StateSync) AddTxs(ctx sdk.WorkerContext, local, remote map[common.Address]types.Transactions) (map[common.Address]types.Transactions, map[common.Address]types.Transactions) {
+func (s *StateSync) AddTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions) (map[common.Address]types.Transactions, error) {
 	block := ctx.Backend().GetBlock(ctx.Header().ParentHash, ctx.Header().Number.Uint64()-1)
 	if block == nil {
 		s.logger.Warn("Get block failed", "number", ctx.Header().Number.Uint64()-1)
-		return local, remote
+		return local, nil
 	}
 	receiver, err := s.newStateSyncCallContract(ctx, block.Header())
 	if err != nil {
 		s.logger.Warn("New state sync caller failed", "err", err)
-		return local, remote
+		return local, nil
 	}
 	from := crypto.PubkeyToAddress(s.privateKey.PublicKey)
 
 	nonce, err := ctx.Backend().GetPoolNonce(from)
 	if err != nil {
 		s.logger.Warn("Get pool nonce failed", "nonce", nonce, "err", err)
-		return local, remote
+		return local, nil
 	}
 	cmtx, err := s.addCommitTx(ctx, receiver, nonce)
 	if err == nil {
@@ -169,13 +170,13 @@ func (s *StateSync) AddTxs(ctx sdk.WorkerContext, local, remote map[common.Addre
 	exTxs, err := s.addExecutedTx(ctx, receiver, nonce)
 	if err != nil {
 		s.logger.Warn("Get executed txs failed", "err", err)
-		return local, remote
+		return local, nil
 	}
 	if local[from] == nil {
 		local[from] = types.Transactions{}
 	}
 	local[from] = append(local[from], exTxs...)
-	return local, remote
+	return local, nil
 }
 
 func (s *StateSync) addCommitTx(ctx sdk.WorkerContext, receiver *contracts.StateReceiver, nonce uint64) (*types.Transaction, error) {

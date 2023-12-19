@@ -128,6 +128,10 @@ func (app *BaseApp) EndBlock(ctx sdk.WorkerContext) error {
 	return app.manager.EndBlock(ctx)
 }
 
+func (app *BaseApp) AddTxs(ctx sdk.WorkerContext) (types.Transactions, error) {
+	return app.manager.AddTxs(ctx)
+}
+
 func (app *BaseApp) SortTxs(ctx sdk.WorkerContext, local, remote map[common.Address]types.Transactions) (types.Transactions, error) {
 	return app.manager.SortTxs(ctx, local, remote)
 }
