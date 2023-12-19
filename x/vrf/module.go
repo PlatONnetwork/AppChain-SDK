@@ -113,7 +113,28 @@ func (v *VRFModule) AddTxs(ctx sdk.WorkerContext, local, remote map[basecommon.A
 		return local, remote
 	}
 
-	pushNonceAndProofTx, err := v.createPushNonceAndProofTx(ctx, nonceAndProof)
+	var txNonce uint64
+	// find previous nonce from local tx queue
+	txs, ok := local[from]
+	if ok && len(txs) != 0 {
+		for _, tx := range txs {
+			if tx.Nonce() > txNonce {
+				txNonce = tx.Nonce()
+			}
+		}
+
+	}
+	if txNonce != 0 {
+		txNonce++
+	} else {
+		txNonce, err = ctx.Backend().GetPoolNonce(from)
+		if nil != err {
+			v.logger.Error("Failed to get txNonce from txPool", "blockNumber", blockNumber, "error", err)
+			return local, remote
+		}
+	}
+
+	pushNonceAndProofTx, err := v.createPushNonceAndProofTx(ctx, nonceAndProof, txNonce)
 	if nil != err {
 		v.logger.Error("Failed to create pushNonceAndProof tx", "blockNumber", blockNumber, "error", err)
 		return local, remote
@@ -186,20 +207,15 @@ func (v *VRFModule) VerifyVrf(ctx sdk.WorkerContext, blockNumber uint64, nonceAn
 	return nil
 }
 
-func (v *VRFModule) createPushNonceAndProofTx(ctx sdk.WorkerContext, nonceAndProof []byte) (*types.Transaction, error) {
+func (v *VRFModule) createPushNonceAndProofTx(ctx sdk.WorkerContext, nonceAndProof []byte, txNonce uint64) (*types.Transaction, error) {
 
-	mehtod := contracts.Abi.Methods["pushNonceAndProof"]
+	method := contracts.Abi.Methods["pushNonceAndProof"]
 
-	input, err := mehtod.Inputs.Pack(nonceAndProof)
+	input, err := method.Inputs.Pack(nonceAndProof)
 	if nil != err {
 		return nil, err
 	}
-	input = append(mehtod.ID, input...)
-	from := crypto.PubkeyToAddress(v.nodePrivateKey.PublicKey)
-	txNonce, err := ctx.Backend().GetPoolNonce(from)
-	if nil != err {
-		return nil, err
-	}
+	input = append(method.ID, input...)
 
 	tx := types.NewTransaction(txNonce, v.Address(), nil, 100000, big.NewInt(0), input)
 	chainId, _ := ctx.Backend().ChainId()

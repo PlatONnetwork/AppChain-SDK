@@ -126,8 +126,30 @@ func (s *StakeModule) AddTxs(ctx sdk.WorkerContext, local, remote map[basecommon
 	}
 
 	from := crypto.PubkeyToAddress(s.nodePrivateKey.PublicKey)
+	var (
+		txNonce uint64
+		err     error
+	)
+	// find previous nonce from local tx queue
+	txs, ok := local[from]
+	if ok && len(txs) != 0 {
+		for _, tx := range txs {
+			if tx.Nonce() > txNonce {
+				txNonce = tx.Nonce()
+			}
+		}
 
-	slashTx, err := s.createSlashTx(ctx)
+	}
+	if txNonce != 0 {
+		txNonce++
+	} else {
+		txNonce, err = ctx.Backend().GetPoolNonce(from)
+		if nil != err {
+			s.logger.Error("Failed to get txNonce from txPool", "blockNumber", blockNumber, "error", err)
+			return local, remote
+		}
+	}
+	slashTx, err := s.createSlashTx(ctx, txNonce)
 	if nil != err {
 		s.logger.Error("Failed to create slash tx", "blockNumber", blockNumber, "error", err)
 		return local, remote
@@ -560,17 +582,15 @@ func (s *StakeModule) electionEpochValidators(ctx sdk.WorkerContext, blockNumber
 	return nil
 }
 
-func (s *StakeModule) createSlashTx(ctx sdk.Context) (*types.Transaction, error) {
+func (s *StakeModule) createSlashTx(ctx sdk.Context, txNonce uint64) (*types.Transaction, error) {
 
-	input, err := contracts.Abi.Methods["slash"].Inputs.Pack()
+	method := contracts.Abi.Methods["slash"]
+
+	input, err := method.Inputs.Pack()
 	if nil != err {
 		return nil, err
 	}
-	from := crypto.PubkeyToAddress(s.nodePrivateKey.PublicKey)
-	txNonce, err := ctx.Backend().GetPoolNonce(from)
-	if nil != err {
-		return nil, err
-	}
+	input = append(method.ID, input...)
 
 	tx := types.NewTransaction(txNonce, s.Address(), nil, 100000, big.NewInt(0), input)
 	chainId, _ := ctx.Backend().ChainId()
