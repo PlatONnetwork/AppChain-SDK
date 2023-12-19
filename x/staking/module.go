@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/PlatONnetwork/AppChain-SDK/common"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/contracts"
@@ -127,28 +128,13 @@ func (s *StakeModule) AddTxs(ctx sdk.WorkerContext, local map[basecommon.Address
 
 	from := crypto.PubkeyToAddress(s.nodePrivateKey.PublicKey)
 	var (
-		txNonce uint64
-		err     error
+		err error
 	)
 	// find previous nonce from local tx queue
-	txs, ok := local[from]
-	if ok && len(txs) != 0 {
-		for _, tx := range txs {
-			if tx.Nonce() > txNonce {
-				txNonce = tx.Nonce()
-			}
-		}
+	txNonce := common.EnableNonce(local[from], func() uint64 {
+		return ctx.StateDB().GetNonce(from)
+	})
 
-	}
-	if txNonce != 0 {
-		txNonce++
-	} else {
-		txNonce, err = ctx.Backend().GetPoolNonce(from)
-		if nil != err {
-			s.logger.Error("Failed to get txNonce from txPool", "blockNumber", blockNumber, "error", err)
-			return local, err
-		}
-	}
 	slashTx, err := s.createSlashTx(ctx, txNonce)
 	if nil != err {
 		s.logger.Error("Failed to create slash tx", "blockNumber", blockNumber, "error", err)
