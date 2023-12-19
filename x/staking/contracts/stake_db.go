@@ -21,6 +21,7 @@ func (c *StakeHandler) setValidatorByPriority(validatorAddr common.Address, vali
 	if err := db.SetValidator(c.evm.StateDB, c.contract.Address(), validatorAddr, validator); nil != err {
 		return err
 	}
+	db.SetValidatorOwner(c.evm.StateDB, c.contract.Address(), validatorAddr, validator.Owner)
 	return db.SetValidatorPriority(c.evm.StateDB, c.contract.Address(), validatorAddr, validator.Epoch, validator.StakeIndex, validator.Shares())
 }
 
@@ -33,10 +34,10 @@ func (c *StakeHandler) updateValidatorRemovePriority(validatorAddr common.Addres
 	if db.GetValidatorPriority(c.evm.StateDB, c.contract.Address(), old.Epoch, old.StakeIndex, old.Shares()).ValidatorAddr != validatorAddr {
 		return db.ErrMisMatching
 	}
+	// set new priority only
 	if err := db.SetValidator(c.evm.StateDB, c.contract.Address(), validatorAddr, validator); nil != err {
 		return err
 	}
-	// set new priority only
 
 	return db.RemoveValidatorPriority(c.evm.StateDB, c.contract.Address(), old.Epoch, old.StakeIndex, old.Shares())
 }
