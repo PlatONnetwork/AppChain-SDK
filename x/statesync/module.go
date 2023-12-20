@@ -69,6 +69,7 @@ func NewStateSync(ctx *cli.Context, l1Module *l1.L1Module, store store.Store, ex
 		syncUpdateCh: make(chan struct{}),
 	}, nil
 }
+
 func (s *StateSync) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
 	db.SetNonce(constants.StateSyncAddress, 1)
 	s.logger.Info("Set StateSync Nonce", "nonce", 1)

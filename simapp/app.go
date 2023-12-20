@@ -1,12 +1,13 @@
 package main
 
 import (
+	"path/filepath"
+
 	"github.com/PlatONnetwork/AppChain-SDK/x/deposit"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward"
 	"github.com/PlatONnetwork/AppChain-SDK/x/stage"
 	"github.com/PlatONnetwork/AppChain-SDK/x/statesender"
 	"github.com/PlatONnetwork/AppChain-SDK/x/vrf"
-	"path/filepath"
 
 	"github.com/PlatONnetwork/AppChain-SDK/baseapp"
 	"github.com/PlatONnetwork/AppChain-SDK/store/storage"
@@ -49,12 +50,13 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		return nil, err
 	}
 
-	stateSync, err := statesync.NewStateSync(ctx, store, extravote.NewExtraVoteDB(store))
+	l1Module := l1.NewL1Module(store)
+
+	stateSync, err := statesync.NewStateSync(ctx, l1Module, store, extravote.NewExtraVoteDB(store))
 	if err != nil {
 		return nil, err
 	}
 
-	l1Module := l1.NewL1Module(store)
 	stateEvent := stateevent.NewModule(store)
 
 	stageModule := stage.NewStageModule(ctx)
@@ -89,7 +91,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 	//manager.SetWorker(stateSync.Name())
 	manager.SetOrderTransaction(stateSync.Name(), vrfModule.Name(), stakeModule.Name())
 	manager.SetOrderInit(stateSync.Name(), rootchainTxRelayer.Name(), checkpoint.Name(), vrfModule.Name(), stakeModule.Name(), rewardModule.Name())
-	manager.SetOrderGenesis(l1Module.Name(), stageModule.Name(), vrfModule.Name(), stakeModule.Name(), rewardModule.Name(), depositModule.Name(), l2StateSender.Name())
+	manager.SetOrderGenesis(l1Module.Name(), stageModule.Name(), vrfModule.Name(), stakeModule.Name(), rewardModule.Name(), depositModule.Name(), l2StateSender.Name(), stateSync.Name())
 	manager.SetOrderBeginBlocker(stageModule.Name(), stakeModule.Name(), rewardModule.Name())
 	manager.SetOrderEndBlocker(stageModule.Name(), vrfModule.Name(), stakeModule.Name(), rewardModule.Name())
 	manager.SetOrderBlockCommiter(stakeModule.Name(), stateEvent.Name(), checkpoint.Name())

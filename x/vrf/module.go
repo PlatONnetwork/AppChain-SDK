@@ -133,7 +133,6 @@ func (v *VRFModule) AddTxs(ctx sdk.WorkerContext, local map[basecommon.Address]t
 }
 
 func (v *VRFModule) EndBlock(ctx sdk.WorkerContext) error {
-
 	header := ctx.Header()
 
 	// not worker validator
