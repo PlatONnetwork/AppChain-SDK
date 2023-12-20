@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/PlatONnetwork/AppChain-SDK/common"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/contracts"
@@ -127,28 +128,13 @@ func (s *StakeModule) AddTxs(ctx sdk.WorkerContext, local map[basecommon.Address
 
 	from := crypto.PubkeyToAddress(s.nodePrivateKey.PublicKey)
 	var (
-		txNonce uint64
-		err     error
+		err error
 	)
 	// find previous nonce from local tx queue
-	txs, ok := local[from]
-	if ok && len(txs) != 0 {
-		for _, tx := range txs {
-			if tx.Nonce() > txNonce {
-				txNonce = tx.Nonce()
-			}
-		}
+	txNonce := common.EnableNonce(local[from], func() uint64 {
+		return ctx.StateDB().GetNonce(from)
+	})
 
-	}
-	if txNonce != 0 {
-		txNonce++
-	} else {
-		txNonce, err = ctx.Backend().GetPoolNonce(from)
-		if nil != err {
-			s.logger.Error("Failed to get txNonce from txPool", "blockNumber", blockNumber, "error", err)
-			return local, err
-		}
-	}
 	slashTx, err := s.createSlashTx(ctx, txNonce)
 	if nil != err {
 		s.logger.Error("Failed to create slash tx", "blockNumber", blockNumber, "error", err)
@@ -255,10 +241,19 @@ func (s *StakeModule) OnCommit(ctx sdk.ConsensusContext, block *types.Block) err
 }
 
 func (s *StakeModule) IsEndOfRound(ctx sdk.ConsensusContext, blockNumber uint64) bool {
+	// ### NOTE ###
+	// Provided for use by the consensus module.
+	// It is possible to use parent statedb here,
+	// as the current statedb only has
+	// the `next RoundItem` data added compared to parent statedb.
 	return s.stageModule.IsEndOfRound(ctx.StateDB(), blockNumber)
 }
 func (s *StakeModule) GetRoundValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error) {
-
+	// ### NOTE ###
+	// Provided for use by the consensus module.
+	// It is possible to use parent statedb here because
+	// the current statedb only has more data about
+	// the next round than parent statedb.
 	round, startBlock, _ := s.stageModule.GetRoundAndBlockBoundByBlockNumber(ctx.StateDB(), blockNumber)
 
 	validatorSnapQueue := db.GetRoundValidatorSharesSnapshotQueue(ctx.StateDB(), s.Address(), round)
@@ -294,14 +289,28 @@ func (s *StakeModule) GetRoundValidator(ctx sdk.ConsensusContext, blockNumber ui
 	}, nil
 }
 func (s *StakeModule) BlocksOfRound(ctx sdk.ConsensusContext, blockNumber uint64) uint64 {
+	// ### NOTE ###
+	// Provided for use by the consensus module.
+	// It is possible to use parent statedb here because
+	// the current statedb only has more data about
+	// the next round than parent statedb.
 	round := s.stageModule.GetRoundByBlockNumber(ctx.StateDB(), blockNumber)
 	return s.stageModule.BlocksOfRound(ctx.StateDB(), round)
 }
 func (s *StakeModule) IsEndOfEpoch(ctx sdk.ConsensusContext, blockNumber uint64) bool {
+	// ### NOTE ###
+	// Provided for use by the consensus module.
+	// It is possible to use parent statedb here,
+	// as the current statedb only has
+	// the `next EpochItem` data added compared to parent statedb.
 	return s.stageModule.IsEndOfEpoch(ctx.StateDB(), blockNumber)
 }
 func (s *StakeModule) GetEpochValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error) {
-
+	// ### NOTE ###
+	// Provided for use by the consensus module.
+	// It is possible to use parent statedb here because
+	// the current statedb only has more data about
+	// the next epoch than parent statedb.
 	epoch, startBlock, _ := s.stageModule.GetEpochAndBlockBoundByBlockNumber(ctx.StateDB(), blockNumber)
 	validatorSnapQueue := db.GetEpochValidatorSharesSnapshotQueue(ctx.StateDB(), s.Address(), epoch)
 	if len(validatorSnapQueue) == 0 {
@@ -337,6 +346,11 @@ func (s *StakeModule) GetEpochValidator(ctx sdk.ConsensusContext, blockNumber ui
 	}, nil
 }
 func (s *StakeModule) BlocksOfEpoch(ctx sdk.ConsensusContext, blockNumber uint64) uint64 {
+	// ### NOTE ###
+	// Provided for use by the consensus module.
+	// It is possible to use parent statedb here because
+	// the current statedb only has more data about
+	// the next epoch than parent statedb.
 	epoch := s.stageModule.GetEpochByBlockNumber(ctx.StateDB(), blockNumber)
 	return s.stageModule.BlocksOfEpoch(ctx.StateDB(), epoch)
 }
@@ -688,11 +702,7 @@ func (s *StakeModule) GetValidatorDelegateAmount(stateDB sdk.StateDBReader, vali
 	return validator.DelegateAmount
 }
 func (s *StakeModule) GetValidatorOwner(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) basecommon.Address {
-	validator := db.GetValidator(stateDB, s.Address(), validatorAddr)
-	if validator.IsEmpty() {
-		return basecommon.ZeroAddr
-	}
-	return validator.Owner
+	return db.GetValidatorOwner(stateDB, s.Address(), validatorAddr)
 }
 func (s *StakeModule) GetNumberOfBlocksForRoundValidator(stateDB sdk.StateDBReader, validatorAddr basecommon.Address, round uint64) uint64 {
 	return db.GetNumberOfBlocksForRoundValidator(stateDB, s.Address(), validatorAddr, round)

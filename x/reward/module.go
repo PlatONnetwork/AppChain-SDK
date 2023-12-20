@@ -14,7 +14,6 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/types"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
-	"github.com/PlatONnetwork/PlatON-Go/crypto"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
@@ -118,16 +117,6 @@ func (r *RewardModule) EndBlock(ctx sdk.WorkerContext) error {
 		}
 	}
 
-	// update owner of current worker (validator)
-	if ctx.IsWorker() {
-		currentValidatorAddr := crypto.PubkeyToAddress(r.nodePrivateKey.PublicKey)
-		// update owner of validator (for with validator reward)
-		newOwner := r.stakeModule.GetValidatorOwner(ctx.StateDB(), currentValidatorAddr)
-		oldOwner := rewarddb.GetValidatorRewardOwner(ctx.StateDB(), r.Address(), currentValidatorAddr)
-		if newOwner != basecommon.ZeroAddr && newOwner != oldOwner {
-			rewarddb.SetValidatorRewardOwner(ctx.StateDB(), r.Address(), currentValidatorAddr, newOwner)
-		}
-	}
 	return nil
 }
 

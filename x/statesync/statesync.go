@@ -182,6 +182,7 @@ func (s *StateSync) createExecuteTxs(ctx sdk.Context, proofs [][]common.Hash, ev
 			return nil, err
 		}
 		txs = append(txs, tx)
+		nonce++
 	}
 	return txs, nil
 }

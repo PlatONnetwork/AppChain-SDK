@@ -94,7 +94,7 @@ func (c *RewardManager) WithdrawDelegatorReward(validator common.Address) error 
 
 func (c *RewardManager) WithdrawValidatorReward(validator common.Address) error {
 
-	owner := rewarddb.GetValidatorRewardOwner(c.evm.StateDB, c.contract.Address(), validator)
+	owner := c.stakeModule.GetValidatorOwner(c.evm.StateDB, validator)
 
 	if owner != c.contract.Caller() {
 		return typesdk.NewRevertError("RewardManager: invalid caller")

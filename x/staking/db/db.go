@@ -40,6 +40,7 @@ var (
 	priorityValidatorTailKey   = []byte("priorityValidatorTail") // "priorityValidatorTail" => priorityValidator(tail)
 	priorityValidatorKeyPrefix = []byte("priorityValidator")     // "priorityValidator":shares(stakeAmount+delegataionAmount):stakeEpoch:stakeIndex => priorityValidator{preKey, nextKey, validatorAddr}
 	validatorKeyPrefix         = []byte("validator")             // "validator":validatorAddr => validator
+	validatorOwnerKeyPrefix    = []byte("validatorOwner")        // "validatorOwner":validatorAddr => ownerAddr
 
 	delegationKeyPrefix                  = []byte("delegation")                  // "delegater":delegaterAddr:validatorAddr:stakeEpoch => delegation
 	stakeWithdrawalQueueItemKeyPrefix    = []byte("stakeWithdrawalQueueItem")    // "stakeWithdrawalQueueItem":validatorAddr:(unlock)epoch => {preEpoch, nextEpoch, amount}
@@ -113,6 +114,10 @@ func encodePriorityValidatorKey(epoch, stakeIndex uint64, shares *big.Int) []byt
 
 func encodeValidatorKey(validatorAddr common.Address) []byte {
 	return append(validatorKeyPrefix, validatorAddr.Bytes()...)
+}
+
+func encodeValidatorOwnerKey(validatorAddr common.Address) []byte {
+	return append(validatorOwnerKeyPrefix, validatorAddr.Bytes()...)
 }
 
 func encodeDelegaterKey(delegaterAddr, validatorAddr common.Address, stakeEpoch uint64) []byte {
@@ -525,6 +530,20 @@ func HasNotValidator(db sdk.StateDBReader, addr, validatorAddr common.Address) b
 
 func RemoveValidator(db sdk.StateDB, addr, validatorAddr common.Address) {
 	db.SetState(addr, encodeValidatorKey(validatorAddr), []byte{})
+}
+
+// -------
+
+func SetValidatorOwner(db sdk.StateDB, addr common.Address, validatorAddr, ownerAddr common.Address) {
+	db.SetState(addr, encodeValidatorOwnerKey(validatorAddr), ownerAddr.Bytes())
+}
+
+func GetValidatorOwner(db sdk.StateDBReader, addr, validatorAddr common.Address) common.Address {
+	ownerAddrBytes := db.GetState(addr, encodeValidatorOwnerKey(validatorAddr))
+	if len(ownerAddrBytes) == 0 {
+		return common.ZeroAddr
+	}
+	return common.BytesToAddress(ownerAddrBytes)
 }
 
 // -------

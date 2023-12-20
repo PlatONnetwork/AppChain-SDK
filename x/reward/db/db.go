@@ -32,8 +32,6 @@ var (
 	pendingValidatorRewardKeyPrefix = []byte("pendingValidatorReward") // "pendingValidatorReward":validatorAddr => pendingRewards
 	pendingDelegatorRewardKeyPrefix = []byte("pendingDelegatorReward") // "pendingDelegatorReward":delegatorAddr:validatorAddr => pendingRewards
 
-	validatorRewardOwnerKeyPrefix = []byte("validatorRewardOwner") // "validatorRewardOwner":validatorAddr => ownerAddr
-
 	//delegatorRewardPendingIndexKeyPrefix       = []byte("delegatorRewardPendingIndex")       // "delegatorRewardPendingIndex":delegatorAddr:validatorAddr:stakeEpoch => needRewardEpoch
 	epochDelegationRewardPerShareItemKeyPrefix = []byte("epochDelegationRewardPerShareItem") // "epochDelegationRewardPerShareItem":validatorAddr:stakeEpoch:rewardEpoch => epochRewardPerDelegationShareItem{ preRewardEpoch, nextRewardEpoch, totalReward, perShareReward}
 )
@@ -72,10 +70,6 @@ func encodePendingDelegatorRewardKey(delegatorAddr, validatorAddr basecommon.Add
 	copy(key[appendDelegatorAddrSize:], validatorAddrBytes)
 
 	return key
-}
-
-func encodeValidatorRewardOwnerKey(validatorAddr basecommon.Address) []byte {
-	return append(validatorRewardOwnerKeyPrefix, validatorAddr.Bytes()...)
 }
 
 func encodeEpochDelegationRewardPerShareItemKey(validatorAddr basecommon.Address, stakeEpoch, rewardEpoch uint64) []byte {
@@ -190,18 +184,6 @@ func GetPendingDelegatorReward(db sdk.StateDBReader, addr basecommon.Address, de
 		number = new(big.Int).SetBytes(value)
 	}
 	return number
-}
-
-func SetValidatorRewardOwner(db sdk.StateDB, addr basecommon.Address, validatorAddr, ownerAddr basecommon.Address) {
-	db.SetState(addr, encodeValidatorRewardOwnerKey(validatorAddr), ownerAddr.Bytes())
-}
-
-func GetValidatorRewardOwner(db sdk.StateDB, addr, validatorAddr basecommon.Address) basecommon.Address {
-	ownerAddrBytes := db.GetState(addr, encodeValidatorRewardOwnerKey(validatorAddr))
-	if len(ownerAddrBytes) == 0 {
-		return basecommon.ZeroAddr
-	}
-	return basecommon.BytesToAddress(ownerAddrBytes)
 }
 
 //func GetDelegaterRewardPendingIndex(db sdk.StateDB, addr, delegaterAddr, validatorAddr basecommon.Address, stakeEpoch uint64) uint64 {
