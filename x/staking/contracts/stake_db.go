@@ -1,6 +1,7 @@
 package contracts
 
 import (
+	"bytes"
 	db "github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -15,6 +16,41 @@ func (c *StakeHandler) incrementValidatorNonce() uint64 {
 
 func (c *StakeHandler) getValidatorNonce() uint64 {
 	return db.GetValidatorNonce(c.evm.StateDB, c.contract.Address())
+}
+
+func (c *StakeHandler) getValidatorsByPriorityKey(start []byte, size uint64) ([]byte, []common.Address, []*types.Validator) {
+
+	validatorAddrQueue := make([]common.Address, size)
+	validatorQueue := make([]*types.Validator, size)
+
+	if len(start) == 0 {
+		headItem := db.GetValidatorPriorityByKey(c.evm.StateDB, c.contract.Address(), db.EncodePriorityValidatorHeadKey())
+		start = headItem.NextKey
+	}
+	var (
+		count uint64
+		index = start
+	)
+	item := db.GetValidatorPriorityByKey(c.evm.StateDB, c.contract.Address(), index)
+	// it is not tail or not enough count
+	for item.IsNotEmpty() && bytes.Compare(item.NextKey, db.EncodePriorityValidatorHeadKey()) != 0 && count < size {
+
+		validator := c.getValidator(item.ValidatorAddr)
+		if validator.IsEmpty() {
+
+			index = item.NextKey
+			item = db.GetValidatorPriorityByKey(c.evm.StateDB, c.contract.Address(), index)
+			continue
+		}
+
+		validatorAddrQueue[count] = item.ValidatorAddr
+		validatorQueue[count] = validator
+		index = item.NextKey
+		item = db.GetValidatorPriorityByKey(c.evm.StateDB, c.contract.Address(), index)
+		count++
+
+	}
+	return index, validatorAddrQueue[:count], validatorQueue[:count]
 }
 
 func (c *StakeHandler) setValidatorByPriority(validatorAddr common.Address, validator *types.Validator) error {

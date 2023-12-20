@@ -307,10 +307,10 @@ func GetMinRoundValidatorBlockNumber(db sdk.StateDBReader, addr common.Address) 
 
 // ------
 func GetValidatorPriority(db sdk.StateDBReader, addr common.Address, epoch, stakeIndex uint64, shares *big.Int) *types.PriorityValidator {
-	return getValidatorPriorityByKey(db, addr, encodePriorityValidatorKey(epoch, stakeIndex, shares))
+	return GetValidatorPriorityByKey(db, addr, encodePriorityValidatorKey(epoch, stakeIndex, shares))
 }
 
-func getValidatorPriorityByKey(db sdk.StateDBReader, addr common.Address, key []byte) *types.PriorityValidator {
+func GetValidatorPriorityByKey(db sdk.StateDBReader, addr common.Address, key []byte) *types.PriorityValidator {
 	value := db.GetState(addr, key)
 	if len(value) == 0 {
 		return nil
@@ -335,7 +335,7 @@ func setValidatorPriorityByKey(db sdk.StateDB, addr common.Address, key []byte, 
 func SetValidatorPriority(db sdk.StateDB, addr, validatorAddr common.Address, epoch, stakeIndex uint64, shares *big.Int) error {
 
 	indexKey := EncodePriorityValidatorHeadKey()
-	indexItem := getValidatorPriorityByKey(db, addr, EncodePriorityValidatorHeadKey())
+	indexItem := GetValidatorPriorityByKey(db, addr, EncodePriorityValidatorHeadKey())
 
 	priorityKey := encodePriorityValidatorKey(epoch, stakeIndex, shares)
 	priority := types.NewPriorityValidator(
@@ -350,7 +350,7 @@ func SetValidatorPriority(db sdk.StateDB, addr, validatorAddr common.Address, ep
 		//
 		// then: tail -> head -> priority -> tail -> head
 
-		next := getValidatorPriorityByKey(db, addr, indexItem.NextKey)
+		next := GetValidatorPriorityByKey(db, addr, indexItem.NextKey)
 
 		priority.UpdatePreKey(indexKey)
 		priority.UpdateNextKey(indexItem.NextKey)
@@ -384,7 +384,7 @@ func SetValidatorPriority(db sdk.StateDB, addr, validatorAddr common.Address, ep
 					//
 					// then:  tail -> head -> index -> priority -> tail -> head
 
-					next := getValidatorPriorityByKey(db, addr, indexItem.NextKey) // tail
+					next := GetValidatorPriorityByKey(db, addr, indexItem.NextKey) // tail
 
 					priority.UpdatePreKey(indexKey)
 					priority.UpdateNextKey(indexItem.NextKey)
@@ -414,7 +414,7 @@ func SetValidatorPriority(db sdk.StateDB, addr, validatorAddr common.Address, ep
 				//
 				// then:  tail -> head -> priority -> index -> (next)  tail -> head
 
-				pre := getValidatorPriorityByKey(db, addr, indexItem.PreKey)
+				pre := GetValidatorPriorityByKey(db, addr, indexItem.PreKey)
 
 				priority.UpdatePreKey(indexItem.PreKey)
 				priority.UpdateNextKey(indexKey)
@@ -436,7 +436,7 @@ func SetValidatorPriority(db sdk.StateDB, addr, validatorAddr common.Address, ep
 		}
 
 		indexKey = indexItem.NextKey
-		indexItem = getValidatorPriorityByKey(db, addr, indexKey)
+		indexItem = GetValidatorPriorityByKey(db, addr, indexKey)
 	}
 
 	return nil
@@ -445,13 +445,13 @@ func SetValidatorPriority(db sdk.StateDB, addr, validatorAddr common.Address, ep
 func RemoveValidatorPriority(db sdk.StateDB, addr common.Address, epoch, stakeIndex uint64, shares *big.Int) error {
 
 	priorityKey := encodePriorityValidatorKey(epoch, stakeIndex, shares)
-	priority := getValidatorPriorityByKey(db, addr, priorityKey)
+	priority := GetValidatorPriorityByKey(db, addr, priorityKey)
 
 	preKey := priority.PreKey
 	nextKey := priority.NextKey
 
-	pre := getValidatorPriorityByKey(db, addr, preKey)
-	next := getValidatorPriorityByKey(db, addr, nextKey)
+	pre := GetValidatorPriorityByKey(db, addr, preKey)
+	next := GetValidatorPriorityByKey(db, addr, nextKey)
 
 	pre.UpdateNextKey(nextKey)
 	next.UpdatePreKey(preKey)
@@ -476,12 +476,12 @@ func RankPriorityValidatorIds(db sdk.StateDBReader, addr common.Address, size ui
 	arr := types.NewValidatorAddrQueue(size)
 	var count uint64 = 0
 
-	headItem := getValidatorPriorityByKey(db, addr, EncodePriorityValidatorHeadKey())
-	item := getValidatorPriorityByKey(db, addr, headItem.NextKey)
+	headItem := GetValidatorPriorityByKey(db, addr, EncodePriorityValidatorHeadKey())
+	item := GetValidatorPriorityByKey(db, addr, headItem.NextKey)
 
 	for bytes.Compare(item.NextKey, EncodePriorityValidatorHeadKey()) != 0 && count < size { // not as tail  and count less size
 		arr[count] = item.ValidatorAddr
-		item = getValidatorPriorityByKey(db, addr, item.NextKey)
+		item = GetValidatorPriorityByKey(db, addr, item.NextKey)
 		count++
 	}
 	return arr[:count]

@@ -119,7 +119,7 @@ func GetRewardPerEpoch(db sdk.StateDBReader, addr basecommon.Address) *big.Int {
 
 // ------
 
-func GetPaidRewardPerEpoch(db sdk.StateDB, addr basecommon.Address, epoch uint64) *big.Int {
+func GetPaidRewardPerEpoch(db sdk.StateDBReader, addr basecommon.Address, epoch uint64) *big.Int {
 	value := db.GetState(addr, encodePaidRewardPerEpochKey(epoch))
 	number := basecommon.Big0
 	if len(value) != 0 {
@@ -186,7 +186,7 @@ func GetPendingDelegatorReward(db sdk.StateDBReader, addr basecommon.Address, de
 	return number
 }
 
-//func GetDelegaterRewardPendingIndex(db sdk.StateDB, addr, delegaterAddr, validatorAddr basecommon.Address, stakeEpoch uint64) uint64 {
+//func GetDelegaterRewardPendingIndex(db sdk.StateDBReader, addr, delegaterAddr, validatorAddr basecommon.Address, stakeEpoch uint64) uint64 {
 //
 //	value := db.GetState(addr, encodeDelegaterRewardPendingIndexKey(delegaterAddr, validatorAddr, stakeEpoch))
 //
@@ -219,6 +219,33 @@ func SetEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr ba
 		return ErrRlpEncode
 	}
 	db.SetState(addr, encodeEpochDelegationRewardPerShareItemKey(validatorAddr, stakeEpoch, rewardEpoch), value)
+	return nil
+}
+
+func RemoveEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr basecommon.Address, stakeEpoch, rewardEpoch uint64) error {
+	item := GetEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, rewardEpoch)
+	if nil == item {
+		return ErrNotFound
+	}
+
+	pre := GetEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, item.PreRewardEpoch)
+	next := GetEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, item.NextRewardEpoch)
+
+	// remove the last one   tail -> head -> lastone(remove) -> tail -> head
+	if pre.PreRewardEpoch == math.MaxUint64 && next.NextRewardEpoch == 0 {
+		removeEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, item.PreRewardEpoch)
+		removeEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, item.NextRewardEpoch)
+	} else {
+		pre.UpdateNextRewardEpoch(item.NextRewardEpoch)
+		next.UpdatePreRewardEpoch(item.PreRewardEpoch)
+		if err := SetEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, item.PreRewardEpoch, pre); nil != err {
+			return err
+		}
+		if err := SetEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, item.NextRewardEpoch, next); nil != err {
+			return err
+		}
+	}
+	removeEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, rewardEpoch)
 	return nil
 }
 
@@ -333,6 +360,7 @@ func AppendEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr
 	return nil
 }
 
+// NOTE: unused
 func ReleaseEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr basecommon.Address, stakeEpoch, rewardEpoch uint64, decrement *big.Int) error {
 	item := GetEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, rewardEpoch)
 	if nil == item {
