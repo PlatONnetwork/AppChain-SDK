@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/p2p/enode"
+	"github.com/status-im/keycard-go/hexutils"
 	"math/big"
 	"strings"
 )
@@ -88,17 +89,17 @@ func (status ValidatorStatus) IsNotExist() bool {
 }
 
 type Validator struct {
+	Status         ValidatorStatus
+	CommissionRate uint64
+	Epoch          uint64
+	StakeIndex     uint64
 	Owner          common.Address
 	StakeAmount    *big.Int
 	DelegateAmount *big.Int
 	//PubKey         *ecdsa.PublicKey
 	//BlsKey         *bls.PublicKey
-	PubKey         enode.IDv0
-	BlsKey         []byte
-	Status         ValidatorStatus
-	CommissionRate uint64
-	Epoch          uint64
-	StakeIndex     uint64
+	PubKey enode.IDv0
+	BlsKey []byte
 }
 
 func NewValidator(owner common.Address, stakeAmount, delegateAmount *big.Int, blsKey []byte, pubKey enode.IDv0, commissionRate, epoch, stakeIndex uint64) *Validator {
@@ -122,7 +123,7 @@ func (v *Validator) String() string {
 		v.StakeAmount,
 		v.DelegateAmount,
 		fmt.Sprintf("%x", v.PubKey.Bytes()),
-		fmt.Sprintf("%x", v.BlsKey),
+		hexutils.BytesToHex(v.BlsKey),
 		//hex.EncodeToString(crypto.FromECDSAPub(v.PubKey)),
 		//hex.EncodeToString((&blsKey).Serialize()),
 

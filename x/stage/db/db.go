@@ -205,11 +205,19 @@ func GetEpochQueueAndIndexFromTail(db sdk.StateDBReader, addr common.Address, ep
 
 func GetEpochItemAndIndexByBlockNumber(db sdk.StateDBReader, addr common.Address, blockNumber uint64) (uint64, *types.EpochItem) {
 
-	index := GetCurrentEpoch(db, addr)
+	// #### NOTE ####
+	// Starting from the next epoch of data collection,
+	// it is mainly for many scenarios to go back and obtain
+	// the next epoch of data in advance,
+	// and the next epoch of data will be generated in advance
+	currentEpoch := GetCurrentEpoch(db, addr)
+	index := currentEpoch + 1
 	item := GetEpochItem(db, addr, index)
 	for index != 0 {
 		if item.IsEmpty() {
-			break
+			index--
+			item = GetEpochItem(db, addr, index)
+			continue
 		}
 		if item.StartBlock <= blockNumber && item.EndBlock >= blockNumber {
 			break
@@ -335,11 +343,19 @@ func GetRoundQueueAndIndexFromTail(db sdk.StateDBReader, addr common.Address, ro
 
 func GetRoundItemAndIndexByBlockNumber(db sdk.StateDBReader, addr common.Address, blockNumber uint64) (uint64, *types.RoundItem) {
 
-	index := GetCurrentRound(db, addr)
+	// #### NOTE ####
+	// Starting from the next round of data collection,
+	// it is mainly for many scenarios to go back and obtain
+	// the next round of data in advance,
+	// and the next round of data will be generated in advance
+	currentRound := GetCurrentRound(db, addr)
+	index := currentRound + 1
 	item := GetRoundItem(db, addr, index)
 	for index != 0 {
 		if item.IsEmpty() {
-			break
+			index--
+			item = GetRoundItem(db, addr, index)
+			continue
 		}
 		if item.StartBlock <= blockNumber && item.EndBlock >= blockNumber {
 			break
@@ -394,9 +410,14 @@ func IsNotElectionBlockOnCurrentRound(db sdk.StateDBReader, addr common.Address,
 }
 
 func IsBeginOfRound(db sdk.StateDBReader, addr common.Address, blockNumber, size uint64) bool {
-
+	// #### NOTE ####
+	// Starting from the next round of data collection,
+	// it is mainly for many scenarios to go back and obtain
+	// the next round of data in advance,
+	// and the next round of data will be generated in advance
 	currentRound := GetCurrentRound(db, addr)
-	queue := GetRoundQueueFromTail(db, addr, currentRound, size)
+	index := currentRound + 1
+	queue := GetRoundQueueFromTail(db, addr, index, size)
 	for _, item := range queue {
 		if item.StartBlock == blockNumber {
 			return true
@@ -423,6 +444,7 @@ func IsNotBeginOfCurrentRound(db sdk.StateDBReader, addr common.Address, blockNu
 }
 
 func IsBeginOfNextRound(db sdk.StateDBReader, addr common.Address, blockNumber uint64) bool {
+
 	currentRound := GetCurrentRound(db, addr)
 	currentRoundItem := GetRoundItem(db, addr, currentRound)
 	if currentRoundItem.EndBlock+1 == blockNumber {
@@ -436,9 +458,14 @@ func IsNotBeginOfNextRound(db sdk.StateDBReader, addr common.Address, blockNumbe
 }
 
 func IsEndOfRound(db sdk.StateDBReader, addr common.Address, blockNumber, size uint64) bool {
-
+	// #### NOTE ####
+	// Starting from the next round of data collection,
+	// it is mainly for many scenarios to go back and obtain
+	// the next round of data in advance,
+	// and the next round of data will be generated in advance
 	currentRound := GetCurrentRound(db, addr)
-	queue := GetRoundQueueFromTail(db, addr, currentRound, size)
+	index := currentRound + 1
+	queue := GetRoundQueueFromTail(db, addr, index, size)
 	for _, item := range queue {
 		if item.EndBlock == blockNumber {
 			return true
@@ -489,8 +516,14 @@ func IsNotElectionBlockOnCurrentEpoch(db sdk.StateDBReader, addr common.Address,
 
 func IsBeginOfEpoch(db sdk.StateDBReader, addr common.Address, blockNumber, size uint64) bool {
 
+	// #### NOTE ####
+	// Starting from the next epoch of data collection,
+	// it is mainly for many scenarios to go back and obtain
+	// the next epoch of data in advance,
+	// and the next epoch of data will be generated in advance
 	currentEpoch := GetCurrentEpoch(db, addr)
-	queue := GetEpochQueueFromTail(db, addr, currentEpoch, size)
+	index := currentEpoch + 1
+	queue := GetEpochQueueFromTail(db, addr, index, size)
 	for _, item := range queue {
 		if item.StartBlock == blockNumber {
 			return true
@@ -530,8 +563,14 @@ func IsNotBeginOfNextEpoch(db sdk.StateDBReader, addr common.Address, blockNumbe
 }
 
 func IsEndOfEpoch(db sdk.StateDBReader, addr common.Address, blockNumber, size uint64) bool {
+	// #### NOTE ####
+	// Starting from the next epoch of data collection,
+	// it is mainly for many scenarios to go back and obtain
+	// the next epoch of data in advance,
+	// and the next epoch of data will be generated in advance
 	currentEpoch := GetCurrentEpoch(db, addr)
-	queue := GetEpochQueueFromTail(db, addr, currentEpoch, size)
+	index := currentEpoch + 1
+	queue := GetEpochQueueFromTail(db, addr, index, size)
 	for _, item := range queue {
 		if item.EndBlock == blockNumber {
 			return true
