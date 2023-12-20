@@ -27,11 +27,22 @@ type SyncStatus struct {
 }
 
 type Peer struct {
+	sync.Mutex
 	*sdkp2p.DefaultPeer
 	syncStatus *SyncStatus
 }
 
+func (p *Peer) SetSyncStatus(status *SyncStatus) {
+	p.Lock()
+	defer p.Unlock()
+	p.syncStatus = status
+}
 func (p *Peer) SyncId() *big.Int {
+	p.Lock()
+	defer p.Unlock()
+	if p.syncStatus == nil {
+		return nil
+	}
 	return p.syncStatus.Id
 }
 
@@ -46,7 +57,7 @@ func NewSyncP2P() *SyncP2P {
 	protocol := sdkp2p.NewProtocol("l1sync", 1, 10)
 	protocol.RegistryMessageType([]sdkp2p.Message{&Heartbeat{}})
 	protocol.SetNewPeer(func(p *p2p.Peer, rw p2p.MsgReadWriter) sdkp2p.Peer {
-		return Peer{
+		return &Peer{
 			DefaultPeer: sdkp2p.NewDefaultPeer(p, rw),
 		}
 	})
@@ -83,7 +94,7 @@ func (s *SyncP2P) Run(ctx context.Context) {
 func (s *SyncP2P) handleMsg(peer sdkp2p.Peer, msg sdkp2p.Message) error {
 	switch m := msg.(type) {
 	case *Heartbeat:
-		peer.(*Peer).syncStatus = &m.SyncStatus
+		peer.(*Peer).SetSyncStatus(&m.SyncStatus)
 	default:
 		return errors.New("unknown message type")
 	}
@@ -100,7 +111,10 @@ func (s *SyncP2P) GetQuorumSyncId(validPeers map[string]struct{}) *big.Int {
 	var status []*big.Int
 	for _, peer := range s.p2p.Peers() {
 		if _, ok := validPeers[peer.Id()]; ok {
-			status = append(status, peer.(*Peer).SyncId())
+			syncId := peer.(*Peer).SyncId()
+			if syncId != nil {
+				status = append(status, syncId)
+			}
 		}
 	}
 	if len(status) == 0 || len(status) < (len(validPeers))/3+1 {
