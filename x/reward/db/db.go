@@ -119,7 +119,7 @@ func GetRewardPerEpoch(db sdk.StateDBReader, addr basecommon.Address) *big.Int {
 
 // ------
 
-func GetPaidRewardPerEpoch(db sdk.StateDB, addr basecommon.Address, epoch uint64) *big.Int {
+func GetPaidRewardPerEpoch(db sdk.StateDBReader, addr basecommon.Address, epoch uint64) *big.Int {
 	value := db.GetState(addr, encodePaidRewardPerEpochKey(epoch))
 	number := basecommon.Big0
 	if len(value) != 0 {
@@ -186,7 +186,7 @@ func GetPendingDelegatorReward(db sdk.StateDBReader, addr basecommon.Address, de
 	return number
 }
 
-//func GetDelegaterRewardPendingIndex(db sdk.StateDB, addr, delegaterAddr, validatorAddr basecommon.Address, stakeEpoch uint64) uint64 {
+//func GetDelegaterRewardPendingIndex(db sdk.StateDBReader, addr, delegaterAddr, validatorAddr basecommon.Address, stakeEpoch uint64) uint64 {
 //
 //	value := db.GetState(addr, encodeDelegaterRewardPendingIndexKey(delegaterAddr, validatorAddr, stakeEpoch))
 //
