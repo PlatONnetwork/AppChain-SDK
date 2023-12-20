@@ -222,6 +222,33 @@ func SetEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr ba
 	return nil
 }
 
+func RemoveEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr basecommon.Address, stakeEpoch, rewardEpoch uint64) error {
+	item := GetEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, rewardEpoch)
+	if nil == item {
+		return ErrNotFound
+	}
+
+	pre := GetEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, item.PreRewardEpoch)
+	next := GetEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, item.NextRewardEpoch)
+
+	// remove the last one   tail -> head -> lastone(remove) -> tail -> head
+	if pre.PreRewardEpoch == math.MaxUint64 && next.NextRewardEpoch == 0 {
+		removeEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, item.PreRewardEpoch)
+		removeEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, item.NextRewardEpoch)
+	} else {
+		pre.UpdateNextRewardEpoch(item.NextRewardEpoch)
+		next.UpdatePreRewardEpoch(item.PreRewardEpoch)
+		if err := SetEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, item.PreRewardEpoch, pre); nil != err {
+			return err
+		}
+		if err := SetEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, item.NextRewardEpoch, next); nil != err {
+			return err
+		}
+	}
+	removeEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, rewardEpoch)
+	return nil
+}
+
 func removeEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr basecommon.Address, stakeEpoch, rewardEpoch uint64) {
 	db.SetState(addr, encodeEpochDelegationRewardPerShareItemKey(validatorAddr, stakeEpoch, rewardEpoch), []byte{})
 }
@@ -333,6 +360,7 @@ func AppendEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr
 	return nil
 }
 
+// NOTE: unused
 func ReleaseEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr basecommon.Address, stakeEpoch, rewardEpoch uint64, decrement *big.Int) error {
 	item := GetEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, rewardEpoch)
 	if nil == item {
