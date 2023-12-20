@@ -303,10 +303,12 @@ func (m *Module) PrepareQC(ctx sdk.ConsensusContext, block *protocols.PrepareBlo
 
 func (m *Module) OnCommit(ctx sdk.ConsensusContext, block *coretypes.Block) error {
 	logger := m.logger.New("epoch", ctx.Epoch(), "view", ctx.View(), "index", ctx.BlockIndex(), "number", ctx.Header().Number, "hash", ctx.Header().Hash())
-	logger.Info("OnCommit")
-
 	blockNumber := block.NumberU64()
-	if m.staking.IsEndOfRound(ctx, blockNumber) {
+	isEndOfRound := m.staking.IsEndOfRound(ctx, blockNumber)
+
+	logger.Info("OnCommit", "isEndOfRound", isEndOfRound, "isProposer", ctx.IsProposer())
+
+	if isEndOfRound {
 		_, qc, err := ctypes.DecodeExtra(block.ExtraData())
 		if err != nil {
 			logger.Error("Failed to decode block extra data", "err", err)
