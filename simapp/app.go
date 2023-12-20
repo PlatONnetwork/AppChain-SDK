@@ -52,16 +52,15 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 
 	l1Module := l1.NewL1Module(store)
 
-	stateSync, err := statesync.NewStateSync(ctx, l1Module, store, extravote.NewExtraVoteDB(store))
-	if err != nil {
-		return nil, err
-	}
-
 	stateEvent := stateevent.NewModule(store)
 
 	stageModule := stage.NewStageModule(ctx)
 	vrfModule := vrf.NewVRFModule(ctx, stageModule)
 	stakeModule := staking.NewStakeModule(ctx, l1Module, stageModule)
+	stateSync, err := statesync.NewStateSync(ctx, l1Module, stakeModule, store, extravote.NewExtraVoteDB(store))
+	if err != nil {
+		return nil, err
+	}
 	rewardModule := reward.NewRewardModule(ctx, stageModule)
 	depositModule := deposit.NewDepositModule(ctx, l1Module)
 	l2StateSender := statesender.NewStateSenderModule(ctx)

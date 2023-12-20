@@ -111,6 +111,9 @@ func (l *L1SyncDB) FindStateSenderEvent(start *big.Int, end *big.Int) ([]*StateS
 		}
 		events = append(events, &event)
 	}
+	if end.Uint64()-start.Uint64()+1 != uint64(len(events)) {
+		return nil, fmt.Errorf("database loss of data, start:%d, end:%d, events:%d", start.Uint64(), end.Uint64(), len(events))
+	}
 	return events, nil
 }
 

@@ -103,7 +103,7 @@ func (s *SyncP2P) GetQuorumSyncId(validPeers map[string]struct{}) *big.Int {
 			status = append(status, peer.(*Peer).SyncId())
 		}
 	}
-	if len(status) == 0 {
+	if len(status) == 0 || len(status) < (len(validPeers))/3+1 {
 		return nil
 	}
 	slices.SortFunc(status, func(a, b *big.Int) int {

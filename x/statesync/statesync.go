@@ -19,7 +19,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 )
 
-func (s *StateSync) ExtendDataImpl(ctx sdk.Context, epoch, view uint64, index uint32, header *types.Header) []byte {
+func (s *StateSync) ExtendDataImpl(ctx sdk.ConsensusContext, epoch, view uint64, index uint32, header *types.Header) []byte {
 	receiver, err := s.newStateSyncCallContract(ctx, header)
 	if err != nil {
 		s.logger.Error("Failed to new state sync call contract", "err", err)
@@ -43,7 +43,11 @@ func (s *StateSync) ExtendDataImpl(ctx sdk.Context, epoch, view uint64, index ui
 		s.logger.Info("Had gen proof root", "start", start)
 		return nil
 	}
-	end := s.MaxSyncId()
+	end, err := s.MaxSyncId(ctx, header.Number.Uint64())
+	if err != nil {
+		s.logger.Warn("Get Sync id failed", "err", err)
+		return nil
+	}
 	if start.Cmp(end) > 0 {
 		s.logger.Info("Sync id had sync finish")
 		return nil
@@ -93,17 +97,27 @@ func (s *StateSync) PrepareQCImpl(block *protocols.PrepareBlock, votes map[uint3
 	s.eventProofDb.InsertRootBlock(root, block.Block.Hash())
 }
 
-func (s *StateSync) MaxSyncId() *big.Int {
-	//TODO 获取验证人列表
-	quorumId := s.p2p.GetQuorumSyncId(nil)
+func (s *StateSync) MaxSyncId(ctx sdk.ConsensusContext, blockNumber uint64) (*big.Int, error) {
+	vs, err := s.validator.GetRoundValidator(ctx, blockNumber)
+	if err != nil {
+		return nil, err
+	}
 	id, _ := s.l1Sync.SyncDB().GetMaxSyncId()
 	if id == nil {
 		id = big.NewInt(0)
 	}
-	if quorumId != nil && id.Cmp(quorumId) > 0 {
-		return quorumId
+	if vs.Len() > 1 {
+		peers := make(map[string]struct{})
+		for _, v := range vs.NodeList() {
+			peers[v.TerminalString()] = struct{}{}
+		}
+		quorumId := s.p2p.GetQuorumSyncId(peers)
+		if quorumId == nil {
+			return nil, errors.New("get quorum sync id failed")
+		}
+		return quorumId, nil
 	}
-	return id
+	return id, nil
 }
 
 func (s *StateSync) GenProof(epoch, view uint64, index uint32, start, end *big.Int) (common.Hash, error) {
@@ -113,7 +127,7 @@ func (s *StateSync) GenProof(epoch, view uint64, index uint32, start, end *big.I
 	events, err := s.l1Sync.SyncDB().FindStateSenderEvent(start, end)
 	if err != nil {
 		s.logger.Warn("Find state sender event failed", "start", start, "end", end)
-		return common.Hash{}, nil
+		return common.Hash{}, err
 	}
 	leafId := make(map[*big.Int]common.Hash)
 	var trieNodes [][]byte
@@ -127,9 +141,12 @@ func (s *StateSync) GenProof(epoch, view uint64, index uint32, start, end *big.I
 		leafId[event.Id] = hash
 	}
 	trie, err := merkle.NewMerkleTree(trieNodes)
+	if err != nil {
+		return common.Hash{}, err
+	}
 	if err := s.eventProofDb.InsertProof(epoch, view, index, start, end, leafId, trie); err != nil {
 		s.logger.Warn("Insert proof failed", "err", err)
-		return common.Hash{}, nil
+		return common.Hash{}, err
 	}
 	s.logger.Debug("Gen proof success", "start", start, "end", end)
 

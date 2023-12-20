@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	common2 "github.com/PlatONnetwork/AppChain-SDK/common"
+	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
 	"math/big"
 
 	"github.com/PlatONnetwork/AppChain-SDK/utils"
@@ -31,6 +33,10 @@ import (
 	"gopkg.in/urfave/cli.v1"
 )
 
+type ElectionValidator interface {
+	GetRoundValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error)
+}
+
 // 同步 L1 事件， 提供 ExtraData，验证 ExtraData
 type StateSync struct {
 	logger       log.Logger
@@ -46,10 +52,11 @@ type StateSync struct {
 	eventProofDb *EventProofDB
 	backend      sdk.Backend
 	p2p          *SyncP2P
+	validator    ElectionValidator
 	syncUpdateCh chan struct{}
 }
 
-func NewStateSync(ctx *cli.Context, l1Module *l1.L1Module, store store.Store, extraDb *extravote.ExtraVoteDB) (*StateSync, error) {
+func NewStateSync(ctx *cli.Context, l1Module *l1.L1Module, validator ElectionValidator, store store.Store, extraDb *extravote.ExtraVoteDB) (*StateSync, error) {
 	var start *big.Int
 	if ctx.GlobalIsSet(StartBlockFlag.Name) {
 		start = new(big.Int).SetUint64(ctx.GlobalUint64(StartBlockFlag.Name))
@@ -65,6 +72,7 @@ func NewStateSync(ctx *cli.Context, l1Module *l1.L1Module, store store.Store, ex
 		eventProofDb: eventProofDb,
 		extraDb:      extraDb,
 		l1Module:     l1Module,
+		validator:    validator,
 		p2p:          NewSyncP2P(),
 		syncUpdateCh: make(chan struct{}),
 	}, nil
@@ -162,7 +170,9 @@ func (s *StateSync) AddTxs(ctx sdk.WorkerContext, local map[common.Address]types
 	}
 	from := crypto.PubkeyToAddress(s.privateKey.PublicKey)
 
-	nonce, err := ctx.Backend().GetPoolNonce(from)
+	nonce := common2.EnableNonce(local[from], func() uint64 {
+		return ctx.StateDB().GetNonce(from)
+	})
 	if err != nil {
 		s.logger.Warn("Get pool nonce failed", "nonce", nonce, "err", err)
 		return local, nil
