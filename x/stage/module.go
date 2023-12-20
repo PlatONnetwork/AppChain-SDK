@@ -85,11 +85,17 @@ func (s *StageModule) BeginBlock(ctx sdk.WorkerContext) error {
 	}
 	// NOTE: change current round at new round startBlock
 	if db.IsBeginOfNextRound(ctx.StateDB(), s.Address(), currentBlock) {
+		oldRound := s.GetCurrentRound(ctx.StateDB())
 		db.InrementCurrentRound(ctx.StateDB(), s.Address())
+		newRound := s.GetCurrentRound(ctx.StateDB())
+		log.Debug("Succeed InrementCurrentRound", "oldRound", oldRound, "newRound", newRound, "currentBlock", currentBlock)
 	}
 	// NOTE: change current epoch at new epoch startBlock
 	if db.IsBeginOfNextEpoch(ctx.StateDB(), s.Address(), currentBlock) {
+		oldEpoch := s.GetCurrentEpoch(ctx.StateDB())
 		db.IncrementCurrentEpoch(ctx.StateDB(), s.Address())
+		newEpoch := s.GetCurrentEpoch(ctx.StateDB())
+		log.Debug("Succeed IncrementCurrentEpoch", "oldEpoch", oldEpoch, "newEpoch", newEpoch, "currentBlock", currentBlock)
 	}
 	return nil
 }
@@ -104,16 +110,18 @@ func (s *StageModule) EndBlock(ctx sdk.WorkerContext) error {
 	// store next epochItem (at current round endBlock)
 	if db.IsEndOfCurrentRound(ctx.StateDB(), s.Address(), currentBlock) {
 		if err := db.BuildNextRound(ctx.StateDB(), s.Address(), s.GetRoundSize(ctx.StateDB())); nil != err {
-			return fmt.Errorf("can not build next round, %s, currentRound: %d", err, s.GetCurrentRound(ctx.StateDB()))
+			return fmt.Errorf("can not build next round, %s, currentRound: %d, currentBlock: %d", err, s.GetCurrentRound(ctx.StateDB()), currentBlock)
 		}
+		log.Debug("Succeed BuildNextRound", "currentRound", s.GetCurrentRound(ctx.StateDB()), "currentBlock", currentBlock)
 	}
 
 	// election next epoch validators (at current epoch endBlock)
 	// and store next epochItem
 	if db.IsEndOfCurrentEpoch(ctx.StateDB(), s.Address(), currentBlock) {
 		if err := db.BuildNextEpoch(ctx.StateDB(), s.Address(), s.GetEpochSize(ctx.StateDB()), s.GetRoundSize(ctx.StateDB())); nil != err {
-			return fmt.Errorf("can not build next epoch, %s, currentEpoch: %d", err, s.GetCurrentEpoch(ctx.StateDB()))
+			return fmt.Errorf("can not build next epoch, %s, currentEpoch: %d, currentBlock: %d", err, s.GetCurrentEpoch(ctx.StateDB()), currentBlock)
 		}
+		log.Debug("Succeed BuildNextEpoch", "currentEpoch", s.GetCurrentEpoch(ctx.StateDB()), "currentBlock", currentBlock)
 	}
 	return nil
 }
