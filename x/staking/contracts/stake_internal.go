@@ -33,12 +33,12 @@ var (
 )
 
 var (
-	STAKE_PARAMS_TYPE             = abi.MustNewType("tuple(address validatorAddr, address ownerAddr, uint256 amount, uint256 commissionRate, bytes bksKey, bytes pubKey)")
-	ADDSTAKE_PARAMS_TYPE          = abi.MustNewType("tuple(address validatorAddr, uint256 amount)")
+	STAKE_PARAMS_TYPE             = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, address ownerAddr, uint256 amount, uint256 commissionRate, bytes bksKey, bytes pubKey)")
+	ADDSTAKE_PARAMS_TYPE          = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, uint256 amount)")
 	UNSTAKE_PARAMS_TYPE           = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, uint256 amount)")
 	ROOT_CHAIN_SLASH_PARAMS_TYPE  = abi.MustNewType("tuple(bytes32 sig, address[] validatorAddrs, uint256 slashingPercentage, uint256 slashIncentivePercentage)")
 	CHILD_CHAIN_SLASH_PARAMS_TYPE = abi.MustNewType("tuple(bytes32 sig, uint256 handleEventId, address[] validatorAddrs, uint256[] amounts)")
-	DELEGATE_PARAMS_TYPE          = abi.MustNewType("tuple(address validatorAddr, address delegterAddr, uint256 amount)")
+	DELEGATE_PARAMS_TYPE          = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, address delegterAddr, uint256 amount)")
 	UNDELEGATE_PARAMS_TYPE        = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, address delegterAddr, uint256 amount)")
 )
 
@@ -108,7 +108,9 @@ func (c *StakeHandler) onStake(input []byte) error {
 		return typesdk.NewRevertError("StakeHandler: INVALID_PUBKEY_SIZE")
 	}
 
-	pubKey, err := crypto.UnmarshalPubkey(pubKeyBytes)
+	// NOTE: Need to add 'uncompressed' ECDSA public key identifier bit "04"
+	UncompressedLabelPubKeyBytes := append([]byte{0x4}, pubKeyBytes...)
+	pubKey, err := crypto.UnmarshalPubkey(UncompressedLabelPubKeyBytes)
 	if nil != err {
 		log.Error("Failed to unmarshal publicKey", "error", err)
 		return typesdk.NewRevertError("StakeHandler: INVALID_PUBKEY")
@@ -117,11 +119,11 @@ func (c *StakeHandler) onStake(input []byte) error {
 	// check validatorAddr
 	if crypto.PubkeyToAddress(*pubKey) != common.Address(validatorAddr) {
 		log.Error("Failed to check publicKey and validator", "publicKey", hex.EncodeToString(crypto.FromECDSAPub(pubKey)),
-			"validatorAddr", common.Address(validatorAddr).Hex(), "error", err)
+			"validatorAddr", common.Address(validatorAddr).Hex())
 		return typesdk.NewRevertError("StakeHandler: INVALID_PUBKEY_AND_VALIDATOR")
 	}
 
-	return c.stake(common.Address(validatorAddr), common.Address(ownerAddr), amount, commissionRate.Uint64(), blsKeyBytes, enode.MustBytesToIDv0(crypto.FromECDSAPub(pubKey)))
+	return c.stake(common.Address(validatorAddr), common.Address(ownerAddr), amount, commissionRate.Uint64(), blsKeyBytes, enode.MustBytesToIDv0(pubKeyBytes))
 }
 
 func (c *StakeHandler) onAddStake(input []byte) error {

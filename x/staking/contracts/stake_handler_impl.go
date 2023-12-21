@@ -189,13 +189,13 @@ func (c *StakeHandler) OnStateReceive(id *big.Int, sender common.Address, data [
 		return typesdk.NewRevertError("StakeHandler: INVALID_SENDER")
 	}
 	if bytes.Compare(data[:METHODID_SIZE], STAKE_SIG.Bytes()) == 0 {
-		return c.onStake(data[METHODID_SIZE:])
+		return c.onStake(data)
 	} else if bytes.Compare(data[:METHODID_SIZE], ADDSTAKE_SIG.Bytes()) == 0 {
-		return c.onAddStake(data[METHODID_SIZE:])
+		return c.onAddStake(data)
 	} else if bytes.Compare(data[:METHODID_SIZE], SLASH_SIG.Bytes()) == 0 {
-		return c.onSlash(data) // don't be data[METHODID_SIZE:], it must be data
+		return c.onSlash(data)
 	} else if bytes.Compare(data[:METHODID_SIZE], DELEGATE_SIG.Bytes()) == 0 {
-		return c.onDelegate(data[METHODID_SIZE:])
+		return c.onDelegate(data)
 	} else {
 		return typesdk.NewRevertError("StakeHandler: INVALID_METHOD_SIGN")
 	}

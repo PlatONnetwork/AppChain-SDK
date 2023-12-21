@@ -69,7 +69,7 @@ func (c *DepositHandler) OnStateReceive(id *big.Int, sender common.Address, data
 		return typesdk.NewRevertError("DepositHandler: INVALID_SENDER")
 	}
 	if bytes.Compare(data[:METHODID_SIZE], DEPOSIT_SIG.Bytes()) == 0 {
-		return c.onDeposit(data[METHODID_SIZE:])
+		return c.onDeposit(data)
 	} else {
 		return typesdk.NewRevertError("DepositHandler: INVALID_METHOD_SIGN")
 	}

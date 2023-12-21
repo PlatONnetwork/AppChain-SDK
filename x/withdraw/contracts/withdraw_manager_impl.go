@@ -62,7 +62,7 @@ func (c *WithdrawManager) OnStateReceive(id *big.Int, sender common.Address, dat
 		return typesdk.NewRevertError("WithdrawManager: INVALID_SENDER")
 	}
 	if bytes.Compare(data[:METHODID_SIZE], WITHDRAW_SIG.Bytes()) == 0 {
-		return c.onWithdraw(data[METHODID_SIZE:])
+		return c.onWithdraw(data)
 	} else {
 		return typesdk.NewRevertError("WithdrawManager: INVALID_METHOD_SIGN")
 	}
