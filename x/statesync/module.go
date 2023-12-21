@@ -126,7 +126,7 @@ func (s *StateSync) listen(ctx context.Context) error {
 				s.logger.Warn("get last block number failed", "err", err)
 			}
 			s.p2p.SetSyncStatus(&SyncStatus{Id: id, BlockNumber: number})
-			s.logger.Debug("set sync statue", "id", id, "number", number)
+			s.logger.Debug("set sync status", "id", id, "number", number)
 		case <-ctx.Done():
 			break
 		}
