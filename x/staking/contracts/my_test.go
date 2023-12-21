@@ -6,8 +6,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/PlatONnetwork/AppChain-SDK/x/staking/config"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
+	"github.com/PlatONnetwork/PlatON-Go/p2p/enode"
+	"github.com/status-im/keycard-go/hexutils"
 	"github.com/umbracle/ethgo"
 	"math/big"
 	"testing"
@@ -37,7 +40,7 @@ func TestEncodeStakeData(t *testing.T) {
 //0x7f629647b0cf8231fa5380e25f7c9bf0685fecbdc41360b93da5b447cef9ee73000000000000000000000000fa66daa530328d0d914b6652e4b64b00d84e3a1a0000000000000000000000000000000000000000000000000000000000000063
 // 7f629647b0cf8231fa5380e25f7c9bf0685fecbdc41360b93da5b447cef9ee73000000000000000000000000fa66daa530328d0d914b6652e4b64b00d84e3a1a0000000000000000000000000000000000000000000000000000000000000063
 
-func TestDecodeStakeData(t *testing.T) {
+func TestDecodeAddStakeData(t *testing.T) {
 	ADDSTAKE_SIG := crypto.Keccak256Hash([]byte("ADDSTAKE"))
 	//addr := common.HexToAddress("0xFA66dAa530328D0d914B6652e4B64B00d84e3a1a")
 	//amount := 99
@@ -75,6 +78,88 @@ func TestDecodeStakeData(t *testing.T) {
 	addr1 := common.Address(addr)
 
 	fmt.Printf("%s \n", addr1.Hex())
+}
+
+func TestDecodeStake(t *testing.T) {
+
+	STAKE_SIG := crypto.Keccak256Hash([]byte("STAKE"))
+	STAKE_PARAMS_TYPE := abi.MustNewType("tuple(bytes32 sig, address validatorAddr, address ownerAddr, uint256 amount, uint256 commissionRate, bytes blsKey, bytes pubKey)")
+
+	input := common.Hex2Bytes("1bcc0f4c3fad314e585165815f94ecca9b96690a26d6417d7876448a9a867a690000000000000000000000002004d7ffc7c79f19d4275850e1015f2a4e2cb909000000000000000000000000ce7954b1ec63f7e100b33ad6fc350026953ec726000000000000000000000000000000000000000000000000000000003b9aca00000000000000000000000000000000000000000000000000000000000000005000000000000000000000000000000000000000000000000000000000000000e000000000000000000000000000000000000000000000000000000000000001400000000000000000000000000000000000000000000000000000000000000030aaaa15e874faacba16fd8d0d5fd28102d02014e21c891b9ad736724b3a892e52e4808cd0e5d79c25a328f7baaacfa1a3000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000040c176a1fc403390196ad34a7c359584351b96c26bfd2aa6141d73201583478e6886c30f61e44264bf65aae3739c07d5c13deee0315f11b7baa5b1c4745e0839a8")
+
+	assert.True(t, bytes.Compare(STAKE_SIG.Bytes(), input[:32]) == 0, "no equals sign")
+
+	decoded, err := abi.Decode(STAKE_PARAMS_TYPE, input)
+	if nil != err {
+		t.Error(err)
+	}
+
+	res, ok := decoded.(map[string]interface{})
+	if !ok {
+		t.Error("StakeHandler: INVALID_STAKE_DATA")
+	}
+
+	validatorAddr, ok := res["validatorAddr"].(ethgo.Address)
+	if !ok {
+		t.Error("StakeHandler: INVALID_VALIDATOR")
+	}
+
+	ownerAddr, ok := res["ownerAddr"].(ethgo.Address)
+	if !ok {
+		t.Error("StakeHandler: INVALID_OWNER")
+	}
+
+	amount, ok := res["amount"].(*big.Int)
+	if !ok {
+		t.Error("StakeHandler: INVALID_AMOUNT")
+	}
+
+	commissionRate, ok := res["commissionRate"].(*big.Int)
+	if !ok {
+		t.Error("StakeHandler: INVALID_COMMISSION_RATE")
+	}
+
+	blsKeyBytes, ok := res["blsKey"].([]byte)
+	if !ok {
+		t.Error("StakeHandler: INVALID_BLSKEY")
+	}
+
+	if len(blsKeyBytes) != config.BLS_PUBKEY_SIZE {
+		t.Error("StakeHandler: INVALID_BLSKEY_SIZE")
+	}
+
+	pubKeyBytes, ok := res["pubKey"].([]byte)
+	if !ok {
+		t.Error("StakeHandler: INVALID_PUBKEY")
+	}
+
+	t.Log("PubKey Hex", hexutils.BytesToHex(pubKeyBytes))
+	if len(pubKeyBytes) != config.ECDSA_PUBKEY_SIZE {
+		t.Error("StakeHandler: INVALID_PUBKEY_SIZE")
+	}
+	//var pubKey ecdsa.PublicKey
+	UncompressedLabelPubKeyBytes := append([]byte{0x4}, pubKeyBytes...)
+	pubKey, err := crypto.UnmarshalPubkey(UncompressedLabelPubKeyBytes)
+	if nil != err {
+		t.Error(err)
+	}
+
+	t.Log("pubkey 2", hex.EncodeToString(crypto.FromECDSAPub(pubKey)))
+
+	// check validatorAddr
+	if crypto.PubkeyToAddress(*pubKey) != common.Address(validatorAddr) {
+
+		t.Error("StakeHandler: INVALID_PUBKEY_AND_VALIDATOR")
+	}
+
+	nodeId := enode.MustBytesToIDv0(pubKeyBytes)
+	t.Log("Decode data", "validatorAddr", common.Address(validatorAddr).Hex(), "ownerAddr", common.Address(ownerAddr).Hex(), "amount", amount.Uint64(), "commissionRate", commissionRate.Uint64())
+
+	nodePubKey, err := nodeId.Pubkey()
+	if nil != err {
+		t.Error(err)
+	}
+	t.Log("Decode data", "blsKey", hexutils.BytesToHex(blsKeyBytes), "pubKey", hexutils.BytesToHex(crypto.FromECDSAPub(pubKey)), "nodeId", nodeId.String(), "nodePubKey", hex.EncodeToString(crypto.FromECDSAPub(nodePubKey)))
 }
 
 func TestEncodeMethod(t *testing.T) {

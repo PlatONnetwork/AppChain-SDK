@@ -24,7 +24,7 @@ var (
 )
 
 var (
-	DEPOSIT_PARAMS_TYPE  = abi.MustNewType("tuple(address depositor, address recipient, uint256 amount)")
+	DEPOSIT_PARAMS_TYPE  = abi.MustNewType("tuple(bytes32 sig, address depositor, address recipient, uint256 amount)")
 	WITHDRAW_PARAMS_TYPE = abi.MustNewType("tuple(bytes32 sig, address withdrawer, address recipient, uint256 amount)")
 )
 

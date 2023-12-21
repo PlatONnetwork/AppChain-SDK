@@ -24,7 +24,7 @@ var (
 
 var (
 	DEPOSIT_PARAMS_TYPE  = abi.MustNewType("tuple(bytes32 sig, address depositor, address recipient, uint256 amount)")
-	WITHDRAW_PARAMS_TYPE = abi.MustNewType("tuple(address withdrawer, address recipient, uint256 amount)")
+	WITHDRAW_PARAMS_TYPE = abi.MustNewType("tuple(bytes32 sig, address withdrawer, address recipient, uint256 amount)")
 )
 
 func (c *WithdrawManager) onWithdraw(input []byte) error {
