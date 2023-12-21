@@ -42,9 +42,9 @@ var (
 	validatorKeyPrefix         = []byte("validator")             // "validator":validatorAddr => validator
 	validatorOwnerKeyPrefix    = []byte("validatorOwner")        // "validatorOwner":validatorAddr => ownerAddr
 
-	delegationKeyPrefix                  = []byte("delegation")                  // "delegater":delegaterAddr:validatorAddr:stakeEpoch => delegation
+	delegationKeyPrefix                  = []byte("delegation")                  // "delegator":delegatorAddr:validatorAddr:stakeEpoch => delegation
 	stakeWithdrawalQueueItemKeyPrefix    = []byte("stakeWithdrawalQueueItem")    // "stakeWithdrawalQueueItem":validatorAddr:(unlock)epoch => {preEpoch, nextEpoch, amount}
-	delegateWithdrawalQueueItemKeyPrefix = []byte("delegateWithdrawalQueueItem") // "delegateWithdrawalQueueItem":delegaterAddr:validatorAddr:(unlock)epoch => {preEpoch, nextEpoch, amount}
+	delegateWithdrawalQueueItemKeyPrefix = []byte("delegateWithdrawalQueueItem") // "delegateWithdrawalQueueItem":delegatorAddr:validatorAddr:(unlock)epoch => {preEpoch, nextEpoch, amount}
 	validatorDelegationRcKeyPrefix       = []byte("validatorDelegationRc")       // "validatorDelegationRc":validatorAddr:stakeEpoch => unStakeDelegationRcItem{preStakeEpoch, nextStakeEpoch, delegation count}
 	slashProcessedKeyPrefix              = []byte("slashProcessed")              // "slashProcessed":handleEventId => []SlashValidatorWithdrawItem{validatorAddr, amount}
 
@@ -120,21 +120,21 @@ func encodeValidatorOwnerKey(validatorAddr common.Address) []byte {
 	return append(validatorOwnerKeyPrefix, validatorAddr.Bytes()...)
 }
 
-func encodeDelegaterKey(delegaterAddr, validatorAddr common.Address, stakeEpoch uint64) []byte {
-	delegaterAddrBytes := delegaterAddr.Bytes()
+func encodeDelegatorKey(delegatorAddr, validatorAddr common.Address, stakeEpoch uint64) []byte {
+	delegatorAddrBytes := delegatorAddr.Bytes()
 	validatorAddrBytes := validatorAddr.Bytes()
 	stakeEpochBytes := common.Uint64ToBytes(stakeEpoch)
 
 	keyPrefixSize := len(delegationKeyPrefix)
-	appendDelegaterSize := keyPrefixSize + len(delegaterAddrBytes)
-	appendVlidatorAddrSize := appendDelegaterSize + len(validatorAddrBytes)
+	appendDelegatorSize := keyPrefixSize + len(delegatorAddrBytes)
+	appendVlidatorAddrSize := appendDelegatorSize + len(validatorAddrBytes)
 	size := appendVlidatorAddrSize + len(stakeEpochBytes)
 
 	key := make([]byte, size)
 
 	copy(key[:keyPrefixSize], delegationKeyPrefix)
-	copy(key[keyPrefixSize:appendDelegaterSize], delegaterAddrBytes)
-	copy(key[appendDelegaterSize:appendVlidatorAddrSize], validatorAddrBytes)
+	copy(key[keyPrefixSize:appendDelegatorSize], delegatorAddrBytes)
+	copy(key[appendDelegatorSize:appendVlidatorAddrSize], validatorAddrBytes)
 	copy(key[appendVlidatorAddrSize:], stakeEpochBytes)
 
 	return key
@@ -158,22 +158,22 @@ func encodeStakeWithdrawalQueueItemKey(validatorAddr common.Address, unlockEpoch
 	return key
 }
 
-func encodeDelegateWithdrawalQueueItemKey(delegaterAddr, validatorAddr common.Address, unlockEpoch uint64) []byte {
+func encodeDelegateWithdrawalQueueItemKey(delegatorAddr, validatorAddr common.Address, unlockEpoch uint64) []byte {
 
-	delegaterAddrBytes := delegaterAddr.Bytes()
+	delegatorAddrBytes := delegatorAddr.Bytes()
 	validatorAddrBytes := validatorAddr.Bytes()
 	unlockEpochBytes := common.Uint64ToBytes(unlockEpoch)
 
 	keyPrefixSize := len(delegateWithdrawalQueueItemKeyPrefix)
-	appendDelegaterSize := keyPrefixSize + len(delegaterAddrBytes)
-	appendValidatorAddrSize := appendDelegaterSize + len(validatorAddrBytes)
+	appendDelegatorSize := keyPrefixSize + len(delegatorAddrBytes)
+	appendValidatorAddrSize := appendDelegatorSize + len(validatorAddrBytes)
 	size := appendValidatorAddrSize + len(unlockEpochBytes)
 
 	key := make([]byte, size)
 
 	copy(key[:keyPrefixSize], delegateWithdrawalQueueItemKeyPrefix)
-	copy(key[keyPrefixSize:appendDelegaterSize], delegaterAddrBytes)
-	copy(key[appendDelegaterSize:appendValidatorAddrSize], validatorAddrBytes)
+	copy(key[keyPrefixSize:appendDelegatorSize], delegatorAddrBytes)
+	copy(key[appendDelegatorSize:appendValidatorAddrSize], validatorAddrBytes)
 	copy(key[appendValidatorAddrSize:], unlockEpochBytes)
 
 	return key
@@ -564,21 +564,21 @@ func GetValidatorNonce(db sdk.StateDBReader, addr common.Address) uint64 {
 	return common.BytesToUint64(value)
 }
 
-func SetDelegation(db sdk.StateDB, addr, delegaterAddr, validatorAddr common.Address, stakeEpoch uint64, delegation *types.Delegation) error {
+func SetDelegation(db sdk.StateDB, addr, delegatorAddr, validatorAddr common.Address, stakeEpoch uint64, delegation *types.Delegation) error {
 	value, err := rlp.EncodeToBytes(delegation)
 	if nil != err {
 		return ErrRlpEncode
 	}
-	db.SetState(addr, encodeDelegaterKey(delegaterAddr, validatorAddr, stakeEpoch), value)
+	db.SetState(addr, encodeDelegatorKey(delegatorAddr, validatorAddr, stakeEpoch), value)
 	return nil
 }
 
-func RemoveDelegation(db sdk.StateDB, addr, delegaterAddr, validatorAddr common.Address, stakeEpoch uint64) {
-	db.SetState(addr, encodeDelegaterKey(delegaterAddr, validatorAddr, stakeEpoch), []byte{})
+func RemoveDelegation(db sdk.StateDB, addr, delegatorAddr, validatorAddr common.Address, stakeEpoch uint64) {
+	db.SetState(addr, encodeDelegatorKey(delegatorAddr, validatorAddr, stakeEpoch), []byte{})
 }
 
-func GetDelegation(db sdk.StateDBReader, addr, delegaterAddr, validatorAddr common.Address, stakeEpoch uint64) *types.Delegation {
-	value := db.GetState(addr, encodeDelegaterKey(delegaterAddr, validatorAddr, stakeEpoch))
+func GetDelegation(db sdk.StateDBReader, addr, delegatorAddr, validatorAddr common.Address, stakeEpoch uint64) *types.Delegation {
+	value := db.GetState(addr, encodeDelegatorKey(delegatorAddr, validatorAddr, stakeEpoch))
 	if len(value) == 0 {
 		return nil
 	}
@@ -872,10 +872,10 @@ func GetStakeWithdrawalQueueItem(db sdk.StateDBReader, addr, validatorAddr commo
 
 // -------------
 
-func AppendDelegateWithdrawal(db sdk.StateDB, addr common.Address, delegaterAddr, validatorAddr common.Address, epoch uint64, amount *big.Int) error {
+func AppendDelegateWithdrawal(db sdk.StateDB, addr common.Address, delegatorAddr, validatorAddr common.Address, epoch uint64, amount *big.Int) error {
 
 	indexEpoch := uint64(math.MaxUint64)
-	indexItem := getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch)
+	indexItem := getDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, indexEpoch)
 
 	// first insert
 	if indexItem.IsEmpty() {
@@ -887,13 +887,13 @@ func AppendDelegateWithdrawal(db sdk.StateDB, addr common.Address, delegaterAddr
 		epochItem := types.NewDelegateWithdrawalItem(preEpoch, indexEpoch, amount) // item
 		indexItem = types.NewDelegateWithdrawalItem(epoch, preEpoch, common.Big0)  // tail
 
-		if err := setDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, preEpoch, preItem); nil != err {
+		if err := setDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, preEpoch, preItem); nil != err {
 			return err
 		}
-		if err := setDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, epoch, epochItem); nil != err {
+		if err := setDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, epoch, epochItem); nil != err {
 			return err
 		}
-		if err := setDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch, indexItem); nil != err {
+		if err := setDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, indexEpoch, indexItem); nil != err {
 			return err
 		}
 
@@ -907,7 +907,7 @@ func AppendDelegateWithdrawal(db sdk.StateDB, addr common.Address, delegaterAddr
 			// index == epoch
 
 			indexItem.IncrementAmount(amount)
-			if err := setDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch, indexItem); nil != err {
+			if err := setDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, indexEpoch, indexItem); nil != err {
 				return err
 			}
 			break
@@ -915,19 +915,19 @@ func AppendDelegateWithdrawal(db sdk.StateDB, addr common.Address, delegaterAddr
 			// pre -> index -> epoch -> next... -> tail(max)
 			// pre < index < epoch < next ... < tail(max)
 
-			next := getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexItem.NextEpoch)
+			next := getDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, indexItem.NextEpoch)
 			epochItem := types.NewDelegateWithdrawalItem(indexEpoch, indexItem.NextEpoch, amount)
 
 			indexItem.UpdateNextEpoch(epoch)
 			next.UpdatePreEpoch(epoch)
 
-			if err := setDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch, indexItem); nil != err {
+			if err := setDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, indexEpoch, indexItem); nil != err {
 				return err
 			}
-			if err := setDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, epoch, epochItem); nil != err {
+			if err := setDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, epoch, epochItem); nil != err {
 				return err
 			}
-			if err := setDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, epochItem.NextEpoch, next); nil != err {
+			if err := setDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, epochItem.NextEpoch, next); nil != err {
 				return err
 			}
 
@@ -942,19 +942,19 @@ func AppendDelegateWithdrawal(db sdk.StateDB, addr common.Address, delegaterAddr
 				// then: head(min) -> epoch -> index<last one> -> ... -> tail(max)
 				// head < epoch < index < ... < tail
 
-				pre := getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexItem.PreEpoch) // head
+				pre := getDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, indexItem.PreEpoch) // head
 				epochItem := types.NewDelegateWithdrawalItem(indexItem.PreEpoch, epoch, amount)
 
 				pre.UpdateNextEpoch(epoch)
 				indexItem.UpdatePreEpoch(epoch)
 
-				if err := setDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, epochItem.PreEpoch, pre); nil != err {
+				if err := setDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, epochItem.PreEpoch, pre); nil != err {
 					return err
 				}
-				if err := setDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, epoch, epochItem); nil != err {
+				if err := setDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, epoch, epochItem); nil != err {
 					return err
 				}
-				if err := setDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch, indexItem); nil != err {
+				if err := setDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, indexEpoch, indexItem); nil != err {
 					return err
 				}
 
@@ -973,27 +973,27 @@ func AppendDelegateWithdrawal(db sdk.StateDB, addr common.Address, delegaterAddr
 		}
 
 		indexEpoch = indexItem.PreEpoch
-		indexItem = getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch)
+		indexItem = getDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, indexEpoch)
 	}
 	return nil
 }
 
-func GetDelegateWithdrawal(db sdk.StateDBReader, addr common.Address, delegaterAddr, validatorAddr common.Address) *big.Int {
+func GetDelegateWithdrawal(db sdk.StateDBReader, addr common.Address, delegatorAddr, validatorAddr common.Address) *big.Int {
 	amount := common.Big0
 
 	indexEpoch := uint64(0)
-	indexItem := getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch)
+	indexItem := getDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, indexEpoch)
 
 	for indexItem.NextEpoch != uint64(0) { // not as tail
 		amount = new(big.Int).Add(amount, indexItem.Amount)
 		indexEpoch = indexItem.NextEpoch
-		indexItem = getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch)
+		indexItem = getDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, indexEpoch)
 	}
 	return amount
 }
 
-func GetDelegateWithdrawalByEpoch(db sdk.StateDBReader, addr common.Address, delegaterAddr, validatorAddr common.Address, epoch uint64) *big.Int {
-	item := getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, epoch)
+func GetDelegateWithdrawalByEpoch(db sdk.StateDBReader, addr common.Address, delegatorAddr, validatorAddr common.Address, epoch uint64) *big.Int {
+	item := getDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, epoch)
 	if nil != item {
 		return item.Amount
 	}
@@ -1001,11 +1001,11 @@ func GetDelegateWithdrawalByEpoch(db sdk.StateDBReader, addr common.Address, del
 }
 
 // Total of all rewards until epoch
-func GetDelegateWithdrawable(db sdk.StateDBReader, addr common.Address, delegaterAddr, validatorAddr common.Address, epoch uint64) *big.Int {
+func GetDelegateWithdrawable(db sdk.StateDBReader, addr common.Address, delegatorAddr, validatorAddr common.Address, epoch uint64) *big.Int {
 	amount := common.Big0
 
 	indexEpoch := uint64(0)
-	indexItem := getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch)
+	indexItem := getDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, indexEpoch)
 
 	// empty queue
 	if indexItem.IsEmpty() {
@@ -1019,17 +1019,17 @@ func GetDelegateWithdrawable(db sdk.StateDBReader, addr common.Address, delegate
 		}
 		amount = new(big.Int).Add(amount, indexItem.Amount)
 		indexEpoch = indexItem.NextEpoch
-		indexItem = getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch)
+		indexItem = getDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, indexEpoch)
 	}
 	return amount
 }
 
-func ApplyDelegateWithdrawable(db sdk.StateDB, addr common.Address, delegaterAddr, validatorAddr common.Address, epoch uint64) (*big.Int, error) {
+func ApplyDelegateWithdrawable(db sdk.StateDB, addr common.Address, delegatorAddr, validatorAddr common.Address, epoch uint64) (*big.Int, error) {
 
 	amount := common.Big0
 
 	indexEpoch := uint64(0)
-	indexItem := getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch)
+	indexItem := getDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, indexEpoch)
 
 	// empty queue
 	if indexItem.IsEmpty() {
@@ -1044,21 +1044,21 @@ func ApplyDelegateWithdrawable(db sdk.StateDB, addr common.Address, delegaterAdd
 
 		// remove item
 		if indexEpoch != uint64(0) {
-			removeDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch)
+			removeDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, indexEpoch)
 		}
 
 		indexEpoch = indexItem.NextEpoch
-		indexItem = getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch)
+		indexItem = getDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, indexEpoch)
 	}
 
 	// remove head and tail
 	if indexItem.NextEpoch == uint64(0) {
-		removeDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, 0)
-		removeDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, math.MaxUint64)
+		removeDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, 0)
+		removeDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, math.MaxUint64)
 	} else { // update start index
-		head := getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, uint64(0))
+		head := getDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, uint64(0))
 		head.UpdateNextEpoch(indexEpoch)
-		if err := setDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, uint64(0), head); nil != err {
+		if err := setDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, uint64(0), head); nil != err {
 			return common.Big0, err
 		}
 	}
@@ -1067,11 +1067,11 @@ func ApplyDelegateWithdrawable(db sdk.StateDB, addr common.Address, delegaterAdd
 }
 
 // Total of all rewards since epoch
-func GetDelegateWithdrawalPending(db sdk.StateDBReader, addr common.Address, delegaterAddr, validatorAddr common.Address, epoch uint64) *big.Int {
+func GetDelegateWithdrawalPending(db sdk.StateDBReader, addr common.Address, delegatorAddr, validatorAddr common.Address, epoch uint64) *big.Int {
 	amount := common.Big0
 
 	indexEpoch := uint64(math.MaxUint64)
-	indexItem := getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch)
+	indexItem := getDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, indexEpoch)
 
 	// empty queue
 	if indexItem.IsEmpty() {
@@ -1086,26 +1086,26 @@ func GetDelegateWithdrawalPending(db sdk.StateDBReader, addr common.Address, del
 		amount = new(big.Int).Add(amount, indexItem.Amount)
 
 		indexEpoch = indexItem.PreEpoch
-		indexItem = getDelegateWithdrawalQueueItem(db, addr, delegaterAddr, validatorAddr, indexEpoch)
+		indexItem = getDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, indexEpoch)
 	}
 	return amount
 }
 
-func setDelegateWithdrawalQueueItem(db sdk.StateDB, addr common.Address, delegaterAddr, validatorAddr common.Address, epoch uint64, item *types.DelegateWithdrawalItem) error {
+func setDelegateWithdrawalQueueItem(db sdk.StateDB, addr common.Address, delegatorAddr, validatorAddr common.Address, epoch uint64, item *types.DelegateWithdrawalItem) error {
 	value, err := rlp.EncodeToBytes(item)
 	if nil != err {
 		return ErrRlpEncode
 	}
-	db.SetState(addr, encodeDelegateWithdrawalQueueItemKey(delegaterAddr, validatorAddr, epoch), value)
+	db.SetState(addr, encodeDelegateWithdrawalQueueItemKey(delegatorAddr, validatorAddr, epoch), value)
 	return nil
 }
 
-func removeDelegateWithdrawalQueueItem(db sdk.StateDB, addr common.Address, delegaterAddr, validatorAddr common.Address, epoch uint64) {
-	db.SetState(addr, encodeDelegateWithdrawalQueueItemKey(delegaterAddr, validatorAddr, epoch), []byte{})
+func removeDelegateWithdrawalQueueItem(db sdk.StateDB, addr common.Address, delegatorAddr, validatorAddr common.Address, epoch uint64) {
+	db.SetState(addr, encodeDelegateWithdrawalQueueItemKey(delegatorAddr, validatorAddr, epoch), []byte{})
 }
 
-func getDelegateWithdrawalQueueItem(db sdk.StateDBReader, addr common.Address, delegaterAddr, validatorAddr common.Address, epoch uint64) *types.DelegateWithdrawalItem {
-	value := db.GetState(addr, encodeDelegateWithdrawalQueueItemKey(delegaterAddr, validatorAddr, epoch))
+func getDelegateWithdrawalQueueItem(db sdk.StateDBReader, addr common.Address, delegatorAddr, validatorAddr common.Address, epoch uint64) *types.DelegateWithdrawalItem {
+	value := db.GetState(addr, encodeDelegateWithdrawalQueueItemKey(delegatorAddr, validatorAddr, epoch))
 
 	if len(value) == 0 {
 		return nil

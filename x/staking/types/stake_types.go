@@ -702,7 +702,7 @@ type ValidatorDelegationRcItem struct {
 	PreStakeEpoch  uint64
 	NextStakeEpoch uint64
 	// This means how many delegates in the current `stakeEpoch` have not been fully withdrawn
-	// eg. delegaterA:validatorA:stakeEpoch(100)、 ...、 delegaterN:validatorA:stakeEpoch(100)
+	// eg. delegatorA:validatorA:stakeEpoch(100)、 ...、 delegatorN:validatorA:stakeEpoch(100)
 	Rc uint64
 }
 

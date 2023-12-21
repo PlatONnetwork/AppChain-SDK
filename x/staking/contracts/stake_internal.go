@@ -38,8 +38,8 @@ var (
 	UNSTAKE_PARAMS_TYPE           = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, uint256 amount)")
 	ROOT_CHAIN_SLASH_PARAMS_TYPE  = abi.MustNewType("tuple(bytes32 sig, address[] validatorAddrs, uint256 slashingPercentage, uint256 slashIncentivePercentage)")
 	CHILD_CHAIN_SLASH_PARAMS_TYPE = abi.MustNewType("tuple(bytes32 sig, uint256 handleEventId, address[] validatorAddrs, uint256[] amounts)")
-	DELEGATE_PARAMS_TYPE          = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, address delegtorAddr, uint256 amount)")
-	UNDELEGATE_PARAMS_TYPE        = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, address delegtorAddr, uint256 amount)")
+	DELEGATE_PARAMS_TYPE          = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, address delegatorAddr, uint256 amount)")
+	UNDELEGATE_PARAMS_TYPE        = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, address delegatorAddr, uint256 amount)")
 )
 
 // internal
@@ -199,9 +199,9 @@ func (c *StakeHandler) onDelegate(input []byte) error {
 		return typesdk.NewRevertError("StakeHandler: INVALID_VALIDATOR")
 	}
 
-	delegtorAddr, ok := res["delegtorAddr"].(ethgo.Address)
+	delegatorAddr, ok := res["delegatorAddr"].(ethgo.Address)
 	if !ok {
-		return typesdk.NewRevertError("StakeHandler: INVALID_DELEGTORADDR")
+		return typesdk.NewRevertError("StakeHandler: INVALID_DELEGATORADDR")
 	}
 
 	amount, ok := res["amount"].(*big.Int)
@@ -209,7 +209,7 @@ func (c *StakeHandler) onDelegate(input []byte) error {
 		return typesdk.NewRevertError("StakeHandler: INVALID_AMOUNT")
 	}
 
-	return c.delegate(common.Address(validatorAddr), common.Address(delegtorAddr), amount)
+	return c.delegate(common.Address(validatorAddr), common.Address(delegatorAddr), amount)
 }
 
 func (c *StakeHandler) stake(validatorAddr, owner common.Address, amount *big.Int, commissionRate uint64, blsKey []byte, pubKey enode.IDv0) error {
@@ -375,25 +375,25 @@ func (c *StakeHandler) slash(handleEventId *big.Int, validatorAddrs []common.Add
 	return nil
 }
 
-func (c *StakeHandler) delegate(validatorAddr, delegaterAddr common.Address, amount *big.Int) error {
+func (c *StakeHandler) delegate(validatorAddr, delegatorAddr common.Address, amount *big.Int) error {
 
 	validator := c.getValidator(validatorAddr)
 
 	var err error
 	if validator.IsInvalid() {
-		if err = c.registerDelegateWithdrawal(delegaterAddr, validatorAddr, amount, false); nil != err {
+		if err = c.registerDelegateWithdrawal(delegatorAddr, validatorAddr, amount, false); nil != err {
 			return err
 		}
 	} else {
 
 		currentEpoch := c.getCurrentEpoch()
-		delegation := c.getDelegation(delegaterAddr, validatorAddr, validator.Epoch)
+		delegation := c.getDelegation(delegatorAddr, validatorAddr, validator.Epoch)
 
 		if delegation.IsNotEmpty() {
 			// NOTE:
 			// Priority must be given to settling commission rewards before proceeding with the `withdraw` operation.
-			if err := c.rewardModule.UpdateDelegationRewardsByStakeEpoch(c.evm.StateDB, delegaterAddr, validatorAddr, validator.Epoch); nil != err {
-				log.Error("Failed to update delegation rewards by stakeEpoch", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
+			if err := c.rewardModule.UpdateDelegationRewardsByStakeEpoch(c.evm.StateDB, delegatorAddr, validatorAddr, validator.Epoch); nil != err {
+				log.Error("Failed to update delegation rewards by stakeEpoch", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
 					"stakeEpoch", validator.Epoch, "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber, "error", err)
 				return typesdk.NewRevertError("StakeHandler: UPDATE DELEGATION REWARDS BY STAKE EPOCH FAILED")
 			}
@@ -404,16 +404,16 @@ func (c *StakeHandler) delegate(validatorAddr, delegaterAddr common.Address, amo
 		} else {
 			delegation = types.NewDelegation(currentEpoch, amount)
 
-			// increment validator-delegater-rc
+			// increment validator-delegator-rc
 			if err = c.appendValidatorDelegationRc(validatorAddr, validator.Epoch, 1); nil != err {
-				log.Error("Failed to append validatorDelegation rc", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
+				log.Error("Failed to append validatorDelegation rc", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
 					"stakeEpoch", validator.Epoch, "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber, "error", err)
 				return typesdk.NewRevertError("StakeHandler: APPEND VALIDATOR DELEGATION RC FAILED")
 			}
 		}
 
-		if err := c.setDelegation(delegaterAddr, validatorAddr, validator.Epoch, delegation); nil != err {
-			log.Error("Failed to set delegation", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
+		if err := c.setDelegation(delegatorAddr, validatorAddr, validator.Epoch, delegation); nil != err {
+			log.Error("Failed to set delegation", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
 				"stakeEpoch", validator.Epoch, "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber, "error", err)
 			return typesdk.NewRevertError("StakeHandler: SET DELEGATION FAILED")
 		}
@@ -425,11 +425,11 @@ func (c *StakeHandler) delegate(validatorAddr, delegaterAddr common.Address, amo
 			return typesdk.NewRevertError("StakeHandler: ADD DELEGATE AMOUNT OF VALIDATOR FAILED")
 		}
 
-		if err := c.addLogDelegationAddedEvent(delegaterAddr, validatorAddr, amount); nil != err {
+		if err := c.addLogDelegationAddedEvent(delegatorAddr, validatorAddr, amount); nil != err {
 			return err
 		}
 
-		log.Info("Delegate for", "delegaterAddr", delegaterAddr.Hex(), "validator", validatorAddr.Hex(), "amount", amount, "epoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
+		log.Info("Delegate for", "delegatorAddr", delegatorAddr.Hex(), "validator", validatorAddr.Hex(), "amount", amount, "epoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
 	}
 	return nil
 }
@@ -483,7 +483,7 @@ func (c *StakeHandler) registerStakeWithdrawal(validatorAddr common.Address, amo
 	return nil
 }
 
-func (c *StakeHandler) registerDelegateWithdrawal(delegater, validatorAddr common.Address, amount *big.Int, wait bool) error {
+func (c *StakeHandler) registerDelegateWithdrawal(delegator, validatorAddr common.Address, amount *big.Int, wait bool) error {
 	currentEpoch := c.getCurrentEpoch()
 	var releaseEpoch uint64
 	if wait {
@@ -491,16 +491,16 @@ func (c *StakeHandler) registerDelegateWithdrawal(delegater, validatorAddr commo
 	} else {
 		releaseEpoch = currentEpoch
 	}
-	if err := c.appendDelegateWithdrawal(delegater, validatorAddr, releaseEpoch, amount); nil != err {
-		log.Error("Failed to register delegate withdraw", "delegater", delegater.Hex(), "validatorAddr", validatorAddr.Hex(),
+	if err := c.appendDelegateWithdrawal(delegator, validatorAddr, releaseEpoch, amount); nil != err {
+		log.Error("Failed to register delegate withdraw", "delegator", delegator.Hex(), "validatorAddr", validatorAddr.Hex(),
 			"currentEpoch", currentEpoch, "releaseEpoch", releaseEpoch, "blockNumber", c.evm.Context.BlockNumber, "amount", amount, "error", err)
 		return typesdk.NewRevertError("StakeHandler: SET REGISTER DELEGATE WITHDRAW FAILED")
 	}
 
-	if err := c.addLogDelegateWithdrawalRegisteredEvent(delegater, validatorAddr, amount); nil != err {
+	if err := c.addLogDelegateWithdrawalRegisteredEvent(delegator, validatorAddr, amount); nil != err {
 		return err
 	}
-	log.Info("Register delegate withdrawal for", "delegater", delegater.Hex(), "validator", validatorAddr.Hex(), "releaseEpoch", releaseEpoch, "amount", amount, "blockNumber", c.evm.Context.BlockNumber)
+	log.Info("Register delegate withdrawal for", "delegator", delegator.Hex(), "validator", validatorAddr.Hex(), "releaseEpoch", releaseEpoch, "amount", amount, "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }
 
@@ -530,16 +530,16 @@ func (c *StakeHandler) syncStateUnStake(validatorAddr common.Address, amount *bi
 	return nil
 }
 
-func (c *StakeHandler) syncStateUnDelegate(validatorAddr, delegaterAddr common.Address, amount *big.Int) error {
-	data, err := abi.Encode([]interface{}{UNDELEGATE_SIG, validatorAddr, delegaterAddr, amount}, UNDELEGATE_PARAMS_TYPE)
+func (c *StakeHandler) syncStateUnDelegate(validatorAddr, delegatorAddr common.Address, amount *big.Int) error {
+	data, err := abi.Encode([]interface{}{UNDELEGATE_SIG, validatorAddr, delegatorAddr, amount}, UNDELEGATE_PARAMS_TYPE)
 	if nil != err {
-		log.Error("Failed to encode undelegate syncState data", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
+		log.Error("Failed to encode undelegate syncState data", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
 		return typesdk.NewRevertError("StakeHandler: encode L2StateSender undelegate data failed")
 	}
 
 	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, constants.StateSenderAddress)
 	if nil != err {
-		log.Error("Failed to call NewL2StateSenderCaller", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
+		log.Error("Failed to call NewL2StateSenderCaller", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
 		return typesdk.NewRevertError("StakeHandler: call undelegate by L2StateSender failed")
 	}
 
@@ -549,7 +549,7 @@ func (c *StakeHandler) syncStateUnDelegate(validatorAddr, delegaterAddr common.A
 	}
 
 	if err := l2statesender.SyncState(rootchainStakeManagerAddress, data); nil != err {
-		log.Error("Failed to call SyncState", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
+		log.Error("Failed to call SyncState", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
 		return typesdk.NewRevertError("StakeHandler: call undelegate by L2StateSender failed")
 	}
 	return nil
