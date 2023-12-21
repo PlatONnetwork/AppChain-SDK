@@ -33,13 +33,13 @@ var (
 )
 
 var (
-	STAKE_PARAMS_TYPE             = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, address ownerAddr, uint256 amount, uint256 commissionRate, bytes bksKey, bytes pubKey)")
+	STAKE_PARAMS_TYPE             = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, address ownerAddr, uint256 amount, uint256 commissionRate, bytes blsKey, bytes pubKey)")
 	ADDSTAKE_PARAMS_TYPE          = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, uint256 amount)")
 	UNSTAKE_PARAMS_TYPE           = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, uint256 amount)")
 	ROOT_CHAIN_SLASH_PARAMS_TYPE  = abi.MustNewType("tuple(bytes32 sig, address[] validatorAddrs, uint256 slashingPercentage, uint256 slashIncentivePercentage)")
 	CHILD_CHAIN_SLASH_PARAMS_TYPE = abi.MustNewType("tuple(bytes32 sig, uint256 handleEventId, address[] validatorAddrs, uint256[] amounts)")
-	DELEGATE_PARAMS_TYPE          = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, address delegterAddr, uint256 amount)")
-	UNDELEGATE_PARAMS_TYPE        = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, address delegterAddr, uint256 amount)")
+	DELEGATE_PARAMS_TYPE          = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, address delegtorAddr, uint256 amount)")
+	UNDELEGATE_PARAMS_TYPE        = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, address delegtorAddr, uint256 amount)")
 )
 
 // internal
@@ -199,9 +199,9 @@ func (c *StakeHandler) onDelegate(input []byte) error {
 		return typesdk.NewRevertError("StakeHandler: INVALID_VALIDATOR")
 	}
 
-	delegterAddr, ok := res["delegterAddr"].(ethgo.Address)
+	delegtorAddr, ok := res["delegtorAddr"].(ethgo.Address)
 	if !ok {
-		return typesdk.NewRevertError("StakeHandler: INVALID_DELEGTERADDR")
+		return typesdk.NewRevertError("StakeHandler: INVALID_DELEGTORADDR")
 	}
 
 	amount, ok := res["amount"].(*big.Int)
@@ -209,7 +209,7 @@ func (c *StakeHandler) onDelegate(input []byte) error {
 		return typesdk.NewRevertError("StakeHandler: INVALID_AMOUNT")
 	}
 
-	return c.delegate(common.Address(validatorAddr), common.Address(delegterAddr), amount)
+	return c.delegate(common.Address(validatorAddr), common.Address(delegtorAddr), amount)
 }
 
 func (c *StakeHandler) stake(validatorAddr, owner common.Address, amount *big.Int, commissionRate uint64, blsKey []byte, pubKey enode.IDv0) error {
