@@ -84,7 +84,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 
 	extraVote := extravote.NewExtraVote(store, []extravote.ExtraVerifier{stateSync, checkpoint})
 
-	manager := module.NewManager(stateSync, stateEvent, l1Module, extraVote, rootchainTxRelayer, checkpoint, stageModule, vrfModule, stakeModule, rewardModule, depositModule)
+	manager := module.NewManager(stateSync, stateEvent, l1Module, extraVote, rootchainTxRelayer, checkpoint, stageModule, vrfModule, stakeModule, rewardModule, depositModule, l2StateSender)
 	manager.SetElection(stakeModule.Name())
 	manager.SetConsensusExtend(extraVote.Name())
 	//manager.SetWorker(stateSync.Name())
