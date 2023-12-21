@@ -80,13 +80,15 @@ func (s *SyncP2P) sendHeartbeat() {
 	}
 }
 func (s *SyncP2P) Run(ctx context.Context) {
-	timer := time.AfterFunc(loopInterval, func() {
-		s.sendHeartbeat()
-	})
+	ticker := time.NewTicker(loopInterval)
 	go func() {
-		select {
-		case <-ctx.Done():
-			timer.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				s.sendHeartbeat()
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 }

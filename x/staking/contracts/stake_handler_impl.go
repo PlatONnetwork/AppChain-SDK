@@ -65,6 +65,95 @@ func NewStakeHandler(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*StakeH
 }
 
 // external
+func (c *StakeHandler) GetDelegationsWithValidator(validators []common.Address, delegator common.Address) ([]DelegationInfo, error) {
+	delegationQueue := make([]DelegationInfo, 0)
+	for _, validatorAddr := range validators {
+		epochs, _ := c.getValidatorDelegationRcPendingAndEpoch(validatorAddr, math.MaxUint64)
+		for _, stakeEpoch := range epochs {
+			delegation := c.getDelegation(delegator, validatorAddr, stakeEpoch)
+			if delegation.IsEmpty() {
+				continue
+			}
+			delegationQueue = append(delegationQueue, DelegationInfo{
+				ValidatorAddr: validatorAddr,
+				DelegatorAddr: delegator,
+				Amount:        delegation.Amount,
+				StakeEpoch:    new(big.Int).SetUint64(stakeEpoch),
+				DelegateEpoch: new(big.Int).SetUint64(delegation.Epoch),
+			})
+		}
+	}
+	return delegationQueue, nil
+}
+
+// @notice Query the list of validators for a certain period
+// @dev For the convenience of expanding the list of validators with multiple period properties
+// @param periodType represents a period of a certain type
+// @param period represents the number of intervals
+// @return validator address array
+//
+// ## NOTE ##
+// periodType options:
+// 0: unknown
+// 1: round
+// 2: epoch
+// ...
+func (c *StakeHandler) GetValidatorAddrs(periodType uint8, period *big.Int) ([]common.Address, error) {
+
+	switch periodType {
+	case 1: // round
+		return c.getRoundValidatorIds(period.Uint64()), nil
+	case 2: // epoch
+		return c.getEpochValidatorIds(period.Uint64()), nil
+	default:
+		return nil, typesdk.NewRevertError("StakeHandler: UNKNOWN PERIOD TYPE")
+	}
+}
+
+func (c *StakeHandler) GetValidators(start []byte, size *big.Int) ([]byte, []ValidatorInfo, error) {
+	next, validatorAddrQueue, validatorQueue := c.getValidatorsByPriorityKey(start, size.Uint64())
+	validatorInfoQueue := make([]ValidatorInfo, len(validatorQueue))
+	for i, validator := range validatorQueue {
+		validatorInfoQueue[i] = ValidatorInfo{
+			ValidatorAddr:  validatorAddrQueue[i],
+			Owner:          validator.Owner,
+			StakeAmount:    validator.StakeAmount,
+			DelegateAmount: validator.DelegateAmount,
+			CommissionRate: new(big.Int).SetUint64(validator.CommissionRate),
+			Status:         new(big.Int).SetUint64(uint64(validator.Status)),
+			Epoch:          new(big.Int).SetUint64(validator.Epoch),
+			StakeIndex:     new(big.Int).SetUint64(validator.StakeIndex),
+			PubKey:         validator.PubKey.Bytes(),
+			BlsKey:         validator.BlsKey,
+		}
+	}
+	return next, validatorInfoQueue, nil
+}
+
+func (c *StakeHandler) GetValidatorsWithAddr(validators []common.Address) ([]ValidatorInfo, error) {
+
+	validatorInfoQueue := make([]ValidatorInfo, 0)
+	for _, validatorAddr := range validators {
+		validator := c.getValidator(validatorAddr)
+		if validator.IsEmpty() {
+			continue
+		}
+		validatorInfoQueue = append(validatorInfoQueue, ValidatorInfo{
+			ValidatorAddr:  validatorAddr,
+			Owner:          validator.Owner,
+			StakeAmount:    validator.StakeAmount,
+			DelegateAmount: validator.DelegateAmount,
+			CommissionRate: new(big.Int).SetUint64(validator.CommissionRate),
+			Status:         new(big.Int).SetUint64(uint64(validator.Status)),
+			Epoch:          new(big.Int).SetUint64(validator.Epoch),
+			StakeIndex:     new(big.Int).SetUint64(validator.StakeIndex),
+			PubKey:         validator.PubKey.Bytes(),
+			BlsKey:         validator.BlsKey,
+		})
+	}
+	return validatorInfoQueue, nil
+}
+
 func (c *StakeHandler) PendingWithdrawalsOfDelegate(validator common.Address, delegater common.Address) (*big.Int, error) {
 	return c.getDelegateWithdrawalPending(delegater, validator, c.getCurrentEpoch()), nil
 }
