@@ -23,10 +23,11 @@ type StageModuler interface {
 type StakeModuler interface {
 	GetRoundValidatorIds(stateDB sdk.StateDBReader, round uint64) []basecommon.Address
 	GetEpochValidatorIds(stateDB sdk.StateDBReader, epoch uint64) []basecommon.Address
+	GetEpochValidatorSnapQueueFlatten(stateDB sdk.StateDBReader, epoch uint64) ([]basecommon.Address, []*big.Int, []*big.Int, []uint64, []uint64, []uint64, []uint64)
 	IsValidValidator(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) bool
 	IsInvalidValidator(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) bool
-	IsOnlyInvalidUnstakeValidator(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) bool
-	IsEmptyValidator(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) bool
+	//IsOnlyInvalidUnstakeValidator(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) bool
+	//IsEmptyValidator(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) bool
 	GetValidatorCommissionRate(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) uint64
 	GetValidatorStakeEpoch(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) uint64
 	GetValidatorStakeAmount(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) *big.Int

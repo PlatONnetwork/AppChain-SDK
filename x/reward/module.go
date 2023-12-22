@@ -160,29 +160,34 @@ func (r *RewardModule) handleEpochReward(stateDB sdk.StateDB, blockNumber uint64
 		return errors.New("block is not endBlock of current epoch")
 	}
 
+	// #### NOTE ####
+	// Obtain snapshot information of the epoch validator to calculate the validator's deserved rewards in the current epoch
 	currentEpoch := r.stageModule.GetCurrentEpoch(stateDB)
-	epochValidatorIds := r.stakeModule.GetEpochValidatorIds(stateDB, currentEpoch)
+	epochValidatorAddrQueue, epochStakeAmountQueue, epochDelegateAmountQueue, commissionRateQueue, _, _, _ := r.stakeModule.GetEpochValidatorSnapQueueFlatten(stateDB, currentEpoch)
 
-	perValidatorEpochReward := new(big.Int).Div(r.GetRewardPerEpoch(stateDB), big.NewInt(int64(len(epochValidatorIds))))
+	// #### NOTE ####
+	// The epoch reward is evenly distributed to each validator
+	perValidatorEpochReward := new(big.Int).Div(r.GetRewardPerEpoch(stateDB), big.NewInt(int64(len(epochValidatorAddrQueue))))
 
-	for _, validatorAddr := range epochValidatorIds {
+	// #### NOTE ####
+	// Only invalid validators with the 'unstaked' status will be retained in the epoch validator queue.
+	// (Other invalid validators such as `low blocks` have been removed from the epoch validator queue)
+	for i, validatorAddr := range epochValidatorAddrQueue {
 
-		// #### NOTE ####
-		// skip invalid validator (but except `unstake` validator)
-		if r.stakeModule.IsEmptyValidator(stateDB, validatorAddr) ||
-			(!(r.stakeModule.IsOnlyInvalidUnstakeValidator(stateDB, validatorAddr)) && r.stakeModule.IsInvalidValidator(stateDB, validatorAddr)) {
-			continue
-		}
-
-		stakeAmount := r.stakeModule.GetValidatorStakeAmount(stateDB, validatorAddr)
-		delegateAmount := r.stakeModule.GetValidatorDelegateAmount(stateDB, validatorAddr)
-		commissionRate := r.stakeModule.GetValidatorCommissionRate(stateDB, validatorAddr)
+		stakeAmount := epochStakeAmountQueue[i]
+		delegateAmount := epochDelegateAmountQueue[i]
+		commissionRate := commissionRateQueue[i]
 
 		realDelegateEpochReward := basecommon.Big0
 		realValidatorEpochReward := basecommon.Big0
 		perShareDelegatorEpochReward := basecommon.Big0
 
 		totalShares := new(big.Int).Add(stakeAmount, delegateAmount)
+		// #### NOTE ####
+		//In theory, this situation will never occur (when stakeAmount and delegateAmount both is zero in epoch validator snap queue)
+		if totalShares.Cmp(basecommon.Big0) == 0 {
+			continue
+		}
 		// commissionAmount == perValidatorEpochReward * (commissionRate/ 100) == (perValidatorEpochReward * commissionRate)/ 100
 		commissionAmount := new(big.Int).Div(new(big.Int).Mul(perValidatorEpochReward, big.NewInt(int64(commissionRate))), basecommon.Big100)
 		// nonCommissionAmount == perValidatorEpochReward - commissionAmount
