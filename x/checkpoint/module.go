@@ -153,7 +153,6 @@ func (m *Module) ExtendData(ctx sdk.ConsensusContext) []byte {
 
 	if m.staking.IsEndOfRound(ctx, header.Number.Uint64()) {
 		currentValidators, err := m.staking.GetRoundValidator(ctx, header.Number.Uint64())
-
 		if err != nil {
 			logger.Error("Failed to get current round valdiators", "err", err)
 			return []byte{}
@@ -308,6 +307,15 @@ func (m *Module) OnCommit(ctx sdk.ConsensusContext, block *coretypes.Block) erro
 
 	logger.Info("OnCommit", "isEndOfRound", isEndOfRound, "isProposer", ctx.IsProposer())
 
+	if ctx.View() > 0 && ctx.BlockIndex() == 0 &&  ctx.IsProposer() {
+		// Try to submit old checkpoint to rootchain.
+		go func(number uint64) {
+			if err := m.submitCheckpoint(ctx, number, nil); err != nil {
+				logger.Error("Failed to submit checkpoint", "err", err)
+			}
+		}(blockNumber)
+	}
+
 	if isEndOfRound {
 		_, qc, err := ctypes.DecodeExtra(block.ExtraData())
 		if err != nil {
@@ -338,12 +346,16 @@ func (m *Module) submitCheckpoint(ctx sdk.ConsensusContext, latestNumber uint64,
 		return nil
 	}
 
-	m.logger.Debug("submitCheckpoint invoked...",
-		"latest checkpoint block", lastCheckpointBlockNumber,
-		"checkpoint block", latestNumber)
-
 	blocksOfEpoch := m.staking.BlocksOfRound(ctx, lastCheckpointBlockNumber+1) // next round
 	initialBlockNumber := lastCheckpointBlockNumber + blocksOfEpoch
+	if initialBlockNumber > latestNumber {
+		// Block number not reach checkpoint submit time
+		return nil
+	}
+
+	m.logger.Debug("submitCheckpoint invoked...",
+		"latest checkpoint block", lastCheckpointBlockNumber,
+		"checkpoint block", initialBlockNumber)
 
 	for blockNumber := initialBlockNumber; blockNumber <= latestNumber; {
 		qc := latestQC
@@ -360,15 +372,17 @@ func (m *Module) submitCheckpoint(ctx sdk.ConsensusContext, latestNumber uint64,
 			}
 		}
 
-		checkpoint, err := m.rebuildCheckpoint(ctx, qc)
-		if err != nil {
-			m.logger.Error("Failed to get checkpoint", "err", err)
-			return err
-		}
+		if qc != nil {
+			checkpoint, err := m.rebuildCheckpoint(ctx, qc)
+			if err != nil {
+				m.logger.Error("Failed to get checkpoint", "err", err)
+				return err
+			}
 
-		if err := m.encodeAndSendCheckpoint(ctx, checkpoint); err != nil {
-			m.logger.Error("Failed to encode and send checkpoint", "checkpoint", checkpoint.String(), "err", err)
-			return err
+			if err := m.encodeAndSendCheckpoint(ctx, checkpoint); err != nil {
+				m.logger.Error("Failed to encode and send checkpoint", "checkpoint", checkpoint.String(), "err", err)
+				return err
+			}
 		}
 
 		blocksOfEpoch = m.staking.BlocksOfRound(ctx, blockNumber+1) // next round
@@ -443,6 +457,10 @@ func (m *Module) encodeAndSendCheckpoint(ctx sdk.ConsensusContext, checkpoint *t
 	}
 
 	nextValidators, err := m.staking.GetRoundValidator(ctx, checkpoint.BlockNumber+1)
+	if err != nil {
+		m.logger.Error("Failed to get next round validators", "err", err)
+		return err
+	}
 	accountSet := types.NewAccountSet(nextValidators)
 	newValidatorSet := make([]checkpoint_manager.ICheckpointManagerValidator, len(accountSet))
 	for i, account := range accountSet {
