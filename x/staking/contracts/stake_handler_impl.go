@@ -154,8 +154,8 @@ func (c *StakeHandler) GetValidatorsWithAddr(validators []common.Address) ([]Val
 	return validatorInfoQueue, nil
 }
 
-func (c *StakeHandler) PendingWithdrawalsOfDelegate(validator common.Address, delegater common.Address) (*big.Int, error) {
-	return c.getDelegateWithdrawalPending(delegater, validator, c.getCurrentEpoch()), nil
+func (c *StakeHandler) PendingWithdrawalsOfDelegate(validator common.Address, delegator common.Address) (*big.Int, error) {
+	return c.getDelegateWithdrawalPending(delegator, validator, c.getCurrentEpoch()), nil
 }
 
 func (c *StakeHandler) PendingWithdrawalsOfStake(validator common.Address) (*big.Int, error) {
@@ -170,8 +170,8 @@ func (c *StakeHandler) VerifyAggregateSignatureByValidators(validators []common.
 	return c.verifyBLSAggregateSignatureByValidators(validators, data, signatues)
 }
 
-func (c *StakeHandler) WithdrawableOfDelegate(validator common.Address, delegater common.Address) (*big.Int, error) {
-	return c.getDelegateWithdrawable(delegater, validator, c.getCurrentEpoch()), nil
+func (c *StakeHandler) WithdrawableOfDelegate(validator common.Address, delegator common.Address) (*big.Int, error) {
+	return c.getDelegateWithdrawable(delegator, validator, c.getCurrentEpoch()), nil
 }
 
 func (c *StakeHandler) WithdrawableOfStake(validator common.Address) (*big.Int, error) {
@@ -249,7 +249,7 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 
 	validator := c.getValidator(validatorAddr)
 
-	delegaterAddr := c.contract.Caller()
+	delegatorAddr := c.contract.Caller()
 
 	epochs, _ := c.getValidatorDelegationRcPendingAndEpoch(validatorAddr, math.MaxUint64)
 
@@ -261,15 +261,15 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 			break
 		}
 
-		delegation := c.getDelegation(delegaterAddr, validatorAddr, stakeEpoch)
+		delegation := c.getDelegation(delegatorAddr, validatorAddr, stakeEpoch)
 		if delegation.IsEmpty() {
 			continue
 		}
 
 		// NOTE:
 		// Priority must be given to settling commission rewards before proceeding with the `withdraw` operation.
-		if err := c.rewardModule.UpdateDelegationRewardsByStakeEpoch(c.evm.StateDB, delegaterAddr, validatorAddr, stakeEpoch); nil != err {
-			log.Error("Failed to update delegation rewards by stakeEpoch", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
+		if err := c.rewardModule.UpdateDelegationRewardsByStakeEpoch(c.evm.StateDB, delegatorAddr, validatorAddr, stakeEpoch); nil != err {
+			log.Error("Failed to update delegation rewards by stakeEpoch", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
 				"stakeEpoch", stakeEpoch, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber, "error", err)
 			return typesdk.NewRevertError("StakeHandler: UPDATE DELEGATION REWARDS BY STAKE EPOCH FAILED")
 		}
@@ -277,11 +277,11 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 		use := common.Big0
 		if delegation.Amount.Cmp(amount) <= 0 {
 			// remove the delegation by stakeEpoch
-			c.removeDelegation(delegaterAddr, validatorAddr, stakeEpoch)
+			c.removeDelegation(delegatorAddr, validatorAddr, stakeEpoch)
 
-			// decrement validator-delegater-rc
+			// decrement validator-delegator-rc
 			if err := c.releaseValidatorDelegationRcItem(validatorAddr, stakeEpoch, 1); nil != err {
-				log.Error("Failed to release validatorDelegation rc", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
+				log.Error("Failed to release validatorDelegation rc", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
 					"stakeEpoch", stakeEpoch, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber, "error", err)
 				return typesdk.NewRevertError("StakeHandler: RELEASE VALIDATOR DELEGATION RC FAILED")
 			}
@@ -290,8 +290,8 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 			// update delegation with new epoch and new amount
 			delegation.UpdateEpoch(c.getCurrentEpoch())
 			delegation.DecrementAmount(amount)
-			if err := c.setDelegation(delegaterAddr, validatorAddr, stakeEpoch, delegation); nil != err {
-				log.Error("Failed to set delegation", "delegaterAddr", delegaterAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
+			if err := c.setDelegation(delegatorAddr, validatorAddr, stakeEpoch, delegation); nil != err {
+				log.Error("Failed to set delegation", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
 					"stakeEpoch", stakeEpoch, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber, "error", err)
 				return typesdk.NewRevertError("StakeHandler: SET DELEGATION FAILED")
 			}
@@ -311,13 +311,13 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 			}
 		}
 	}
-	if err := c.registerDelegateWithdrawal(delegaterAddr, validatorAddr, paid, true); nil != err {
+	if err := c.registerDelegateWithdrawal(delegatorAddr, validatorAddr, paid, true); nil != err {
 		return err
 	}
-	if err := c.addLogUnDelegatedEvent(delegaterAddr, validatorAddr, paid); nil != err {
+	if err := c.addLogUnDelegatedEvent(delegatorAddr, validatorAddr, paid); nil != err {
 		return err
 	}
-	log.Info("Undelegate for", "delegater", delegaterAddr.Hex(), "validator", validatorAddr.Hex(), "amount", amount, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
+	log.Info("Undelegate for", "delegator", delegatorAddr.Hex(), "validator", validatorAddr.Hex(), "amount", amount, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }
 
@@ -341,23 +341,23 @@ func (c *StakeHandler) Unstake(validatorAddr common.Address, amount *big.Int) er
 func (c *StakeHandler) WithdrawUndelegate(validator common.Address) error {
 
 	currentEpoch := c.getCurrentEpoch()
-	delegater := c.contract.Caller()
-	amount, err := c.applyDelegateWithdrawable(delegater, validator, currentEpoch)
+	delegator := c.contract.Caller()
+	amount, err := c.applyDelegateWithdrawable(delegator, validator, currentEpoch)
 	if nil != err {
 		log.Error("Failed to withdraw undelegate", "validatorAddr", validator.Hex(),
 			"currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber, "amount", amount, "error", err)
 		return typesdk.NewRevertError("StakeHandler: UPDATE STAKE WITHDRAW PENDDING HEAD FAILED")
 	}
 
-	if err := c.addLogDelegateWithdrawalEvent(delegater, validator, amount); nil != err {
+	if err := c.addLogDelegateWithdrawalEvent(delegator, validator, amount); nil != err {
 		return err
 	}
 
-	if err := c.syncStateUnDelegate(validator, delegater, amount); nil != err {
+	if err := c.syncStateUnDelegate(validator, delegator, amount); nil != err {
 		return err
 	}
 
-	log.Info("Withdraw undelegate for", "delegater", delegater, "validator", validator.Hex(), "amount", amount, "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber)
+	log.Info("Withdraw undelegate for", "delegator", delegator, "validator", validator.Hex(), "amount", amount, "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }
 

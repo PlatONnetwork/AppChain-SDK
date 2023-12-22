@@ -44,6 +44,7 @@ type StakeModule struct {
 
 func NewStakeModule(ctx *cli.Context, l1Module staketypes.L1Moduler, stage staketypes.StageModuler) *StakeModule {
 	return &StakeModule{
+		p2p:         stakingp2p.NewStakingP2P(),
 		logger:      log.New("module", MODULE_NAME_STAKING),
 		l1Module:    l1Module,
 		stageModule: stage,
@@ -711,15 +712,15 @@ func (s *StakeModule) GetEpochByValidatorDelegationRcPending(stateDB sdk.StateDB
 	epochs, _ := db.GetValidatorDelegationRcPendingAndEpoch(stateDB, s.Address(), validatorAddr, math.MaxUint64)
 	return epochs
 }
-func (s *StakeModule) GetDelegationFlatten(stateDB sdk.StateDBReader, delegaterAddr, validatorAddr basecommon.Address, stakeEpoch uint64) (uint64, *big.Int) {
-	delegation := db.GetDelegation(stateDB, s.Address(), delegaterAddr, validatorAddr, stakeEpoch)
+func (s *StakeModule) GetDelegationFlatten(stateDB sdk.StateDBReader, delegatorAddr, validatorAddr basecommon.Address, stakeEpoch uint64) (uint64, *big.Int) {
+	delegation := db.GetDelegation(stateDB, s.Address(), delegatorAddr, validatorAddr, stakeEpoch)
 	if delegation.IsEmpty() {
 		return 0, basecommon.Big0
 	}
 	return delegation.Epoch, delegation.Amount
 }
-func (s *StakeModule) UpdateDelegationEpoch(stateDB sdk.StateDB, delegaterAddr, validatorAddr basecommon.Address, stakeEpoch, delegateEpoch uint64) error {
-	del := db.GetDelegation(stateDB, s.Address(), delegaterAddr, validatorAddr, stakeEpoch)
+func (s *StakeModule) UpdateDelegationEpoch(stateDB sdk.StateDB, delegatorAddr, validatorAddr basecommon.Address, stakeEpoch, delegateEpoch uint64) error {
+	del := db.GetDelegation(stateDB, s.Address(), delegatorAddr, validatorAddr, stakeEpoch)
 	if nil == del {
 		return db.ErrNotFound
 	}
@@ -730,7 +731,7 @@ func (s *StakeModule) UpdateDelegationEpoch(stateDB sdk.StateDB, delegaterAddr, 
 		return fmt.Errorf("new delegate epoch not greater than old, old epoch: %d, new epoch: %d", del.Epoch, delegateEpoch)
 	}
 	del.UpdateEpoch(delegateEpoch)
-	return db.SetDelegation(stateDB, s.Address(), delegaterAddr, validatorAddr, stakeEpoch, del)
+	return db.SetDelegation(stateDB, s.Address(), delegatorAddr, validatorAddr, stakeEpoch, del)
 }
 
 // ------

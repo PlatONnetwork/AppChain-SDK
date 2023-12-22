@@ -112,20 +112,20 @@ func (c *StakeHandler) removeValidator(validatorAddr common.Address) {
 	db.RemoveValidator(c.evm.StateDB, c.contract.Address(), validatorAddr)
 }
 
-func (c *StakeHandler) setDelegation(delegaterAddr, validatorAddr common.Address, stakeEpoch uint64, delegation *types.Delegation) error {
-	return db.SetDelegation(c.evm.StateDB, c.contract.Address(), delegaterAddr, validatorAddr, stakeEpoch, delegation)
+func (c *StakeHandler) setDelegation(delegatorAddr, validatorAddr common.Address, stakeEpoch uint64, delegation *types.Delegation) error {
+	return db.SetDelegation(c.evm.StateDB, c.contract.Address(), delegatorAddr, validatorAddr, stakeEpoch, delegation)
 }
 
-func (c *StakeHandler) removeDelegation(delegaterAddr, validatorAddr common.Address, stakeEpoch uint64) {
-	db.RemoveDelegation(c.evm.StateDB, c.contract.Address(), delegaterAddr, validatorAddr, stakeEpoch)
+func (c *StakeHandler) removeDelegation(delegatorAddr, validatorAddr common.Address, stakeEpoch uint64) {
+	db.RemoveDelegation(c.evm.StateDB, c.contract.Address(), delegatorAddr, validatorAddr, stakeEpoch)
 }
 
-func (c *StakeHandler) getDelegation(delegaterAddr, validatorAddr common.Address, stakeEpoch uint64) *types.Delegation {
-	return db.GetDelegation(c.evm.StateDB, c.contract.Address(), delegaterAddr, validatorAddr, stakeEpoch)
+func (c *StakeHandler) getDelegation(delegatorAddr, validatorAddr common.Address, stakeEpoch uint64) *types.Delegation {
+	return db.GetDelegation(c.evm.StateDB, c.contract.Address(), delegatorAddr, validatorAddr, stakeEpoch)
 }
 
-func (c *StakeHandler) incrementDelegation(delegaterAddr, validatorAddr common.Address, stakeEpoch, delegateEpoch uint64, amount *big.Int) (bool, error) {
-	del := c.getDelegation(delegaterAddr, validatorAddr, stakeEpoch)
+func (c *StakeHandler) incrementDelegation(delegatorAddr, validatorAddr common.Address, stakeEpoch, delegateEpoch uint64, amount *big.Int) (bool, error) {
+	del := c.getDelegation(delegatorAddr, validatorAddr, stakeEpoch)
 
 	var build bool
 
@@ -136,11 +136,11 @@ func (c *StakeHandler) incrementDelegation(delegaterAddr, validatorAddr common.A
 		del = types.NewDelegation(delegateEpoch, amount)
 		build = true
 	}
-	return build, c.setDelegation(delegaterAddr, validatorAddr, stakeEpoch, del)
+	return build, c.setDelegation(delegatorAddr, validatorAddr, stakeEpoch, del)
 }
 
-func (c *StakeHandler) decrementDelegation(delegaterAddr, validatorAddr common.Address, stakeEpoch, delegateEpoch uint64, amount *big.Int) (bool, error) {
-	del := c.getDelegation(delegaterAddr, validatorAddr, stakeEpoch)
+func (c *StakeHandler) decrementDelegation(delegatorAddr, validatorAddr common.Address, stakeEpoch, delegateEpoch uint64, amount *big.Int) (bool, error) {
+	del := c.getDelegation(delegatorAddr, validatorAddr, stakeEpoch)
 	if nil == del {
 		return false, db.ErrNotFound
 	}
@@ -151,10 +151,10 @@ func (c *StakeHandler) decrementDelegation(delegaterAddr, validatorAddr common.A
 	var err error
 	if del.Amount.Cmp(common.Big0) == 0 {
 
-		c.removeDelegation(delegaterAddr, validatorAddr, stakeEpoch)
+		c.removeDelegation(delegatorAddr, validatorAddr, stakeEpoch)
 		remove = true
 	} else {
-		err = c.setDelegation(delegaterAddr, validatorAddr, stakeEpoch, del)
+		err = c.setDelegation(delegatorAddr, validatorAddr, stakeEpoch, del)
 	}
 	return remove, err
 }
@@ -207,26 +207,26 @@ func (c *StakeHandler) setStakeWithdrawalQueueItem(validatorAddr common.Address,
 
 // -------------
 
-func (c *StakeHandler) appendDelegateWithdrawal(delegaterAddr, validatorAddr common.Address, epoch uint64, amount *big.Int) error {
-	return db.AppendDelegateWithdrawal(c.evm.StateDB, c.contract.Address(), delegaterAddr, validatorAddr, epoch, amount)
+func (c *StakeHandler) appendDelegateWithdrawal(delegatorAddr, validatorAddr common.Address, epoch uint64, amount *big.Int) error {
+	return db.AppendDelegateWithdrawal(c.evm.StateDB, c.contract.Address(), delegatorAddr, validatorAddr, epoch, amount)
 }
 
-func (c *StakeHandler) getDelegateWithdrawalByEpoch(delegaterAddr, validatorAddr common.Address, epoch uint64) *big.Int {
-	return db.GetDelegateWithdrawalByEpoch(c.evm.StateDB, c.contract.Address(), delegaterAddr, validatorAddr, epoch)
+func (c *StakeHandler) getDelegateWithdrawalByEpoch(delegatorAddr, validatorAddr common.Address, epoch uint64) *big.Int {
+	return db.GetDelegateWithdrawalByEpoch(c.evm.StateDB, c.contract.Address(), delegatorAddr, validatorAddr, epoch)
 }
 
 // Total of all rewards until epoch
-func (c *StakeHandler) getDelegateWithdrawable(delegaterAddr, validatorAddr common.Address, epoch uint64) *big.Int {
-	return db.GetDelegateWithdrawable(c.evm.StateDB, c.contract.Address(), delegaterAddr, validatorAddr, epoch)
+func (c *StakeHandler) getDelegateWithdrawable(delegatorAddr, validatorAddr common.Address, epoch uint64) *big.Int {
+	return db.GetDelegateWithdrawable(c.evm.StateDB, c.contract.Address(), delegatorAddr, validatorAddr, epoch)
 }
 
-func (c *StakeHandler) applyDelegateWithdrawable(delegaterAddr, validatorAddr common.Address, epoch uint64) (*big.Int, error) {
-	return db.ApplyDelegateWithdrawable(c.evm.StateDB, c.contract.Address(), delegaterAddr, validatorAddr, epoch)
+func (c *StakeHandler) applyDelegateWithdrawable(delegatorAddr, validatorAddr common.Address, epoch uint64) (*big.Int, error) {
+	return db.ApplyDelegateWithdrawable(c.evm.StateDB, c.contract.Address(), delegatorAddr, validatorAddr, epoch)
 }
 
 // Total of all rewards since epoch
-func (c *StakeHandler) getDelegateWithdrawalPending(delegaterAddr, validatorAddr common.Address, epoch uint64) *big.Int {
-	return db.GetDelegateWithdrawalPending(c.evm.StateDB, c.contract.Address(), delegaterAddr, validatorAddr, epoch)
+func (c *StakeHandler) getDelegateWithdrawalPending(delegatorAddr, validatorAddr common.Address, epoch uint64) *big.Int {
+	return db.GetDelegateWithdrawalPending(c.evm.StateDB, c.contract.Address(), delegatorAddr, validatorAddr, epoch)
 }
 
 // -------

@@ -18,10 +18,10 @@ func (c *StakeHandler) addLogSlashedEvent(exitId *big.Int, validators []common.A
 	return nil
 }
 
-func (c *StakeHandler) addLogDelegationAddedEvent(delegater common.Address, validator common.Address, amount *big.Int) error {
-	log, err := c.EmitDelegationAddedEvent(delegater, validator, amount)
+func (c *StakeHandler) addLogDelegationAddedEvent(delegator common.Address, validator common.Address, amount *big.Int) error {
+	log, err := c.EmitDelegationAddedEvent(delegator, validator, amount)
 	if nil != err {
-		baselog.Error("Failed to emit DelegationAddedEvent", "delegater", delegater.Hex(), "validator", validator.Hex(), "amount", amount, "error", err)
+		baselog.Error("Failed to emit DelegationAddedEvent", "delegator", delegator.Hex(), "validator", validator.Hex(), "amount", amount, "error", err)
 		return typesdk.NewRevertError(fmt.Sprintf("StakeHandler: %s", err))
 	}
 	c.evm.StateDB.AddLog(log)
@@ -38,10 +38,10 @@ func (c *StakeHandler) addLogStakeAddedEvent(validator common.Address, amount *b
 	return nil
 }
 
-func (c *StakeHandler) addLogUnDelegatedEvent(delegater common.Address, validator common.Address, amount *big.Int) error {
-	log, err := c.EmitUnDelegatedEvent(delegater, validator, amount)
+func (c *StakeHandler) addLogUnDelegatedEvent(delegator common.Address, validator common.Address, amount *big.Int) error {
+	log, err := c.EmitUnDelegatedEvent(delegator, validator, amount)
 	if nil != err {
-		baselog.Error("Failed to emit UnDelegatedEvent", "delegater", delegater.Hex(), "validator", validator.Hex(), "amount", amount, "error", err)
+		baselog.Error("Failed to emit UnDelegatedEvent", "delegator", delegator.Hex(), "validator", validator.Hex(), "amount", amount, "error", err)
 		return typesdk.NewRevertError(fmt.Sprintf("StakeHandler: %s", err))
 	}
 	c.evm.StateDB.AddLog(log)
@@ -78,20 +78,20 @@ func (c *StakeHandler) addLogStakeWithdrawalRegisteredEvent(validator common.Add
 	return nil
 }
 
-func (c *StakeHandler) addLogDelegateWithdrawalEvent(delegater common.Address, validator common.Address, amount *big.Int) error {
-	log, err := c.EmitDelegateWithdrawalEvent(delegater, validator, amount)
+func (c *StakeHandler) addLogDelegateWithdrawalEvent(delegator common.Address, validator common.Address, amount *big.Int) error {
+	log, err := c.EmitDelegateWithdrawalEvent(delegator, validator, amount)
 	if nil != err {
-		baselog.Error("Failed to emit DelegateWithdrawalEvent", "delegater", delegater.Hex(), "validator", validator.Hex(), "amount", amount, "error", err)
+		baselog.Error("Failed to emit DelegateWithdrawalEvent", "delegator", delegator.Hex(), "validator", validator.Hex(), "amount", amount, "error", err)
 		return typesdk.NewRevertError(fmt.Sprintf("StakeHandler: %s", err))
 	}
 	c.evm.StateDB.AddLog(log)
 	return nil
 }
 
-func (c *StakeHandler) addLogDelegateWithdrawalRegisteredEvent(delegater common.Address, validator common.Address, amount *big.Int) error {
-	log, err := c.EmitDelegateWithdrawalRegisteredEvent(delegater, validator, amount)
+func (c *StakeHandler) addLogDelegateWithdrawalRegisteredEvent(delegator common.Address, validator common.Address, amount *big.Int) error {
+	log, err := c.EmitDelegateWithdrawalRegisteredEvent(delegator, validator, amount)
 	if nil != err {
-		baselog.Error("Failed to emit DelegateWithdrawalRegisteredEvent", "delegater", delegater.Hex(), "validator", validator.Hex(), "amount", amount, "error", err)
+		baselog.Error("Failed to emit DelegateWithdrawalRegisteredEvent", "delegator", delegator.Hex(), "validator", validator.Hex(), "amount", amount, "error", err)
 		return typesdk.NewRevertError(fmt.Sprintf("StakeHandler: %s", err))
 	}
 	c.evm.StateDB.AddLog(log)

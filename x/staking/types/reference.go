@@ -59,7 +59,7 @@ type StakeModuler interface {
 }
 
 type RewardModuler interface {
-	UpdateDelegationRewardsByStakeEpoch(stateDB sdk.StateDB, delegaterAddr, validatorAddr common.Address, stakeEpoch uint64) error
+	UpdateDelegationRewardsByStakeEpoch(stateDB sdk.StateDB, delegatorAddr, validatorAddr common.Address, stakeEpoch uint64) error
 }
 
 type VRFModuler interface {
