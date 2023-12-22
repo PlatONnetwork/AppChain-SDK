@@ -46,6 +46,8 @@ func ElectionValidatorByVRF(db sdk.StateDB, vrfModule staketypes.VRFModuler, val
 	// otherwise VRF elections will have insufficient historical VRF nonces, leading to election failure (especially during parameter governance)
 	//
 	// (the validator snapshot queue (validatorSnapshotQueue) is definitely smaller than the number of validators in the epoch)
+	//
+	// NOTE: the size of diffValidatorSnapshotQueue may be zero
 	historyNonceQueue, err := vrfModule.GetNonceQueueFromTail(db, blockNumber-1, uint64(len(validatorSnapshotQueue)))
 	if nil != err {
 		return nil, err

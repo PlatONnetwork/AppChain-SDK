@@ -247,19 +247,9 @@ func (s *StakeModule) OnCommit(ctx sdk.ConsensusContext, block *types.Block) err
 }
 
 func (s *StakeModule) IsEndOfRound(ctx sdk.ConsensusContext, blockNumber uint64) bool {
-	// ### NOTE ###
-	// Provided for use by the consensus module.
-	// It is possible to use parent statedb here,
-	// as the current statedb only has
-	// the `next RoundItem` data added compared to parent statedb.
 	return s.stageModule.IsEndOfRound(ctx.StateDB(), blockNumber)
 }
 func (s *StakeModule) GetRoundValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error) {
-	// ### NOTE ###
-	// Provided for use by the consensus module.
-	// It is possible to use parent statedb here because
-	// the current statedb only has more data about
-	// the next round than parent statedb.
 	round, startBlock, _ := s.stageModule.GetRoundAndBlockBoundByBlockNumber(ctx.StateDB(), blockNumber)
 
 	validatorSnapQueue := db.GetRoundValidatorSharesSnapshotQueue(ctx.StateDB(), s.Address(), round)
@@ -272,7 +262,7 @@ func (s *StakeModule) GetRoundValidator(ctx sdk.ConsensusContext, blockNumber ui
 
 	for i, snap := range validatorSnapQueue {
 		v := db.GetValidator(ctx.StateDB(), s.Address(), snap.ValidatorAddr)
-		if v.IsInvalid() {
+		if v.IsEmpty() {
 			continue
 		}
 		pubkey, _ := v.PubKey.Pubkey()
@@ -295,28 +285,13 @@ func (s *StakeModule) GetRoundValidator(ctx sdk.ConsensusContext, blockNumber ui
 	}, nil
 }
 func (s *StakeModule) BlocksOfRound(ctx sdk.ConsensusContext, blockNumber uint64) uint64 {
-	// ### NOTE ###
-	// Provided for use by the consensus module.
-	// It is possible to use parent statedb here because
-	// the current statedb only has more data about
-	// the next round than parent statedb.
 	round := s.stageModule.GetRoundByBlockNumber(ctx.StateDB(), blockNumber)
 	return s.stageModule.BlocksOfRound(ctx.StateDB(), round)
 }
 func (s *StakeModule) IsEndOfEpoch(ctx sdk.ConsensusContext, blockNumber uint64) bool {
-	// ### NOTE ###
-	// Provided for use by the consensus module.
-	// It is possible to use parent statedb here,
-	// as the current statedb only has
-	// the `next EpochItem` data added compared to parent statedb.
 	return s.stageModule.IsEndOfEpoch(ctx.StateDB(), blockNumber)
 }
 func (s *StakeModule) GetEpochValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error) {
-	// ### NOTE ###
-	// Provided for use by the consensus module.
-	// It is possible to use parent statedb here because
-	// the current statedb only has more data about
-	// the next epoch than parent statedb.
 	epoch, startBlock, _ := s.stageModule.GetEpochAndBlockBoundByBlockNumber(ctx.StateDB(), blockNumber)
 	validatorSnapQueue := db.GetEpochValidatorSharesSnapshotQueue(ctx.StateDB(), s.Address(), epoch)
 	if len(validatorSnapQueue) == 0 {
@@ -328,7 +303,7 @@ func (s *StakeModule) GetEpochValidator(ctx sdk.ConsensusContext, blockNumber ui
 
 	for i, snap := range validatorSnapQueue {
 		v := db.GetValidator(ctx.StateDB(), s.Address(), snap.ValidatorAddr)
-		if v.IsInvalid() {
+		if v.IsEmpty() {
 			continue
 		}
 
@@ -352,11 +327,6 @@ func (s *StakeModule) GetEpochValidator(ctx sdk.ConsensusContext, blockNumber ui
 	}, nil
 }
 func (s *StakeModule) BlocksOfEpoch(ctx sdk.ConsensusContext, blockNumber uint64) uint64 {
-	// ### NOTE ###
-	// Provided for use by the consensus module.
-	// It is possible to use parent statedb here because
-	// the current statedb only has more data about
-	// the next epoch than parent statedb.
 	epoch := s.stageModule.GetEpochByBlockNumber(ctx.StateDB(), blockNumber)
 	return s.stageModule.BlocksOfEpoch(ctx.StateDB(), epoch)
 }
@@ -367,8 +337,8 @@ func (s *StakeModule) NewHeader(ctx sdk.ConsensusContext, header *types.Header) 
 		currentValidatorAddr := crypto.PubkeyToAddress(s.nodePrivateKey.PublicKey)
 
 		currentValidator := db.GetValidator(ctx.ParentStateDB(), s.Address(), currentValidatorAddr)
-		if currentValidator.IsInvalid() {
-			return errors.New("invalida validator")
+		if currentValidator.IsEmpty() {
+			return errors.New("not found validator")
 		}
 
 		header.Coinbase = currentValidator.Owner
@@ -396,7 +366,7 @@ func (s *StakeModule) IsCandidateNode(ctx sdk.ConsensusContext, nodeID enode.IDv
 
 	for _, snap := range validatorSnapQueue {
 		v := db.GetValidator(ctx.StateDB(), s.Address(), snap.ValidatorAddr)
-		if v.IsInvalid() {
+		if v.IsEmpty() {
 			continue
 		}
 		pubkey, _ := v.PubKey.Pubkey()
@@ -494,8 +464,8 @@ func (s *StakeModule) electionRoundValidators(ctx sdk.WorkerContext, blockNumber
 
 		validator := db.GetValidator(ctx.StateDB(), s.Address(), snap.ValidatorAddr)
 
-		// Skip invalid validators
-		if validator.IsEmpty() || validator.IsInvalid() {
+		// Skip invalid validators (include status `unstake`)
+		if validator.IsEmptyOrInvalid() {
 			continue
 		}
 
@@ -528,6 +498,9 @@ func (s *StakeModule) electionRoundValidators(ctx sdk.WorkerContext, blockNumber
 
 	var vrfValidatorSnapshotQueue staketypes.ValidatorSortSnapshotQueue
 	var vrfQueueSize uint64
+	// #### NOTE ####
+	// The size of diffValidatorSnapshotQueue may be zero
+	// (when the status of all validators in the currentEpochValidatorSnapQueue has 'unstake')
 	if uint64(len(diffValidatorSnapshotQueue)) > maxRoundValidatorsSize {
 		vrfQueueSize = maxRoundValidatorsSize
 	} else {
@@ -586,7 +559,7 @@ func (s *StakeModule) electionEpochValidators(ctx sdk.WorkerContext, blockNumber
 	for i, id := range validatorIds {
 
 		validator := db.GetValidator(ctx.StateDB(), s.Address(), id)
-		if validator.IsInvalid() {
+		if validator.IsEmptyOrInvalid() {
 			return errors.New("invalid validator")
 		}
 		queue[i] = staketypes.NewValidatorSharesSnapshot(id, validator.Epoch, validator.StakeIndex, validator.StakeAmount, validator.DelegateAmount)
@@ -659,7 +632,7 @@ func (s *StakeModule) IsValidValidator(stateDB sdk.StateDBReader, validatorAddr 
 }
 func (s *StakeModule) IsInvalidValidator(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) bool {
 	validator := db.GetValidator(stateDB, s.Address(), validatorAddr)
-	return validator.IsInvalid()
+	return validator.IsEmptyOrInvalid()
 }
 func (s *StakeModule) GetValidatorECDSAPubKey(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) *ecdsa.PublicKey {
 	validator := db.GetValidator(stateDB, s.Address(), validatorAddr)

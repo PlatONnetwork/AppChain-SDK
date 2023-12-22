@@ -204,28 +204,18 @@ func (c *StakeHandler) OnStateReceive(id *big.Int, sender common.Address, data [
 func (c *StakeHandler) Slash() error {
 
 	validators := db.CheckLowBlocksValidatorForPreviousRound(c.evm.StateDB, c.contract.Address(), c.stakeModule.GetMinRoundValidatorBlockNumber(c.evm.StateDB))
+
+	slashingValidatorAddrCache := make(map[common.Address]struct{}, 0)
+	for _, validatorAddr := range validators {
+		slashingValidatorAddrCache[validatorAddr] = struct{}{}
+	}
 	// ###### NOTE: ######
 	// remove validator from epoch validators
-	cache := make(map[common.Address]struct{}, 0)
-	for _, validatorAddr := range validators {
-		cache[validatorAddr] = struct{}{}
-	}
-	currentEpoch := c.getCurrentEpoch()
-	// NTOE: update epoch validator snapshot queue (after remove low blocks validators)
-	epochValidatorAddrQueue := db.GetEpochValidatorSharesSnapshotQueue(c.evm.StateDB, c.contract.Address(), currentEpoch)
-	for i := 0; i < len(epochValidatorAddrQueue); i++ {
-		validator := epochValidatorAddrQueue[i]
-		if _, ok := cache[validator.ValidatorAddr]; !ok {
-			// remove the validatorAddr from epoch validatorAddrQueue
-			epochValidatorAddrQueue = append(epochValidatorAddrQueue[:i], epochValidatorAddrQueue[i+1:]...)
-			i--
-		}
-	}
-	if err := db.SetEpochValidatorSharesSnapshotQueue(c.evm.StateDB, c.contract.Address(), currentEpoch, epochValidatorAddrQueue); nil != err {
-		log.Error("Failed to update epochValidators", "epoch", currentEpoch, "error", err)
-		return typesdk.NewRevertError("StakeHandler: UPDATE EPOCH VALIDATORS FAILED")
+	if err := c.removeValidatorsFromEpochValidatorQueue(slashingValidatorAddrCache); nil != err {
+		return err
 	}
 
+	// sync state to L1
 	if err := c.syncStateSlash(validators); nil != err {
 		return err
 	}
@@ -241,7 +231,7 @@ func (c *StakeHandler) Slash() error {
 		}
 	}
 
-	log.Info("Slash for", "validator size", len(validators), "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber)
+	log.Info("Slash for", "validator size", len(validators), "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }
 

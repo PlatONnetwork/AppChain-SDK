@@ -248,7 +248,7 @@ func (c *StakeHandler) addStake(validatorAddr common.Address, amount *big.Int) e
 	//
 	// If the validator has already invalid (nonexistent) on the childchain,
 	// but the `addstake` sent by the rootchain should be  appended as a stackewithdrawl item.
-	if validator.IsInvalid() {
+	if validator.IsEmptyOrInvalid() {
 
 		var err error
 		lastEpoch := c.getStakeWithdrawalLastEpoch(validatorAddr)
@@ -284,7 +284,7 @@ func (c *StakeHandler) addStake(validatorAddr common.Address, amount *big.Int) e
 func (c *StakeHandler) unStake(validatorAddr common.Address, amount *big.Int) error {
 	validator := c.getValidator(validatorAddr)
 
-	if validator.IsInvalid() {
+	if validator.IsEmptyOrInvalid() {
 		return typesdk.NewRevertError("StakeHandler: INVALID_VALIDATOR")
 	}
 
@@ -300,11 +300,21 @@ func (c *StakeHandler) unStake(validatorAddr common.Address, amount *big.Int) er
 	validator.SubStakeAmount(amount)
 
 	if validator.StakeAmount.Cmp(common.Big0) == 0 {
+		// 1. add validator status (add: invalida|unstake)
 		validator.AppendStatus(types.Invalided | types.Unstaked)
+		// 2. update validator status (add: invalida|unstake) AND remove validator priority
 		if err := c.updateValidatorRemovePriority(validatorAddr, validator); nil != err {
 			log.Error("Failed to call updateValidatorRemovePriority", "validatorAddr", validatorAddr.Hex(), "error", err)
 			return typesdk.NewRevertError("StakeHandler: can not update validator priority")
 		}
+
+		//// NOTE: remove from epoch validators
+		//unstakeValidatorAddrCache := map[common.Address]struct{}{validatorAddr: {}}
+		//if err := c.removeValidatorsFromEpochValidatorQueue(unstakeValidatorAddrCache); nil != err {
+		//	return err
+		//}
+
+		// 3. add log for to update validator status (add: invalida|unstake)
 		if err := c.addLogUpdateValidatorStatusEvent(validatorAddr, new(big.Int).SetUint64(uint64(validator.Status))); nil != err {
 			return err
 		}
@@ -326,19 +336,19 @@ func (c *StakeHandler) slash(handleEventId *big.Int, validatorAddrs []common.Add
 		return typesdk.NewRevertError("StakeHandler: INVALID_PARAMS")
 	}
 
-	queue := types.NewSlashValidatorWithdrawItemQueue(uint64(len(validatorAddrs)))
-	cache := make(map[common.Address]struct{}, 0)
+	slashItemQueue := types.NewSlashValidatorWithdrawItemQueue(uint64(len(validatorAddrs)))
+	slashedValidatorAddrCache := make(map[common.Address]struct{}, 0)
 	for i, validatorAddr := range validatorAddrs {
 
-		queue[i] = types.NewSlashValidatorWithdrawItem(validatorAddr, amounts[i])
-		cache[validatorAddr] = struct{}{}
+		slashItemQueue[i] = types.NewSlashValidatorWithdrawItem(validatorAddr, amounts[i])
+		slashedValidatorAddrCache[validatorAddr] = struct{}{}
 		// NOTE: unstake short circuit
 		c.removeValidator(validatorAddr)
 		c.cleanStakeWithdrawable(validatorAddr)
 
 	}
 
-	if err := c.setSlashProcessed(handleEventId, queue); nil != err {
+	if err := c.setSlashProcessed(handleEventId, slashItemQueue); nil != err {
 		log.Error("Failed to call setSlashProcessed", "handleEventId", handleEventId, "error", err)
 		return typesdk.NewRevertError("StakeHandler: INVALID_PARAMS")
 	}
@@ -348,23 +358,8 @@ func (c *StakeHandler) slash(handleEventId *big.Int, validatorAddrs []common.Add
 	// after processing L1's crash, return to L2 to remove the validator
 	// and try again to remove the validator from Epoch validators.
 	//(as validators may be selected again during time differences)
-	currentEpoch := c.getCurrentEpoch()
-	epochValidatorAddrQueue := db.GetEpochValidatorSharesSnapshotQueue(c.evm.StateDB, c.contract.Address(), currentEpoch)
-	oldSize := len(epochValidatorAddrQueue)
-	for i := 0; i < len(epochValidatorAddrQueue); i++ {
-		validator := epochValidatorAddrQueue[i]
-		if _, ok := cache[validator.ValidatorAddr]; !ok {
-			// remove the validatorAddr from epoch validatorAddrQueue
-			epochValidatorAddrQueue = append(epochValidatorAddrQueue[:i], epochValidatorAddrQueue[i+1:]...)
-			i--
-		}
-	}
-	// NTOE: update epoch validator snapshot queue (after remove low blocks validators)
-	if len(epochValidatorAddrQueue) != oldSize {
-		if err := db.SetEpochValidatorSharesSnapshotQueue(c.evm.StateDB, c.contract.Address(), currentEpoch, epochValidatorAddrQueue); nil != err {
-			log.Error("Failed to update epochValidators", "epoch", currentEpoch, "error", err)
-			return typesdk.NewRevertError("StakeHandler: UPDATE EPOCH VALIDATORS FAILED")
-		}
+	if err := c.removeValidatorsFromEpochValidatorQueue(slashedValidatorAddrCache); nil != err {
+		return err
 	}
 
 	if err := c.addLogSlashedEvent(handleEventId, validatorAddrs, amounts); nil != err {
@@ -380,7 +375,7 @@ func (c *StakeHandler) delegate(validatorAddr, delegatorAddr common.Address, amo
 	validator := c.getValidator(validatorAddr)
 
 	var err error
-	if validator.IsInvalid() {
+	if validator.IsEmptyOrInvalid() {
 		if err = c.registerDelegateWithdrawal(delegatorAddr, validatorAddr, amount, false); nil != err {
 			return err
 		}
@@ -631,4 +626,27 @@ func (c *StakeHandler) verifyBLSAggregateSignatureByValidators(validatorAddrs []
 		return false, typesdk.NewRevertError("StakeHandler: invalid signatures")
 	}
 	return sig.Verify(&pub, string(data[:])), nil
+}
+
+func (c *StakeHandler) removeValidatorsFromEpochValidatorQueue(removeValidatorAddrCache map[common.Address]struct{}) error {
+
+	currentEpoch := c.getCurrentEpoch()
+	epochValidatorAddrQueue := db.GetEpochValidatorSharesSnapshotQueue(c.evm.StateDB, c.contract.Address(), currentEpoch)
+	oldSize := len(epochValidatorAddrQueue)
+	for i := 0; i < len(epochValidatorAddrQueue); i++ {
+		validator := epochValidatorAddrQueue[i]
+		// remove the validatorAddr from epoch validatorAddrQueue
+		if _, ok := removeValidatorAddrCache[validator.ValidatorAddr]; ok {
+			epochValidatorAddrQueue = append(epochValidatorAddrQueue[:i], epochValidatorAddrQueue[i+1:]...)
+			i--
+		}
+	}
+	// NTOE: update epoch validator snapshot queue (after remove validators)
+	if len(epochValidatorAddrQueue) != oldSize {
+		if err := db.SetEpochValidatorSharesSnapshotQueue(c.evm.StateDB, c.contract.Address(), currentEpoch, epochValidatorAddrQueue); nil != err {
+			log.Error("Failed to update epochValidators", "epoch", currentEpoch, "error", err)
+			return typesdk.NewRevertError("StakeHandler: UPDATE EPOCH VALIDATORS FAILED")
+		}
+	}
+	return nil
 }
