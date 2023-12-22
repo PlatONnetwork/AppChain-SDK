@@ -340,15 +340,17 @@ type ValidatorSortSnapshot struct {
 	Epoch          uint64
 	StakeIndex     uint64
 	ValidatorTerm  uint64
+	CommissionRate uint64
 	StakeAmount    *big.Int
 	DelegateAmount *big.Int
 }
 
-func NewValidatorSharesSnapshot(validatorAddr common.Address, epoch, stakeIndex uint64, stakeAmount, delegateAmount *big.Int) *ValidatorSortSnapshot {
+func NewValidatorSharesSnapshot(validatorAddr common.Address, epoch, stakeIndex, commissionRate uint64, stakeAmount, delegateAmount *big.Int) *ValidatorSortSnapshot {
 	return &ValidatorSortSnapshot{
 		ValidatorAddr:  validatorAddr,
 		Epoch:          epoch,
 		StakeIndex:     stakeIndex,
+		CommissionRate: commissionRate,
 		StakeAmount:    stakeAmount,
 		DelegateAmount: delegateAmount,
 	}
