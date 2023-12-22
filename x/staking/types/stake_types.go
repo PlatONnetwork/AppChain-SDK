@@ -84,6 +84,10 @@ func (status ValidatorStatus) IsInvalidUnstaked() bool {
 	return status&(Invalided|Unstaked) == (Invalided | Unstaked)
 }
 
+func (status ValidatorStatus) IsOnlyInvalidUnstaked() bool {
+	return status&(Invalided|Unstaked) == status|(Invalided|Unstaked)
+}
+
 func (status ValidatorStatus) IsNotExist() bool {
 	return status&NotExist == NotExist
 }
@@ -239,6 +243,10 @@ func (v *Validator) IsOnlyUnstaked() bool {
 
 func (v *Validator) IsInvalidUnstaked() bool {
 	return v.IsNotEmpty() && v.Status.IsInvalidUnstaked()
+}
+
+func (v *Validator) IsOnlyInvalidUnstaked() bool {
+	return v.IsNotEmpty() && v.Status.IsOnlyInvalidUnstaked()
 }
 
 func (v *Validator) IsEmpty() bool {
