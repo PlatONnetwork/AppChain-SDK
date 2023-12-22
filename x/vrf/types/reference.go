@@ -13,6 +13,6 @@ type StageModuler interface {
 
 type StakeModuler interface {
 	IsValidValidator(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) bool
-	IsInvalidValidator(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) bool
+	IsEmptyValidator(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) bool
 	GetValidatorECDSAPubKey(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) *ecdsa.PublicKey
 }
