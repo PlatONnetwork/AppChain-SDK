@@ -634,6 +634,16 @@ func (s *StakeModule) IsInvalidValidator(stateDB sdk.StateDBReader, validatorAdd
 	validator := db.GetValidator(stateDB, s.Address(), validatorAddr)
 	return validator.IsEmptyOrInvalid()
 }
+func (s *StakeModule) IsOnlyInvalidUnstakeValidator(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) bool {
+	validator := db.GetValidator(stateDB, s.Address(), validatorAddr)
+	return validator.IsOnlyInvalidUnstaked()
+}
+
+func (s *StakeModule) IsEmptyValidator(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) bool {
+	validator := db.GetValidator(stateDB, s.Address(), validatorAddr)
+	return validator.IsEmpty()
+}
+
 func (s *StakeModule) GetValidatorECDSAPubKey(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) *ecdsa.PublicKey {
 	validator := db.GetValidator(stateDB, s.Address(), validatorAddr)
 	if validator.IsEmpty() {

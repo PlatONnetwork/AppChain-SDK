@@ -167,7 +167,10 @@ func (r *RewardModule) handleEpochReward(stateDB sdk.StateDB, blockNumber uint64
 
 	for _, validatorAddr := range epochValidatorIds {
 
-		if r.stakeModule.IsInvalidValidator(stateDB, validatorAddr) {
+		// #### NOTE ####
+		// skip invalid validator (but except `unstake` validator)
+		if r.stakeModule.IsEmptyValidator(stateDB, validatorAddr) ||
+			(!(r.stakeModule.IsOnlyInvalidUnstakeValidator(stateDB, validatorAddr)) && r.stakeModule.IsInvalidValidator(stateDB, validatorAddr)) {
 			continue
 		}
 

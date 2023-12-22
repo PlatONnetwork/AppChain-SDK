@@ -67,7 +67,7 @@ func (c *VRFHandler) PushNonceAndProof(nonceAndProof []byte) error {
 
 	validatorAddr := c.contract.Caller()
 
-	if c.stakeModule.IsInvalidValidator(c.evm.StateDB, validatorAddr) {
+	if c.stakeModule.IsEmptyValidator(c.evm.StateDB, validatorAddr) {
 		return typesdk.NewRevertError("VRFHandler: INVALID CALLER")
 	}
 	currentBlock := c.evm.Context.BlockNumber.Uint64()
