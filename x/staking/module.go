@@ -21,6 +21,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
 	"github.com/PlatONnetwork/PlatON-Go/crypto/bls"
 	"github.com/PlatONnetwork/PlatON-Go/log"
+	"github.com/PlatONnetwork/PlatON-Go/p2p"
 	"github.com/PlatONnetwork/PlatON-Go/p2p/enode"
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
@@ -96,6 +97,10 @@ func (s *StakeModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *
 
 	log.Info("Succeed init genesis", "module", s.Name(), "StakeNetworkParams", configParams.String())
 	return nil
+}
+
+func (s *StakeModule) Protocols() []p2p.Protocol {
+	return s.p2p.Protocols()
 }
 
 func (s *StakeModule) Address() basecommon.Address {
