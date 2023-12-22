@@ -101,7 +101,7 @@ func initValidators(statedb sdk.StateDB, addr common.Address, chainConfig *param
 			return fmt.Errorf("set validator priority '%s' %s", validatorAddr, err)
 		}
 
-		validatorShareSnapshot := types.NewValidatorSharesSnapshot(validatorAddr, 1, stakeIndex, genesisStakeAmount, genesisDelegateAmount)
+		validatorShareSnapshot := types.NewValidatorSharesSnapshot(validatorAddr, 1, stakeIndex, 100, genesisStakeAmount, genesisDelegateAmount)
 		validatorShareSnapshotQueue = append(validatorShareSnapshotQueue, validatorShareSnapshot)
 	}
 

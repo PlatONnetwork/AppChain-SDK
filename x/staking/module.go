@@ -562,7 +562,7 @@ func (s *StakeModule) electionEpochValidators(ctx sdk.WorkerContext, blockNumber
 		if validator.IsEmptyOrInvalid() {
 			return errors.New("invalid validator")
 		}
-		queue[i] = staketypes.NewValidatorSharesSnapshot(id, validator.Epoch, validator.StakeIndex, validator.StakeAmount, validator.DelegateAmount)
+		queue[i] = staketypes.NewValidatorSharesSnapshot(id, validator.Epoch, validator.StakeIndex, validator.CommissionRate, validator.StakeAmount, validator.DelegateAmount)
 	}
 
 	if err := db.SetEpochValidatorSharesSnapshotQueue(ctx.StateDB(), s.Address(), currentEpoch+1, queue); nil != err {
@@ -626,6 +626,47 @@ func (s *StakeModule) GetEpochValidatorIds(stateDB sdk.StateDBReader, epoch uint
 	queue := db.GetEpochValidatorIds(stateDB, s.Address(), epoch)
 	return queue
 }
+func (s *StakeModule) GetRoundValidatorSnapQueueFlatten(stateDB sdk.StateDBReader, epoch uint64) ([]basecommon.Address, []*big.Int, []*big.Int, []uint64, []uint64, []uint64, []uint64) {
+	queue := db.GetRoundValidatorSharesSnapshotQueue(stateDB, s.Address(), epoch)
+	validatorAddrQueue := make([]basecommon.Address, len(queue))
+	stakeAmountQueue := make([]*big.Int, len(queue))
+	delegateAmountQueue := make([]*big.Int, len(queue))
+	stakeEpochQueue := make([]uint64, len(queue))
+	stakeIndexQueue := make([]uint64, len(queue))
+	commissionRateQueue := make([]uint64, len(queue))
+	validatorTermQueue := make([]uint64, len(queue))
+	for i, _ := range queue {
+		validatorAddrQueue[i] = queue[i].ValidatorAddr
+		stakeAmountQueue[i] = queue[i].StakeAmount
+		delegateAmountQueue[i] = queue[i].DelegateAmount
+		stakeEpochQueue[i] = queue[i].Epoch
+		stakeIndexQueue[i] = queue[i].StakeIndex
+		commissionRateQueue[i] = queue[i].CommissionRate
+		validatorTermQueue[i] = queue[i].ValidatorTerm
+	}
+	return validatorAddrQueue, stakeAmountQueue, delegateAmountQueue, commissionRateQueue, stakeEpochQueue, stakeIndexQueue, validatorTermQueue
+}
+func (s *StakeModule) GetEpochValidatorSnapQueueFlatten(stateDB sdk.StateDBReader, epoch uint64) ([]basecommon.Address, []*big.Int, []*big.Int, []uint64, []uint64, []uint64, []uint64) {
+	queue := db.GetEpochValidatorSharesSnapshotQueue(stateDB, s.Address(), epoch)
+	validatorAddrQueue := make([]basecommon.Address, len(queue))
+	stakeAmountQueue := make([]*big.Int, len(queue))
+	delegateAmountQueue := make([]*big.Int, len(queue))
+	stakeEpochQueue := make([]uint64, len(queue))
+	stakeIndexQueue := make([]uint64, len(queue))
+	commissionRateQueue := make([]uint64, len(queue))
+	validatorTermQueue := make([]uint64, len(queue))
+	for i, _ := range queue {
+		validatorAddrQueue[i] = queue[i].ValidatorAddr
+		stakeAmountQueue[i] = queue[i].StakeAmount
+		delegateAmountQueue[i] = queue[i].DelegateAmount
+		stakeEpochQueue[i] = queue[i].Epoch
+		stakeIndexQueue[i] = queue[i].StakeIndex
+		commissionRateQueue[i] = queue[i].CommissionRate
+		validatorTermQueue[i] = queue[i].ValidatorTerm
+	}
+	return validatorAddrQueue, stakeAmountQueue, delegateAmountQueue, commissionRateQueue, stakeEpochQueue, stakeIndexQueue, validatorTermQueue
+}
+
 func (s *StakeModule) IsValidValidator(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) bool {
 	validator := db.GetValidator(stateDB, s.Address(), validatorAddr)
 	return validator.IsValid()
