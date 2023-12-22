@@ -185,8 +185,12 @@ func (v *Validator) IsValid() bool {
 	return v.IsNotEmpty() && v.Status.IsValid()
 }
 
-func (v *Validator) IsInvalid() bool {
+func (v *Validator) IsEmptyOrInvalid() bool {
 	return v.IsEmpty() || (v.IsNotEmpty() && v.Status.IsInvalid())
+}
+
+func (v *Validator) IsInvalid() bool {
+	return v.IsNotEmpty() && v.Status.IsInvalid()
 }
 
 func (v *Validator) IsOnlyInvalid() bool {
