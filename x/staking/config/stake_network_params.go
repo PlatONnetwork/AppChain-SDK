@@ -12,8 +12,9 @@ type StakeNetworkParams struct {
 	// (Suggest a value greater than or equal to the "minStack" parameter set in
 	// the StackManager contract in the root chain,
 	// and must be used to perform the same 'GenesisValidator stack' on the root chain`)
-	GenesisStakeAmount           uint64         `json:"genesisStakeAmount"`
 	GenesisValidatorOwner        common.Address `json:"genesisValidatorOwner"`        // The account can be used to perform 'unstack' operations on 'GenesisValidator'
+	GenesisStakeAmount           uint64         `json:"genesisStakeAmount"`           // The stakeAmount for genesis validator
+	GenesisCommissionRate        uint64         `json:"genesisCommissionRate"`        // The epoch reward commissionRate for genesis validator
 	StakeWithdrawalWaitPeriod    uint64         `json:"stakeWithdrawalWaitPeriod"`    // Asset lock up period after unstake (unit: epoch)
 	DelegateWithdrawalWaitPeriod uint64         `json:"delegateWithdrawalWaitPeriod"` // Asset lock up period after undelegate (unit: epoch)
 	SlashingPercentage           uint64         `json:"slashingPercentage"`           // To be read through NetworkParams later
@@ -39,6 +40,6 @@ func DefualtStakeNetworkParams() *StakeNetworkParams {
 }
 
 func (params *StakeNetworkParams) String() string {
-	return fmt.Sprintf(`{"genesisStakeAmount": %d,"genesisValidatorOwner": "%s", "stakeWithdrawalWaitPeriod": %d, "delegateWithdrawalWaitPeriod": %d, "slashingPercentage": %d, "slashIncentivePercentage": %d, "maxRoundValidatorsSize": %d, "maxEpochValidatorsSize": %d, "minRoundValidatorBlockNumber": %d}`,
-		params.GenesisStakeAmount, params.GenesisValidatorOwner.Hex(), params.StakeWithdrawalWaitPeriod, params.DelegateWithdrawalWaitPeriod, params.SlashingPercentage, params.SlashIncentivePercentage, params.MaxRoundValidatorsSize, params.MaxEpochValidatorsSize, params.MinRoundValidatorBlockNumber)
+	return fmt.Sprintf(`{"genesisValidatorOwner": "%s", "genesisStakeAmount": %d, "genesisCommissionRate": %d,  "stakeWithdrawalWaitPeriod": %d, "delegateWithdrawalWaitPeriod": %d, "slashingPercentage": %d, "slashIncentivePercentage": %d, "maxRoundValidatorsSize": %d, "maxEpochValidatorsSize": %d, "minRoundValidatorBlockNumber": %d}`,
+		params.GenesisValidatorOwner.Hex(), params.GenesisStakeAmount, params.GenesisCommissionRate, params.StakeWithdrawalWaitPeriod, params.DelegateWithdrawalWaitPeriod, params.SlashingPercentage, params.SlashIncentivePercentage, params.MaxRoundValidatorsSize, params.MaxEpochValidatorsSize, params.MinRoundValidatorBlockNumber)
 }

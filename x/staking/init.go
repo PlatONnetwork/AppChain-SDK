@@ -92,7 +92,7 @@ func initValidators(statedb sdk.StateDB, addr common.Address, chainConfig *param
 
 		validator := types.NewValidator(
 			configParams.GenesisValidatorOwner, genesisStakeAmount, genesisDelegateAmount,
-			initialNode.BlsPubKey.Serialize(), initialNode.Node.IDv0(), 0, 1, stakeIndex)
+			initialNode.BlsPubKey.Serialize(), initialNode.Node.IDv0(), configParams.GenesisCommissionRate, 1, stakeIndex)
 		if err := stakingdb.SetValidator(statedb, addr, validatorAddr, validator); nil != err {
 			return fmt.Errorf("set validator info '%s' %s", validatorAddr, err)
 		}
@@ -101,7 +101,7 @@ func initValidators(statedb sdk.StateDB, addr common.Address, chainConfig *param
 			return fmt.Errorf("set validator priority '%s' %s", validatorAddr, err)
 		}
 
-		validatorShareSnapshot := types.NewValidatorSharesSnapshot(validatorAddr, 1, stakeIndex, 100, genesisStakeAmount, genesisDelegateAmount)
+		validatorShareSnapshot := types.NewValidatorSharesSnapshot(validatorAddr, 1, stakeIndex, configParams.GenesisCommissionRate, genesisStakeAmount, genesisDelegateAmount)
 		validatorShareSnapshotQueue = append(validatorShareSnapshotQueue, validatorShareSnapshot)
 	}
 
