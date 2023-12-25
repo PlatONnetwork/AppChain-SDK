@@ -336,7 +336,12 @@ func (c *StakeHandler) WithdrawUndelegate(validator common.Address) error {
 	if nil != err {
 		log.Error("Failed to withdraw undelegate", "validatorAddr", validator.Hex(),
 			"currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber, "amount", amount, "error", err)
-		return typesdk.NewRevertError("StakeHandler: UPDATE STAKE WITHDRAW PENDDING HEAD FAILED")
+		return typesdk.NewRevertError("StakeHandler: CAN NOT UPDATE DELEGATE WITHDRAW PENDDING HEAD")
+	}
+	if amount.Cmp(common.Big0) == 0 {
+		log.Error("has no withdrawable delegate amount", "delegator", delegator, "validator", validator.Hex(),
+			"amount", amount, "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber)
+		return typesdk.NewRevertError("StakeHandler: HAS NO WITHDRAWABLE DELEGATE AMOUNT")
 	}
 
 	if err := c.addLogDelegateWithdrawalEvent(delegator, validator, amount); nil != err {
@@ -358,7 +363,13 @@ func (c *StakeHandler) WithdrawUnstake(validator common.Address) error {
 	if nil != err {
 		log.Error("Failed to withdraw unstake", "validatorAddr", validator.Hex(),
 			"currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber, "amount", amount, "error", err)
-		return typesdk.NewRevertError("StakeHandler: UPDATE STAKE WITHDRAW PENDDING HEAD FAILED")
+		return typesdk.NewRevertError("StakeHandler: CAN NOT UPDATE STAKE WITHDRAW PENDDING HEAD")
+	}
+
+	if amount.Cmp(common.Big0) == 0 {
+		log.Error("has no withdrawable stake amount", "validatorAddr", validator.Hex(),
+			"amount", amount, "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber)
+		return typesdk.NewRevertError("StakeHandler: HAS NO WITHDRAWABLE STAKE AMOUNT")
 	}
 
 	// remove unstake validator

@@ -28,13 +28,17 @@ func (c *RewardManager) updateDelegationRewards(delegatorAddr, validatorAddr bas
 }
 
 func (c *RewardManager) withdrawDelegationRewards(delegatorAddr, validatorAddr basecommon.Address) (*big.Int, error) {
+
 	rewards := db.GetPendingDelegatorReward(c.evm.StateDB, c.contract.Address(), delegatorAddr, validatorAddr)
-	if rewards.Cmp(basecommon.Big0) != 0 {
-		return basecommon.Big0, nil
+
+	if rewards.Cmp(basecommon.Big0) == 0 {
+		log.Error("has no delegation rewards", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
+			"rewards", rewards, "currentEpoch", c.stageModule.GetCurrentEpoch(c.evm.StateDB), "blockNumber", c.evm.Context.BlockNumber)
+		return basecommon.Big0, typesdk.NewRevertError("RewardManager: HAS NO DELEGATION REWARDS")
 	}
 
 	rewardPoolBalance := c.evm.StateDB.GetBalance(c.contract.Address())
-	if rewardPoolBalance.Cmp(rewards) < 0 {
+	if rewardPoolBalance.Cmp(basecommon.Big0) == 0 || rewardPoolBalance.Cmp(rewards) < 0 {
 		log.Error("insufficient balance on reward pool", "will withdraw delegate reward", rewards, "reward pool balance", rewardPoolBalance)
 		return basecommon.Big0, typesdk.NewRevertError("RewardManager: insufficient balance on reward pool")
 	}
@@ -46,14 +50,17 @@ func (c *RewardManager) withdrawDelegationRewards(delegatorAddr, validatorAddr b
 }
 
 func (c *RewardManager) withdrawValidatorRewrads(owner, validatorAddr basecommon.Address) (*big.Int, error) {
+
 	rewards := db.GetPendingValidatorReward(c.evm.StateDB, c.contract.Address(), validatorAddr)
 
-	if rewards.Cmp(basecommon.Big0) != 0 {
-		return basecommon.Big0, nil
+	if rewards.Cmp(basecommon.Big0) == 0 {
+		log.Error("has no validator rewards", "validatorAddr", validatorAddr.Hex(),
+			"rewards", rewards, "currentEpoch", c.stageModule.GetCurrentEpoch(c.evm.StateDB), "blockNumber", c.evm.Context.BlockNumber)
+		return basecommon.Big0, typesdk.NewRevertError("RewardManager: HAS NO VALIDATOR REWARDS")
 	}
 
 	rewardPoolBalance := c.evm.StateDB.GetBalance(c.contract.Address())
-	if rewardPoolBalance.Cmp(rewards) < 0 {
+	if rewardPoolBalance.Cmp(basecommon.Big0) == 0 || rewardPoolBalance.Cmp(rewards) < 0 {
 		log.Error("insufficient balance on reward pool", "will withdraw validator reward", rewards, "reward pool balance", rewardPoolBalance)
 		return basecommon.Big0, typesdk.NewRevertError("RewardManager: insufficient balance on reward pool")
 	}
