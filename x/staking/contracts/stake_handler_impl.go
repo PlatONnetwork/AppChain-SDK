@@ -240,7 +240,7 @@ func (c *StakeHandler) Slash() error {
 		return err
 	}
 
-	log.Info("Slash for", "validator size", len(validatorAddrs), "minRoundValidatorBlockNumbers", minRoundValidatorBlockNumbers,
+	log.Info("Begin Slash for", "validator size", len(validatorAddrs), "minRoundValidatorBlockNumbers", minRoundValidatorBlockNumbers,
 		"currentRound", c.getCurrentRound(), "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }

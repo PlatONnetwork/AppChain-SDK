@@ -253,14 +253,14 @@ func (c *StakeHandler) releaseValidatorDelegationRcItem(validatorAddr common.Add
 
 // ----
 
-func (c *StakeHandler) setSlashProcessed(handleEventId *big.Int, queue types.SlashValidatorWithdrawItemQueue) error {
-	return db.SetSlashProcessed(c.evm.StateDB, c.contract.Address(), handleEventId, queue)
+func (c *StakeHandler) setSlashProcessed(exitEventId *big.Int, queue types.SlashValidatorWithdrawItemQueue) error {
+	return db.SetSlashProcessed(c.evm.StateDB, c.contract.Address(), exitEventId, queue)
 }
 
-func (c *StakeHandler) hasSlashProcessed(handleEventId *big.Int) bool {
-	return db.HasSlashProcessed(c.evm.StateDB, c.contract.Address(), handleEventId)
+func (c *StakeHandler) hasSlashProcessed(exitEventId *big.Int) bool {
+	return db.HasSlashProcessed(c.evm.StateDB, c.contract.Address(), exitEventId)
 }
 
-func (c *StakeHandler) hasNotSlashProcessed(handleEventId *big.Int) bool {
-	return db.HasNotSlashProcessed(c.evm.StateDB, c.contract.Address(), handleEventId)
+func (c *StakeHandler) hasNotSlashProcessed(exitEventId *big.Int) bool {
+	return db.HasNotSlashProcessed(c.evm.StateDB, c.contract.Address(), exitEventId)
 }

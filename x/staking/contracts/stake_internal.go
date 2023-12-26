@@ -37,7 +37,7 @@ var (
 	ADDSTAKE_PARAMS_TYPE          = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, uint256 amount)")
 	UNSTAKE_PARAMS_TYPE           = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, uint256 amount)")
 	ROOT_CHAIN_SLASH_PARAMS_TYPE  = abi.MustNewType("tuple(bytes32 sig, address[] validatorAddrs, uint256 slashingPercentage, uint256 slashIncentivePercentage)")
-	CHILD_CHAIN_SLASH_PARAMS_TYPE = abi.MustNewType("tuple(bytes32 sig, uint256 handleEventId, address[] validatorAddrs, uint256[] amounts)")
+	CHILD_CHAIN_SLASH_PARAMS_TYPE = abi.MustNewType("tuple(bytes32 sig, uint256 exitEventId, address[] validatorAddrs, uint256[] amounts)")
 	DELEGATE_PARAMS_TYPE          = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, address delegatorAddr, uint256 amount)")
 	UNDELEGATE_PARAMS_TYPE        = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, address delegatorAddr, uint256 amount)")
 )
@@ -161,9 +161,9 @@ func (c *StakeHandler) onSlash(input []byte) error {
 		return typesdk.NewRevertError("StakeHandler: INVALID_SLASH_DATA")
 	}
 
-	handleEventId, ok := res["handleEventId"].(*big.Int)
+	exitEventId, ok := res["exitEventId"].(*big.Int)
 	if !ok {
-		return typesdk.NewRevertError("StakeHandler: INVALID_HANDLEEVENTID")
+		return typesdk.NewRevertError("StakeHandler: INVALID_EXITEVENTID")
 	}
 
 	validatorAddrs, ok := res["validatorAddrs"].([]ethgo.Address)
@@ -181,7 +181,7 @@ func (c *StakeHandler) onSlash(input []byte) error {
 		return typesdk.NewRevertError("StakeHandler: INVALID_AMOUNTS")
 	}
 
-	return c.slash(handleEventId, addrs, amounts)
+	return c.slash(exitEventId, addrs, amounts)
 }
 
 func (c *StakeHandler) onDelegate(input []byte) error {
@@ -335,8 +335,8 @@ func (c *StakeHandler) unStake(validatorAddr common.Address, amount *big.Int) er
 	return nil
 }
 
-func (c *StakeHandler) slash(handleEventId *big.Int, validatorAddrs []common.Address, amounts []*big.Int) error {
-	if c.hasSlashProcessed(handleEventId) {
+func (c *StakeHandler) slash(exitEventId *big.Int, validatorAddrs []common.Address, amounts []*big.Int) error {
+	if c.hasSlashProcessed(exitEventId) {
 		return typesdk.NewRevertError("StakeHandler: SLASH_ALREADY_PROCESSED")
 	}
 	if len(validatorAddrs) != len(amounts) {
@@ -355,8 +355,8 @@ func (c *StakeHandler) slash(handleEventId *big.Int, validatorAddrs []common.Add
 
 	}
 
-	if err := c.setSlashProcessed(handleEventId, slashItemQueue); nil != err {
-		log.Error("Failed to call setSlashProcessed", "handleEventId", handleEventId, "error", err)
+	if err := c.setSlashProcessed(exitEventId, slashItemQueue); nil != err {
+		log.Error("Failed to call setSlashProcessed", "exitEventId", exitEventId, "error", err)
 		return typesdk.NewRevertError("StakeHandler: INVALID_PARAMS")
 	}
 
@@ -369,11 +369,11 @@ func (c *StakeHandler) slash(handleEventId *big.Int, validatorAddrs []common.Add
 		return err
 	}
 
-	if err := c.addLogSlashedEvent(handleEventId, validatorAddrs, amounts); nil != err {
+	if err := c.addLogSlashedEvent(exitEventId, validatorAddrs, amounts); nil != err {
 		return err
 	}
 
-	log.Info("Slash for", "handleEventId", handleEventId, "validator size", len(validatorAddrs), "epoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
+	log.Info("End Slash for", "exitEventId", exitEventId, "validator size", len(validatorAddrs), "currentRound", c.getCurrentRound(), "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }
 
