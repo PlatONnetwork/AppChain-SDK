@@ -7,6 +7,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/common/math"
+	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"math/big"
@@ -46,7 +47,7 @@ var (
 	stakeWithdrawalQueueItemKeyPrefix    = []byte("stakeWithdrawalQueueItem")    // "stakeWithdrawalQueueItem":validatorAddr:(unlock)epoch => {preEpoch, nextEpoch, amount}
 	delegateWithdrawalQueueItemKeyPrefix = []byte("delegateWithdrawalQueueItem") // "delegateWithdrawalQueueItem":delegatorAddr:validatorAddr:(unlock)epoch => {preEpoch, nextEpoch, amount}
 	validatorDelegationRcKeyPrefix       = []byte("validatorDelegationRc")       // "validatorDelegationRc":validatorAddr:stakeEpoch => unStakeDelegationRcItem{preStakeEpoch, nextStakeEpoch, delegation count}
-	slashProcessedKeyPrefix              = []byte("slashProcessed")              // "slashProcessed":handleEventId => []SlashValidatorWithdrawItem{validatorAddr, amount}
+	slashProcessedKeyPrefix              = []byte("slashProcessed")              // "slashProcessed":exitEventId => []SlashValidatorWithdrawItem{validatorAddr, amount}
 
 	epochValidatorSharesSnapshotQueueKeyPrefix = []byte("epochValidatorSharesSnapshotQueue") // "epochValidatorSharesSnapshotQueue":epochId => []validatorSharesSnapshot  (For settlement epoch)
 	roundValidatorSharesSnapshotQueueKeyPrefix = []byte("roundValidatorSharesSnapshotQueue") // "roundValidatorSharesSnapshotQueue":roundId => []validatorSharesSnapshot  (For consensus round)
@@ -196,8 +197,8 @@ func encodeValidatorDelegationRcKey(validatorAddr common.Address, stakeEpoch uin
 	return key
 }
 
-func encodeSlashProcessedKey(handleEventId *big.Int) []byte {
-	return append(slashProcessedKeyPrefix, handleEventId.Bytes()...)
+func encodeSlashProcessedKey(exitEventId *big.Int) []byte {
+	return append(slashProcessedKeyPrefix, exitEventId.Bytes()...)
 }
 
 func encodeEpochValidatorSharesSnapshotQueueKey(epoch uint64) []byte {
@@ -446,6 +447,9 @@ func RemoveValidatorPriority(db sdk.StateDB, addr common.Address, epoch, stakeIn
 
 	priorityKey := encodePriorityValidatorKey(epoch, stakeIndex, shares)
 	priority := GetValidatorPriorityByKey(db, addr, priorityKey)
+	if priority.IsEmpty() {
+		return nil
+	}
 
 	preKey := priority.PreKey
 	nextKey := priority.NextKey
@@ -1343,17 +1347,17 @@ func GetValidatorDelegationRc(db sdk.StateDBReader, addr, validatorAddr common.A
 
 // ----
 
-func SetSlashProcessed(db sdk.StateDB, addr common.Address, handleEventId *big.Int, queue types.SlashValidatorWithdrawItemQueue) error {
+func SetSlashProcessed(db sdk.StateDB, addr common.Address, exitEventId *big.Int, queue types.SlashValidatorWithdrawItemQueue) error {
 	value, err := rlp.EncodeToBytes(queue)
 	if nil != err {
 		return ErrRlpEncode
 	}
-	db.SetState(addr, encodeSlashProcessedKey(handleEventId), value)
+	db.SetState(addr, encodeSlashProcessedKey(exitEventId), value)
 	return nil
 }
 
-func GetSlashProcessed(db sdk.StateDBReader, addr common.Address, handleEventId *big.Int) types.SlashValidatorWithdrawItemQueue {
-	value := db.GetState(addr, encodeSlashProcessedKey(handleEventId))
+func GetSlashProcessed(db sdk.StateDBReader, addr common.Address, exitEventId *big.Int) types.SlashValidatorWithdrawItemQueue {
+	value := db.GetState(addr, encodeSlashProcessedKey(exitEventId))
 	if len(value) == 0 {
 		return nil
 	}
@@ -1365,12 +1369,12 @@ func GetSlashProcessed(db sdk.StateDBReader, addr common.Address, handleEventId 
 	return nil
 }
 
-func HasSlashProcessed(db sdk.StateDBReader, addr common.Address, handleEventId *big.Int) bool {
-	return GetSlashProcessed(db, addr, handleEventId).IsNotEmpty()
+func HasSlashProcessed(db sdk.StateDBReader, addr common.Address, exitEventId *big.Int) bool {
+	return GetSlashProcessed(db, addr, exitEventId).IsNotEmpty()
 }
 
-func HasNotSlashProcessed(db sdk.StateDBReader, addr common.Address, handleEventId *big.Int) bool {
-	return !HasSlashProcessed(db, addr, handleEventId)
+func HasNotSlashProcessed(db sdk.StateDBReader, addr common.Address, exitEventId *big.Int) bool {
+	return !HasSlashProcessed(db, addr, exitEventId)
 }
 
 // ---------
@@ -1495,6 +1499,7 @@ func HasLowBlocksValidator(db sdk.StateDBReader, addr common.Address, minRoundVa
 
 	for _, number := range cache {
 		if number < minRoundValidatorBlockNumber {
+			log.Debug("HasLowBlocksValidator", "currentRound", currentRound, "previousRound", previousRound)
 			return true
 		}
 	}
@@ -1519,6 +1524,7 @@ func CheckLowBlocksValidatorForPreviousRound(db sdk.StateDBReader, addr common.A
 
 	for validatorAddr, number := range cache {
 		if number < minRoundValidatorBlockNumber {
+			log.Debug("CheckLowBlocksValidatorForPreviousRound", "currentRound", currentRound, "previousRound", previousRound, "validatorAddr", validatorAddr.Hex(), "numberOfBlocks", number, "minRoundValidatorBlockNumber", minRoundValidatorBlockNumber)
 			validatorAddrQueue = append(validatorAddrQueue, validatorAddr)
 		}
 	}

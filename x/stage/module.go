@@ -23,7 +23,7 @@ type StageModule struct {
 	logger log.Logger
 }
 
-func NewStageModule(ctx *cli.Context) *StageModule {
+func NewModule(ctx *cli.Context) *StageModule {
 	return &StageModule{
 		logger: log.New("module", MODULE_NAME_STAGE),
 	}

@@ -67,15 +67,17 @@ func (c *StakeHandler) updateValidatorRemovePriority(validatorAddr common.Addres
 		return nil
 	}
 	// delete old priority
-	if db.GetValidatorPriority(c.evm.StateDB, c.contract.Address(), old.Epoch, old.StakeIndex, old.Shares()).ValidatorAddr != validatorAddr {
-		return db.ErrMisMatching
+	priority := db.GetValidatorPriority(c.evm.StateDB, c.contract.Address(), old.Epoch, old.StakeIndex, old.Shares())
+	if priority.IsNotEmpty() {
+		if priority.ValidatorAddr != validatorAddr {
+			return db.ErrMisMatching
+		}
+		if err := db.RemoveValidatorPriority(c.evm.StateDB, c.contract.Address(), old.Epoch, old.StakeIndex, old.Shares()); nil != err {
+			return err
+		}
 	}
 	// set new priority only
-	if err := db.SetValidator(c.evm.StateDB, c.contract.Address(), validatorAddr, validator); nil != err {
-		return err
-	}
-
-	return db.RemoveValidatorPriority(c.evm.StateDB, c.contract.Address(), old.Epoch, old.StakeIndex, old.Shares())
+	return db.SetValidator(c.evm.StateDB, c.contract.Address(), validatorAddr, validator)
 }
 
 func (c *StakeHandler) updateValidatorByPriority(validatorAddr common.Address, validator *types.Validator) error {
@@ -85,14 +87,16 @@ func (c *StakeHandler) updateValidatorByPriority(validatorAddr common.Address, v
 		return nil
 	}
 	// delete old priority
-
-	if db.GetValidatorPriority(c.evm.StateDB, c.contract.Address(), old.Epoch, old.StakeIndex, old.Shares()).ValidatorAddr != validatorAddr {
-		return db.ErrMisMatching
+	priority := db.GetValidatorPriority(c.evm.StateDB, c.contract.Address(), old.Epoch, old.StakeIndex, old.Shares())
+	if priority.IsNotEmpty() {
+		if priority.ValidatorAddr != validatorAddr {
+			return db.ErrMisMatching
+		}
+		if err := db.RemoveValidatorPriority(c.evm.StateDB, c.contract.Address(), old.Epoch, old.StakeIndex, old.Shares()); nil != err {
+			return err
+		}
 	}
 
-	if err := db.RemoveValidatorPriority(c.evm.StateDB, c.contract.Address(), old.Epoch, old.StakeIndex, old.Shares()); nil != err {
-		return err
-	}
 	// set new priority and validator
 	return c.setValidatorByPriority(validatorAddr, validator)
 }
@@ -249,14 +253,14 @@ func (c *StakeHandler) releaseValidatorDelegationRcItem(validatorAddr common.Add
 
 // ----
 
-func (c *StakeHandler) setSlashProcessed(handleEventId *big.Int, queue types.SlashValidatorWithdrawItemQueue) error {
-	return db.SetSlashProcessed(c.evm.StateDB, c.contract.Address(), handleEventId, queue)
+func (c *StakeHandler) setSlashProcessed(exitEventId *big.Int, queue types.SlashValidatorWithdrawItemQueue) error {
+	return db.SetSlashProcessed(c.evm.StateDB, c.contract.Address(), exitEventId, queue)
 }
 
-func (c *StakeHandler) hasSlashProcessed(handleEventId *big.Int) bool {
-	return db.HasSlashProcessed(c.evm.StateDB, c.contract.Address(), handleEventId)
+func (c *StakeHandler) hasSlashProcessed(exitEventId *big.Int) bool {
+	return db.HasSlashProcessed(c.evm.StateDB, c.contract.Address(), exitEventId)
 }
 
-func (c *StakeHandler) hasNotSlashProcessed(handleEventId *big.Int) bool {
-	return db.HasNotSlashProcessed(c.evm.StateDB, c.contract.Address(), handleEventId)
+func (c *StakeHandler) hasNotSlashProcessed(exitEventId *big.Int) bool {
+	return db.HasNotSlashProcessed(c.evm.StateDB, c.contract.Address(), exitEventId)
 }

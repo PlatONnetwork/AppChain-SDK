@@ -21,9 +21,9 @@ const (
 	LowThreshold                             // 0100: The validator's stake was lower than minimum stake threshold
 	Duplicated                               // 1000: The validator was duplicate block or duplicate signature
 	Unstaked                                 // 0010,0000: The validator was unstaked
-	//Slashed                                  // 0100,0000: The validator was slashed
-	Valided  = 0       // 0000: The validator was activated
-	NotExist = 1 << 31 // 1000,xxxx,... : The validator is not exist
+	Slashing                                 // 0100,0000: The validator is being slashed
+	Valided      = 0                         // 0000: The validator was activated
+	NotExist     = 1 << 31                   // 1000,xxxx,... : The validator is not exist
 )
 
 type ValidatorStatus uint32
@@ -31,11 +31,9 @@ type ValidatorStatus uint32
 func (status ValidatorStatus) IsValid() bool {
 	return !status.IsInvalid()
 }
-
 func (status ValidatorStatus) IsInvalid() bool {
 	return status&Invalided == Invalided
 }
-
 func (status ValidatorStatus) IsOnlyInvalid() bool {
 	return status&Invalided == status|Invalided
 }
@@ -43,11 +41,9 @@ func (status ValidatorStatus) IsOnlyInvalid() bool {
 func (status ValidatorStatus) IsLowBlocks() bool {
 	return status&LowBlocks == LowBlocks
 }
-
 func (status ValidatorStatus) IsOnlyLowBlocks() bool {
 	return status&LowBlocks == status|LowBlocks
 }
-
 func (status ValidatorStatus) IsInvalidLowBlocks() bool {
 	return status&(Invalided|LowBlocks) == (Invalided | LowBlocks)
 }
@@ -55,11 +51,9 @@ func (status ValidatorStatus) IsInvalidLowBlocks() bool {
 func (status ValidatorStatus) IsLowThreshold() bool {
 	return status&LowThreshold == LowThreshold
 }
-
 func (status ValidatorStatus) IsOnlyLowThreshold() bool {
 	return status&LowThreshold == status|LowThreshold
 }
-
 func (status ValidatorStatus) IsInvalidLowThreshold() bool {
 	return status&(Invalided|LowThreshold) == (Invalided | LowThreshold)
 }
@@ -67,25 +61,28 @@ func (status ValidatorStatus) IsInvalidLowThreshold() bool {
 func (status ValidatorStatus) IsDuplicated() bool {
 	return status&Duplicated == Duplicated
 }
-
 func (status ValidatorStatus) IsInvalidDuplicated() bool {
 	return status&(Duplicated|Invalided) == (Duplicated | Invalided)
 }
 
-func (status ValidatorStatus) IsUnstaked() bool {
-	return status&Unstaked == Unstaked
-}
-
+func (status ValidatorStatus) IsUnstaked() bool { return status&Unstaked == Unstaked }
 func (status ValidatorStatus) IsOnlyUnstaked() bool {
 	return status&Unstaked == status|Unstaked
 }
-
 func (status ValidatorStatus) IsInvalidUnstaked() bool {
 	return status&(Invalided|Unstaked) == (Invalided | Unstaked)
 }
-
 func (status ValidatorStatus) IsOnlyInvalidUnstaked() bool {
 	return status&(Invalided|Unstaked) == status|(Invalided|Unstaked)
+}
+
+func (status ValidatorStatus) IsSlashing() bool     { return status&Slashing == Slashing }
+func (status ValidatorStatus) IsOnlySlashing() bool { return status&Slashing == status|Slashing }
+func (status ValidatorStatus) IsInvalidSlashing() bool {
+	return status&(Invalided|Slashing) == (Invalided | Slashing)
+}
+func (status ValidatorStatus) IsOnlyInvalidSlashing() bool {
+	return status&(Invalided|Slashing) == status|(Invalided|Slashing)
 }
 
 func (status ValidatorStatus) IsNotExist() bool {
@@ -188,15 +185,12 @@ func (v *Validator) Shares() *big.Int {
 func (v *Validator) IsValid() bool {
 	return v.IsNotEmpty() && v.Status.IsValid()
 }
-
 func (v *Validator) IsEmptyOrInvalid() bool {
 	return v.IsEmpty() || (v.IsNotEmpty() && v.Status.IsInvalid())
 }
-
 func (v *Validator) IsInvalid() bool {
 	return v.IsNotEmpty() && v.Status.IsInvalid()
 }
-
 func (v *Validator) IsOnlyInvalid() bool {
 	return v.IsNotEmpty() && v.Status.IsOnlyInvalid()
 }
@@ -204,11 +198,9 @@ func (v *Validator) IsOnlyInvalid() bool {
 func (v *Validator) IsLowBlocks() bool {
 	return v.IsNotEmpty() && v.Status.IsLowBlocks()
 }
-
 func (v *Validator) IsOnlyLowBlocks() bool {
 	return v.IsNotEmpty() && v.Status.IsOnlyLowBlocks()
 }
-
 func (v *Validator) IsInvalidLowBlocks() bool {
 	return v.IsNotEmpty() && v.Status.IsInvalidLowBlocks()
 }
@@ -216,11 +208,9 @@ func (v *Validator) IsInvalidLowBlocks() bool {
 func (v *Validator) IsLowThreshold() bool {
 	return v.IsNotEmpty() && v.Status.IsLowThreshold()
 }
-
 func (v *Validator) IsOnlyLowThreshold() bool {
 	return v.IsNotEmpty() && v.Status.IsOnlyLowThreshold()
 }
-
 func (v *Validator) IsInvalidLowThreshold() bool {
 	return v.IsNotEmpty() && v.Status.IsInvalidLowThreshold()
 }
@@ -228,7 +218,6 @@ func (v *Validator) IsInvalidLowThreshold() bool {
 func (v *Validator) IsDuplicated() bool {
 	return v.IsNotEmpty() && v.Status.IsDuplicated()
 }
-
 func (v *Validator) IsInvalidDuplicated() bool {
 	return v.IsNotEmpty() && v.Status.IsInvalidDuplicated()
 }
@@ -236,17 +225,27 @@ func (v *Validator) IsInvalidDuplicated() bool {
 func (v *Validator) IsUnstaked() bool {
 	return v.IsNotEmpty() && v.Status.IsUnstaked()
 }
-
 func (v *Validator) IsOnlyUnstaked() bool {
 	return v.IsNotEmpty() && v.Status.IsOnlyUnstaked()
 }
-
 func (v *Validator) IsInvalidUnstaked() bool {
 	return v.IsNotEmpty() && v.Status.IsInvalidUnstaked()
 }
-
 func (v *Validator) IsOnlyInvalidUnstaked() bool {
 	return v.IsNotEmpty() && v.Status.IsOnlyInvalidUnstaked()
+}
+
+func (v *Validator) IsSlashing() bool {
+	return v.IsNotEmpty() && v.Status.IsSlashing()
+}
+func (v *Validator) IsOnlySlashing() bool {
+	return v.IsNotEmpty() && v.Status.IsOnlySlashing()
+}
+func (v *Validator) IsInvalidSlashing() bool {
+	return v.IsNotEmpty() && v.Status.IsInvalidSlashing()
+}
+func (v *Validator) IsOnlyInvalidSlashing() bool {
+	return v.IsNotEmpty() && v.Status.IsOnlyInvalidSlashing()
 }
 
 func (v *Validator) IsEmpty() bool {

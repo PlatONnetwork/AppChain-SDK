@@ -20,7 +20,7 @@ type WithdrawModule struct {
 	logger log.Logger
 }
 
-func NewWithdrawModule(ctx *cli.Context) *WithdrawModule {
+func NewModule(ctx *cli.Context) *WithdrawModule {
 	return &WithdrawModule{
 		logger: log.New("module", MODULE_NAME_WITHDRAW),
 	}

@@ -50,7 +50,7 @@ var (
 	stakeWithdrawalQueueItemKeyPrefix          = []byte("stakeWithdrawalQueueItem")          // "stakeWithdrawalQueueItem":validatorAddr:(unlock)epoch => {preEpoch, nextEpoch, amount}
 	delegateWithdrawalQueueItemKeyPrefix       = []byte("delegateWithdrawalQueueItem")       // "delegateWithdrawalQueueItem":delegatorAddr:validatorAddr:(unlock)epoch => {preEpoch, nextEpoch, amount}
 	validatorDelegationRcKeyPrefix             = []byte("validatorDelegationRc")             // "validatorDelegationRc":validatorAddr:stakeEpoch => unStakeDelegationRcItem{preStakeEpoch, nextStakeEpoch, delegation count}
-	slashProcessedKeyPrefix                    = []byte("slashProcessed")                    // "slashProcessed":handleEventId => []SlashValidatorWithdrawItem{validatorAddr, amount}
+	slashProcessedKeyPrefix                    = []byte("slashProcessed")                    // "slashProcessed":exitEventId => []SlashValidatorWithdrawItem{validatorAddr, amount}
 	epochValidatorSharesSnapshotQueueKeyPrefix = []byte("epochValidatorSharesSnapshotQueue") // "epochValidatorSharesSnapshotQueue":epochId => []validatorSharesSnapshot  (For settlement epoch)
 	roundValidatorSharesSnapshotQueueKeyPrefix = []byte("roundValidatorSharesSnapshotQueue") // "roundValidatorSharesSnapshotQueue":roundId => []validatorSharesSnapshot  (For consensus round)
 	numberOfBlocksForRoundValidatorKeyPrefix   = []byte("numberOfBlocksForRoundValidator")   // "numberOfBlocksForRoundValidator":validatorAddr:round => numberOfBlocks

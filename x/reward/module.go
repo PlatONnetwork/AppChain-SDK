@@ -31,7 +31,7 @@ type RewardModule struct {
 	stakeModule    types.StakeModuler
 }
 
-func NewRewardModule(ctx *cli.Context, stage types.StageModuler) *RewardModule {
+func NewModule(ctx *cli.Context, stage types.StageModuler) *RewardModule {
 	return &RewardModule{
 		logger:      log.New("module", MODULE_NAME_REWARD),
 		stageModule: stage,

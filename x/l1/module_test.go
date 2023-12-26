@@ -11,7 +11,7 @@ import (
 
 func TestModule(t *testing.T) {
 	store := memorydb.New()
-	l1 := NewL1Module(store)
+	l1 := NewModule(store)
 	g := L1ConfigParams{
 		ChainID:    big.NewInt(11),
 		State:      common.BigToAddress(big.NewInt(1)),

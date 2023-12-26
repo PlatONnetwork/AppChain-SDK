@@ -37,7 +37,7 @@ var (
 	ADDSTAKE_PARAMS_TYPE          = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, uint256 amount)")
 	UNSTAKE_PARAMS_TYPE           = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, uint256 amount)")
 	ROOT_CHAIN_SLASH_PARAMS_TYPE  = abi.MustNewType("tuple(bytes32 sig, address[] validatorAddrs, uint256 slashingPercentage, uint256 slashIncentivePercentage)")
-	CHILD_CHAIN_SLASH_PARAMS_TYPE = abi.MustNewType("tuple(bytes32 sig, uint256 handleEventId, address[] validatorAddrs, uint256[] amounts)")
+	CHILD_CHAIN_SLASH_PARAMS_TYPE = abi.MustNewType("tuple(bytes32 sig, uint256 exitEventId, address[] validatorAddrs, uint256[] amounts)")
 	DELEGATE_PARAMS_TYPE          = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, address delegatorAddr, uint256 amount)")
 	UNDELEGATE_PARAMS_TYPE        = abi.MustNewType("tuple(bytes32 sig, address validatorAddr, address delegatorAddr, uint256 amount)")
 )
@@ -161,9 +161,9 @@ func (c *StakeHandler) onSlash(input []byte) error {
 		return typesdk.NewRevertError("StakeHandler: INVALID_SLASH_DATA")
 	}
 
-	handleEventId, ok := res["handleEventId"].(*big.Int)
+	exitEventId, ok := res["exitEventId"].(*big.Int)
 	if !ok {
-		return typesdk.NewRevertError("StakeHandler: INVALID_HANDLEEVENTID")
+		return typesdk.NewRevertError("StakeHandler: INVALID_EXITEVENTID")
 	}
 
 	validatorAddrs, ok := res["validatorAddrs"].([]ethgo.Address)
@@ -181,7 +181,7 @@ func (c *StakeHandler) onSlash(input []byte) error {
 		return typesdk.NewRevertError("StakeHandler: INVALID_AMOUNTS")
 	}
 
-	return c.slash(handleEventId, addrs, amounts)
+	return c.slash(exitEventId, addrs, amounts)
 }
 
 func (c *StakeHandler) onDelegate(input []byte) error {
@@ -284,6 +284,13 @@ func (c *StakeHandler) addStake(validatorAddr common.Address, amount *big.Int) e
 func (c *StakeHandler) unStake(validatorAddr common.Address, amount *big.Int) error {
 	validator := c.getValidator(validatorAddr)
 
+	// #### NOTE ####
+	// When the validator is in the period of slashing,
+	// the validator does not accept any action until the slashing process is completed
+	if validator.IsInvalidSlashing() {
+		return typesdk.NewRevertError("StakeHandler: SLASHING_VALIDATOR")
+	}
+
 	if validator.IsEmptyOrInvalid() {
 		return typesdk.NewRevertError("StakeHandler: INVALID_VALIDATOR")
 	}
@@ -328,8 +335,8 @@ func (c *StakeHandler) unStake(validatorAddr common.Address, amount *big.Int) er
 	return nil
 }
 
-func (c *StakeHandler) slash(handleEventId *big.Int, validatorAddrs []common.Address, amounts []*big.Int) error {
-	if c.hasSlashProcessed(handleEventId) {
+func (c *StakeHandler) slash(exitEventId *big.Int, validatorAddrs []common.Address, amounts []*big.Int) error {
+	if c.hasSlashProcessed(exitEventId) {
 		return typesdk.NewRevertError("StakeHandler: SLASH_ALREADY_PROCESSED")
 	}
 	if len(validatorAddrs) != len(amounts) {
@@ -348,8 +355,8 @@ func (c *StakeHandler) slash(handleEventId *big.Int, validatorAddrs []common.Add
 
 	}
 
-	if err := c.setSlashProcessed(handleEventId, slashItemQueue); nil != err {
-		log.Error("Failed to call setSlashProcessed", "handleEventId", handleEventId, "error", err)
+	if err := c.setSlashProcessed(exitEventId, slashItemQueue); nil != err {
+		log.Error("Failed to call setSlashProcessed", "exitEventId", exitEventId, "error", err)
 		return typesdk.NewRevertError("StakeHandler: INVALID_PARAMS")
 	}
 
@@ -362,11 +369,11 @@ func (c *StakeHandler) slash(handleEventId *big.Int, validatorAddrs []common.Add
 		return err
 	}
 
-	if err := c.addLogSlashedEvent(handleEventId, validatorAddrs, amounts); nil != err {
+	if err := c.addLogSlashedEvent(exitEventId, validatorAddrs, amounts); nil != err {
 		return err
 	}
 
-	log.Info("Slash for", "handleEventId", handleEventId, "validator size", len(validatorAddrs), "epoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
+	log.Info("End Slash for", "exitEventId", exitEventId, "validator size", len(validatorAddrs), "currentRound", c.getCurrentRound(), "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }
 
@@ -516,6 +523,7 @@ func (c *StakeHandler) syncStateUnStake(validatorAddr common.Address, amount *bi
 
 	rootchainStakeManagerAddress, err := c.l1Module.GetStakeManagerAddress()
 	if nil != err {
+		log.Error("Failed to get stakeManager address", "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
 		return typesdk.NewRevertError("StakeHandler: NOT FOUND STAKE MANAGER ADDR")
 	}
 
@@ -541,6 +549,7 @@ func (c *StakeHandler) syncStateUnDelegate(validatorAddr, delegatorAddr common.A
 
 	rootchainStakeManagerAddress, err := c.l1Module.GetStakeManagerAddress()
 	if nil != err {
+		log.Error("Failed to get stakeManager address", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
 		return typesdk.NewRevertError("StakeHandler: NOT FOUND STAKE MANAGER ADDR")
 	}
 
@@ -555,23 +564,24 @@ func (c *StakeHandler) syncStateSlash(validators []common.Address) error {
 
 	data, err := abi.Encode([]interface{}{SLASH_SIG, validators, c.stakeModule.GetSlashingPercentage(c.evm.StateDB), c.stakeModule.GetSlashIncentivePercentage(c.evm.StateDB)}, ROOT_CHAIN_SLASH_PARAMS_TYPE)
 	if nil != err {
-		log.Error("Failed to encode slash syncState data", "validators size", len(validators), "error", err)
+		log.Error("Failed to encode slash syncState data", "validators size", len(validators), "currentRound", c.getCurrentRound(), "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber, "error", err)
 		return typesdk.NewRevertError("StakeHandler: encode L2StateSender slash data failed")
 	}
 
 	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, constants.StateSenderAddress)
 	if nil != err {
-		log.Error("Failed to call NewL2StateSenderCaller", "validators size", len(validators), "error", err)
+		log.Error("Failed to call NewL2StateSenderCaller", "validators size", len(validators), "currentRound", c.getCurrentRound(), "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber, "error", err)
 		return typesdk.NewRevertError("StakeHandler: call slash by L2StateSender failed")
 	}
 
 	rootchainStakeManagerAddress, err := c.l1Module.GetStakeManagerAddress()
 	if nil != err {
+		log.Error("Failed to get stakeManager address", "validators size", len(validators), "currentRound", c.getCurrentRound(), "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber, "error", err)
 		return typesdk.NewRevertError("StakeHandler: NOT FOUND STAKE MANAGER ADDR")
 	}
 
 	if err := l2statesender.SyncState(rootchainStakeManagerAddress, data); nil != err {
-		log.Error("Failed to call SyncState", "validators size", len(validators), "error", err)
+		log.Error("Failed to call SyncState", "validators size", len(validators), "currentRound", c.getCurrentRound(), "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber, "error", err)
 		return typesdk.NewRevertError("StakeHandler: call slash by L2StateSender failed")
 	}
 	return nil
@@ -645,7 +655,7 @@ func (c *StakeHandler) removeValidatorsFromEpochValidatorQueue(removeValidatorAd
 	// NTOE: update epoch validator snapshot queue (after remove validators)
 	if len(epochValidatorAddrQueue) != oldSize {
 		if err := db.SetEpochValidatorSharesSnapshotQueue(c.evm.StateDB, c.contract.Address(), currentEpoch, epochValidatorAddrQueue); nil != err {
-			log.Error("Failed to update epochValidators", "epoch", currentEpoch, "error", err)
+			log.Error("Failed to update epochValidators", "currentRound", c.getCurrentRound(), "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber, "error", err)
 			return typesdk.NewRevertError("StakeHandler: UPDATE EPOCH VALIDATORS FAILED")
 		}
 	}

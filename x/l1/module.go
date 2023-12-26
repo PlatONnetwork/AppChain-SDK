@@ -27,7 +27,7 @@ type L1Module struct {
 	db *l1GenesisDB
 }
 
-func NewL1Module(db store.Store) *L1Module {
+func NewModule(db store.Store) *L1Module {
 	return &L1Module{
 		db: newL1GenesisDB(db),
 	}
@@ -37,7 +37,7 @@ func (l *L1Module) Name() string {
 	return MODULE_NAME_L1
 }
 
-func (l *L1Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error{
+func (l *L1Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
 	var g L1ConfigParams
 	raw, err := data.MarshalJSON()
 	if nil != err {

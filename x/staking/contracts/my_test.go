@@ -271,7 +271,7 @@ func TestEncodeSlashData(t *testing.T) {
 	addrs := []common.Address{common.HexToAddress("0xFA66dAa530328D0d914B6652e4B64B00d84e3a1a"), common.HexToAddress("0x4d21D80BA135AD50f515861a5b334A2B4FF8271D")}
 	amounts := []uint64{66, 72}
 
-	abiType := abi.MustNewType("tuple(bytes32 SLASH_SIG, uint256 handleEventId, address[] addrs, uint256[] amounts)")
+	abiType := abi.MustNewType("tuple(bytes32 SLASH_SIG, uint256 exitEventId, address[] addrs, uint256[] amounts)")
 	input, err := abiType.Encode([]interface{}{SLASH_SIG, uint64(12), addrs, amounts})
 	if nil != err {
 		t.Error(err)

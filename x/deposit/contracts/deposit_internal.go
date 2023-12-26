@@ -86,6 +86,7 @@ func (c *DepositHandler) syncStateWithdraw(withdrawer, recipient basecommon.Addr
 
 	rootchainDepositManagerAddress, err := c.l1Module.GetDepositManagerAddress()
 	if nil != err {
+		log.Error("Failed to get depositManager address", "withdrawer", withdrawer.Hex(), "recipient", recipient, "amount", amount, "error", err)
 		return typesdk.NewRevertError("DepositHandler: NOT FOUND DEPOSIT MANAGER ADDR")
 	}
 
