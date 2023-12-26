@@ -2,9 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/PlatONnetwork/AppChain-SDK/tools/contracts"
-	"gopkg.in/urfave/cli.v1"
 	"os"
+
+	"github.com/PlatONnetwork/AppChain-SDK/tools/contracts"
+	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast"
+	"gopkg.in/urfave/cli.v1"
 )
 
 func main() {
@@ -14,6 +16,7 @@ func main() {
 	app.Copyright = "Copyright 2023 The AppChain-SDK Authors"
 	app.Commands = []cli.Command{
 		contracts.ContractCommand,
+		cast.Command,
 	}
 	if err := app.Run(os.Args); err != nil {
 		fmt.Fprintln(os.Stderr, err)
