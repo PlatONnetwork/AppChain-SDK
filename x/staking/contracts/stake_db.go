@@ -20,8 +20,8 @@ func (c *StakeHandler) getValidatorNonce() uint64 {
 
 func (c *StakeHandler) getValidatorsByPriorityKey(start []byte, size uint64) ([]byte, []common.Address, []*types.Validator) {
 
-	validatorAddrQueue := make([]common.Address, size)
-	validatorQueue := make([]*types.Validator, size)
+	validatorAddrQueue := make([]common.Address, 0)
+	validatorQueue := make([]*types.Validator, 0)
 
 	if len(start) == 0 {
 		headItem := db.GetValidatorPriorityByKey(c.evm.StateDB, c.contract.Address(), db.EncodePriorityValidatorHeadKey())
@@ -43,14 +43,14 @@ func (c *StakeHandler) getValidatorsByPriorityKey(start []byte, size uint64) ([]
 			continue
 		}
 
-		validatorAddrQueue[count] = item.ValidatorAddr
-		validatorQueue[count] = validator
+		validatorAddrQueue = append(validatorAddrQueue, item.ValidatorAddr)
+		validatorQueue = append(validatorQueue, validator)
 		index = item.NextKey
 		item = db.GetValidatorPriorityByKey(c.evm.StateDB, c.contract.Address(), index)
 		count++
 
 	}
-	return index, validatorAddrQueue[:count], validatorQueue[:count]
+	return index, validatorAddrQueue, validatorQueue
 }
 
 func (c *StakeHandler) setValidatorByPriority(validatorAddr common.Address, validator *types.Validator) error {

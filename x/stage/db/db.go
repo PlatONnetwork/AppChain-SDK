@@ -124,83 +124,86 @@ func AppendEpochItem(db sdk.StateDB, addr common.Address, epoch uint64, startBlo
 }
 
 func GetEpochQueueSince(db sdk.StateDBReader, addr common.Address, epoch, size uint64) types.EpochQueue {
-	queue := types.NewEpochQueue(size)
 
 	var count uint64 = 0
 
 	currentEpoch := GetCurrentEpoch(db, addr)
 	index := epoch
 
+	queue := types.NewEpochQueue(0)
 	for index != currentEpoch+1 && count < size {
 		item := GetEpochItem(db, addr, index)
 		if item.IsEmpty() {
 			break
 		}
-		queue[count] = item
+		queue = append(queue, item)
 		index++
 		count++
 	}
-	return queue[:count]
+	return queue
 }
 
 func GetEpochQueueFromTail(db sdk.StateDBReader, addr common.Address, epoch, size uint64) types.EpochQueue {
-	queue := types.NewEpochQueue(size)
 
 	var count uint64 = 0
 
 	index := epoch
+
+	queue := types.NewEpochQueue(0)
 	for index != 0 && count < size {
 		item := GetEpochItem(db, addr, index)
 		if item.IsEmpty() {
 			break
 		}
-		queue[count] = item
+		queue = append(queue, item)
 		index--
 		count++
 	}
-	return queue[:count]
+	return queue
 }
 
 func GetEpochQueueAndIndexSince(db sdk.StateDBReader, addr common.Address, epoch, size uint64) ([]uint64, types.EpochQueue) {
-	queue := types.NewEpochQueue(size)
-	epochs := make([]uint64, size)
 
 	var count uint64 = 0
 
 	currentEpoch := GetCurrentEpoch(db, addr)
 	index := epoch
 
+	epochs := make([]uint64, 0)
+	queue := types.NewEpochQueue(0)
 	for index != currentEpoch+1 && count < size {
 		item := GetEpochItem(db, addr, index)
 		if item.IsEmpty() {
 			break
 		}
-		queue[count] = item
-		epochs[count] = index
+
+		queue = append(queue, item)
+		epochs = append(epochs, index)
 		index++
 		count++
 	}
-	return epochs[:count], queue[:count]
+	return epochs, queue
 }
 
 func GetEpochQueueAndIndexFromTail(db sdk.StateDBReader, addr common.Address, epoch, size uint64) ([]uint64, types.EpochQueue) {
-	queue := types.NewEpochQueue(size)
-	epochs := make([]uint64, size)
 
 	var count uint64 = 0
 
 	index := epoch
+
+	epochs := make([]uint64, 0)
+	queue := types.NewEpochQueue(0)
 	for index != 0 && count < size {
 		item := GetEpochItem(db, addr, index)
 		if item.IsEmpty() {
 			break
 		}
-		queue[count] = item
-		epochs[count] = index
+		queue = append(queue, item)
+		epochs = append(epochs, index)
 		index--
 		count++
 	}
-	return epochs[:count], queue[:count]
+	return epochs, queue
 }
 
 func GetEpochItemAndIndexByBlockNumber(db sdk.StateDBReader, addr common.Address, blockNumber uint64) (uint64, *types.EpochItem) {
@@ -262,83 +265,86 @@ func AppendRoundItem(db sdk.StateDB, addr common.Address, round uint64, startBlo
 }
 
 func GetRoundQueueSince(db sdk.StateDBReader, addr common.Address, round, size uint64) types.RoundQueue {
-	queue := types.NewRoundQueue(size)
 
 	var count uint64 = 0
 
 	currentEpoch := GetCurrentRound(db, addr)
 	index := round
 
+	queue := types.NewRoundQueue(0)
 	for index != currentEpoch+1 && count < size {
 		item := GetRoundItem(db, addr, index)
 		if item.IsEmpty() {
 			break
 		}
-		queue[count] = item
+		queue = append(queue, item)
 		index++
 		count++
 	}
-	return queue[:count]
+	return queue
 }
 
 func GetRoundQueueFromTail(db sdk.StateDBReader, addr common.Address, round, size uint64) types.RoundQueue {
-	queue := types.NewRoundQueue(size)
 
 	var count uint64 = 0
 
 	index := round
+
+	queue := types.NewRoundQueue(0)
 	for index != 0 && count < size {
 		item := GetRoundItem(db, addr, index)
 		if item.IsEmpty() {
 			break
 		}
-		queue[count] = item
+		queue = append(queue, item)
 		index--
 		count++
 	}
-	return queue[:count]
+	return queue
 }
 
 func GetRoundQueueAndIndexSince(db sdk.StateDBReader, addr common.Address, round, size uint64) ([]uint64, types.RoundQueue) {
-	queue := types.NewRoundQueue(size)
-	rounds := make([]uint64, size)
 
 	var count uint64 = 0
 
 	currentRound := GetCurrentRound(db, addr)
 	index := round
 
+	rounds := make([]uint64, 0)
+	queue := types.NewRoundQueue(0)
 	for index != currentRound+1 && count < size {
 		item := GetRoundItem(db, addr, index)
 		if item.IsEmpty() {
 			break
 		}
-		queue[count] = item
-		rounds[count] = index
+
+		queue = append(queue, item)
+		rounds = append(rounds, index)
 		index++
 		count++
 	}
-	return rounds[:count], queue[:count]
+	return rounds, queue
 }
 
 func GetRoundQueueAndIndexFromTail(db sdk.StateDBReader, addr common.Address, round, size uint64) ([]uint64, types.RoundQueue) {
-	queue := types.NewRoundQueue(size)
-	rounds := make([]uint64, size)
 
 	var count uint64 = 0
 
 	index := round
+
+	rounds := make([]uint64, 0)
+	queue := types.NewRoundQueue(0)
 	for index != 0 && count < size {
 		item := GetRoundItem(db, addr, index)
 		if item.IsEmpty() {
 			break
 		}
-		queue[count] = item
-		rounds[count] = index
+		queue = append(queue, item)
+		rounds = append(rounds, index)
 		index--
 		count++
 	}
-	return rounds[:count], queue[:count]
+	return rounds, queue
 }
 
 func GetRoundItemAndIndexByBlockNumber(db sdk.StateDBReader, addr common.Address, blockNumber uint64) (uint64, *types.RoundItem) {

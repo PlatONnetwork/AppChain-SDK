@@ -85,14 +85,14 @@ func (v *VRFModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *pa
 }
 
 func (v *VRFModule) Address() basecommon.Address {
-	return constants.VRFHandlerAddress
+	return constants.VRFManagerAddress
 }
 
 func (v *VRFModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly bool) ([]byte, error) {
-	vrfHandler, _ := contracts.NewVRFHandler(evm, contract, readOnly)
-	vrfHandler.SetStageModule(v.stageModule)
-	vrfHandler.SetStakeModule(v.stakeModule)
-	return vrfHandler.Run(input)
+	vrfManager, _ := contracts.NewVRFManager(evm, contract, readOnly)
+	vrfManager.SetStageModule(v.stageModule)
+	vrfManager.SetStakeModule(v.stakeModule)
+	return vrfManager.Run(input)
 }
 
 func (v *VRFModule) AddTxs(ctx sdk.WorkerContext, local map[basecommon.Address]types.Transactions) (map[basecommon.Address]types.Transactions, error) {

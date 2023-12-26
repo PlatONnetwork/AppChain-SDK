@@ -34,7 +34,7 @@ var (
 	Abi, _ = abi.JSON(strings.NewReader(ABI))
 )
 
-func (c *VRFHandler) Run(input []byte) (ret []byte, err error) {
+func (c *VRFManager) Run(input []byte) (ret []byte, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			switch e := r.(type) {
@@ -62,7 +62,7 @@ func (c *VRFHandler) Run(input []byte) (ret []byte, err error) {
 	}
 	return entry(input[4:])
 }
-func (c *VRFHandler) initMethodEntry() {
+func (c *VRFManager) initMethodEntry() {
 
 	c.methodEntry = map[string]func([]byte) ([]byte, error){
 
@@ -71,7 +71,7 @@ func (c *VRFHandler) initMethodEntry() {
 
 }
 
-func (c *VRFHandler) PushNonceAndProofEntry(input []byte) ([]byte, error) {
+func (c *VRFManager) PushNonceAndProofEntry(input []byte) ([]byte, error) {
 
 	method := c.abi.Methods["pushNonceAndProof"]
 
@@ -94,7 +94,7 @@ func (c *VRFHandler) PushNonceAndProofEntry(input []byte) ([]byte, error) {
 	return output, err
 }
 
-func (c *VRFHandler) EmitVRFNonceAddedEvent(block *big.Int, nonce []byte) (*types.Log, error) {
+func (c *VRFManager) EmitVRFNonceAddedEvent(block *big.Int, nonce []byte) (*types.Log, error) {
 	event := c.abi.Events["VRFNonceAdded"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, block, nonce)
 	if err != nil {

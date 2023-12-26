@@ -53,17 +53,17 @@ func GetNonceQueueFromTail(db sdk.StateDBReader, addr basecommon.Address, blockN
 	index := blockNumber
 	count := uint64(0)
 
-	queue := make([]basecommon.Hash, size)
+	queue := make([]basecommon.Hash, 0)
 
 	for index != 0 && count < size {
 		nonce, err := GetCurrentNonce(db, addr, index)
 		if nil != err {
 			return nil, err
 		}
-		queue[count] = nonce
+		queue = append(queue, nonce)
 		index--
 		count++
 	}
-	return queue[:count], nil
+	return queue, nil
 
 }

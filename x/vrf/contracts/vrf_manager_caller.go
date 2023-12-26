@@ -28,13 +28,13 @@ var (
 	_ = event.NewSubscription
 )
 
-type VRFHandlerCaller struct {
+type VRFManagerCaller struct {
 	contracts.BoundContract
 	to common.Address
 }
 
-func NewVRFHandlerCaller(evm *vm.EVM, contract *vm.Contract, to common.Address) (*VRFHandlerCaller, error) {
-	s := &VRFHandlerCaller{
+func NewVRFManagerCaller(evm *vm.EVM, contract *vm.Contract, to common.Address) (*VRFManagerCaller, error) {
+	s := &VRFManagerCaller{
 		BoundContract: contracts.BoundContract{
 			Abi:      &Abi,
 			Evm:      evm,
@@ -45,7 +45,7 @@ func NewVRFHandlerCaller(evm *vm.EVM, contract *vm.Contract, to common.Address) 
 	return s, nil
 }
 
-func (c *VRFHandlerCaller) PushNonceAndProof(nonceAndProof []byte) error {
+func (c *VRFManagerCaller) PushNonceAndProof(nonceAndProof []byte) error {
 	var out []interface{}
 	err := c.BoundContract.Caller(c.to, &out, "pushNonceAndProof", nonceAndProof)
 
@@ -57,13 +57,13 @@ func (c *VRFHandlerCaller) PushNonceAndProof(nonceAndProof []byte) error {
 
 }
 
-type VRFHandlerDelegateCaller struct {
+type VRFManagerDelegateCaller struct {
 	contracts.BoundContract
 	to common.Address
 }
 
-func NewVRFHandlerDelegateCaller(evm *vm.EVM, contract *vm.Contract, to common.Address) (*VRFHandlerDelegateCaller, error) {
-	s := &VRFHandlerDelegateCaller{
+func NewVRFManagerDelegateCaller(evm *vm.EVM, contract *vm.Contract, to common.Address) (*VRFManagerDelegateCaller, error) {
+	s := &VRFManagerDelegateCaller{
 		BoundContract: contracts.BoundContract{
 			Abi:      &Abi,
 			Evm:      evm,
@@ -74,7 +74,7 @@ func NewVRFHandlerDelegateCaller(evm *vm.EVM, contract *vm.Contract, to common.A
 	return s, nil
 }
 
-func (c *VRFHandlerDelegateCaller) PushNonceAndProof(nonceAndProof []byte) error {
+func (c *VRFManagerDelegateCaller) PushNonceAndProof(nonceAndProof []byte) error {
 	var out []interface{}
 	err := c.BoundContract.DelegateCaller(c.to, &out, "pushNonceAndProof", nonceAndProof)
 

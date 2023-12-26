@@ -33,7 +33,7 @@ var (
 	_ = event.NewSubscription
 )
 
-type VRFHandler struct {
+type VRFManager struct {
 	abi         *abi.ABI
 	methodEntry map[string]func([]byte) ([]byte, error)
 	readOnly    bool
@@ -46,8 +46,8 @@ type VRFHandler struct {
 	stakeModule vrftypes.StakeModuler
 }
 
-func NewVRFHandler(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*VRFHandler, error) {
-	s := &VRFHandler{
+func NewVRFManager(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*VRFManager, error) {
+	s := &VRFManager{
 		abi:      &Abi,
 		evm:      evm,
 		contract: contract,
@@ -59,16 +59,16 @@ func NewVRFHandler(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*VRFHandl
 	return s, nil
 }
 
-func (c *VRFHandler) PushNonceAndProof(nonceAndProof []byte) error {
+func (c *VRFManager) PushNonceAndProof(nonceAndProof []byte) error {
 
 	if len(nonceAndProof) != 81 { // 81 byte, nonce and proof, flag |nonce |proof, 1byte|32byte|48byte
-		return typesdk.NewRevertError("VRFHandler: INVALID PARAM")
+		return typesdk.NewRevertError("VRFManager: INVALID PARAM")
 	}
 
 	validatorAddr := c.contract.Caller()
 
 	if c.stakeModule.IsEmptyValidator(c.evm.StateDB, validatorAddr) {
-		return typesdk.NewRevertError("VRFHandler: INVALID CALLER")
+		return typesdk.NewRevertError("VRFManager: INVALID CALLER")
 	}
 	currentBlock := c.evm.Context.BlockNumber.Uint64()
 	if err := c.verifyNonceAndProof(validatorAddr, currentBlock, nonceAndProof); nil != err {

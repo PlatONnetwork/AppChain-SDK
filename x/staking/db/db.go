@@ -473,18 +473,18 @@ func RemoveValidatorPriority(db sdk.StateDB, addr common.Address, epoch, stakeIn
 
 func RankPriorityValidatorIds(db sdk.StateDBReader, addr common.Address, size uint64) types.ValidatorAddrQueue {
 
-	arr := types.NewValidatorAddrQueue(size)
 	var count uint64 = 0
 
 	headItem := GetValidatorPriorityByKey(db, addr, EncodePriorityValidatorHeadKey())
 	item := GetValidatorPriorityByKey(db, addr, headItem.NextKey)
 
+	arr := types.NewValidatorAddrQueue(0)
 	for bytes.Compare(item.NextKey, EncodePriorityValidatorHeadKey()) != 0 && count < size { // not as tail  and count less size
-		arr[count] = item.ValidatorAddr
+		arr = append(arr, item.ValidatorAddr)
 		item = GetValidatorPriorityByKey(db, addr, item.NextKey)
 		count++
 	}
-	return arr[:count]
+	return arr
 }
 
 func SetValidator(db sdk.StateDB, addr, validatorAddr common.Address, validator *types.Validator) error {
@@ -1232,16 +1232,17 @@ func GetValidatorDelegationRcPending(db sdk.StateDBReader, addr, validatorAddr c
 	if indexItem.IsEmpty() {
 		return nil
 	}
-	queue := types.NewValidatorDelegationRcQueue(size)
+	queue := types.NewValidatorDelegationRcQueue(0)
 	count := uint64(0)
 	for indexItem.NextStakeEpoch != uint64(0) && count < size { // not tail or count less size
-		queue[count] = indexItem
+
+		queue = append(queue, indexItem)
 
 		indexStakeEpoch = indexItem.NextStakeEpoch
 		indexItem = getValidatorDelegationRcItem(db, addr, validatorAddr, indexStakeEpoch)
 		count++
 	}
-	return queue[:count]
+	return queue
 }
 
 func GetValidatorDelegationRcPendingAndEpoch(db sdk.StateDBReader, addr, validatorAddr common.Address, size uint64) ([]uint64, types.ValidatorDelegationRcQueue) {
@@ -1256,24 +1257,24 @@ func GetValidatorDelegationRcPendingAndEpoch(db sdk.StateDBReader, addr, validat
 	indexStakeEpoch = indexItem.NextStakeEpoch
 	indexItem = getValidatorDelegationRcItem(db, addr, validatorAddr, indexStakeEpoch)
 
-	indexStakeEpochQueue := make([]uint64, size)
-	queue := types.NewValidatorDelegationRcQueue(size)
+	indexStakeEpochQueue := make([]uint64, 0)
+	queue := types.NewValidatorDelegationRcQueue(0)
 	count := uint64(0)
 	for indexItem.NextStakeEpoch != uint64(0) && count < size { // not tail or count less size
-		indexStakeEpochQueue[count] = indexStakeEpoch
-		queue[count] = indexItem
+		indexStakeEpochQueue = append(indexStakeEpochQueue, indexStakeEpoch)
+		queue = append(queue, indexItem)
 
 		indexStakeEpoch = indexItem.NextStakeEpoch
 		indexItem = getValidatorDelegationRcItem(db, addr, validatorAddr, indexStakeEpoch)
 		count++
 	}
-	return indexStakeEpochQueue[:count], queue[:count]
+	return indexStakeEpochQueue, queue
 }
 
 func getValidatorDelegationRcItem(db sdk.StateDBReader, addr, validatorAddr common.Address, stakeEpoch uint64) *types.ValidatorDelegationRcItem {
 	value := db.GetState(addr, encodeValidatorDelegationRcKey(validatorAddr, stakeEpoch))
 
-	if len(value) != 0 {
+	if len(value) == 0 {
 		return nil
 	}
 	var item types.ValidatorDelegationRcItem

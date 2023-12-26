@@ -1,7 +1,7 @@
 pragma solidity ^0.8.20;
 
-import "./IVRFHandler.sol";
+import "./IVRFManager.sol";
 
-contract VRFHandler is IVRFHandler {
+contract VRFManager is IVRFManager {
     function pushNonceAndProof(bytes calldata nonceAndProof) external {}
 }

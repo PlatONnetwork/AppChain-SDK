@@ -1,6 +1,6 @@
 pragma solidity ^0.8.20;
 
-interface IVRFHandler {
+interface IVRFManager {
     event VRFNonceAdded(uint256 indexed block, bytes nonce);
 
     /// @notice push vrf nonce
