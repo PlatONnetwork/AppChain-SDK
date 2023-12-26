@@ -4,6 +4,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/erc20"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/flags"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l1deposit"
+	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l1exithelper"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l1staking"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l2reward"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l2staking"
@@ -22,6 +23,7 @@ var (
 			erc20.Command,
 			l1deposit.Command,
 			l1staking.Command,
+			l1exithelper.Command,
 			l2reward.Command,
 			l2staking.Command,
 			l2withdraw.Command,
