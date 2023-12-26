@@ -3,7 +3,6 @@ package db
 import (
 	"bytes"
 	"errors"
-	stagedb "github.com/PlatONnetwork/AppChain-SDK/x/stage/db"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/common/math"
@@ -1486,8 +1485,8 @@ func getNumberOfBlocksForRoundValidatorsMap(db sdk.StateDBReader, addr common.Ad
 	return cache
 }
 
-func HasLowBlocksValidator(db sdk.StateDBReader, addr common.Address, minRoundValidatorBlockNumber uint64) bool {
-	currentRound := stagedb.GetCurrentRound(db, addr)
+func HasLowBlocksValidator(db sdk.StateDBReader, addr common.Address, currentRound, minRoundValidatorBlockNumber uint64) bool {
+
 	if currentRound == 1 {
 		return false
 	}
@@ -1506,12 +1505,12 @@ func HasLowBlocksValidator(db sdk.StateDBReader, addr common.Address, minRoundVa
 	return false
 }
 
-func HasNotLowBlocksValidator(db sdk.StateDBReader, addr common.Address, minRoundValidatorBlockNumber uint64) bool {
-	return !HasLowBlocksValidator(db, addr, minRoundValidatorBlockNumber)
+func HasNotLowBlocksValidator(db sdk.StateDBReader, addr common.Address, currentRound, minRoundValidatorBlockNumber uint64) bool {
+	return !HasLowBlocksValidator(db, addr, currentRound, minRoundValidatorBlockNumber)
 }
 
-func CheckLowBlocksValidatorForPreviousRound(db sdk.StateDBReader, addr common.Address, minRoundValidatorBlockNumber uint64) types.ValidatorAddrQueue {
-	currentRound := stagedb.GetCurrentRound(db, addr)
+func CheckLowBlocksValidatorForPreviousRound(db sdk.StateDBReader, addr common.Address, currentRound, minRoundValidatorBlockNumber uint64) types.ValidatorAddrQueue {
+
 	if currentRound == 1 {
 		return nil
 	}

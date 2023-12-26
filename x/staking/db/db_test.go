@@ -2,6 +2,7 @@ package db
 
 import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
+	"github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/common/math"
 	"github.com/PlatONnetwork/PlatON-Go/common/mock"
@@ -67,6 +68,41 @@ func Test_AppendValidatorDelegationRc(t *testing.T) {
 	//t.Log("epochs", fmt.Sprintf("%v", epochs))
 	assert.Equal(t, len(epochs), 2)
 
+}
+
+func Test_IncrementNumberOfBlocksForRoundValidator(t *testing.T) {
+	statedb := mock.NewMockStateDB()
+
+	validatorAddrQueue := []common.Address{
+		common.HexToAddress("0x1111111111111111111111111111111111111111"),
+		common.HexToAddress("0x2222222222222222222222222222222222222222"),
+		common.HexToAddress("0x3333333333333333333333333333333333333333"),
+		common.HexToAddress("0x4444444444444444444444444444444444444444"),
+		common.HexToAddress("0x5555555555555555555555555555555555555555"),
+		common.HexToAddress("0x6666666666666666666666666666666666666666"),
+	}
+
+	roundValidatorQueue := types.NewValidatorSharesSnapshotQueue(0)
+	for i, validatorAddr := range validatorAddrQueue {
+		snap := types.NewValidatorSharesSnapshot(validatorAddr, 1, uint64(i+1), 100, common.Big0, common.Big0)
+		roundValidatorQueue = append(roundValidatorQueue, snap)
+	}
+
+	//var err error
+
+	for i, validatorAddr := range validatorAddrQueue {
+		if i == 1 {
+			continue
+		}
+		IncrementNumberOfBlocksForRoundValidator(statedb, constants.StakeHandlerAddress, validatorAddr, 3, uint64(i+1))
+	}
+
+	//// Has
+	//
+	//has := HasLowBlocksValidator(statedb, constants.StakeHandlerAddress, 1)
+	//hasNot := HasNotLowBlocksValidator(statedb, constants.StakeHandlerAddress, 1)
+	//
+	//CheckLowBlocksValidatorForPreviousRound(statedb, constants.StakeHandlerAddress, 1)
 }
 
 func Test_MakeSlice(t *testing.T) {

@@ -205,22 +205,23 @@ func (c *StakeHandler) OnStateReceive(id *big.Int, sender common.Address, data [
 
 func (c *StakeHandler) Slash() error {
 
+	currentRound := c.getCurrentRound()
 	minRoundValidatorBlockNumbers := c.stakeModule.GetMinRoundValidatorBlockNumber(c.evm.StateDB)
-	validatorAddrs := db.CheckLowBlocksValidatorForPreviousRound(c.evm.StateDB, c.contract.Address(), minRoundValidatorBlockNumbers)
+	validatorAddrs := db.CheckLowBlocksValidatorForPreviousRound(c.evm.StateDB, c.contract.Address(), currentRound, minRoundValidatorBlockNumbers)
 
 	slashingValidatorAddrCache := make(map[common.Address]struct{}, 0)
 	// NOTE: update validator status (add log for lowBlocks slashing)
 	for _, validatorAddr := range validatorAddrs {
 		validator := c.getValidator(validatorAddr)
 		if validator.IsEmpty() {
-			log.Warn("Not found validator when Slash", "validatorAddr", validatorAddr.Hex(), "currentRound", c.getCurrentRound(), "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
+			log.Warn("Not found validator when Slash", "validatorAddr", validatorAddr.Hex(), "currentRound", currentRound, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
 			continue
 		}
 		// 1. add validator status (add: invalida|slashing)
 		validator.AppendStatus(staketypes.Invalided | staketypes.Slashing)
 		// 2. update validator status (add: invalida|slashing) AND remove validator priority
 		if err := c.updateValidatorRemovePriority(validatorAddr, validator); nil != err {
-			log.Error("Failed to call updateValidatorRemovePriority", "validatorAddr", validatorAddr.Hex(), "currentRound", c.getCurrentRound(), "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber, "error", err)
+			log.Error("Failed to call updateValidatorRemovePriority", "validatorAddr", validatorAddr.Hex(), "currentRound", currentRound, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber, "error", err)
 			return typesdk.NewRevertError("StakeHandler: can not update validator priority")
 		}
 		// 3. add updateValidatorStatus log
@@ -241,7 +242,7 @@ func (c *StakeHandler) Slash() error {
 	}
 
 	log.Info("Begin Slash for", "validator size", len(validatorAddrs), "minRoundValidatorBlockNumbers", minRoundValidatorBlockNumbers,
-		"currentRound", c.getCurrentRound(), "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
+		"currentRound", currentRound, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }
 
