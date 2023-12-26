@@ -67,15 +67,17 @@ func (c *StakeHandler) updateValidatorRemovePriority(validatorAddr common.Addres
 		return nil
 	}
 	// delete old priority
-	if db.GetValidatorPriority(c.evm.StateDB, c.contract.Address(), old.Epoch, old.StakeIndex, old.Shares()).ValidatorAddr != validatorAddr {
-		return db.ErrMisMatching
+	priority := db.GetValidatorPriority(c.evm.StateDB, c.contract.Address(), old.Epoch, old.StakeIndex, old.Shares())
+	if priority.IsNotEmpty() {
+		if priority.ValidatorAddr != validatorAddr {
+			return db.ErrMisMatching
+		}
+		if err := db.RemoveValidatorPriority(c.evm.StateDB, c.contract.Address(), old.Epoch, old.StakeIndex, old.Shares()); nil != err {
+			return err
+		}
 	}
 	// set new priority only
-	if err := db.SetValidator(c.evm.StateDB, c.contract.Address(), validatorAddr, validator); nil != err {
-		return err
-	}
-
-	return db.RemoveValidatorPriority(c.evm.StateDB, c.contract.Address(), old.Epoch, old.StakeIndex, old.Shares())
+	return db.SetValidator(c.evm.StateDB, c.contract.Address(), validatorAddr, validator)
 }
 
 func (c *StakeHandler) updateValidatorByPriority(validatorAddr common.Address, validator *types.Validator) error {
@@ -85,14 +87,16 @@ func (c *StakeHandler) updateValidatorByPriority(validatorAddr common.Address, v
 		return nil
 	}
 	// delete old priority
-
-	if db.GetValidatorPriority(c.evm.StateDB, c.contract.Address(), old.Epoch, old.StakeIndex, old.Shares()).ValidatorAddr != validatorAddr {
-		return db.ErrMisMatching
+	priority := db.GetValidatorPriority(c.evm.StateDB, c.contract.Address(), old.Epoch, old.StakeIndex, old.Shares())
+	if priority.IsNotEmpty() {
+		if priority.ValidatorAddr != validatorAddr {
+			return db.ErrMisMatching
+		}
+		if err := db.RemoveValidatorPriority(c.evm.StateDB, c.contract.Address(), old.Epoch, old.StakeIndex, old.Shares()); nil != err {
+			return err
+		}
 	}
 
-	if err := db.RemoveValidatorPriority(c.evm.StateDB, c.contract.Address(), old.Epoch, old.StakeIndex, old.Shares()); nil != err {
-		return err
-	}
 	// set new priority and validator
 	return c.setValidatorByPriority(validatorAddr, validator)
 }

@@ -20,7 +20,7 @@ type StateSenderModule struct {
 	logger log.Logger
 }
 
-func NewStateSenderModule(ctx *cli.Context) *StateSenderModule {
+func NewModule(ctx *cli.Context) *StateSenderModule {
 	return &StateSenderModule{
 		logger: log.New("module", MODULE_NAME_STATE_SENDER),
 	}

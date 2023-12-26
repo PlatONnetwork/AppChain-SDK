@@ -224,8 +224,8 @@ func SetEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr ba
 
 func RemoveEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr basecommon.Address, stakeEpoch, rewardEpoch uint64) error {
 	item := GetEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, rewardEpoch)
-	if nil == item {
-		return ErrNotFound
+	if item.IsEmpty() {
+		return nil
 	}
 
 	pre := GetEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, item.PreRewardEpoch)
@@ -363,8 +363,8 @@ func AppendEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr
 // NOTE: unused
 func ReleaseEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr basecommon.Address, stakeEpoch, rewardEpoch uint64, decrement *big.Int) error {
 	item := GetEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, rewardEpoch)
-	if nil == item {
-		return ErrNotFound
+	if item.IsEmpty() {
+		return nil
 	}
 
 	item.DecrementTotalReward(decrement)

@@ -22,7 +22,7 @@ type DepositModule struct {
 	l1Module deposittypes.L1Moduler
 }
 
-func NewDepositModule(ctx *cli.Context, l1Module deposittypes.L1Moduler) *DepositModule {
+func NewModule(ctx *cli.Context, l1Module deposittypes.L1Moduler) *DepositModule {
 
 	return &DepositModule{
 		logger:   log.New("module", MODULE_NAME_DEPOSIT),

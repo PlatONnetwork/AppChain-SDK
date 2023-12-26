@@ -446,6 +446,9 @@ func RemoveValidatorPriority(db sdk.StateDB, addr common.Address, epoch, stakeIn
 
 	priorityKey := encodePriorityValidatorKey(epoch, stakeIndex, shares)
 	priority := GetValidatorPriorityByKey(db, addr, priorityKey)
+	if priority.IsEmpty() {
+		return nil
+	}
 
 	preKey := priority.PreKey
 	nextKey := priority.NextKey

@@ -43,7 +43,7 @@ type StakeModule struct {
 	rewardModule   staketypes.RewardModuler
 }
 
-func NewStakeModule(ctx *cli.Context, l1Module staketypes.L1Moduler, stage staketypes.StageModuler) *StakeModule {
+func NewModule(ctx *cli.Context, l1Module staketypes.L1Moduler, stage staketypes.StageModuler) *StakeModule {
 	return &StakeModule{
 		p2p:         stakingp2p.NewStakingP2P(),
 		logger:      log.New("module", MODULE_NAME_STAKING),
@@ -150,6 +150,7 @@ func (s *StakeModule) AddTxs(ctx sdk.WorkerContext, local map[basecommon.Address
 		local[from] = make(types.Transactions, 0)
 	}
 	local[from] = append(local[from], slashTx)
+	s.logger.Debug("create Slash tx", "blockNumber", blockNumber, "txHash", slashTx.Hash().Hex(), "from", from.Hex())
 	return local, nil
 }
 
@@ -596,24 +597,28 @@ func (s *StakeModule) createSlashTx(ctx sdk.Context, txNonce uint64) (*types.Tra
 }
 
 func (s *StakeModule) updateValidatorStatus(stateDB sdk.StateDB, validatorAddr basecommon.Address, status staketypes.ValidatorStatus) error {
-	old := db.GetValidator(stateDB, s.Address(), validatorAddr)
-	if old.IsEmpty() {
+	validator := db.GetValidator(stateDB, s.Address(), validatorAddr)
+	if validator.IsEmpty() {
 		return errors.New("has not validator")
 	}
-	old.AppendStatus(status)
+
+	validator.AppendStatus(status)
 
 	if status.IsInvalid() {
 
 		// delete old priority
-		if db.GetValidatorPriority(stateDB, s.Address(), old.Epoch, old.StakeIndex, old.Shares()).ValidatorAddr != validatorAddr {
-			return db.ErrMisMatching
-		}
-		if err := db.RemoveValidatorPriority(stateDB, s.Address(), old.Epoch, old.StakeIndex, old.Shares()); nil != err {
-			return err
+		priority := db.GetValidatorPriority(stateDB, s.Address(), validator.Epoch, validator.StakeIndex, validator.Shares())
+		if priority.IsNotEmpty() {
+			if priority.ValidatorAddr != validatorAddr {
+				return db.ErrMisMatching
+			}
+			if err := db.RemoveValidatorPriority(stateDB, s.Address(), validator.Epoch, validator.StakeIndex, validator.Shares()); nil != err {
+				return err
+			}
 		}
 	}
-
-	return db.SetValidator(stateDB, s.Address(), validatorAddr, old)
+	// set new priority only
+	return db.SetValidator(stateDB, s.Address(), validatorAddr, validator)
 }
 
 // --- extern

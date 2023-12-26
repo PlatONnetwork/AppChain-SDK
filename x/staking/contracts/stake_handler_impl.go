@@ -205,10 +205,28 @@ func (c *StakeHandler) OnStateReceive(id *big.Int, sender common.Address, data [
 
 func (c *StakeHandler) Slash() error {
 
-	validators := db.CheckLowBlocksValidatorForPreviousRound(c.evm.StateDB, c.contract.Address(), c.stakeModule.GetMinRoundValidatorBlockNumber(c.evm.StateDB))
+	minRoundValidatorBlockNumbers := c.stakeModule.GetMinRoundValidatorBlockNumber(c.evm.StateDB)
+	validatorAddrs := db.CheckLowBlocksValidatorForPreviousRound(c.evm.StateDB, c.contract.Address(), minRoundValidatorBlockNumbers)
 
 	slashingValidatorAddrCache := make(map[common.Address]struct{}, 0)
-	for _, validatorAddr := range validators {
+	// NOTE: update validator status (add log for lowBlocks slashing)
+	for _, validatorAddr := range validatorAddrs {
+		validator := c.getValidator(validatorAddr)
+		if validator.IsEmpty() {
+			log.Warn("Not found validator when Slash", "validatorAddr", validatorAddr.Hex(), "currentRound", c.getCurrentRound(), "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
+			continue
+		}
+		// 1. add validator status (add: invalida|slashing)
+		validator.AppendStatus(staketypes.Invalided | staketypes.Slashing)
+		// 2. update validator status (add: invalida|slashing) AND remove validator priority
+		if err := c.updateValidatorRemovePriority(validatorAddr, validator); nil != err {
+			log.Error("Failed to call updateValidatorRemovePriority", "validatorAddr", validatorAddr.Hex(), "currentRound", c.getCurrentRound(), "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber, "error", err)
+			return typesdk.NewRevertError("StakeHandler: can not update validator priority")
+		}
+		// 3. add updateValidatorStatus log
+		if err := c.addLogUpdateValidatorStatusEvent(validatorAddr, new(big.Int).SetUint64(uint64(validator.Status))); nil != err {
+			return err
+		}
 		slashingValidatorAddrCache[validatorAddr] = struct{}{}
 	}
 	// ###### NOTE: ######
@@ -218,28 +236,16 @@ func (c *StakeHandler) Slash() error {
 	}
 
 	// sync state to L1
-	if err := c.syncStateSlash(validators); nil != err {
+	if err := c.syncStateSlash(validatorAddrs); nil != err {
 		return err
 	}
 
-	// NOTE: update validator status (add log for lowBlocks)
-	for _, validatorAddr := range validators {
-		validator := c.getValidator(validatorAddr)
-		if validator.IsEmpty() {
-			continue
-		}
-		if err := c.addLogUpdateValidatorStatusEvent(validatorAddr, new(big.Int).SetUint64(uint64(validator.Status))); nil != err {
-			return err
-		}
-	}
-
-	log.Info("Slash for", "validator size", len(validators), "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
+	log.Info("Slash for", "validator size", len(validatorAddrs), "minRoundValidatorBlockNumbers", minRoundValidatorBlockNumbers,
+		"currentRound", c.getCurrentRound(), "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }
 
 func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int) error {
-
-	validator := c.getValidator(validatorAddr)
 
 	delegatorAddr := c.contract.Caller()
 
@@ -247,6 +253,7 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 
 	paid := common.Big0
 
+	validator := c.getValidator(validatorAddr)
 	for _, stakeEpoch := range epochs {
 
 		if amount.Cmp(common.Big0) == 0 {
@@ -296,7 +303,7 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 		// update validator priority
 		if validator.IsValid() && validator.Epoch == stakeEpoch {
 
-			validator.SubDelegateAmount(amount)
+			validator.SubDelegateAmount(use)
 			if err := c.updateValidatorByPriority(validatorAddr, validator); nil != err {
 				log.Error("Failed to update validator priority", "validatorAddr", validatorAddr.Hex(), "error", err)
 				return typesdk.NewRevertError("StakeHandler: SUB DELEGATE AMOUNT OF VALIDATOR FAILED")
@@ -309,7 +316,7 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 	if err := c.addLogUnDelegatedEvent(delegatorAddr, validatorAddr, paid); nil != err {
 		return err
 	}
-	log.Info("Undelegate for", "delegator", delegatorAddr.Hex(), "validator", validatorAddr.Hex(), "amount", amount, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
+	log.Info("Undelegate for", "delegator", delegatorAddr.Hex(), "validator", validatorAddr.Hex(), "expect amount", amount, "use amount", paid, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }
 
@@ -358,36 +365,49 @@ func (c *StakeHandler) WithdrawUndelegate(validator common.Address) error {
 	return nil
 }
 
-func (c *StakeHandler) WithdrawUnstake(validator common.Address) error {
+func (c *StakeHandler) WithdrawUnstake(validatorAddr common.Address) error {
+
+	validator := c.getValidator(validatorAddr)
+
+	// #### NOTE ####
+	// When the validator is in the period of slashing,
+	// the validator does not accept any action until the slashing process is completed
+	if validator.IsInvalidSlashing() {
+		return typesdk.NewRevertError("StakeHandler: SLASHING_VALIDATOR")
+	}
+
+	if validator.IsEmptyOrInvalid() {
+		return typesdk.NewRevertError("StakeHandler: INVALID_VALIDATOR")
+	}
 
 	currentEpoch := c.getCurrentEpoch()
-	amount, err := c.applyStakeWithdrawable(validator, currentEpoch)
+	amount, err := c.applyStakeWithdrawable(validatorAddr, currentEpoch)
 	if nil != err {
-		log.Error("Failed to withdraw unstake", "validatorAddr", validator.Hex(),
+		log.Error("Failed to withdraw unstake", "validatorAddr", validatorAddr.Hex(),
 			"currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber, "amount", amount, "error", err)
 		return typesdk.NewRevertError("StakeHandler: CAN NOT UPDATE STAKE WITHDRAW PENDDING HEAD")
 	}
 
 	if amount.Cmp(common.Big0) == 0 {
-		log.Error("has no withdrawable stake amount", "validatorAddr", validator.Hex(),
+		log.Error("has no withdrawable stake amount", "validatorAddr", validatorAddr.Hex(),
 			"amount", amount, "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber)
 		return typesdk.NewRevertError("StakeHandler: HAS NO WITHDRAWABLE STAKE AMOUNT")
 	}
 
 	// remove unstake validator
-	validatorInfo := c.getValidator(validator)
+	validatorInfo := c.getValidator(validatorAddr)
 	if validatorInfo.IsInvalidUnstaked() {
-		c.removeValidator(validator)
+		c.removeValidator(validatorAddr)
 	}
 
-	if err := c.addLogStakeWithdrawalEvent(validator, amount); nil != err {
+	if err := c.addLogStakeWithdrawalEvent(validatorAddr, amount); nil != err {
 		return err
 	}
 
-	if err := c.syncStateUnStake(validator, amount); nil != err {
+	if err := c.syncStateUnStake(validatorAddr, amount); nil != err {
 		return err
 	}
 
-	log.Info("Withdraw unstake for", "validator", validator.Hex(), "amount", amount, "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber)
+	log.Info("Withdraw unstake for", "validatorAddr", validatorAddr.Hex(), "amount", amount, "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }

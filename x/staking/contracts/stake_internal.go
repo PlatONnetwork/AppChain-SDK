@@ -284,6 +284,13 @@ func (c *StakeHandler) addStake(validatorAddr common.Address, amount *big.Int) e
 func (c *StakeHandler) unStake(validatorAddr common.Address, amount *big.Int) error {
 	validator := c.getValidator(validatorAddr)
 
+	// #### NOTE ####
+	// When the validator is in the period of slashing,
+	// the validator does not accept any action until the slashing process is completed
+	if validator.IsInvalidSlashing() {
+		return typesdk.NewRevertError("StakeHandler: SLASHING_VALIDATOR")
+	}
+
 	if validator.IsEmptyOrInvalid() {
 		return typesdk.NewRevertError("StakeHandler: INVALID_VALIDATOR")
 	}
@@ -516,6 +523,7 @@ func (c *StakeHandler) syncStateUnStake(validatorAddr common.Address, amount *bi
 
 	rootchainStakeManagerAddress, err := c.l1Module.GetStakeManagerAddress()
 	if nil != err {
+		log.Error("Failed to get stakeManager address", "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
 		return typesdk.NewRevertError("StakeHandler: NOT FOUND STAKE MANAGER ADDR")
 	}
 
@@ -541,6 +549,7 @@ func (c *StakeHandler) syncStateUnDelegate(validatorAddr, delegatorAddr common.A
 
 	rootchainStakeManagerAddress, err := c.l1Module.GetStakeManagerAddress()
 	if nil != err {
+		log.Error("Failed to get stakeManager address", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "amount", amount, "error", err)
 		return typesdk.NewRevertError("StakeHandler: NOT FOUND STAKE MANAGER ADDR")
 	}
 
@@ -555,23 +564,24 @@ func (c *StakeHandler) syncStateSlash(validators []common.Address) error {
 
 	data, err := abi.Encode([]interface{}{SLASH_SIG, validators, c.stakeModule.GetSlashingPercentage(c.evm.StateDB), c.stakeModule.GetSlashIncentivePercentage(c.evm.StateDB)}, ROOT_CHAIN_SLASH_PARAMS_TYPE)
 	if nil != err {
-		log.Error("Failed to encode slash syncState data", "validators size", len(validators), "error", err)
+		log.Error("Failed to encode slash syncState data", "validators size", len(validators), "currentRound", c.getCurrentRound(), "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber, "error", err)
 		return typesdk.NewRevertError("StakeHandler: encode L2StateSender slash data failed")
 	}
 
 	l2statesender, err := statesenderC.NewL2StateSenderCaller(c.evm, c.contract, constants.StateSenderAddress)
 	if nil != err {
-		log.Error("Failed to call NewL2StateSenderCaller", "validators size", len(validators), "error", err)
+		log.Error("Failed to call NewL2StateSenderCaller", "validators size", len(validators), "currentRound", c.getCurrentRound(), "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber, "error", err)
 		return typesdk.NewRevertError("StakeHandler: call slash by L2StateSender failed")
 	}
 
 	rootchainStakeManagerAddress, err := c.l1Module.GetStakeManagerAddress()
 	if nil != err {
+		log.Error("Failed to get stakeManager address", "validators size", len(validators), "currentRound", c.getCurrentRound(), "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber, "error", err)
 		return typesdk.NewRevertError("StakeHandler: NOT FOUND STAKE MANAGER ADDR")
 	}
 
 	if err := l2statesender.SyncState(rootchainStakeManagerAddress, data); nil != err {
-		log.Error("Failed to call SyncState", "validators size", len(validators), "error", err)
+		log.Error("Failed to call SyncState", "validators size", len(validators), "currentRound", c.getCurrentRound(), "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber, "error", err)
 		return typesdk.NewRevertError("StakeHandler: call slash by L2StateSender failed")
 	}
 	return nil
@@ -645,7 +655,7 @@ func (c *StakeHandler) removeValidatorsFromEpochValidatorQueue(removeValidatorAd
 	// NTOE: update epoch validator snapshot queue (after remove validators)
 	if len(epochValidatorAddrQueue) != oldSize {
 		if err := db.SetEpochValidatorSharesSnapshotQueue(c.evm.StateDB, c.contract.Address(), currentEpoch, epochValidatorAddrQueue); nil != err {
-			log.Error("Failed to update epochValidators", "epoch", currentEpoch, "error", err)
+			log.Error("Failed to update epochValidators", "currentRound", c.getCurrentRound(), "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber, "error", err)
 			return typesdk.NewRevertError("StakeHandler: UPDATE EPOCH VALIDATORS FAILED")
 		}
 	}

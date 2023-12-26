@@ -41,7 +41,7 @@ type VRFModule struct {
 	stakeModule    vrftypes.StakeModuler
 }
 
-func NewVRFModule(ctx *cli.Context, stage vrftypes.StageModuler) *VRFModule {
+func NewModule(ctx *cli.Context, stage vrftypes.StageModuler) *VRFModule {
 	return &VRFModule{
 		logger:      log.New("module", MODULE_NAME_VRF),
 		stageModule: stage,
@@ -128,7 +128,7 @@ func (v *VRFModule) AddTxs(ctx sdk.WorkerContext, local map[basecommon.Address]t
 	}
 	local[from] = append(local[from], pushNonceAndProofTx)
 	end := time.Now()
-	v.logger.Warn("create pushNonceAndProof tx duration", "blockNumber", blockNumber, "start", basecommon.Millis(start), "end", basecommon.Millis(end), "duration", end.Sub(start), "txHash", pushNonceAndProofTx.Hash().Hex(), "from", from.Hex())
+	v.logger.Debug("create pushNonceAndProof tx", "blockNumber", blockNumber, "start", basecommon.Millis(start), "end", basecommon.Millis(end), "duration", end.Sub(start), "txHash", pushNonceAndProofTx.Hash().Hex(), "from", from.Hex())
 	return local, nil
 }
 
