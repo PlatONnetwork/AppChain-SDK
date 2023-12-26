@@ -3,7 +3,6 @@ package contracts
 import (
 	"bytes"
 	"errors"
-	"fmt"
 
 	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
@@ -72,7 +71,6 @@ func (c *StakeHandler) GetDelegationsWithValidator(validators []common.Address, 
 	delegationQueue := make([]DelegationInfo, 0)
 	for _, validatorAddr := range validators {
 		epochs, _ := c.getValidatorDelegationRcPendingAndEpoch(validatorAddr, math.MaxUint64)
-		log.Info("Get delegations with validator", "epochs", fmt.Sprintf("%v", epochs))
 		for _, stakeEpoch := range epochs {
 			delegation := c.getDelegation(delegator, validatorAddr, stakeEpoch)
 			if delegation.IsEmpty() {
