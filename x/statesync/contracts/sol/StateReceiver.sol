@@ -41,6 +41,7 @@ contract StateReceiver {
 
     function execute(bytes32[] calldata proof, StateSync calldata obj) external {}
     function batchExecute(bytes32[][] calldata proofs, StateSync[] calldata objs) external{}
+    function getExecutedId() external view returns(uint256){}
     function getStateSyncId() external returns(uint256){}
     function getRootByStateSyncId(uint256 id) external view returns (bytes32){}
     function getCommitmentByStateSyncId(uint256 id) public view returns (StateSyncCommitment memory){}

@@ -1,6 +1,7 @@
 package l1staking
 
 import (
+	"context"
 	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/flags"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/transaction"
@@ -29,18 +30,19 @@ var (
 	}
 )
 
-func initGlobal(ctx *cli.Context) (*ethclient.Client, *Stakemanager, *bind.TransactOpts, error) {
+func initGlobal(ctx *cli.Context) (*ethclient.Client, *Stakemanager, *StakemanagerFilterer, *bind.TransactOpts, error) {
 	client, stakeAddr, opt, err := flags.InitGlobal(ctx)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	manager, err := NewStakemanager(stakeAddr, client)
-	return client, manager, opt, nil
+	filter, err := NewStakemanagerFilterer(stakeAddr, client)
+	return client, manager, filter, opt, nil
 }
 
 func run(ctx *cli.Context) error {
 	typeName := ctx.String(flags.TypeFlags.Name)
-	client, manager, opt, err := initGlobal(ctx)
+	client, manager, filter, opt, err := initGlobal(ctx)
 	if err != nil {
 		return err
 	}
@@ -59,8 +61,25 @@ func run(ctx *cli.Context) error {
 			return err
 		}
 		fmt.Println("send success", tx.Hash())
-	} else {
+	} else if typeName == "call" {
 		result, err := transaction.Call(method, inputs, reflect.TypeOf(&manager.StakemanagerCaller), reflect.ValueOf(&manager.StakemanagerCaller), &bind.CallOpts{})
+		if err != nil {
+			return err
+		}
+
+		fmt.Println(string(result))
+	} else if typeName == "logs" {
+		startBlock := ctx.Uint64(flags.StartFlags.Name)
+		var endBlock *uint64
+		end := ctx.Uint64(flags.EndFlags.Name)
+		if end != 0 {
+			endBlock = &end
+		}
+		result, err := transaction.FilterLog(method, inputs, reflect.TypeOf(filter), reflect.ValueOf(filter), &bind.FilterOpts{
+			Start:   startBlock,
+			End:     endBlock,
+			Context: context.Background(),
+		})
 		if err != nil {
 			return err
 		}

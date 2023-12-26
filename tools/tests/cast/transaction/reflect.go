@@ -127,3 +127,75 @@ func Call(method string, inputs []string, t reflect.Type, v reflect.Value, opt *
 	}
 	return nil, errors.New("not found method")
 }
+
+func FilterLog(method string, inputs []string, t reflect.Type, v reflect.Value, opt *bind.FilterOpts) ([]byte, error) {
+	lowerMethod := strings.ToLower("Filter" + method)
+
+	for i := 0; i < t.NumMethod(); i++ {
+		m := t.Method(i)
+		//fmt.Println(m.Name)
+		if strings.ToLower(m.Name) == lowerMethod {
+			num := m.Type.NumIn()
+			//fmt.Println("field string", m.Type.In(0).String(), m.Type.In(1).String())
+
+			if len(inputs) != num-2 {
+				return nil, fmt.Errorf("inputs mismatch, expect:%d, actual:%d", num, len(inputs))
+			}
+			args := []reflect.Value{reflect.ValueOf(opt)}
+			for i := 2; i < num; i++ {
+				field := m.Type.In(i)
+				//fmt.Println("field string", field.String())
+
+				isPointer := false
+				newType := field
+				if field.Kind() == reflect.Ptr {
+					newType = field.Elem()
+					isPointer = true
+				}
+				s := reflect.New(newType)
+
+				c := reflect.ValueOf(s.Interface())
+				call := c.MethodByName("UnmarshalText")
+				if call.IsValid() {
+					call.Call([]reflect.Value{reflect.ValueOf([]byte(inputs[i-2]))})
+				} else {
+					if err := json.Unmarshal([]byte(inputs[i-2]), s.Interface()); err != nil {
+						return nil, err
+					}
+				}
+				//c.MethodByName("UnmarshalText").Call([]reflect.Value{reflect.ValueOf([]byte(inputs[i-2]))})
+				if !isPointer {
+					args = append(args, reflect.ValueOf(s.Elem().Interface()))
+				} else {
+					args = append(args, s)
+				}
+
+			}
+			stakeCall := v.MethodByName(m.Name)
+			res := stakeCall.Call(args)
+
+			if !res[len(res)-1].IsNil() {
+				return nil, res[1].Interface().(error)
+			} else {
+				var logs []interface{}
+				if it, ok := res[0].Interface().(Iterator); ok {
+					for it.Next() {
+						i := res[0].Elem().Interface()
+						ev := reflect.ValueOf(i)
+						logs = append(logs, ev.FieldByName("Event").Interface())
+					}
+					if it.Error() != nil {
+						return nil, it.Error()
+					}
+				}
+				return json.MarshalIndent(logs, " ", " ")
+			}
+		}
+	}
+	return nil, errors.New("not found method")
+}
+
+type Iterator interface {
+	Next() bool
+	Error() error
+}

@@ -57,7 +57,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 	stageModule := stage.NewModule(ctx)
 	vrfModule := vrf.NewModule(ctx, stageModule)
 	stakeModule := staking.NewModule(ctx, l1Module, stageModule)
-	stateSync, err := statesync.NewStateSync(ctx, l1Module, stakeModule, store, extravote.NewExtraVoteDB(store))
+	stateSync, err := statesync.NewModule(ctx, l1Module, stakeModule, store, extravote.NewExtraVoteDB(store))
 	if err != nil {
 		return nil, err
 	}

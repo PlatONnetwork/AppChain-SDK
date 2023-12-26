@@ -1,4 +1,4 @@
-package l2reward
+package l2statesync
 
 import (
 	"context"
@@ -15,8 +15,8 @@ import (
 var (
 	Command = cli.Command{
 		Action:    utils.MigrateFlags(run),
-		Name:      "l2.reward",
-		Usage:     "l2.reward",
+		Name:      "l2.statesync",
+		Usage:     "l2.statesync",
 		ArgsUsage: "",
 		Flags: []cli.Flag{
 			flags.RPCFlags,
@@ -25,18 +25,19 @@ var (
 			flags.MethodFlags,
 			flags.TypeFlags,
 		},
-		Category:    "L2 REWARD COMMANDS",
+		Category:    "L2 STATESYNC COMMANDS",
 		Description: ``,
 	}
 )
 
-func initGlobal(ctx *cli.Context) (*ethclient.Client, *Reward, *RewardFilterer, *bind.TransactOpts, error) {
+func initGlobal(ctx *cli.Context) (*ethclient.Client, *Statesync, *StatesyncFilterer, *bind.TransactOpts, error) {
 	client, stakeAddr, opt, err := flags.InitGlobal(ctx)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	manager, err := NewReward(stakeAddr, client)
-	filter, err := NewRewardFilterer(stakeAddr, client)
+	manager, err := NewStatesync(stakeAddr, client)
+	filter, err := NewStatesyncFilterer(stakeAddr, client)
+
 	return client, manager, filter, opt, nil
 }
 
@@ -52,7 +53,7 @@ func run(ctx *cli.Context) error {
 	}
 	method := ctx.String(flags.MethodFlags.Name)
 	if typeName == "send" {
-		tx, err := transaction.Send(method, inputs, reflect.TypeOf(&manager.RewardTransactor), reflect.ValueOf(&manager.RewardTransactor), opt)
+		tx, err := transaction.Send(method, inputs, reflect.TypeOf(&manager.StatesyncTransactor), reflect.ValueOf(&manager.StatesyncTransactor), opt)
 		if err != nil {
 			return err
 		}
@@ -62,7 +63,7 @@ func run(ctx *cli.Context) error {
 		}
 		fmt.Println("send success", tx.Hash())
 	} else if typeName == "call" {
-		result, err := transaction.Call(method, inputs, reflect.TypeOf(&manager.RewardCaller), reflect.ValueOf(&manager.RewardCaller), &bind.CallOpts{})
+		result, err := transaction.Call(method, inputs, reflect.TypeOf(&manager.StatesyncCaller), reflect.ValueOf(&manager.StatesyncCaller), &bind.CallOpts{})
 		if err != nil {
 			return err
 		}

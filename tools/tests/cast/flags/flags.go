@@ -25,4 +25,16 @@ var (
 		Name:  "type",
 		Usage: "send or call",
 	}
+	StartFlags = cli.Uint64Flag{
+		Name:   "start",
+		Usage:  "start block",
+		Hidden: true,
+		Value:  0,
+	}
+	EndFlags = cli.Uint64Flag{
+		Name:   "end",
+		Usage:  "end block",
+		Hidden: true,
+		Value:  0,
+	}
 )
