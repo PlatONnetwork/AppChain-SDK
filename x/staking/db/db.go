@@ -1499,6 +1499,7 @@ func HasLowBlocksValidator(db sdk.StateDBReader, addr common.Address, minRoundVa
 
 	for _, number := range cache {
 		if number < minRoundValidatorBlockNumber {
+			log.Debug("HasLowBlocksValidator", "currentRound", currentRound, "previousRound", previousRound)
 			return true
 		}
 	}

@@ -165,6 +165,7 @@ func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) error {
 	parentBlock := currentBlock - 1
 	if parentBlock != 0 {
 		parentHeader := ctx.ParentBlock().Header()
+		s.logger.Debug("Start call setNumberOfBlocksForRoundValidator", "currentBlock", currentBlock, "parentBlock", parentHeader.Number.Uint64())
 		if err := s.setNumberOfBlocksForRoundValidator(ctx.StateDB(), parentHeader); nil != err {
 			return fmt.Errorf("can not set number of blocks for round validators, %s, parentBlock: %d", err, parentBlock)
 		}
@@ -391,7 +392,11 @@ func (s *StakeModule) setNumberOfBlocksForRoundValidator(stateDB sdk.StateDB, he
 	}
 	round := s.stageModule.GetRoundByBlockNumber(stateDB, header.Number.Uint64())
 
-	db.IncrementNumberOfBlocksForRoundValidator(stateDB, s.Address(), crypto.PubkeyToAddress(*pk), round, 1)
+	// @TODO for debug ...
+	validatorAddr := crypto.PubkeyToAddress(*pk)
+	number := db.GetNumberOfBlocksForRoundValidator(stateDB, s.Address(), validatorAddr, round)
+	s.logger.Debug("setNumberOfBlocksForRoundValidator", "round", round, "header blockNumber", header.Number.Uint64(), "validatorAddr", validatorAddr.Hex(), "old number", number)
+	db.IncrementNumberOfBlocksForRoundValidator(stateDB, s.Address(), validatorAddr, round, 1)
 
 	return nil
 }
