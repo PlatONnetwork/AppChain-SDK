@@ -56,7 +56,7 @@ type StateSync struct {
 	syncUpdateCh chan struct{}
 }
 
-func NewStateSync(ctx *cli.Context, l1Module *l1.L1Module, validator ElectionValidator, store store.Store, extraDb *extravote.ExtraVoteDB) (*StateSync, error) {
+func NewModule(ctx *cli.Context, l1Module *l1.L1Module, validator ElectionValidator, store store.Store, extraDb *extravote.ExtraVoteDB) (*StateSync, error) {
 	var start *big.Int
 	if ctx.GlobalIsSet(StartBlockFlag.Name) {
 		start = new(big.Int).SetUint64(ctx.GlobalUint64(StartBlockFlag.Name))

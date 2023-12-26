@@ -8,6 +8,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l1staking"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l2reward"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l2staking"
+	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l2statesync"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l2withdraw"
 	"github.com/PlatONnetwork/PlatON-Go/cmd/utils"
 	"gopkg.in/urfave/cli.v1"
@@ -24,6 +25,7 @@ var (
 			l1deposit.Command,
 			l1staking.Command,
 			l1exithelper.Command,
+			l2statesync.Command,
 			l2reward.Command,
 			l2staking.Command,
 			l2withdraw.Command,
