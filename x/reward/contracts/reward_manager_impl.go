@@ -66,7 +66,7 @@ func (c *RewardManager) PaidRewardPerEpoch(epochId *big.Int) (*big.Int, error) {
 }
 
 func (c *RewardManager) PendingDelegatorRewards(validator common.Address, delegator common.Address) (*big.Int, error) {
-	return rewarddb.GetPendingDelegatorReward(c.evm.StateDB, c.contract.Address(), c.contract.Caller(), validator), nil
+	return rewarddb.GetPendingDelegatorReward(c.evm.StateDB, c.contract.Address(), delegator, validator), nil
 }
 
 func (c *RewardManager) PendingValidatorRewards(validator common.Address) (*big.Int, error) {
