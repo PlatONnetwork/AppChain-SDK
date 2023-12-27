@@ -1,4 +1,4 @@
-package l2reward
+package l2statesender
 
 import (
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/flags"
@@ -12,8 +12,8 @@ import (
 var (
 	Command = cli.Command{
 		Action:    utils.MigrateFlags(run),
-		Name:      "l2.reward",
-		Usage:     "l2.reward",
+		Name:      "l2.statesender",
+		Usage:     "l2.statesender",
 		ArgsUsage: "",
 		Flags: []cli.Flag{
 			flags.RPCFlags,
@@ -22,22 +22,22 @@ var (
 			flags.MethodFlags,
 			flags.TypeFlags,
 		},
-		Category:           "L2 REWARD COMMANDS",
+		Category:           "L2 STATESENDER COMMANDS",
 		Description:        ``,
-		HelpName:           "cast l2.reward",
+		HelpName:           "cast l2.statesender",
 		CustomHelpTemplate: flags.CommandHelpTemplate,
 	}
 )
 
 func run(ctx *cli.Context) error {
 	return flags.ExecuteCommand(ctx, func(address common.Address, client *ethclient.Client) (reflect.Type, reflect.Value) {
-		manager, _ := NewReward(address, client)
-		return reflect.TypeOf(&manager.RewardTransactor), reflect.ValueOf(&manager.RewardTransactor)
+		manager, _ := NewStatesender(address, client)
+		return reflect.TypeOf(&manager.StatesenderTransactor), reflect.ValueOf(&manager.StatesenderTransactor)
 	}, func(address common.Address, client *ethclient.Client) (reflect.Type, reflect.Value) {
-		manager, _ := NewReward(address, client)
-		return reflect.TypeOf(&manager.RewardCaller), reflect.ValueOf(&manager.RewardCaller)
+		manager, _ := NewStatesender(address, client)
+		return reflect.TypeOf(&manager.StatesenderCaller), reflect.ValueOf(&manager.StatesenderCaller)
 	}, func(address common.Address, client *ethclient.Client) (reflect.Type, reflect.Value) {
-		filter, _ := NewRewardFilterer(address, client)
+		filter, _ := NewStatesenderFilterer(address, client)
 		return reflect.TypeOf(filter), reflect.ValueOf(filter)
-	}, RewardABI)
+	}, StatesenderABI)
 }

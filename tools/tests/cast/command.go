@@ -6,8 +6,10 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l1deposit"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l1exithelper"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l1staking"
+	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l2deposit"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l2reward"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l2staking"
+	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l2statesender"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l2statesync"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l2withdraw"
 	"github.com/PlatONnetwork/PlatON-Go/cmd/utils"
@@ -26,6 +28,8 @@ var (
 			l1staking.Command,
 			l1exithelper.Command,
 			l2statesync.Command,
+			l2deposit.Command,
+			l2statesender.Command,
 			l2reward.Command,
 			l2staking.Command,
 			l2withdraw.Command,

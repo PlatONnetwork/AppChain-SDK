@@ -3,11 +3,16 @@ package flags
 import (
 	"context"
 	"errors"
+	"fmt"
+	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/transaction"
+	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
 	"github.com/PlatONnetwork/PlatON-Go/ethclient"
 	"gopkg.in/urfave/cli.v1"
+	"reflect"
+	"strings"
 )
 
 func FindMethodArgs(ctx *cli.Context) (string, []string, error) {
@@ -47,5 +52,96 @@ func InitGlobal(ctx *cli.Context) (*ethclient.Client, common.Address, *bind.Tran
 	if err != nil {
 		return nil, common.Address{}, nil, err
 	}
+	opt.GasLimit = 2000000
 	return cli, stakeAddr, opt, nil
+}
+
+func ExecuteCommand(ctx *cli.Context,
+	findTransactor func(common.Address, *ethclient.Client) (reflect.Type, reflect.Value),
+	findCaller func(common.Address, *ethclient.Client) (reflect.Type, reflect.Value),
+	findFilter func(common.Address, *ethclient.Client) (reflect.Type, reflect.Value),
+	abiJson string) error {
+	_, inputs, err := FindMethodArgs(ctx)
+	if err != nil {
+		return err
+	}
+	method := ctx.String(MethodFlags.Name)
+	typeName := ctx.String(TypeFlags.Name)
+
+	switch typeName {
+	case "send":
+		client, addr, opt, err := InitGlobal(ctx)
+		if err != nil {
+			return err
+		}
+		transactorType, transactorValue := findTransactor(addr, client)
+		tx, err := transaction.Send(method, inputs, transactorType, transactorValue, opt)
+		if err != nil {
+			return err
+		}
+		_, err = transaction.WaitTx(client, tx.Hash())
+		if err != nil {
+			return err
+		}
+		fmt.Println("send success", tx.Hash())
+
+	case "call":
+		client, addr, _, err := InitGlobal(ctx)
+		if err != nil {
+			return err
+		}
+		callerType, callerValue := findCaller(addr, client)
+		result, err := transaction.Call(method, inputs, callerType, callerValue, &bind.CallOpts{})
+		if err != nil {
+			return err
+		}
+
+		fmt.Println(string(result))
+
+	case "logs":
+		startBlock := ctx.Uint64(StartFlags.Name)
+		var endBlock *uint64
+		end := ctx.Uint64(EndFlags.Name)
+		if end != 0 {
+			endBlock = &end
+		}
+		client, addr, _, err := InitGlobal(ctx)
+		if err != nil {
+			return err
+		}
+		filterType, filterValue := findFilter(addr, client)
+		result, err := transaction.FilterLog(method, inputs, filterType, filterValue, &bind.FilterOpts{
+			Start:   startBlock,
+			End:     endBlock,
+			Context: context.Background(),
+		})
+		if err != nil {
+			return err
+		}
+
+		fmt.Println(string(result))
+	case "abi":
+		parsed, err := abi.JSON(strings.NewReader(abiJson))
+		if err != nil {
+			return err
+		}
+		fmt.Println("methods:")
+		for _, method := range parsed.Methods {
+			fmt.Println("  ", method.Sig)
+		}
+
+		fmt.Println("events:")
+		for _, event := range parsed.Events {
+			var args []string
+			for _, arg := range event.Inputs {
+				index := ""
+				if arg.Indexed {
+					index = " indexed"
+				}
+				args = append(args, fmt.Sprintf("%s%s", arg.Type.String(), index))
+			}
+			fmt.Println("  ", fmt.Sprintf("%s(%s)", event.Name, strings.Join(args, ",")))
+		}
+	}
+	return nil
 }
