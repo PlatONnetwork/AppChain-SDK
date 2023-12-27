@@ -60,9 +60,9 @@ func (c *RewardManagerCaller) PaidRewardPerEpoch(epochId *big.Int) (*big.Int, er
 
 }
 
-func (c *RewardManagerCaller) PendingDelegatorRewards(validator common.Address) (*big.Int, error) {
+func (c *RewardManagerCaller) PendingDelegatorRewards(validator common.Address, delegator common.Address) (*big.Int, error) {
 	var out []interface{}
-	err := c.BoundContract.Caller(c.to, &out, "pendingDelegatorRewards", validator)
+	err := c.BoundContract.Caller(c.to, &out, "pendingDelegatorRewards", validator, delegator)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -88,9 +88,9 @@ func (c *RewardManagerCaller) PendingValidatorRewards(validator common.Address) 
 
 }
 
-func (c *RewardManagerCaller) WithdrawDelegatorReward(validator common.Address) error {
+func (c *RewardManagerCaller) WithdrawDelegatorRewards(validator common.Address) error {
 	var out []interface{}
-	err := c.BoundContract.Caller(c.to, &out, "withdrawDelegatorReward", validator)
+	err := c.BoundContract.Caller(c.to, &out, "withdrawDelegatorRewards", validator)
 
 	if err != nil {
 		return err
@@ -100,9 +100,9 @@ func (c *RewardManagerCaller) WithdrawDelegatorReward(validator common.Address) 
 
 }
 
-func (c *RewardManagerCaller) WithdrawValidatorReward(validator common.Address) error {
+func (c *RewardManagerCaller) WithdrawValidatorRewards(validator common.Address) error {
 	var out []interface{}
-	err := c.BoundContract.Caller(c.to, &out, "withdrawValidatorReward", validator)
+	err := c.BoundContract.Caller(c.to, &out, "withdrawValidatorRewards", validator)
 
 	if err != nil {
 		return err
@@ -143,9 +143,9 @@ func (c *RewardManagerDelegateCaller) PaidRewardPerEpoch(epochId *big.Int) (*big
 
 }
 
-func (c *RewardManagerDelegateCaller) PendingDelegatorRewards(validator common.Address) (*big.Int, error) {
+func (c *RewardManagerDelegateCaller) PendingDelegatorRewards(validator common.Address, delegator common.Address) (*big.Int, error) {
 	var out []interface{}
-	err := c.BoundContract.DelegateCaller(c.to, &out, "pendingDelegatorRewards", validator)
+	err := c.BoundContract.DelegateCaller(c.to, &out, "pendingDelegatorRewards", validator, delegator)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -171,9 +171,9 @@ func (c *RewardManagerDelegateCaller) PendingValidatorRewards(validator common.A
 
 }
 
-func (c *RewardManagerDelegateCaller) WithdrawDelegatorReward(validator common.Address) error {
+func (c *RewardManagerDelegateCaller) WithdrawDelegatorRewards(validator common.Address) error {
 	var out []interface{}
-	err := c.BoundContract.DelegateCaller(c.to, &out, "withdrawDelegatorReward", validator)
+	err := c.BoundContract.DelegateCaller(c.to, &out, "withdrawDelegatorRewards", validator)
 
 	if err != nil {
 		return err
@@ -183,9 +183,9 @@ func (c *RewardManagerDelegateCaller) WithdrawDelegatorReward(validator common.A
 
 }
 
-func (c *RewardManagerDelegateCaller) WithdrawValidatorReward(validator common.Address) error {
+func (c *RewardManagerDelegateCaller) WithdrawValidatorRewards(validator common.Address) error {
 	var out []interface{}
-	err := c.BoundContract.DelegateCaller(c.to, &out, "withdrawValidatorReward", validator)
+	err := c.BoundContract.DelegateCaller(c.to, &out, "withdrawValidatorRewards", validator)
 
 	if err != nil {
 		return err
