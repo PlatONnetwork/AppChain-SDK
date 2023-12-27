@@ -88,21 +88,28 @@ func Test_IncrementNumberOfBlocksForRoundValidator(t *testing.T) {
 		roundValidatorQueue = append(roundValidatorQueue, snap)
 	}
 
-	//var err error
+	err := SetRoundValidatorSharesSnapshotQueue(statedb, constants.StakeHandlerAddress, 3, roundValidatorQueue)
+	if nil != err {
+		t.Error(err)
+	}
 
 	for i, validatorAddr := range validatorAddrQueue {
-		if i == 1 {
+		if i == 1 || i == 4 {
 			continue
 		}
 		IncrementNumberOfBlocksForRoundValidator(statedb, constants.StakeHandlerAddress, validatorAddr, 3, uint64(i+1))
 	}
 
-	//// Has
-	//
-	//has := HasLowBlocksValidator(statedb, constants.StakeHandlerAddress, 1)
-	//hasNot := HasNotLowBlocksValidator(statedb, constants.StakeHandlerAddress, 1)
-	//
-	//CheckLowBlocksValidatorForPreviousRound(statedb, constants.StakeHandlerAddress, 1)
+	// Has
+	has := HasLowBlocksValidator(statedb, constants.StakeHandlerAddress, 4, 1)
+	hasnot := HasNotLowBlocksValidator(statedb, constants.StakeHandlerAddress, 4, 1)
+	queue := CheckLowBlocksValidatorForPreviousRound(statedb, constants.StakeHandlerAddress, 4, 1)
+
+	//t.Log("has", has, "hasnot", hasnot, "queue size", len(queue), "queue", fmt.Sprintf("%v", queue))
+	assert.True(t, has)
+	assert.False(t, hasnot)
+	assert.Equal(t, len(queue), 2)
+
 }
 
 func Test_MakeSlice(t *testing.T) {

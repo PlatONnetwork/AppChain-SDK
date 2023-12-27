@@ -1496,7 +1496,18 @@ func HasLowBlocksValidator(db sdk.StateDBReader, addr common.Address, currentRou
 
 	cache := getNumberOfBlocksForRoundValidatorsMap(db, addr, previousRoundValidatorAddrQueue, previousRound)
 
-	for _, number := range cache {
+	for validatorAddr, number := range cache {
+		validator := GetValidator(db, addr, validatorAddr)
+		// #### NOTE ####
+		// When slashed, it will be directly deleted,
+		// but validatorAddr will still be retained
+		// in the `round validator snap queue`.
+		//
+		// In addition, those who have already been slashed cannot be slashed multiple times.
+		// (Because validatorAddr will still remain in the `round validator snap queue` after being slashed.)
+		if validator.IsEmpty() || validator.IsInvalidSlashing() {
+			continue
+		}
 		if number < minRoundValidatorBlockNumber {
 			log.Debug("HasLowBlocksValidator", "currentRound", currentRound, "previousRound", previousRound)
 			return true
@@ -1522,6 +1533,17 @@ func CheckLowBlocksValidatorForPreviousRound(db sdk.StateDBReader, addr common.A
 	validatorAddrQueue := types.NewValidatorAddrQueue(0)
 
 	for validatorAddr, number := range cache {
+		validator := GetValidator(db, addr, validatorAddr)
+		// #### NOTE ####
+		// When slashed, it will be directly deleted,
+		// but validatorAddr will still be retained
+		// in the `round validator snap queue`.
+		//
+		// In addition, those who have already been slashed cannot be slashed multiple times.
+		// (Because validatorAddr will still remain in the `round validator snap queue` after being slashed.)
+		if validator.IsEmpty() || validator.IsInvalidSlashing() {
+			continue
+		}
 		if number < minRoundValidatorBlockNumber {
 			log.Debug("CheckLowBlocksValidatorForPreviousRound", "currentRound", currentRound, "previousRound", previousRound, "validatorAddr", validatorAddr.Hex(), "numberOfBlocks", number, "minRoundValidatorBlockNumber", minRoundValidatorBlockNumber)
 			validatorAddrQueue = append(validatorAddrQueue, validatorAddr)

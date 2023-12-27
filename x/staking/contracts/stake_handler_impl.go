@@ -132,10 +132,10 @@ func (c *StakeHandler) GetValidators(start []byte, size *big.Int) ([]byte, []Val
 	return next, validatorInfoQueue, nil
 }
 
-func (c *StakeHandler) GetValidatorsWithAddr(validators []common.Address) ([]ValidatorInfo, error) {
+func (c *StakeHandler) GetValidatorsWithAddr(validatorAddrs []common.Address) ([]ValidatorInfo, error) {
 
 	validatorInfoQueue := make([]ValidatorInfo, 0)
-	for _, validatorAddr := range validators {
+	for _, validatorAddr := range validatorAddrs {
 		validator := c.getValidator(validatorAddr)
 		if validator.IsEmpty() {
 			continue
@@ -215,6 +215,10 @@ func (c *StakeHandler) Slash() error {
 		validator := c.getValidator(validatorAddr)
 		if validator.IsEmpty() {
 			log.Warn("Not found validator when Slash", "validatorAddr", validatorAddr.Hex(), "currentRound", currentRound, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
+			continue
+		}
+		if validator.IsInvalidSlashing() {
+			log.Warn("Was slashed validator when Slash", "validatorAddr", validatorAddr.Hex(), "currentRound", currentRound, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
 			continue
 		}
 		// 1. add validator status (add: invalida|slashing)
