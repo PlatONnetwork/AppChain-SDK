@@ -65,15 +65,15 @@ func (c *RewardManager) PaidRewardPerEpoch(epochId *big.Int) (*big.Int, error) {
 	return rewarddb.GetPaidRewardPerEpoch(c.evm.StateDB, c.contract.Address(), epochId.Uint64()), nil
 }
 
-func (c *RewardManager) PendingDelegatorRewards(validator common.Address) (*big.Int, error) {
-	return rewarddb.GetPendingDelegatorReward(c.evm.StateDB, c.contract.Address(), c.contract.Caller(), validator), nil
+func (c *RewardManager) PendingDelegatorRewards(validator common.Address, delegator common.Address) (*big.Int, error) {
+	return rewarddb.GetPendingDelegatorReward(c.evm.StateDB, c.contract.Address(), delegator, validator), nil
 }
 
 func (c *RewardManager) PendingValidatorRewards(validator common.Address) (*big.Int, error) {
 	return rewarddb.GetPendingValidatorReward(c.evm.StateDB, c.contract.Address(), validator), nil
 }
 
-func (c *RewardManager) WithdrawDelegatorReward(validator common.Address) error {
+func (c *RewardManager) WithdrawDelegatorRewards(validator common.Address) error {
 
 	if err := c.updateDelegationRewards(c.contract.Caller(), validator); nil != err {
 		return typesdk.NewRevertError(fmt.Sprintf("RewardManager: can not update delegation rewards, %s", err))
@@ -92,7 +92,7 @@ func (c *RewardManager) WithdrawDelegatorReward(validator common.Address) error 
 	return nil
 }
 
-func (c *RewardManager) WithdrawValidatorReward(validator common.Address) error {
+func (c *RewardManager) WithdrawValidatorRewards(validator common.Address) error {
 
 	owner := c.stakeModule.GetValidatorOwner(c.evm.StateDB, validator)
 
