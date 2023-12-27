@@ -609,7 +609,7 @@ func (s *StakeModule) createSlashTx(ctx sdk.Context, txNonce uint64) (*types.Tra
 func (s *StakeModule) updateValidatorStatus(stateDB sdk.StateDB, validatorAddr basecommon.Address, status staketypes.ValidatorStatus) error {
 	validator := db.GetValidator(stateDB, s.Address(), validatorAddr)
 	if validator.IsEmpty() {
-		return errors.New("has not validator")
+		return nil
 	}
 
 	validator.AppendStatus(status)
