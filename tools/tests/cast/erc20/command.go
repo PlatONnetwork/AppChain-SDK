@@ -1,11 +1,10 @@
 package erc20
 
 import (
-	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/flags"
-	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/transaction"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
 	"github.com/PlatONnetwork/PlatON-Go/cmd/utils"
+	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/ethclient"
 	"gopkg.in/urfave/cli.v1"
 	"reflect"
@@ -24,8 +23,10 @@ var (
 			flags.MethodFlags,
 			flags.TypeFlags,
 		},
-		Category:    "ERC20 COMMANDS",
-		Description: ``,
+		Category:           "ERC20 COMMANDS",
+		Description:        ``,
+		HelpName:           "cast erc20",
+		CustomHelpTemplate: flags.CommandHelpTemplate,
 	}
 )
 
@@ -39,33 +40,14 @@ func initGlobal(ctx *cli.Context) (*ethclient.Client, *Erc20, *bind.TransactOpts
 }
 
 func run(ctx *cli.Context) error {
-	typeName := ctx.String(flags.TypeFlags.Name)
-	client, manager, opt, err := initGlobal(ctx)
-	if err != nil {
-		return err
-	}
-	_, inputs, err := flags.FindMethodArgs(ctx)
-	if err != nil {
-		return err
-	}
-	method := ctx.String(flags.MethodFlags.Name)
-	if typeName == "send" {
-		tx, err := transaction.Send(method, inputs, reflect.TypeOf(&manager.Erc20Transactor), reflect.ValueOf(&manager.Erc20Transactor), opt)
-		if err != nil {
-			return err
-		}
-		_, err = transaction.WaitTx(client, tx.Hash())
-		if err != nil {
-			return err
-		}
-		fmt.Println("send success", tx.Hash())
-	} else {
-		result, err := transaction.Call(method, inputs, reflect.TypeOf(&manager.Erc20Caller), reflect.ValueOf(&manager.Erc20Caller), &bind.CallOpts{})
-		if err != nil {
-			return err
-		}
-
-		fmt.Println(string(result))
-	}
-	return nil
+	return flags.ExecuteCommand(ctx, func(address common.Address, client *ethclient.Client) (reflect.Type, reflect.Value) {
+		manager, _ := NewErc20(address, client)
+		return reflect.TypeOf(&manager.Erc20Transactor), reflect.ValueOf(&manager.Erc20Transactor)
+	}, func(address common.Address, client *ethclient.Client) (reflect.Type, reflect.Value) {
+		manager, _ := NewErc20(address, client)
+		return reflect.TypeOf(&manager.Erc20Caller), reflect.ValueOf(&manager.Erc20Caller)
+	}, func(address common.Address, client *ethclient.Client) (reflect.Type, reflect.Value) {
+		filter, _ := NewErc20Filterer(address, client)
+		return reflect.TypeOf(filter), reflect.ValueOf(filter)
+	}, Erc20ABI)
 }
