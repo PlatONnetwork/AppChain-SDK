@@ -1,4 +1,4 @@
-package l2reward
+package l2deposit
 
 import (
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/flags"
@@ -12,8 +12,8 @@ import (
 var (
 	Command = cli.Command{
 		Action:    utils.MigrateFlags(run),
-		Name:      "l2.reward",
-		Usage:     "l2.reward",
+		Name:      "l2.deposit",
+		Usage:     "l2.deposit",
 		ArgsUsage: "",
 		Flags: []cli.Flag{
 			flags.RPCFlags,
@@ -22,22 +22,22 @@ var (
 			flags.MethodFlags,
 			flags.TypeFlags,
 		},
-		Category:           "L2 REWARD COMMANDS",
+		Category:           "L2 DEPOSIT COMMANDS",
 		Description:        ``,
-		HelpName:           "cast l2.reward",
+		HelpName:           "cast l2.deposit",
 		CustomHelpTemplate: flags.CommandHelpTemplate,
 	}
 )
 
 func run(ctx *cli.Context) error {
 	return flags.ExecuteCommand(ctx, func(address common.Address, client *ethclient.Client) (reflect.Type, reflect.Value) {
-		manager, _ := NewReward(address, client)
-		return reflect.TypeOf(&manager.RewardTransactor), reflect.ValueOf(&manager.RewardTransactor)
+		manager, _ := NewDeposit(address, client)
+		return reflect.TypeOf(&manager.DepositTransactor), reflect.ValueOf(&manager.DepositTransactor)
 	}, func(address common.Address, client *ethclient.Client) (reflect.Type, reflect.Value) {
-		manager, _ := NewReward(address, client)
-		return reflect.TypeOf(&manager.RewardCaller), reflect.ValueOf(&manager.RewardCaller)
+		manager, _ := NewDeposit(address, client)
+		return reflect.TypeOf(&manager.DepositCaller), reflect.ValueOf(&manager.DepositCaller)
 	}, func(address common.Address, client *ethclient.Client) (reflect.Type, reflect.Value) {
-		filter, _ := NewRewardFilterer(address, client)
+		filter, _ := NewDepositFilterer(address, client)
 		return reflect.TypeOf(filter), reflect.ValueOf(filter)
-	}, RewardABI)
+	}, DepositABI)
 }

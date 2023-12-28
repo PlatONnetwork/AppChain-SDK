@@ -23,7 +23,7 @@ var (
 	}
 	TypeFlags = cli.StringFlag{
 		Name:  "type",
-		Usage: "send or call",
+		Usage: "send,call,logs,abi",
 	}
 	StartFlags = cli.Uint64Flag{
 		Name:   "start",
@@ -37,4 +37,20 @@ var (
 		Hidden: true,
 		Value:  0,
 	}
+	CommandHelpTemplate = `NAME:
+   {{.HelpName}} - {{.Usage}}
+
+USAGE:
+   {{if .UsageText}}{{.UsageText}}{{else}}{{.HelpName}}{{if .VisibleFlags}} [command options]{{end}} {{if .ArgsUsage}}{{.ArgsUsage}}{{else}}[arguments...]{{end}}{{end}}{{if .Category}}
+
+CATEGORY:
+   {{.Category}}{{end}}{{if .Description}}
+
+DESCRIPTION:
+   {{.Description}}{{end}}{{if .VisibleFlags}}
+
+OPTIONS:
+   {{range .Flags}}{{.}}
+   {{end}}{{end}}
+`
 )

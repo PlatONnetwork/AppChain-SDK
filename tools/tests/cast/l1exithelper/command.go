@@ -38,8 +38,10 @@ var (
 			flags.AddressFlags,
 			exitIDFlag,
 		},
-		Category: "L1 EXIT HELPER",
-		Description: ``,
+		Category:           "L1 EXIT HELPER",
+		Description:        ``,
+		HelpName:           "cast l1.exithelper",
+		CustomHelpTemplate: flags.CommandHelpTemplate,
 	}
 )
 
