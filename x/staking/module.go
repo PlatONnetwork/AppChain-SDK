@@ -128,10 +128,10 @@ func (s *StakeModule) AddTxs(ctx sdk.WorkerContext, local map[basecommon.Address
 	}
 
 	currentRound := s.stageModule.GetCurrentRound(ctx.StateDB())
-	minRoundValidatorBlockNumber := s.GetMinRoundValidatorBlockNumber(ctx.StateDB())
+	minBlocksOfRoundValidator := s.GetMinBlocksOfRoundValidator(ctx.StateDB())
 
 	// check low blocks validtors of round, and send slash tx
-	if db.HasNotLowBlocksValidator(ctx.StateDB(), s.Address(), currentRound, minRoundValidatorBlockNumber) {
+	if db.HasNotLowBlocksValidator(ctx.StateDB(), s.Address(), currentRound, minBlocksOfRoundValidator) {
 		return local, nil
 	}
 
@@ -153,7 +153,7 @@ func (s *StakeModule) AddTxs(ctx sdk.WorkerContext, local map[basecommon.Address
 		local[from] = make(types.Transactions, 0)
 	}
 	local[from] = append(local[from], slashTx)
-	s.logger.Debug("create Slash tx", "blockNumber", blockNumber, "txHash", slashTx.Hash().Hex(), "from", from.Hex(), "currentRound", currentRound, "minRoundValidatorBlockNumber", minRoundValidatorBlockNumber)
+	s.logger.Debug("create Slash tx", "blockNumber", blockNumber, "txHash", slashTx.Hash().Hex(), "from", from.Hex(), "currentRound", currentRound, "minBlocksOfRoundValidator", minBlocksOfRoundValidator)
 	return local, nil
 }
 
@@ -176,9 +176,9 @@ func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) error {
 
 	if s.stageModule.IsBeginOfCurrentRound(ctx.StateDB(), currentBlock) {
 		currentRound := s.stageModule.GetCurrentRound(ctx.StateDB())
-		minRoundValidatorBlockNumber := s.GetMinRoundValidatorBlockNumber(ctx.StateDB())
+		minBlocksOfRoundValidator := s.GetMinBlocksOfRoundValidator(ctx.StateDB())
 		// check low blocks validators
-		lowBlocksValidatorAddrQueue := db.CheckLowBlocksValidatorForPreviousRound(ctx.StateDB(), s.Address(), currentRound, minRoundValidatorBlockNumber)
+		lowBlocksValidatorAddrQueue := db.CheckLowBlocksValidatorForPreviousRound(ctx.StateDB(), s.Address(), currentRound, minBlocksOfRoundValidator)
 		// update validator status
 		for _, validatorAddr := range lowBlocksValidatorAddrQueue {
 			if err := s.updateValidatorStatus(ctx.StateDB(), validatorAddr, staketypes.Invalided|staketypes.LowBlocks); nil != err {
@@ -797,6 +797,6 @@ func (s *StakeModule) GetMaxRoundValidatorsSize(stateDB sdk.StateDBReader) uint6
 func (s *StakeModule) GetMaxEpochValidatorsSize(stateDB sdk.StateDBReader) uint64 {
 	return db.GetMaxEpochValidatorsSize(stateDB, s.Address())
 }
-func (s *StakeModule) GetMinRoundValidatorBlockNumber(stateDB sdk.StateDBReader) uint64 {
-	return db.GetMinRoundValidatorBlockNumber(stateDB, s.Address())
+func (s *StakeModule) GetMinBlocksOfRoundValidator(stateDB sdk.StateDBReader) uint64 {
+	return db.GetMinBlocksOfRoundValidator(stateDB, s.Address())
 }

@@ -55,7 +55,7 @@ type StakeModuler interface {
 	GetSlashIncentivePercentage(stateDB sdk.StateDBReader) uint64
 	GetMaxRoundValidatorsSize(stateDB sdk.StateDBReader) uint64
 	GetMaxEpochValidatorsSize(stateDB sdk.StateDBReader) uint64
-	GetMinRoundValidatorBlockNumber(stateDB sdk.StateDBReader) uint64
+	GetMinBlocksOfRoundValidator(stateDB sdk.StateDBReader) uint64
 }
 
 type RewardModuler interface {

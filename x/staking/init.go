@@ -25,7 +25,7 @@ func initStakeConfigParams(statedb sdk.StateDB, addr common.Address, configParam
 	statedb.SetState(addr, stakingdb.EncodeSlashIncentivePercentageKey(), common.Uint64ToBytes(configParams.SlashIncentivePercentage))
 	statedb.SetState(addr, stakingdb.EncodeMaxRoundValidatorsSizeKey(), common.Uint64ToBytes(configParams.MaxRoundValidatorsSize))
 	statedb.SetState(addr, stakingdb.EncodeMaxEpochValidatorsSizeKey(), common.Uint64ToBytes(configParams.MaxEpochValidatorsSize))
-	statedb.SetState(addr, stakingdb.EncodeMinRoundValidatorBlockNumberKey(), common.Uint64ToBytes(configParams.MinRoundValidatorBlockNumber))
+	statedb.SetState(addr, stakingdb.EncodeMinBlocksOfRoundValidatorKey(), common.Uint64ToBytes(configParams.MinBlocksOfRoundValidator))
 }
 
 func initValidatorGenesisPriority(statedb sdk.StateDB, addr common.Address) error {

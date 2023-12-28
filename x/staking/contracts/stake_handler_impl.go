@@ -206,8 +206,8 @@ func (c *StakeHandler) OnStateReceive(id *big.Int, sender common.Address, data [
 func (c *StakeHandler) Slash() error {
 
 	currentRound := c.getCurrentRound()
-	minRoundValidatorBlockNumbers := c.stakeModule.GetMinRoundValidatorBlockNumber(c.evm.StateDB)
-	validatorAddrs := db.CheckLowBlocksValidatorForPreviousRound(c.evm.StateDB, c.contract.Address(), currentRound, minRoundValidatorBlockNumbers)
+	minBlocksOfRoundValidator := c.stakeModule.GetMinBlocksOfRoundValidator(c.evm.StateDB)
+	validatorAddrs := db.CheckLowBlocksValidatorForPreviousRound(c.evm.StateDB, c.contract.Address(), currentRound, minBlocksOfRoundValidator)
 
 	slashingValidatorAddrCache := make(map[common.Address]struct{}, 0)
 	// NOTE: update validator status (add log for lowBlocks slashing)
@@ -245,7 +245,7 @@ func (c *StakeHandler) Slash() error {
 		return err
 	}
 
-	log.Info("Begin Slash for", "validator size", len(validatorAddrs), "minRoundValidatorBlockNumbers", minRoundValidatorBlockNumbers,
+	log.Info("Begin Slash for", "validator size", len(validatorAddrs), "minBlocksOfRoundValidator", minBlocksOfRoundValidator,
 		"currentRound", currentRound, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }
