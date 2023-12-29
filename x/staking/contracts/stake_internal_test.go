@@ -89,30 +89,6 @@ func initStakeHandler(stakeHandler *StakeHandler, stageModule staketypes.StageMo
 	stakeHandler.SetRewardModule(rewardModule)
 }
 
-func Test_Delegate(t *testing.T) {
-
-	//validatorAddr := common.HexToAddress("0x1111111111111111111111111111111111111111")
-	//delegatorAddr := common.HexToAddress("0x2222222222222222222222222222222222222222")
-	//ownerAddr := common.HexToAddress("0x3333333333333333333333333333333333333333")
-	//stakeHandler := newStakeHandler(common.ZeroAddr)
-	//var err error
-	//err = stakeHandler.stake(validatorAddr, ownerAddr, common.Big100, 10, []byte{}, enode.IDv0{})
-	//if nil != err {
-	//	t.Error(err)
-	//}
-	//err = stakeHandler.delegate(validatorAddr, delegatorAddr, common.Big32)
-	//if nil != err {
-	//	t.Error(err)
-	//}
-	//
-	//delegations, err := stakeHandler.GetDelegationsWithValidator([]common.Address{validatorAddr}, delegatorAddr)
-	//if nil != err {
-	//	t.Error(err)
-	//}
-	//
-	//t.Log("delegation size", len(delegations))
-}
-
 func getStakeForData() ([][]byte, map[common.Address]struct {
 	Owner          common.Address
 	StakeAmount    *big.Int
@@ -197,6 +173,63 @@ func getStakeForData() ([][]byte, map[common.Address]struct {
 	}
 	return bytes, cache
 }
+func getAddStakeData() ([][]byte, map[common.Address]*big.Int) {
+
+	bytes := [][]byte{
+		// {
+		//  "amount": 100000000,
+		//  "vlidatorAddr": "0x18D80f8B8302D8Fc41D4239d06b18b6f201640A8"
+		// }
+		common.Hex2Bytes("7f629647b0cf8231fa5380e25f7c9bf0685fecbdc41360b93da5b447cef9ee7300000000000000000000000018d80f8b8302d8fc41d4239d06b18b6f201640a80000000000000000000000000000000000000000000000000000000005f5e100"),
+		// {
+		//  "amount": 200000000,
+		//  "vlidatorAddr": "0x987CAcA3842e1C13645172373bFbDEd25A6F59f2"
+		// }
+		common.Hex2Bytes("7f629647b0cf8231fa5380e25f7c9bf0685fecbdc41360b93da5b447cef9ee73000000000000000000000000987caca3842e1c13645172373bfbded25a6f59f2000000000000000000000000000000000000000000000000000000000bebc200"),
+		// {
+		//  "amount": 300000000,
+		//  "vlidatorAddr": "0x35E1EC7b136DeF2E2d561F7E003deE2CBEf3C4c9"
+		// }
+		common.Hex2Bytes("7f629647b0cf8231fa5380e25f7c9bf0685fecbdc41360b93da5b447cef9ee7300000000000000000000000035e1ec7b136def2e2d561f7e003dee2cbef3c4c90000000000000000000000000000000000000000000000000000000011e1a300"),
+		// {
+		//  "amount": 600000000,
+		//  "vlidatorAddr": "0x5c8Fb7c7746417b551B953DEac5dE42E06871B2f"
+		// }
+		common.Hex2Bytes("7f629647b0cf8231fa5380e25f7c9bf0685fecbdc41360b93da5b447cef9ee730000000000000000000000005c8fb7c7746417b551b953deac5de42e06871b2f0000000000000000000000000000000000000000000000000000000023c34600"),
+	}
+
+	cache := map[common.Address]*big.Int{
+		common.HexToAddress("0x18D80f8B8302D8Fc41D4239d06b18b6f201640A8"): new(big.Int).SetUint64(100000000),
+		common.HexToAddress("0x987CAcA3842e1C13645172373bFbDEd25A6F59f2"): new(big.Int).SetUint64(200000000),
+		common.HexToAddress("0x35E1EC7b136DeF2E2d561F7E003deE2CBEf3C4c9"): new(big.Int).SetUint64(300000000),
+		common.HexToAddress("0x5c8Fb7c7746417b551B953DEac5dE42E06871B2f"): new(big.Int).SetUint64(600000000),
+	}
+	return bytes, cache
+}
+
+func Test_Delegate(t *testing.T) {
+
+	//validatorAddr := common.HexToAddress("0x1111111111111111111111111111111111111111")
+	//delegatorAddr := common.HexToAddress("0x2222222222222222222222222222222222222222")
+	//ownerAddr := common.HexToAddress("0x3333333333333333333333333333333333333333")
+	//stakeHandler := newStakeHandler(common.ZeroAddr)
+	//var err error
+	//err = stakeHandler.stake(validatorAddr, ownerAddr, common.Big100, 10, []byte{}, enode.IDv0{})
+	//if nil != err {
+	//	t.Error(err)
+	//}
+	//err = stakeHandler.delegate(validatorAddr, delegatorAddr, common.Big32)
+	//if nil != err {
+	//	t.Error(err)
+	//}
+	//
+	//delegations, err := stakeHandler.GetDelegationsWithValidator([]common.Address{validatorAddr}, delegatorAddr)
+	//if nil != err {
+	//	t.Error(err)
+	//}
+	//
+	//t.Log("delegation size", len(delegations))
+}
 
 func Test_StakeFor(t *testing.T) {
 
@@ -207,7 +240,7 @@ func Test_StakeFor(t *testing.T) {
 	stakeHandler := newStakeHandler(from, new(big.Int).SetUint64(2), statedb.(vm.StateDB))
 	stakeHandlerTestConfig.StageModule.MockCurrentEpoch(epoch)
 	err := stakeHandlerTestConfig.StakeModule.MockInitValidatorGenesisPriority()
-	assert.Nil(t, err, "Fialed to call MockInitValidatorGenesisPriority")
+	assert.Nil(t, err, "Failed to call MockInitValidatorGenesisPriority")
 	initStakeHandler(stakeHandler, stakeHandlerTestConfig.StageModule, stakeHandlerTestConfig.StakeModule, stakeHandlerTestConfig.RewardModule)
 
 	for _, data := range datas {
@@ -215,13 +248,13 @@ func Test_StakeFor(t *testing.T) {
 		//if nil != err {
 		//	t.Error(err)
 		//}
-		assert.Nil(t, err, "Fialed to call onStake")
+		assert.Nil(t, err, "Failed to call onStake")
 	}
 	next, queue, err := stakeHandler.GetValidators([]byte{}, common.Big100)
 	//t.Log("next", hexutils.BytesToHex(next))
 	//t.Log("queue", fmt.Sprintf("%v", queue))
 	//t.Log("err", err)
-	assert.Nil(t, err, "Fialed to call GetValidators")
+	assert.Nil(t, err, "Failed to call GetValidators")
 	assert.Equal(t, 4, len(queue), "mismatching validator arr size")
 	assert.Equal(t, []byte("priorityValidatorTail"), next, "mismatching next priority key")
 
