@@ -233,7 +233,7 @@ func (c *StakeHandler) stake(validatorAddr, owner common.Address, amount *big.In
 		return err
 	}
 
-	log.Info("Stake for", "validator", validatorAddr.Hex(), "owner", owner.Hex(), "amount", amount, "blsKey", fmt.Sprintf("%x", blsKey),
+	log.Info("Stake for", "validator", validatorAddr.Hex(), "owner", owner.Hex(), "amount", amount, "commissionRate", commissionRate, "blsKey", fmt.Sprintf("%x", blsKey),
 		"pubKey", fmt.Sprintf("%x", pubKey.Bytes()), "epoch", c.getCurrentEpoch(), "stakeIndex", stakeIndex, "blockNumber", c.evm.Context.BlockNumber.Uint64())
 	return nil
 }

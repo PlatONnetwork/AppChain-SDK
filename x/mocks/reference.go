@@ -477,6 +477,31 @@ func (stake *MockStakeModule) MockMinBlocksOfRoundValidator(blocks uint64) {
 	stake.statedb.SetState(stake.addr, minBlocksOfRoundValidatorKey, common.Uint64ToBytes(blocks))
 }
 
+func (stake *MockStakeModule) MockInitValidatorGenesisPriority() error {
+	head := NewMockPriorityValidator(
+		priorityValidatorTailKey,
+		priorityValidatorTailKey,
+		common.ZeroAddr,
+	)
+	tail := NewMockPriorityValidator(
+		priorityValidatorHeadKey,
+		priorityValidatorHeadKey,
+		common.ZeroAddr,
+	)
+	hvalue, err := rlp.EncodeToBytes(head)
+	if nil != err {
+		return fmt.Errorf("rlp encode head validator priority %s", err)
+	}
+	tvalue, err := rlp.EncodeToBytes(tail)
+	if nil != err {
+		return fmt.Errorf("rlp encode tail validator priority %s", err)
+	}
+
+	stake.statedb.SetState(stake.addr, priorityValidatorHeadKey, hvalue)
+	stake.statedb.SetState(stake.addr, priorityValidatorTailKey, tvalue)
+	return nil
+}
+
 func (stake *MockStakeModule) MockValidator(validatorAddr common.Address, validator *MockValidatorSnapshot) error {
 
 	value, err := rlp.EncodeToBytes(validator)
@@ -855,6 +880,28 @@ func (item *MockValidator) IsNotEmpty() bool {
 
 func (item *MockValidator) AppendStatus(status MockValidatorStatus) {
 	item.Status |= status
+}
+
+type MockPriorityValidator struct {
+	PreKey        []byte // previous priority validator key in statedb
+	NextKey       []byte // next priority validator key in statedb
+	ValidatorAddr common.Address
+}
+
+func NewMockPriorityValidator(preKey, nextKey []byte, addr common.Address) *MockPriorityValidator {
+	return &MockPriorityValidator{
+		PreKey:        preKey,
+		NextKey:       nextKey,
+		ValidatorAddr: addr,
+	}
+}
+
+func (item *MockPriorityValidator) IsEmpty() bool {
+	return nil == item
+}
+
+func (item *MockPriorityValidator) IsNotEmpty() bool {
+	return !item.IsEmpty()
 }
 
 type MockValidatorSnapshot struct {
