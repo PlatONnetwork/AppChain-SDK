@@ -2,6 +2,7 @@ package transaction
 
 import (
 	"context"
+	"errors"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/ethclient"
@@ -16,5 +17,5 @@ func WaitTx(client *ethclient.Client, hash common.Hash) (*types.Receipt, error) 
 		}
 		time.Sleep(time.Second)
 	}
-	return nil, nil
+	return nil, errors.New("wait tx time out")
 }

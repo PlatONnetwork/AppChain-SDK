@@ -16,8 +16,8 @@ import (
 )
 
 var (
-	_ module.Module        = (*Module)(nil)
-	_ module.BlockCommiter = (*Module)(nil)
+	_ module.Module         = (*Module)(nil)
+	_ module.BlockCommitter = (*Module)(nil)
 )
 
 // EventSubscriber specifies functions needed for a component to subscribe to stateEvent

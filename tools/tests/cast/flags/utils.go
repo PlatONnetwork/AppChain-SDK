@@ -8,6 +8,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
 	"github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/common/json"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
 	"github.com/PlatONnetwork/PlatON-Go/ethclient"
 	"gopkg.in/urfave/cli.v1"
@@ -40,19 +41,22 @@ func InitGlobal(ctx *cli.Context) (*ethclient.Client, common.Address, *bind.Tran
 	}
 	address := ctx.String(AddressFlags.Name)
 	stakeAddr := common.HexToAddress(address)
-	key, err := crypto.HexToECDSA(ctx.String(KeyFlags.Name))
-	if err != nil {
-		return nil, common.Address{}, nil, err
+	var opt *bind.TransactOpts
+	if ctx.String(TypeFlags.Name) == "send" {
+		key, err := crypto.HexToECDSA(ctx.String(KeyFlags.Name))
+		if err != nil {
+			return nil, common.Address{}, nil, err
+		}
+		chainId, err := cli.ChainID(context.Background())
+		if err != nil {
+			return nil, common.Address{}, nil, err
+		}
+		opt, err = bind.NewKeyedTransactorWithChainID(key, chainId)
+		if err != nil {
+			return nil, common.Address{}, nil, err
+		}
+		opt.GasLimit = 2000000
 	}
-	chainId, err := cli.ChainID(context.Background())
-	if err != nil {
-		return nil, common.Address{}, nil, err
-	}
-	opt, err := bind.NewKeyedTransactorWithChainID(key, chainId)
-	if err != nil {
-		return nil, common.Address{}, nil, err
-	}
-	opt.GasLimit = 2000000
 	return cli, stakeAddr, opt, nil
 }
 
@@ -84,6 +88,19 @@ func ExecuteCommand(ctx *cli.Context,
 			return err
 		}
 		fmt.Println("send success", tx.Hash())
+		tx, _, err = client.TransactionByHash(context.Background(), tx.Hash())
+		if err != nil {
+			return err
+		}
+		bytes, _ := json.MarshalIndent(tx, " ", " ")
+		fmt.Println("transaction:", string(bytes))
+		receipt, err := client.TransactionReceipt(context.Background(), tx.Hash())
+		if err != nil {
+			return err
+		}
+		bytes, _ = json.MarshalIndent(receipt, " ", " ")
+
+		fmt.Println("receipt:", string(bytes))
 
 	case "call":
 		client, addr, _, err := InitGlobal(ctx)

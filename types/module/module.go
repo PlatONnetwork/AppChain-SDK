@@ -53,7 +53,7 @@ type ConsensusExtendModule interface {
 	PrepareQC(ctx sdk.ConsensusContext, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote)
 }
 
-type BlockCommiter interface {
+type BlockCommitter interface {
 	Module
 	OnCommit(ctx sdk.ConsensusContext, block *types.Block) error
 }
@@ -94,17 +94,17 @@ type TransactionModule interface {
 type Manager struct {
 	Modules map[string]interface{}
 
-	ConsensusExtend    string
-	Election           string
-	Worker             string
-	OrderInit          []string
-	OrderTxPool        []string
-	OrderBlockCommiter []string
-	OrderGenesis       []string
-	OrderBeginBlocker  []string
-	OrderEndBlocker    []string
-	OrderBlocker       []string
-	OrderTransaction   []string
+	ConsensusExtend     string
+	Election            string
+	Worker              string
+	OrderInit           []string
+	OrderTxPool         []string
+	OrderBlockCommitter []string
+	OrderGenesis        []string
+	OrderBeginBlocker   []string
+	OrderEndBlocker     []string
+	OrderBlocker        []string
+	OrderTransaction    []string
 }
 
 func NewManager(modules ...Module) *Manager {
@@ -115,15 +115,15 @@ func NewManager(modules ...Module) *Manager {
 		moduleStr = append(moduleStr, module.Name())
 	}
 	return &Manager{
-		Modules:            moduleMap,
-		OrderInit:          moduleStr,
-		OrderTxPool:        moduleStr,
-		OrderBlockCommiter: moduleStr,
-		OrderGenesis:       moduleStr,
-		OrderBeginBlocker:  moduleStr,
-		OrderEndBlocker:    moduleStr,
-		OrderBlocker:       moduleStr,
-		OrderTransaction:   moduleStr,
+		Modules:             moduleMap,
+		OrderInit:           moduleStr,
+		OrderTxPool:         moduleStr,
+		OrderBlockCommitter: moduleStr,
+		OrderGenesis:        moduleStr,
+		OrderBeginBlocker:   moduleStr,
+		OrderEndBlocker:     moduleStr,
+		OrderBlocker:        moduleStr,
+		OrderTransaction:    moduleStr,
 	}
 }
 
@@ -169,13 +169,13 @@ func (m *Manager) SetWorker(moduleName string) {
 	m.Worker = moduleName
 }
 
-func (m *Manager) SetOrderBlockCommiter(moduleNames ...string) {
-	m.assertNoForgottenModules("SetOrderBlockCommiter", moduleNames, func(moduleName string) bool {
+func (m *Manager) SetOrderBlockCommitter(moduleNames ...string) {
+	m.assertNoForgottenModules("SetOrderBlockCommitter", moduleNames, func(moduleName string) bool {
 		module := m.Modules[moduleName]
-		_, has := module.(BlockCommiter)
+		_, has := module.(BlockCommitter)
 		return !has
 	})
-	m.OrderBlockCommiter = moduleNames
+	m.OrderBlockCommitter = moduleNames
 }
 
 func (m *Manager) SetOrderGenesis(moduleNames ...string) {
@@ -386,9 +386,9 @@ func (m *Manager) IsCandidateNode(ctx sdk.ConsensusContext, nodeID enode.IDv0) b
 
 func (m *Manager) OnCommit(ctx sdk.ConsensusContext, block *types.Block) error {
 	log.Info("Notify block commit for election app")
-	for _, moduleName := range m.OrderBlockCommiter {
+	for _, moduleName := range m.OrderBlockCommitter {
 		mod := m.Modules[moduleName]
-		if module, ok := mod.(BlockCommiter); ok {
+		if module, ok := mod.(BlockCommitter); ok {
 			log.Debug("Notify block commit for module", "module", moduleName)
 			if err := module.OnCommit(ctx, block); err != nil {
 				return err
@@ -439,7 +439,7 @@ func (m *Manager) AddTxs(ctx sdk.WorkerContext) (types.Transactions, error) {
 	var err error
 	for _, module := range m.Modules {
 		if txModule, ok := module.(TransactionModule); ok {
-			local,err = txModule.AddTxs(ctx, local)
+			local, err = txModule.AddTxs(ctx, local)
 			if err != nil {
 				return nil, err
 			}

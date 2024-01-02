@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	L1SyncDBName = "l1sync"
+	L1SyncDBName = "l1Sync"
 	lastBlockKey = []byte("lastBlock")
 	maxSyncKey   = []byte("maxSyncId")
 	eventKey     = []byte("event")

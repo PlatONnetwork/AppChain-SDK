@@ -12,12 +12,12 @@ import (
 )
 
 const (
-	MODULE_NAME_L1 = "l1"
+	ModuleName = "l1"
 )
 
 type L1ConfigParams struct {
 	ChainID        *big.Int       `json:"chainId"`
-	State          common.Address `json:"state"`
+	StateSender    common.Address `json:"stateSender"`
 	Checkpoint     common.Address `json:"checkpoint"`
 	StakeManager   common.Address `json:"stakeManager"`
 	DepositManager common.Address `json:"depositManager"`
@@ -34,7 +34,7 @@ func NewModule(db store.Store) *L1Module {
 }
 
 func (l *L1Module) Name() string {
-	return MODULE_NAME_L1
+	return ModuleName
 }
 
 func (l *L1Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
@@ -51,12 +51,12 @@ func (l *L1Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *par
 	}
 
 	l.db.setChainID(g.ChainID)
-	l.db.setStateAddress(g.State)
+	l.db.setStateSenderAddress(g.StateSender)
 	l.db.setCheckpointAddress(g.Checkpoint)
 	l.db.setStakeManagerAddress(g.StakeManager)
 	l.db.setDepositManagerAddress(g.DepositManager)
 
-	log.Info("Succeed init genesis", "module", l.Name(), "chainId", g.ChainID, "state", g.State.Hex(), "checkpoint", g.Checkpoint.Hex(), "stakeManager", g.StakeManager.Hex(), "depositManager", g.DepositManager.Hex())
+	log.Info("Succeed init genesis", "module", l.Name(), "chainId", g.ChainID, "state", g.StateSender.Hex(), "checkpoint", g.Checkpoint.Hex(), "stakeManager", g.StakeManager.Hex(), "depositManager", g.DepositManager.Hex())
 	return nil
 }
 
@@ -66,7 +66,7 @@ func (l *L1Module) GetChainID() (*big.Int, error) {
 	return l.db.getChainID()
 }
 func (l *L1Module) GetStateAddress() (common.Address, error) {
-	return l.db.getStateAddress()
+	return l.db.getStateSenderAddress()
 }
 func (l *L1Module) GetCheckpointAddress() (common.Address, error) {
 	return l.db.getCheckpointAddress()

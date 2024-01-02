@@ -11,6 +11,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l2staking"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l2statesender"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l2statesync"
+	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l2validator"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l2withdraw"
 	"github.com/PlatONnetwork/PlatON-Go/cmd/utils"
 	"gopkg.in/urfave/cli.v1"
@@ -33,6 +34,7 @@ var (
 			l2reward.Command,
 			l2staking.Command,
 			l2withdraw.Command,
+			l2validator.Command,
 		},
 		Flags: []cli.Flag{
 			flags.RPCFlags,

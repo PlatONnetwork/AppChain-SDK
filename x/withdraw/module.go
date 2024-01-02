@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	MODULE_NAME_WITHDRAW = "withdraw"
+	ModuleName = "withdraw"
 )
 
 type WithdrawModule struct {
@@ -22,12 +22,12 @@ type WithdrawModule struct {
 
 func NewModule(ctx *cli.Context) *WithdrawModule {
 	return &WithdrawModule{
-		logger: log.New("module", MODULE_NAME_WITHDRAW),
+		logger: log.New("module", ModuleName),
 	}
 }
 
 func (w *WithdrawModule) Name() string {
-	return MODULE_NAME_WITHDRAW
+	return ModuleName
 }
 
 func (w *WithdrawModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {

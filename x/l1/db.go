@@ -7,9 +7,9 @@ import (
 )
 
 var (
-	L1ConfigParamsDBName     = "l1config"
+	L1ConfigParamsDBName     = "l1Config"
 	chainIdKey               = []byte("chainId")
-	stateAddressKey          = []byte("stateAddress")
+	stateSenderAddressKey    = []byte("stateSenderAddress")
 	checkpointAddressKey     = []byte("checkpointAddress")
 	stakeManagerAddressKey   = []byte("stakeManagerAddress")
 	depositManagerAddressKey = []byte("depositManagerAddress")
@@ -36,12 +36,12 @@ func (l *l1GenesisDB) getChainID() (*big.Int, error) {
 	return new(big.Int).SetBytes(value), nil
 }
 
-func (l *l1GenesisDB) setStateAddress(addr common.Address) error {
-	return l.db.Set(stateAddressKey, addr.Bytes())
+func (l *l1GenesisDB) setStateSenderAddress(addr common.Address) error {
+	return l.db.Set(stateSenderAddressKey, addr.Bytes())
 }
 
-func (l *l1GenesisDB) getStateAddress() (common.Address, error) {
-	value, err := l.db.Get(stateAddressKey)
+func (l *l1GenesisDB) getStateSenderAddress() (common.Address, error) {
+	value, err := l.db.Get(stateSenderAddressKey)
 	if err != nil {
 		return common.ZeroAddr, err
 	}
