@@ -1,6 +1,6 @@
 pragma solidity ^0.8.20;
 
-import "../IL1StateReceiver.sol";
+import "../../../statereceiver/contracts/sol/IL1StateReceiver.sol";
 
 struct ValidatorInfo {
     address validatorAddr;
@@ -25,6 +25,9 @@ struct DelegationInfo {
 
 interface IStakeHandler is IL1StateReceiver {
     event Slashed(uint256 indexed exitId, address[] validators, uint256[] amounts);
+    event ValidatorRegistered(
+        address indexed validator, address owner, uint256 commissionRate, bytes pubKey, bytes blsKey
+    );
     event StakeAdded(address indexed validator, uint256 amount);
     event DelegationAdded(address indexed delegator, address indexed validator, uint256 amount);
     event UnStaked(address indexed validator, uint256 amount);

@@ -232,6 +232,9 @@ func (c *StakeHandler) stake(validatorAddr, owner common.Address, amount *big.In
 	if err := c.addLogStakeAddedEvent(validatorAddr, amount); nil != err {
 		return err
 	}
+	if err := c.addLogValidatorRegisteredEvent(validatorAddr, owner, new(big.Int).SetUint64(commissionRate), pubKey.Bytes(), blsKey); nil != err {
+		return err
+	}
 
 	log.Info("Stake for", "validator", validatorAddr.Hex(), "owner", owner.Hex(), "amount", amount, "commissionRate", commissionRate, "blsKey", fmt.Sprintf("%x", blsKey),
 		"pubKey", fmt.Sprintf("%x", pubKey.Bytes()), "epoch", c.getCurrentEpoch(), "stakeIndex", stakeIndex, "blockNumber", c.evm.Context.BlockNumber.Uint64())
