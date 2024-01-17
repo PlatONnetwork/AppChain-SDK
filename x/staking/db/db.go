@@ -30,7 +30,7 @@ var (
 	slashIncentivePercentageKey     = []byte("slashIncentivePercentage")
 	maxRoundValidatorsSizeKey       = []byte("maxRoundValidatorsSize")
 	maxEpochValidatorsSizeKey       = []byte("maxEpochValidatorsSize")
-	minRoundValidatorBlockNumberKey = []byte("minRoundValidatorBlockNumber")
+	minBlocksOfRoundValidatorKey    = []byte("minBlocksOfRoundValidator")
 )
 
 var (
@@ -74,8 +74,8 @@ func EncodeMaxRoundValidatorsSizeKey() []byte {
 func EncodeMaxEpochValidatorsSizeKey() []byte {
 	return maxEpochValidatorsSizeKey
 }
-func EncodeMinRoundValidatorBlockNumberKey() []byte {
-	return minRoundValidatorBlockNumberKey
+func EncodeMinBlocksOfRoundValidatorKey() []byte {
+	return minBlocksOfRoundValidatorKey
 }
 
 // ------
@@ -294,11 +294,11 @@ func GetMaxEpochValidatorsSize(db sdk.StateDBReader, addr common.Address) uint64
 	return common.BytesToUint64(value)
 }
 
-func SetMinRoundValidatorBlockNumber(db sdk.StateDB, addr common.Address, value uint64) {
-	db.SetState(addr, EncodeMinRoundValidatorBlockNumberKey(), common.Uint64ToBytes(value))
+func SetMinBlocksOfRoundValidator(db sdk.StateDB, addr common.Address, value uint64) {
+	db.SetState(addr, EncodeMinBlocksOfRoundValidatorKey(), common.Uint64ToBytes(value))
 }
-func GetMinRoundValidatorBlockNumber(db sdk.StateDBReader, addr common.Address) uint64 {
-	value := db.GetState(addr, EncodeMinRoundValidatorBlockNumberKey())
+func GetMinBlocksOfRoundValidator(db sdk.StateDBReader, addr common.Address) uint64 {
+	value := db.GetState(addr, EncodeMinBlocksOfRoundValidatorKey())
 	if len(value) == 0 {
 		return 0
 	}
@@ -344,7 +344,7 @@ func SetValidatorPriority(db sdk.StateDB, addr, validatorAddr common.Address, ep
 		validatorAddr,
 	)
 	// first insert
-	if bytes.Compare(indexItem.PreKey, indexItem.NextKey) == 0 && bytes.Compare(indexItem.PreKey, EncodePriorityValidatorTailKey()) == 0 {
+	if indexItem.IsNotEmpty() && bytes.Compare(indexItem.PreKey, indexItem.NextKey) == 0 && bytes.Compare(indexItem.PreKey, EncodePriorityValidatorTailKey()) == 0 {
 
 		// if  tail -> head -> tail -> head
 		//
@@ -370,7 +370,7 @@ func SetValidatorPriority(db sdk.StateDB, addr, validatorAddr common.Address, ep
 		return nil
 	}
 
-	for bytes.Compare(indexItem.NextKey, EncodePriorityValidatorHeadKey()) != 0 { // not as  tail
+	for indexItem.IsNotEmpty() && bytes.Compare(indexItem.NextKey, EncodePriorityValidatorHeadKey()) != 0 { // not as  tail
 		if bytes.Compare(indexItem.PreKey, EncodePriorityValidatorTailKey()) != 0 { // not as head
 
 			if bytes.Compare(indexKey, priorityKey) == 0 {
@@ -482,7 +482,7 @@ func RankPriorityValidatorIds(db sdk.StateDBReader, addr common.Address, size ui
 	item := GetValidatorPriorityByKey(db, addr, headItem.NextKey)
 
 	arr := types.NewValidatorAddrQueue(0)
-	for bytes.Compare(item.NextKey, EncodePriorityValidatorHeadKey()) != 0 && count < size { // not as tail  and count less size
+	for item.IsNotEmpty() && bytes.Compare(item.NextKey, EncodePriorityValidatorHeadKey()) != 0 && count < size { // not as tail  and count less size
 		arr = append(arr, item.ValidatorAddr)
 		item = GetValidatorPriorityByKey(db, addr, item.NextKey)
 		count++
@@ -1485,7 +1485,7 @@ func getNumberOfBlocksForRoundValidatorsMap(db sdk.StateDBReader, addr common.Ad
 	return cache
 }
 
-func HasLowBlocksValidator(db sdk.StateDBReader, addr common.Address, currentRound, minRoundValidatorBlockNumber uint64) bool {
+func HasLowBlocksValidator(db sdk.StateDBReader, addr common.Address, currentRound, minBlocksOfRoundValidator uint64) bool {
 
 	if currentRound == 1 {
 		return false
@@ -1508,7 +1508,7 @@ func HasLowBlocksValidator(db sdk.StateDBReader, addr common.Address, currentRou
 		if validator.IsEmpty() || validator.IsInvalidSlashing() {
 			continue
 		}
-		if number < minRoundValidatorBlockNumber {
+		if number < minBlocksOfRoundValidator {
 			log.Debug("HasLowBlocksValidator", "currentRound", currentRound, "previousRound", previousRound)
 			return true
 		}
@@ -1516,11 +1516,11 @@ func HasLowBlocksValidator(db sdk.StateDBReader, addr common.Address, currentRou
 	return false
 }
 
-func HasNotLowBlocksValidator(db sdk.StateDBReader, addr common.Address, currentRound, minRoundValidatorBlockNumber uint64) bool {
-	return !HasLowBlocksValidator(db, addr, currentRound, minRoundValidatorBlockNumber)
+func HasNotLowBlocksValidator(db sdk.StateDBReader, addr common.Address, currentRound, minBlocksOfRoundValidator uint64) bool {
+	return !HasLowBlocksValidator(db, addr, currentRound, minBlocksOfRoundValidator)
 }
 
-func CheckLowBlocksValidatorForPreviousRound(db sdk.StateDBReader, addr common.Address, currentRound, minRoundValidatorBlockNumber uint64) types.ValidatorAddrQueue {
+func CheckLowBlocksValidatorForPreviousRound(db sdk.StateDBReader, addr common.Address, currentRound, minBlocksOfRoundValidator uint64) types.ValidatorAddrQueue {
 
 	if currentRound == 1 {
 		return nil
@@ -1544,8 +1544,8 @@ func CheckLowBlocksValidatorForPreviousRound(db sdk.StateDBReader, addr common.A
 		if validator.IsEmpty() || validator.IsInvalidSlashing() {
 			continue
 		}
-		if number < minRoundValidatorBlockNumber {
-			log.Debug("CheckLowBlocksValidatorForPreviousRound", "currentRound", currentRound, "previousRound", previousRound, "validatorAddr", validatorAddr.Hex(), "numberOfBlocks", number, "minRoundValidatorBlockNumber", minRoundValidatorBlockNumber)
+		if number < minBlocksOfRoundValidator {
+			log.Debug("CheckLowBlocksValidatorForPreviousRound", "currentRound", currentRound, "previousRound", previousRound, "validatorAddr", validatorAddr.Hex(), "numberOfBlocks", number, "minBlocksOfRoundValidator", minBlocksOfRoundValidator)
 			validatorAddrQueue = append(validatorAddrQueue, validatorAddr)
 		}
 	}

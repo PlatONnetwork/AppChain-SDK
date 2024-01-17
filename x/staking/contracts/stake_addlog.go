@@ -107,3 +107,14 @@ func (c *StakeHandler) addLogUpdateValidatorStatusEvent(validator common.Address
 	c.evm.StateDB.AddLog(log)
 	return nil
 }
+
+func (c *StakeHandler) addLogValidatorRegisteredEvent(validator common.Address, owner common.Address, commissionRate *big.Int, pubKey []byte, blsKey []byte) error {
+	log, err := c.EmitValidatorRegisteredEvent(validator, owner, commissionRate, pubKey, blsKey)
+	if nil != err {
+		baselog.Error("Failed to emit UpdateValidatorStatusEvent", "validator", validator.Hex(), "owner", owner.Hex(), "commissionRate", commissionRate,
+			"pubKey", fmt.Sprintf("%x", pubKey), "blsKey", fmt.Sprintf("%x", blsKey), "error", err)
+		return typesdk.NewRevertError(fmt.Sprintf("StakeHandler: %s", err))
+	}
+	c.evm.StateDB.AddLog(log)
+	return nil
+}

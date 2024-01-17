@@ -128,10 +128,10 @@ func (s *StakeModule) AddTxs(ctx sdk.WorkerContext, local map[basecommon.Address
 	}
 
 	currentRound := s.stageModule.GetCurrentRound(ctx.StateDB())
-	minRoundValidatorBlockNumber := s.GetMinRoundValidatorBlockNumber(ctx.StateDB())
+	minBlocksOfRoundValidator := s.GetMinBlocksOfRoundValidator(ctx.StateDB())
 
 	// check low blocks validtors of round, and send slash tx
-	if db.HasNotLowBlocksValidator(ctx.StateDB(), s.Address(), currentRound, minRoundValidatorBlockNumber) {
+	if db.HasNotLowBlocksValidator(ctx.StateDB(), s.Address(), currentRound, minBlocksOfRoundValidator) {
 		return local, nil
 	}
 
@@ -153,7 +153,7 @@ func (s *StakeModule) AddTxs(ctx sdk.WorkerContext, local map[basecommon.Address
 		local[from] = make(types.Transactions, 0)
 	}
 	local[from] = append(local[from], slashTx)
-	s.logger.Debug("create Slash tx", "blockNumber", blockNumber, "txHash", slashTx.Hash().Hex(), "from", from.Hex(), "currentRound", currentRound, "minRoundValidatorBlockNumber", minRoundValidatorBlockNumber)
+	s.logger.Debug("create Slash tx", "blockNumber", blockNumber, "txHash", slashTx.Hash().Hex(), "from", from.Hex(), "currentRound", currentRound, "minBlocksOfRoundValidator", minBlocksOfRoundValidator)
 	return local, nil
 }
 
@@ -168,6 +168,7 @@ func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) error {
 	parentBlock := currentBlock - 1
 	if parentBlock != 0 {
 		parentHeader := ctx.ParentBlock().Header()
+		// @TODO for debug ...
 		s.logger.Debug("Start call setNumberOfBlocksForRoundValidator", "currentBlock", currentBlock, "parentBlock", parentHeader.Number.Uint64())
 		if err := s.setNumberOfBlocksForRoundValidator(ctx.StateDB(), parentHeader); nil != err {
 			return fmt.Errorf("can not set number of blocks for round validators, %s, parentBlock: %d", err, parentBlock)
@@ -176,9 +177,9 @@ func (s *StakeModule) BeginBlock(ctx sdk.WorkerContext) error {
 
 	if s.stageModule.IsBeginOfCurrentRound(ctx.StateDB(), currentBlock) {
 		currentRound := s.stageModule.GetCurrentRound(ctx.StateDB())
-		minRoundValidatorBlockNumber := s.GetMinRoundValidatorBlockNumber(ctx.StateDB())
+		minBlocksOfRoundValidator := s.GetMinBlocksOfRoundValidator(ctx.StateDB())
 		// check low blocks validators
-		lowBlocksValidatorAddrQueue := db.CheckLowBlocksValidatorForPreviousRound(ctx.StateDB(), s.Address(), currentRound, minRoundValidatorBlockNumber)
+		lowBlocksValidatorAddrQueue := db.CheckLowBlocksValidatorForPreviousRound(ctx.StateDB(), s.Address(), currentRound, minBlocksOfRoundValidator)
 		// update validator status
 		for _, validatorAddr := range lowBlocksValidatorAddrQueue {
 			if err := s.updateValidatorStatus(ctx.StateDB(), validatorAddr, staketypes.Invalided|staketypes.LowBlocks); nil != err {
@@ -399,8 +400,8 @@ func (s *StakeModule) setNumberOfBlocksForRoundValidator(stateDB sdk.StateDB, he
 
 	// @TODO for debug ...
 	validatorAddr := crypto.PubkeyToAddress(*pk)
-	number := db.GetNumberOfBlocksForRoundValidator(stateDB, s.Address(), validatorAddr, round)
-	s.logger.Debug("setNumberOfBlocksForRoundValidator", "round", round, "header blockNumber", header.Number.Uint64(), "validatorAddr", validatorAddr.Hex(), "old number", number)
+	numberOfBlocks := db.GetNumberOfBlocksForRoundValidator(stateDB, s.Address(), validatorAddr, round)
+	s.logger.Debug("setNumberOfBlocksForRoundValidator", "round", round, "header blockNumber", header.Number.Uint64(), "validatorAddr", validatorAddr.Hex(), "old numberOfBlocks", numberOfBlocks)
 	db.IncrementNumberOfBlocksForRoundValidator(stateDB, s.Address(), validatorAddr, round, 1)
 
 	return nil
@@ -566,7 +567,8 @@ func (s *StakeModule) electionEpochValidators(ctx sdk.WorkerContext, blockNumber
 		return errors.New("not found validatorIds")
 	}
 
-	queue := make(staketypes.ValidatorSortSnapshotQueue, len(validatorIds))
+	queue := staketypes.NewValidatorSharesSnapshotQueue(uint64(len(validatorIds)))
+
 	for i, id := range validatorIds {
 
 		validator := db.GetValidator(ctx.StateDB(), s.Address(), id)
@@ -706,7 +708,6 @@ func (s *StakeModule) GetValidatorECDSAPubKey(stateDB sdk.StateDBReader, validat
 		return nil
 	}
 	pubkey, _ := validator.PubKey.Pubkey()
-
 	return pubkey
 }
 func (s *StakeModule) GetValidatorBLSPubKey(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) *bls.PublicKey {
@@ -764,18 +765,18 @@ func (s *StakeModule) GetDelegationFlatten(stateDB sdk.StateDBReader, delegatorA
 	return delegation.Epoch, delegation.Amount
 }
 func (s *StakeModule) UpdateDelegationEpoch(stateDB sdk.StateDB, delegatorAddr, validatorAddr basecommon.Address, stakeEpoch, delegateEpoch uint64) error {
-	del := db.GetDelegation(stateDB, s.Address(), delegatorAddr, validatorAddr, stakeEpoch)
-	if nil == del {
+	delegation := db.GetDelegation(stateDB, s.Address(), delegatorAddr, validatorAddr, stakeEpoch)
+	if delegation.IsEmpty() {
 		return db.ErrNotFound
 	}
-	if del.Epoch == delegateEpoch {
+	if delegation.Epoch == delegateEpoch {
 		return nil
 	}
-	if del.Epoch > delegateEpoch {
-		return fmt.Errorf("new delegate epoch not greater than old, old epoch: %d, new epoch: %d", del.Epoch, delegateEpoch)
+	if delegation.Epoch > delegateEpoch {
+		return fmt.Errorf("new delegate epoch not greater than old, old epoch: %d, new epoch: %d", delegation.Epoch, delegateEpoch)
 	}
-	del.UpdateEpoch(delegateEpoch)
-	return db.SetDelegation(stateDB, s.Address(), delegatorAddr, validatorAddr, stakeEpoch, del)
+	delegation.UpdateEpoch(delegateEpoch)
+	return db.SetDelegation(stateDB, s.Address(), delegatorAddr, validatorAddr, stakeEpoch, delegation)
 }
 
 // ------
@@ -797,6 +798,6 @@ func (s *StakeModule) GetMaxRoundValidatorsSize(stateDB sdk.StateDBReader) uint6
 func (s *StakeModule) GetMaxEpochValidatorsSize(stateDB sdk.StateDBReader) uint64 {
 	return db.GetMaxEpochValidatorsSize(stateDB, s.Address())
 }
-func (s *StakeModule) GetMinRoundValidatorBlockNumber(stateDB sdk.StateDBReader) uint64 {
-	return db.GetMinRoundValidatorBlockNumber(stateDB, s.Address())
+func (s *StakeModule) GetMinBlocksOfRoundValidator(stateDB sdk.StateDBReader) uint64 {
+	return db.GetMinBlocksOfRoundValidator(stateDB, s.Address())
 }

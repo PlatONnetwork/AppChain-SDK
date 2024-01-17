@@ -25,6 +25,9 @@ func (c *StakeHandler) getValidatorsByPriorityKey(start []byte, size uint64) ([]
 
 	if len(start) == 0 {
 		headItem := db.GetValidatorPriorityByKey(c.evm.StateDB, c.contract.Address(), db.EncodePriorityValidatorHeadKey())
+		if headItem.IsEmpty() {
+			return nil, nil, nil
+		}
 		start = headItem.NextKey
 	}
 	var (
