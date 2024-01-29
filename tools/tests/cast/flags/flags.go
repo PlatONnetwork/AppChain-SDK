@@ -8,6 +8,14 @@ var (
 		Usage:  "rpc url",
 		EnvVar: "SDK_RPC_URL",
 	}
+	RoundFlags = cli.Uint64Flag{
+		Name:  "round",
+		Usage: "round, stage roundSize",
+	}
+	EpochFlags = cli.Uint64Flag{
+		Name:  "epoch",
+		Usage: "epoch, stage epochSize",
+	}
 	KeyFlags = cli.StringFlag{
 		Name:   "key",
 		Usage:  "private key used to send tx",

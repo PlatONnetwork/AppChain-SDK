@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	ModuleName = "txrelayer"
+	ModuleName = "txRelayer"
 
 	DefaultRPCAddress     = "http://127.0.0.1:6789"
 	DefaultReceiptTimeout = 50 * time.Millisecond
@@ -26,7 +26,7 @@ const (
 )
 
 var (
-	_ module.Module = (*Module)(nil)
+	_ module.Module     = (*Module)(nil)
 	_ module.InitModule = (*Module)(nil)
 )
 

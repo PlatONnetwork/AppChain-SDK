@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	MODULE_NAME_STAKING = "staking"
+	ModuleName = "staking"
 )
 
 type StakeModule struct {
@@ -46,7 +46,7 @@ type StakeModule struct {
 func NewModule(ctx *cli.Context, l1Module staketypes.L1Moduler, stage staketypes.StageModuler) *StakeModule {
 	return &StakeModule{
 		p2p:         stakingp2p.NewStakingP2P(),
-		logger:      log.New("module", MODULE_NAME_STAKING),
+		logger:      log.New("module", ModuleName),
 		l1Module:    l1Module,
 		stageModule: stage,
 	}
@@ -61,7 +61,7 @@ func (s *StakeModule) SetVRFModule(vrf staketypes.VRFModuler) {
 }
 
 func (s *StakeModule) Name() string {
-	return MODULE_NAME_STAKING
+	return ModuleName
 }
 
 func (s *StakeModule) Init(ctx sdk.InitContext) error {

@@ -1,0 +1,95 @@
+site_name: AppChain SDK docs
+docs_dir: docs/zh
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+nav:
+  - 简介:
+      - 什么是 AppChain SDK: index.md
+      - 架构: intro/architecture.md
+      - 主要组件: intro/component.md
+  - 快速开始: quickstart.md
+ - 核心设计:
+#      - L1合约: design/l1contract.md
+     - 交易: design/transaction.md
+     - 共识: design/consensus.md
+     - 存储: design/storage.md
+     - 桥:
+         - 简介: design/bridge/overview.md
+         - 状态同步: design/bridge/statesync.md
+         - Checkpoints: design/bridge/checkpoint.md
+         - Assets:
+             - ERC-20: design/bridge/assets/erc/erc20.md
+         - Sequences: design/bridge/sequences.md
+     - 模块:
+         - 合约模块: design/module/contract.md
+         - 功能模块: design/module/feature.md
+  - 构建:
+      - 创建App: build/app.md
+      - 创建模块:
+          - 简介: build/module/overview.md
+          - Module Manger: build/module/manager.md
+          - 应用初始化: build/module/init.md
+          - 交易池扩展: build/module/txpool.md
+          - Worker 扩展: build/module/worker.md
+          - 自定义RPC接口: build/module/rpc.md
+          - 自定义P2P 协议: build/module/p2p.md
+          - 共识扩展: build/module/consensus.md
+          - 验证人选举: build/module/election.md
+          - BeginBlocker and EndBlocker: build/module/blocker.md
+          - Custom Flags: build/module/flags.md
+          - Context: build/module/context.md
+      - 内置模块:
+          - x/checkpoint: build/x/checkpoint.md
+          - x/deposit: build/x/deposit.md
+          - x/extravote: build/x/extravote.md
+          - x/l1: build/x/l1.md
+          - x/reward: build/x/reward.md
+          - x/staking: build/x/staking.md
+          - x/stateevent: build/x/stateevent.md
+          - x/statesender: build/x/statesender.md
+          - x/statesync: build/x/statesync.md
+          - x/vrf: build/x/vrf.md
+      - 工具:
+        - 合约工具: build/contract_tool.md
+        - 交易测试工具: build/tx_test_tool.md
+      - 部署链: build/deploy.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - toc:
+      permalink: true
+  - sane_lists
+
+plugins:
+  - search
+  - print-site:
+      add_to_navigation: true
+      print_page_title: 'Print Site'
+      add_print_site_banner: true
+      # Table of contents
+      add_table_of_contents: true
+      toc_title: 'Table of Contents'
+      toc_depth: 3
+      # Content-related
+      add_full_urls: false
+      enumerate_headings: false
+      enumerate_figures: false
+      add_cover_page: false
+      cover_page_template: ""
+      path_to_pdf: ""
+      include_css: true
+      enabled: true
+      exclude:
+extra_javascript:
+  - https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.6.1/mermaid.min.js

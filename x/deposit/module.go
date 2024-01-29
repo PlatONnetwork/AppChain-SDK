@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	MODULE_NAME_DEPOSIT = "deposit"
+	ModuleName = "deposit"
 )
 
 type DepositModule struct {
@@ -25,13 +25,13 @@ type DepositModule struct {
 func NewModule(ctx *cli.Context, l1Module deposittypes.L1Moduler) *DepositModule {
 
 	return &DepositModule{
-		logger:   log.New("module", MODULE_NAME_DEPOSIT),
+		logger:   log.New("module", ModuleName),
 		l1Module: l1Module,
 	}
 }
 
 func (d *DepositModule) Name() string {
-	return MODULE_NAME_DEPOSIT
+	return ModuleName
 }
 
 func (d *DepositModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {

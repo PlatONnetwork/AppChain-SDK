@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	MODULE_NAME_STAGE = "stage"
+	ModuleName = "stage"
 )
 
 type StageModule struct {
@@ -25,12 +25,12 @@ type StageModule struct {
 
 func NewModule(ctx *cli.Context) *StageModule {
 	return &StageModule{
-		logger: log.New("module", MODULE_NAME_STAGE),
+		logger: log.New("module", ModuleName),
 	}
 }
 
 func (s *StageModule) Name() string {
-	return MODULE_NAME_STAGE
+	return ModuleName
 }
 
 func (s *StageModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {

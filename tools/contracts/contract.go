@@ -3,6 +3,7 @@ package contracts
 import (
 	"bytes"
 	"fmt"
+	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/flags"
 	abi "github.com/PlatONnetwork/PlatON-Go/accounts/abi"
 	"github.com/PlatONnetwork/PlatON-Go/cmd/utils"
 
@@ -29,8 +30,9 @@ var (
 			pkgFlag,
 			aliasFlag,
 		},
-		Category:    "BLOCKCHAIN COMMANDS",
-		Description: `Output golang contract`,
+		Category:           "BLOCKCHAIN COMMANDS",
+		Description:        `Output golang contract`,
+		CustomHelpTemplate: flags.CommandHelpTemplate,
 	}
 
 	abiFlag = cli.StringFlag{
@@ -110,12 +112,12 @@ func contract(ctx *cli.Context) error {
 		os.Exit(1)
 	}
 
-	if err := os.WriteFile(filepath.Join(ctx.String(outputFlag.Name), strings.ToLower(types)+"impl.go"), []byte(impl), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(ctx.String(outputFlag.Name), strings.ToLower(types)+"_impl.go"), []byte(impl), 0600); err != nil {
 		fmt.Printf("Failed to write ABI binding: %v", err)
 		os.Exit(1)
 	}
 
-	if err := os.WriteFile(filepath.Join(ctx.String(outputFlag.Name), strings.ToLower(types)+"caller.go"), []byte(caller), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(ctx.String(outputFlag.Name), strings.ToLower(types)+"_caller.go"), []byte(caller), 0600); err != nil {
 		fmt.Printf("Failed to write ABI binding: %v", err)
 		os.Exit(1)
 	}

@@ -33,6 +33,10 @@ import (
 	"gopkg.in/urfave/cli.v1"
 )
 
+const (
+	ModuleName = "stateSync"
+)
+
 type ElectionValidator interface {
 	GetRoundValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error)
 }
@@ -85,7 +89,7 @@ func (s *StateSync) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *pa
 }
 
 func (s *StateSync) Name() string {
-	return "statesync"
+	return ModuleName
 }
 
 func (s *StateSync) Init(ctx sdk.InitContext) error {

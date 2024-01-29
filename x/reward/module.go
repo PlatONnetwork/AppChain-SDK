@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	MODULE_NAME_REWARD = "reward"
+	ModuleName = "reward"
 )
 
 type RewardModule struct {
@@ -33,7 +33,7 @@ type RewardModule struct {
 
 func NewModule(ctx *cli.Context, stage types.StageModuler) *RewardModule {
 	return &RewardModule{
-		logger:      log.New("module", MODULE_NAME_REWARD),
+		logger:      log.New("module", ModuleName),
 		stageModule: stage,
 	}
 }
@@ -43,7 +43,7 @@ func (r *RewardModule) SetStakeModule(stake types.StakeModuler) {
 }
 
 func (r *RewardModule) Name() string {
-	return MODULE_NAME_REWARD
+	return ModuleName
 }
 
 func (r *RewardModule) Init(ctx sdk.InitContext) error {

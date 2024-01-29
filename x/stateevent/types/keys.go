@@ -1,5 +1,5 @@
 package types
 
-const ModuleName = "event_state"
+const ModuleName = "eventState"
 
 var LastProcessedEventBlockKey = []byte("lastProcessedEventBlockKey")

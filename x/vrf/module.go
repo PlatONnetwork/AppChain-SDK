@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	MODULE_NAME_VRF = "vrf"
+	ModuleName = "vrf"
 )
 
 var (
@@ -43,7 +43,7 @@ type VRFModule struct {
 
 func NewModule(ctx *cli.Context, stage vrftypes.StageModuler) *VRFModule {
 	return &VRFModule{
-		logger:      log.New("module", MODULE_NAME_VRF),
+		logger:      log.New("module", ModuleName),
 		stageModule: stage,
 	}
 }
@@ -53,7 +53,7 @@ func (v *VRFModule) SetStakeModule(stake vrftypes.StakeModuler) {
 }
 
 func (v *VRFModule) Name() string {
-	return MODULE_NAME_VRF
+	return ModuleName
 }
 
 func (v *VRFModule) Init(ctx sdk.InitContext) error {

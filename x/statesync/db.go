@@ -13,7 +13,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
 )
 
-var (
+const (
 	eventProofDBName = "eventProof"
 	batchSize        = 1024 * 1024
 )
@@ -48,7 +48,7 @@ type EventProofDB struct {
 
 func NewEventProofDB(store store.Store) *EventProofDB {
 	return &EventProofDB{
-		db: store.GetKVStore("eventProofDBName"),
+		db: store.GetKVStore(eventProofDBName),
 	}
 }
 

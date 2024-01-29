@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	MODULE_NAME_STATE_SENDER = "l2StateSender"
+	ModuleName = "l2StateSender"
 )
 
 type StateSenderModule struct {
@@ -22,12 +22,12 @@ type StateSenderModule struct {
 
 func NewModule(ctx *cli.Context) *StateSenderModule {
 	return &StateSenderModule{
-		logger: log.New("module", MODULE_NAME_STATE_SENDER),
+		logger: log.New("module", ModuleName),
 	}
 }
 
 func (s *StateSenderModule) Name() string {
-	return MODULE_NAME_STATE_SENDER
+	return ModuleName
 }
 
 func (s *StateSenderModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {

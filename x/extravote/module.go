@@ -14,7 +14,7 @@ import (
 
 const (
 	cacheSize         = 100
-	ExtraVoteDatabase = "extravote"
+	ExtraVoteDatabase = "extraVote"
 )
 
 type ExtraVerifier interface {
@@ -36,7 +36,7 @@ func NewExtraVote(store store.Store, ms []ExtraVerifier) *ExtraVote {
 }
 
 func (e *ExtraVote) Name() string {
-	return "extravote"
+	return "extraVote"
 }
 
 func (e *ExtraVote) ExtendData(ctx sdk.ConsensusContext) []byte {
