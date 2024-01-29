@@ -280,7 +280,8 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 
 		use := common.Big0
 		if delegation.Amount.Cmp(amount) <= 0 {
-			// remove the delegation by stakeEpoch
+			// remove the delegation by stakeEpoch when:
+			// 1. had not withdrawable undelegate amount
 			c.removeDelegation(delegatorAddr, validatorAddr, stakeEpoch)
 
 			// decrement validator-delegator-rc
@@ -381,10 +382,6 @@ func (c *StakeHandler) WithdrawUnstake(validatorAddr common.Address) error {
 		return typesdk.NewRevertError("StakeHandler: SLASHING_VALIDATOR")
 	}
 
-	if validator.IsEmptyOrInvalid() {
-		return typesdk.NewRevertError("StakeHandler: INVALID_VALIDATOR")
-	}
-
 	currentEpoch := c.getCurrentEpoch()
 	amount, err := c.applyStakeWithdrawable(validatorAddr, currentEpoch)
 	if nil != err {
@@ -399,9 +396,10 @@ func (c *StakeHandler) WithdrawUnstake(validatorAddr common.Address) error {
 		return typesdk.NewRevertError("StakeHandler: HAS NO WITHDRAWABLE STAKE AMOUNT")
 	}
 
-	// remove unstake validator
-	validatorInfo := c.getValidator(validatorAddr)
-	if validatorInfo.IsInvalidUnstaked() {
+	// remove validator when:
+	// 1. validator status has 'unstake'
+	// 2. had not withdrawable unstake amount
+	if validator.IsInvalidUnstaked() && (common.Big0.Cmp(c.getStakeWithdrawalPending(validatorAddr, currentEpoch)) == 0) {
 		c.removeValidator(validatorAddr)
 	}
 

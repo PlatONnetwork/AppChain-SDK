@@ -317,13 +317,6 @@ func (c *StakeHandler) unStake(validatorAddr common.Address, amount *big.Int) er
 			log.Error("Failed to call updateValidatorRemovePriority", "validatorAddr", validatorAddr.Hex(), "error", err)
 			return typesdk.NewRevertError("StakeHandler: can not update validator priority")
 		}
-
-		//// NOTE: remove from epoch validators
-		//unstakeValidatorAddrCache := map[common.Address]struct{}{validatorAddr: {}}
-		//if err := c.removeValidatorsFromEpochValidatorQueue(unstakeValidatorAddrCache); nil != err {
-		//	return err
-		//}
-
 		// 3. add log for to update validator status (add: invalida|unstake)
 		if err := c.addLogUpdateValidatorStatusEvent(validatorAddr, new(big.Int).SetUint64(uint64(validator.Status))); nil != err {
 			return err
@@ -352,8 +345,9 @@ func (c *StakeHandler) slash(exitEventId *big.Int, validatorAddrs []common.Addre
 
 		slashItemQueue[i] = types.NewSlashValidatorWithdrawItem(validatorAddr, amounts[i])
 		slashedValidatorAddrCache[validatorAddr] = struct{}{}
-		// NOTE: unstake short circuit
+		// NOTE: remove validator short circuit
 		c.removeValidator(validatorAddr)
+		// NOTE: clean all of withdrawable unstake amount
 		c.cleanStakeWithdrawable(validatorAddr)
 
 	}
