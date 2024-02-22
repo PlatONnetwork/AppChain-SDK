@@ -15,6 +15,8 @@ import (
 const (
 	cacheSize         = 100
 	ExtraVoteDatabase = "extraVote"
+
+	ModuleVersion uint64 = 1
 )
 
 type ExtraVerifier interface {
@@ -37,6 +39,10 @@ func NewExtraVote(store store.Store, ms []ExtraVerifier) *ExtraVote {
 
 func (e *ExtraVote) Name() string {
 	return "extraVote"
+}
+
+func (e *ExtraVote) Version() uint64 {
+	return ModuleVersion
 }
 
 func (e *ExtraVote) ExtendData(ctx sdk.ConsensusContext) []byte {

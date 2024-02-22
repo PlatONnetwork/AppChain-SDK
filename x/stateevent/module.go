@@ -15,6 +15,8 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 )
 
+const ModuleVersion uint64 = 1
+
 var (
 	_ module.Module         = (*Module)(nil)
 	_ module.BlockCommitter = (*Module)(nil)
@@ -51,6 +53,10 @@ func NewModule(kvStore store.Store) *Module {
 
 func (m *Module) Name() string {
 	return types.ModuleName
+}
+
+func (m *Module) Version() uint64 {
+	return ModuleVersion
 }
 
 func (m *Module) OnCommit(ctx sdk.ConsensusContext, block *coretypes.Block) error {

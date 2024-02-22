@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/contracts"
@@ -21,8 +22,11 @@ import (
 )
 
 const (
-	ModuleName = "reward"
+	ModuleName    = "reward"
+	ModuleVersion = 1
 )
+
+var _ module.ContractModule = (*RewardModule)(nil)
 
 type RewardModule struct {
 	logger         log.Logger
@@ -44,6 +48,10 @@ func (r *RewardModule) SetStakeModule(stake types.StakeModuler) {
 
 func (r *RewardModule) Name() string {
 	return ModuleName
+}
+
+func (r *RewardModule) Version() uint64 {
+	return ModuleVersion
 }
 
 func (r *RewardModule) Init(ctx sdk.InitContext) error {
@@ -86,6 +94,11 @@ func (r *RewardModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, rea
 	rewardManager.SetStakeModule(r.stakeModule)
 	rewardManager.SetRewardModule(r)
 	return rewardManager.Run(input)
+}
+
+func (r *RewardModule) ContractCreateBlockNumber(statedb sdk.StateDBReader) uint64 {
+	// TODO: implement me
+	return 0
 }
 
 func (r *RewardModule) BeginBlock(ctx sdk.WorkerContext) error {

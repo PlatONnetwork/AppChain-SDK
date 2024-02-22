@@ -2,8 +2,9 @@ package l1
 
 import (
 	"encoding/json"
-	"github.com/PlatONnetwork/PlatON-Go/log"
 	"math/big"
+
+	"github.com/PlatONnetwork/PlatON-Go/log"
 
 	"github.com/PlatONnetwork/AppChain-SDK/store"
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -12,7 +13,8 @@ import (
 )
 
 const (
-	ModuleName = "l1"
+	ModuleName    = "l1"
+	ModuleVersion = 1
 )
 
 type L1ConfigParams struct {
@@ -35,6 +37,10 @@ func NewModule(db store.Store) *L1Module {
 
 func (l *L1Module) Name() string {
 	return ModuleName
+}
+
+func (l *L1Module) Version() uint64 {
+	return ModuleVersion
 }
 
 func (l *L1Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {

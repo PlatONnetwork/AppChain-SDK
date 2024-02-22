@@ -2,6 +2,8 @@ package deposit
 
 import (
 	"encoding/json"
+
+	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/deposit/contracts"
 	deposittypes "github.com/PlatONnetwork/AppChain-SDK/x/deposit/types"
@@ -14,8 +16,11 @@ import (
 )
 
 const (
-	ModuleName = "deposit"
+	ModuleName           = "deposit"
+	ModuleVersion uint64 = 1
 )
+
+var _ module.ContractModule = (*DepositModule)(nil)
 
 type DepositModule struct {
 	logger   log.Logger
@@ -23,7 +28,6 @@ type DepositModule struct {
 }
 
 func NewModule(ctx *cli.Context, l1Module deposittypes.L1Moduler) *DepositModule {
-
 	return &DepositModule{
 		logger:   log.New("module", ModuleName),
 		l1Module: l1Module,
@@ -32,6 +36,10 @@ func NewModule(ctx *cli.Context, l1Module deposittypes.L1Moduler) *DepositModule
 
 func (d *DepositModule) Name() string {
 	return ModuleName
+}
+
+func (d *DepositModule) Version() uint64 {
+	return ModuleVersion
 }
 
 func (d *DepositModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
@@ -48,4 +56,9 @@ func (d *DepositModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, re
 	depositHandler, _ := contracts.NewDepositHandler(evm, contract, readOnly)
 	depositHandler.SetL1Module(d.l1Module)
 	return depositHandler.Run(input)
+}
+
+func (d *DepositModule) ContractCreateBlockNumber(statedb sdk.StateDBReader) uint64 {
+	// TODO: implement me
+	return 0
 }

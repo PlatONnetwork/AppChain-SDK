@@ -19,6 +19,7 @@ import (
 
 type Module interface {
 	Name() string
+	Version() uint64
 }
 
 type InitModule interface {
@@ -229,11 +230,13 @@ func (m *Manager) InitChain(ctx sdk.InitContext) error {
 	return nil
 }
 
-func (m *Manager) Contracts() []sdk.SDKContract {
+func (m *Manager) Contracts(statedb sdk.StateDBReader, blockNumber uint64) []sdk.SDKContract {
 	contracts := make([]sdk.SDKContract, 0)
 	for _, mod := range m.Modules {
 		if module, ok := mod.(ContractModule); ok {
-			contracts = append(contracts, module)
+			if module.ContractCreateBlockNumber(statedb) <= blockNumber {
+				contracts = append(contracts, module)
+			}
 		}
 	}
 	return contracts
@@ -401,9 +404,14 @@ func (m *Manager) OnCommit(ctx sdk.ConsensusContext, block *types.Block) error {
 func (m *Manager) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data map[string]json.RawMessage) error {
 	log.Info("Init blockchain state from genesis.json")
 	for _, moduleName := range m.OrderGenesis {
+		if data[moduleName] == nil {
+			continue
+		}
+
 		mod := m.Modules[moduleName]
 		if module, ok := mod.(GenesisModule); ok {
 			log.Info("Running initialization for module ", "module", moduleName)
+
 			if err := module.InitGenesis(ctx, db, chainConfig, data[moduleName]); err != nil {
 				return err
 			}

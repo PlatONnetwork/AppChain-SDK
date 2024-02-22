@@ -63,8 +63,8 @@ func (app *BaseApp) InitChain(ctx sdk.InitContext) error {
 	return app.manager.InitChain(ctx)
 }
 
-func (app *BaseApp) Contracts() []sdk.SDKContract {
-	return app.manager.Contracts()
+func (app *BaseApp) Contracts(statedb sdk.StateDBReader, blockNumber uint64) []sdk.SDKContract {
+	return app.manager.Contracts(statedb, blockNumber)
 }
 
 func (app *BaseApp) CheckTx(ctx sdk.Context, tx *types.Transaction) error {

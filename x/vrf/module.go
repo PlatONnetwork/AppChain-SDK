@@ -5,9 +5,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/PlatONnetwork/AppChain-SDK/common"
 	"math/big"
 	"time"
+
+	"github.com/PlatONnetwork/AppChain-SDK/common"
+	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
@@ -27,10 +29,13 @@ import (
 )
 
 const (
-	ModuleName = "vrf"
+	ModuleName           = "vrf"
+	ModuleVersion uint64 = 1
 )
 
 var (
+	_ module.ContractModule = (*VRFModule)(nil)
+
 	NonceStorageKey = []byte("nonceStorageKey")
 )
 
@@ -54,6 +59,10 @@ func (v *VRFModule) SetStakeModule(stake vrftypes.StakeModuler) {
 
 func (v *VRFModule) Name() string {
 	return ModuleName
+}
+
+func (v *VRFModule) Version() uint64 {
+	return ModuleVersion
 }
 
 func (v *VRFModule) Init(ctx sdk.InitContext) error {
@@ -93,6 +102,11 @@ func (v *VRFModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOn
 	vrfManager.SetStageModule(v.stageModule)
 	vrfManager.SetStakeModule(v.stakeModule)
 	return vrfManager.Run(input)
+}
+
+func (v *VRFModule) ContractCreateBlockNumber(statedb sdk.StateDBReader) uint64 {
+	// TODO: implement me
+	return 0
 }
 
 func (v *VRFModule) AddTxs(ctx sdk.WorkerContext, local map[basecommon.Address]types.Transactions) (map[basecommon.Address]types.Transactions, error) {

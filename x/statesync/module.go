@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	common2 "github.com/PlatONnetwork/AppChain-SDK/common"
-	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
 	"math/big"
+
+	common2 "github.com/PlatONnetwork/AppChain-SDK/common"
+	"github.com/PlatONnetwork/AppChain-SDK/types/module"
+	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
 
 	"github.com/PlatONnetwork/AppChain-SDK/utils"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
@@ -34,8 +36,11 @@ import (
 )
 
 const (
-	ModuleName = "stateSync"
+	ModuleName           = "stateSync"
+	ModuleVersion uint64 = 1
 )
+
+var _ module.ContractModule = (*StateSync)(nil)
 
 type ElectionValidator interface {
 	GetRoundValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error)
@@ -92,6 +97,10 @@ func (s *StateSync) Name() string {
 	return ModuleName
 }
 
+func (s *StateSync) Version() uint64 {
+	return ModuleVersion
+}
+
 func (s *StateSync) Init(ctx sdk.InitContext) error {
 	if s.rpcAddress == "" {
 		return fmt.Errorf("node rpc address not set")
@@ -144,6 +153,11 @@ func (s *StateSync) Address() common.Address {
 func (s *StateSync) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly bool) ([]byte, error) {
 	stateReceiver, _ := contracts.NewStateReceiver(evm, contract, readOnly)
 	return stateReceiver.Run(input)
+}
+
+func (s *StateSync) ContractCreateBlockNumber(statedb sdk.StateDBReader) uint64 {
+	// TODO: implement me
+	return 0
 }
 
 func (s *StateSync) Protocols() []p2p.Protocol {
