@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
+
 	"github.com/PlatONnetwork/AppChain-SDK/common"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/config"
@@ -26,7 +28,6 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"gopkg.in/urfave/cli.v1"
-	"math/big"
 )
 
 const (
@@ -572,7 +573,13 @@ func (s *StakeModule) electionEpochValidators(ctx sdk.WorkerContext, blockNumber
 	for i, id := range validatorIds {
 
 		validator := db.GetValidator(ctx.StateDB(), s.Address(), id)
-		if validator.IsEmptyOrInvalid() {
+
+		if validator.IsEmpty() {
+			s.logger.Error("Failed to call electionEpochValidators, validator not found", "validatorAddr", id.Hex());
+			return errors.New("not found validator")
+		}
+		if validator.IsInvalid() {
+			s.logger.Error("Failed to call electionEpochValidators, validator is invalid", "validatorAddr", id.Hex(), "status", validator.Status);
 			return errors.New("invalid validator")
 		}
 		queue[i] = staketypes.NewValidatorSharesSnapshot(id, validator.Epoch, validator.StakeIndex, validator.CommissionRate, validator.StakeAmount, validator.DelegateAmount)
