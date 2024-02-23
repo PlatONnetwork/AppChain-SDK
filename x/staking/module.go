@@ -575,11 +575,11 @@ func (s *StakeModule) electionEpochValidators(ctx sdk.WorkerContext, blockNumber
 		validator := db.GetValidator(ctx.StateDB(), s.Address(), id)
 
 		if validator.IsEmpty() {
-			s.logger.Error("Failed to call electionEpochValidators, validator not found", "validatorAddr", id.Hex());
+			s.logger.Error("Failed to elected next epoch validators, validator not found", "validatorAddr", id.Hex());
 			return errors.New("not found validator")
 		}
 		if validator.IsInvalid() {
-			s.logger.Error("Failed to call electionEpochValidators, validator is invalid", "validatorAddr", id.Hex(), "status", validator.Status);
+			s.logger.Error("Failed to elected next epoch validators, validator is invalid", "validatorAddr", id.Hex(), "status", validator.Status);
 			return errors.New("invalid validator")
 		}
 		queue[i] = staketypes.NewValidatorSharesSnapshot(id, validator.Epoch, validator.StakeIndex, validator.CommissionRate, validator.StakeAmount, validator.DelegateAmount)
