@@ -538,6 +538,7 @@ func (s *StakeModule) electionRoundValidators(ctx sdk.WorkerContext, blockNumber
 
 	nextRoundValidatorQueue, err := shuffle(len(maybeRemoveValidatorStatusCache), currentRoundValidatorSnapQueue, vrfValidatorSnapshotQueue, blockNumber)
 	if nil != err {
+		s.logger.Error("Failed to shuffle next round validators", "blockNumber", blockNumber, "err", err)
 		return err
 	}
 
