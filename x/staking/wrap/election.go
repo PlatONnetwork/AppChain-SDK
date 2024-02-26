@@ -61,10 +61,10 @@ func ElectionValidatorWithVRF(db sdk.StateDB, vrfModule staketypes.VRFModuler, v
 		return nil, err
 	}
 
-	return electionByProbability(validatorSnapshotQueue, currentVRFNonce, historyNonceQueue, blockNumber, vrfElectionSize)
+	return electionWithProbability(validatorSnapshotQueue, currentVRFNonce, historyNonceQueue, blockNumber, vrfElectionSize)
 }
 
-func electionByProbability(validatorSnapshotQueue staketypes.ValidatorSortSnapshotQueue, currentVRFNonce common.Hash, historyVRFNonceQueue []common.Hash, blockNumber, vrfElectionSize uint64) (staketypes.ValidatorSortSnapshotQueue, error) {
+func electionWithProbability(validatorSnapshotQueue staketypes.ValidatorSortSnapshotQueue, currentVRFNonce common.Hash, historyVRFNonceQueue []common.Hash, blockNumber, vrfElectionSize uint64) (staketypes.ValidatorSortSnapshotQueue, error) {
 	if currentVRFNonce == common.ZeroHash || len(historyVRFNonceQueue) == 0 || len(validatorSnapshotQueue) != len(historyVRFNonceQueue) {
 		return nil, fmt.Errorf("invalid params")
 	}
@@ -100,7 +100,7 @@ func electionByProbability(validatorSnapshotQueue staketypes.ValidatorSortSnapsh
 	// Nothing special, just to get a value that everyone is the same
 	shuffleSeed := new(big.Int).SetBytes(historyVRFNonceQueue[0].Bytes()).Int64()
 
-	log.Debug("Call electionByProbability Basic parameter", "blockNumber", blockNumber, "validatorSnapshotQueue size", len(validatorSnapshotQueue),
+	log.Debug("Call electionWithProbability Basic parameter", "blockNumber", blockNumber, "validatorSnapshotQueue size", len(validatorSnapshotQueue),
 		"p", p, "totalWeights", totalWeightsFloat, "totalSqrtWeightsFloat", totalSqrtWeightsFloat, "vrfElectionSize", vrfElectionSize, "shuffleSeed", shuffleSeed)
 
 	// rand shuffle validator snapshot queue
@@ -131,14 +131,14 @@ func electionByProbability(validatorSnapshotQueue staketypes.ValidatorSortSnapsh
 		}
 		sv.x = x
 
-		log.Debug("Call electionByProbability calculated probability", "validatorAddr", sv.v.ValidatorAddr.Hex(), "index", index, "currentVRFNonce",
+		log.Debug("Call electionWithProbability calculated probability", "blockNumber", blockNumber, "validatorAddr", sv.v.ValidatorAddr.Hex(), "index", index, "currentVRFNonce",
 			currentVRFNonce.Hex(), "previousNonce", historyVRFNonceQueue[index].Hex(),
 			"target", target, "targetP", targetP, "weight", sv.weights, "x", x)
 	}
 
 	validatorSnapshotVRFQueue := make(staketypes.ValidatorSortSnapshotQueue, vrfElectionSize)
 
-	log.Debug("Call electionByProbability sort probability queue", "blockNumber", blockNumber, "queue", svqueue)
+	log.Debug("Call electionWithProbability sort probability queue", "blockNumber", blockNumber, "queue", svqueue)
 
 	sort.Sort(svqueue)
 
@@ -149,7 +149,7 @@ func electionByProbability(validatorSnapshotQueue staketypes.ValidatorSortSnapsh
 		validatorSnapshotVRFQueue[index] = sv.v
 	}
 
-	log.Debug("Finished electionByProbability", "blockNumber", blockNumber, "validatorSnapshotVRFQueue", validatorSnapshotVRFQueue)
+	log.Debug("Finished electionWithProbability", "blockNumber", blockNumber, "validatorSnapshotVRFQueue", validatorSnapshotVRFQueue)
 
 	return validatorSnapshotVRFQueue, nil
 }
@@ -226,7 +226,7 @@ func orderValidatorQueueByRandom(db sdk.StateDB, vrfModule staketypes.VRFModuler
 			validator: snap,
 			value:     value,
 		}
-		log.Debug("Call orderValidatorQueueByRandom xor", "validatorAddr", snap.ValidatorAddr.Hex(), "vrf nonce", historyNonceQueue[i].Hex(), "xor value", value)
+		log.Debug("Call orderValidatorQueueByRandom xor", "blockNumber", blockNumber, "validatorAddr", snap.ValidatorAddr.Hex(), "vrf nonce", historyNonceQueue[i].Hex(), "xor value", value)
 	}
 
 	frontPart := orderQueue[:maxRoundShiftValidatorSize]
