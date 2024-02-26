@@ -640,7 +640,7 @@ func (s *StakeModule) updateValidatorStatus(stateDB sdk.StateDB, validatorAddr b
 			}
 		}
 	}
-	// set new priority only
+	// set new validator information only
 	return db.SetValidator(stateDB, s.Address(), validatorAddr, validator)
 }
 

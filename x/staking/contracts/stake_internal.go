@@ -266,21 +266,22 @@ func (c *StakeHandler) addStake(validatorAddr common.Address, amount *big.Int) e
 			return typesdk.NewRevertError("StakeHandler: ADD STAKE FAILED")
 
 		}
+	} else {
+		// update validator priority
+		validator.AddStakeAmount(amount)
+
+		if err := c.updateValidatorByPriority(validatorAddr, validator); nil != err {
+			log.Error("Failed to add validator stake amount", "validatorAddr", validatorAddr.Hex(), "error", err)
+			return typesdk.NewRevertError("StakeHandler: ADD STAKE FAILED")
+		}
+
+		if err := c.addLogStakeAddedEvent(validatorAddr, amount); nil != err {
+			return err
+		}
+
+		log.Info("AddStake for", "validator", validatorAddr.Hex(), "amount", amount, "epoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
+
 	}
-
-	// update validator priority
-	validator.AddStakeAmount(amount)
-
-	if err := c.updateValidatorByPriority(validatorAddr, validator); nil != err {
-		log.Error("Failed to add validator stake amount", "validatorAddr", validatorAddr.Hex(), "error", err)
-		return typesdk.NewRevertError("StakeHandler: ADD STAKE FAILED")
-	}
-
-	if err := c.addLogStakeAddedEvent(validatorAddr, amount); nil != err {
-		return err
-	}
-
-	log.Info("AddStake for", "validator", validatorAddr.Hex(), "amount", amount, "epoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }
 

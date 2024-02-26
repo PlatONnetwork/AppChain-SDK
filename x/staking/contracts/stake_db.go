@@ -79,7 +79,7 @@ func (c *StakeHandler) updateValidatorRemovePriority(validatorAddr common.Addres
 			return err
 		}
 	}
-	// set new priority only
+	// set new validator information only
 	return db.SetValidator(c.evm.StateDB, c.contract.Address(), validatorAddr, validator)
 }
 

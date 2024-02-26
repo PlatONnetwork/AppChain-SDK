@@ -1,93 +1,14 @@
 package contracts
 
 import (
-	"context"
 	"fmt"
-	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
-	"github.com/PlatONnetwork/AppChain-SDK/x/mocks"
-	staketypes "github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
-	basemock "github.com/PlatONnetwork/PlatON-Go/common/mock"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
-	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"github.com/status-im/keycard-go/hexutils"
 	"github.com/test-go/testify/assert"
 	"math/big"
-	"sync"
 	"testing"
 )
-
-var (
-	stakeHandlerTestConfig        *StakeHandlerTestConfig
-	newStakeHandlerTestConfigOnce sync.Once
-)
-
-type StakeHandlerTestConfig struct {
-	StateDB      sdk.StateDB
-	L1Module     *mocks.MockL1Module
-	StageModule  *mocks.MockStageModule
-	StakeModule  *mocks.MockStakeModule
-	RewardModule *mocks.MockRewardModule
-	VrfModule    *mocks.MockVRFModule
-}
-
-func newStakeHandlerTestConfig() {
-	newStakeHandlerTestConfigOnce.Do(
-		func() {
-			statedb := basemock.NewMockStateDB()
-			// new mock modules
-			l1Module := mocks.NewMockMockL1Module(statedb)
-			stageModule := mocks.NewMockStageModule(statedb)
-			stakeModule := mocks.NewMockStakeModule(statedb, l1Module, stageModule)
-			rewardModule := mocks.NewMockRewardModule(statedb, stageModule, stakeModule)
-			vrfModule := mocks.NewMockVRFModule(statedb, stageModule, stakeModule)
-			stakeModule.SetRewardModule(rewardModule)
-			stakeModule.SetVRFModule(vrfModule)
-
-			stakeHandlerTestConfig = &StakeHandlerTestConfig{
-				StateDB:      statedb,
-				L1Module:     l1Module,
-				StageModule:  stageModule,
-				StakeModule:  stakeModule,
-				RewardModule: rewardModule,
-				VrfModule:    vrfModule,
-			}
-		},
-	)
-}
-
-func init() {
-	newStakeHandlerTestConfig()
-}
-
-func newStakeHandler(from common.Address, blockNumber *big.Int, statedb vm.StateDB) *StakeHandler {
-
-	evm := &vm.EVM{Context: vm.BlockContext{
-		CanTransfer: func(db vm.StateDB, addr common.Address, amount *big.Int) bool {
-			return db.GetBalance(addr).Cmp(amount) >= 0
-		},
-		Transfer: func(db vm.StateDB, sender, recipient common.Address, amount *big.Int) {
-			db.SubBalance(sender, amount)
-			db.AddBalance(recipient, amount)
-		},
-		Ctx:         context.TODO(),
-		BlockNumber: blockNumber,
-	},
-		StateDB: statedb,
-	}
-	stakeHandler, _ := NewStakeHandler(evm, vm.NewContract(vm.AccountRef(from), vm.AccountRef(constants.StakeHandlerAddress), big.NewInt(0), 1000000), false)
-
-	//stakeHandler.Set
-	return stakeHandler
-}
-
-func initStakeHandler(stakeHandler *StakeHandler, stageModule staketypes.StageModuler, stakeModule staketypes.StakeModuler, rewardModule staketypes.RewardModuler) {
-
-	// set mock modules
-	stakeHandler.SetStageModule(stageModule)
-	stakeHandler.SetStakeModule(stakeModule)
-	stakeHandler.SetRewardModule(rewardModule)
-}
 
 func getStakeForData() ([][]byte, map[common.Address]struct {
 	Owner          common.Address
@@ -231,25 +152,35 @@ func Test_Delegate(t *testing.T) {
 	//t.Log("delegation size", len(delegations))
 }
 
-func Test_StakeFor(t *testing.T) {
+func stakeFor(t *testing.T, stakeHandler *StakeHandler, epoch uint64, stakeDatas [][]byte) {
 
-	datas, cache := getStakeForData()
-	epoch := uint64(1)
-	from := common.HexToAddress("0xB0568bF61e3E7AF10623054b9169Eb8030271D10")
-	statedb := stakeHandlerTestConfig.StateDB
-	stakeHandler := newStakeHandler(from, new(big.Int).SetUint64(2), statedb.(vm.StateDB))
-	stakeHandlerTestConfig.StageModule.MockCurrentEpoch(epoch)
-	err := stakeHandlerTestConfig.StakeModule.MockInitValidatorGenesisPriority()
-	assert.Nil(t, err, "Failed to call MockInitValidatorGenesisPriority")
-	initStakeHandler(stakeHandler, stakeHandlerTestConfig.StageModule, stakeHandlerTestConfig.StakeModule, stakeHandlerTestConfig.RewardModule)
-
-	for _, data := range datas {
-		err = stakeHandler.onStake(data)
+	for _, data := range stakeDatas {
+		err := stakeHandler.onStake(data)
 		//if nil != err {
 		//	t.Error(err)
 		//}
 		assert.Nil(t, err, "Failed to call onStake")
 	}
+
+}
+
+func Test_StakeFor(t *testing.T) {
+	stakeHandlerTestConfig := newStakeHandlerTestConfig()
+	epoch := uint64(1)
+	from := common.HexToAddress("0xB0568bF61e3E7AF10623054b9169Eb8030271D10")
+
+	// init stakeHandler
+	stakeHandler := newStakeHandler((stakeHandlerTestConfig.StateDB).(vm.StateDB), from, new(big.Int).SetUint64(2))
+	initStakeHandler(stakeHandler, stakeHandlerTestConfig.L1Module, stakeHandlerTestConfig.StageModule, stakeHandlerTestConfig.StakeModule, stakeHandlerTestConfig.RewardModule)
+
+	// mock init genesis
+	stakeHandlerTestConfig.StageModule.MockCurrentEpoch(epoch)
+	err := stakeHandlerTestConfig.StakeModule.MockInitValidatorGenesisPriority()
+	assert.Nil(t, err, "Failed to call MockInitValidatorGenesisPriority")
+	// get mock data
+	datas, cache := getStakeForData()
+	stakeFor(t, stakeHandler, epoch, datas)
+	//
 	next, queue, err := stakeHandler.GetValidators([]byte{}, common.Big100)
 	//t.Log("next", hexutils.BytesToHex(next))
 	//t.Log("queue", fmt.Sprintf("%v", queue))
