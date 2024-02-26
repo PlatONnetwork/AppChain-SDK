@@ -38,7 +38,7 @@ func (svs sortValidatorQueue) Swap(i, j int) {
 	svs[i], svs[j] = svs[j], svs[i]
 }
 
-func ElectionValidatorByVRF(db sdk.StateDB, vrfModule staketypes.VRFModuler, validatorSnapshotQueue staketypes.ValidatorSortSnapshotQueue, blockNumber, vrfElectionSize uint64) (staketypes.ValidatorSortSnapshotQueue, error) {
+func ElectionValidatorWithVRF(db sdk.StateDB, vrfModule staketypes.VRFModuler, validatorSnapshotQueue staketypes.ValidatorSortSnapshotQueue, blockNumber, vrfElectionSize uint64) (staketypes.ValidatorSortSnapshotQueue, error) {
 
 	// ### NOTE ###
 	//

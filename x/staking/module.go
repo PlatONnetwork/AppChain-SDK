@@ -412,6 +412,7 @@ func (s *StakeModule) electionRoundValidators(ctx sdk.WorkerContext, blockNumber
 
 	currentRound := s.stageModule.GetCurrentRound(ctx.StateDB())
 	if s.stageModule.IsNotElectionBlockOnCurrentRound(ctx.StateDB(), blockNumber) {
+		s.logger.Error("block is not round electionBlock of current round", "blockNumber", blockNumber, "round", currentRound)
 		return errors.New("block is not round electionBlock of current round")
 	}
 
@@ -522,9 +523,9 @@ func (s *StakeModule) electionRoundValidators(ctx sdk.WorkerContext, blockNumber
 
 	if vrfQueueSize != 0 {
 
-		if queue, err := stakewrap.ElectionValidatorByVRF(ctx.StateDB(), s.vrfModule, diffValidatorSnapshotQueue, blockNumber, vrfQueueSize); nil != err {
-			s.logger.Error("Failed to call ElectionValidatorByVRF", "blockNumber", blockNumber, "err", err)
-			return err
+		if queue, err := stakewrap.ElectionValidatorWithVRF(ctx.StateDB(), s.vrfModule, diffValidatorSnapshotQueue, blockNumber, vrfQueueSize); nil != err {
+			s.logger.Error("Failed to call ElectionValidatorWithVRF", "blockNumber", blockNumber, "round", currentRound, "error", err)
+			return fmt.Errorf("can not elect next round validators with vrf, %s", err)
 		} else {
 			vrfValidatorSnapshotQueue = queue
 		}
@@ -534,12 +535,12 @@ func (s *StakeModule) electionRoundValidators(ctx sdk.WorkerContext, blockNumber
 		"maybe remove current round validator count", len(maybeRemoveValidatorStatusCache), "unstake invalid validator count",
 		unstakeValidatorAddrCache, "current round validators count", len(currentRoundValidatorSnapQueue), "MAX ROUND VALIDATOR SIZE ", maxRoundValidatorsSize,
 		"maybe shift validator count", (maxRoundValidatorsSize-1)/3, "diff queue", len(diffValidatorSnapshotQueue),
-		"vrf queue", len(vrfValidatorSnapshotQueue))
+		"vrf queue", len(vrfValidatorSnapshotQueue), "blockNumber", blockNumber, "round", currentRound)
 
 	nextRoundValidatorQueue, err := shuffle(len(maybeRemoveValidatorStatusCache), currentRoundValidatorSnapQueue, vrfValidatorSnapshotQueue, blockNumber)
 	if nil != err {
-		s.logger.Error("Failed to shuffle next round validators", "blockNumber", blockNumber, "err", err)
-		return err
+		s.logger.Error("Failed to shuffle next round validators", "blockNumber", blockNumber, "round", currentRound, "error", err)
+		return fmt.Errorf("can not shuffle next round validators, %s", err)
 	}
 
 	if len(nextRoundValidatorQueue) == 0 {
@@ -547,8 +548,8 @@ func (s *StakeModule) electionRoundValidators(ctx sdk.WorkerContext, blockNumber
 	}
 
 	if err := db.SetRoundValidatorSharesSnapshotQueue(ctx.StateDB(), s.Address(), currentRound+1, nextRoundValidatorQueue); nil != err {
-		s.logger.Error("Failed to call SetRoundValidatorSharesSnapshotQueue", "blockNumber", blockNumber, "err", err)
-		return err
+		s.logger.Error("Failed to call SetRoundValidatorSharesSnapshotQueue", "blockNumber", blockNumber, "round", currentRound, "error", err)
+		return fmt.Errorf("can not store next round validators, %s", err)
 	}
 
 	s.logger.Debug("Succeed to elected next round validators", "blockNumber", blockNumber, "round", currentRound, "validators size", len(nextRoundValidatorQueue))
@@ -560,12 +561,14 @@ func (s *StakeModule) electionEpochValidators(ctx sdk.WorkerContext, blockNumber
 	currentEpoch := s.stageModule.GetCurrentEpoch(ctx.StateDB())
 
 	if s.stageModule.IsNotElectionBlockOnCurrentEpoch(ctx.StateDB(), blockNumber) {
+		s.logger.Error("block is not endBlock of current epoch", "blockNumber", blockNumber, "epoch", currentEpoch)
 		return errors.New("block is not endBlock of current epoch")
 	}
 
 	validatorIds := db.RankPriorityValidatorIds(ctx.StateDB(), s.Address(), s.GetMaxEpochValidatorsSize(ctx.StateDB()))
 
 	if len(validatorIds) == 0 {
+		s.logger.Error("can not found validatorIds", "blockNumber", blockNumber, "epoch", currentEpoch)
 		return errors.New("not found validatorIds")
 	}
 
@@ -576,11 +579,11 @@ func (s *StakeModule) electionEpochValidators(ctx sdk.WorkerContext, blockNumber
 		validator := db.GetValidator(ctx.StateDB(), s.Address(), id)
 
 		if validator.IsEmpty() {
-			s.logger.Error("Failed to elected next epoch validators, validator not found", "validatorAddr", id.Hex());
+			s.logger.Error("Failed to elected next epoch validators, validator not found", "blockNumber", blockNumber, "epoch", currentEpoch, "validatorAddr", id.Hex())
 			return errors.New("not found validator")
 		}
 		if validator.IsInvalid() {
-			s.logger.Error("Failed to elected next epoch validators, validator is invalid", "validatorAddr", id.Hex(), "status", validator.Status);
+			s.logger.Error("Failed to elected next epoch validators, validator is invalid", "blockNumber", blockNumber, "epoch", currentEpoch, "validatorAddr", id.Hex(), "status", validator.Status)
 			return errors.New("invalid validator")
 		}
 		queue[i] = staketypes.NewValidatorSharesSnapshot(id, validator.Epoch, validator.StakeIndex, validator.CommissionRate, validator.StakeAmount, validator.DelegateAmount)
@@ -588,7 +591,7 @@ func (s *StakeModule) electionEpochValidators(ctx sdk.WorkerContext, blockNumber
 
 	if err := db.SetEpochValidatorSharesSnapshotQueue(ctx.StateDB(), s.Address(), currentEpoch+1, queue); nil != err {
 		s.logger.Error("Failed to store next epoch validators", "blockNumber", blockNumber, "epoch", currentEpoch, "error", err)
-		return errors.New("store next epoch failed")
+		return fmt.Errorf("can not store next epoch validators, %s", err)
 	}
 
 	s.logger.Debug("Succeed to elected next epoch validators", "blockNumber", blockNumber, "epoch", currentEpoch, "validators size", len(queue))
