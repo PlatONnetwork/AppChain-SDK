@@ -6,7 +6,6 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/flags"
 	abi "github.com/PlatONnetwork/PlatON-Go/accounts/abi"
 	"github.com/PlatONnetwork/PlatON-Go/cmd/utils"
-
 	"go/format"
 	"gopkg.in/urfave/cli.v1"
 	"os"
@@ -19,19 +18,49 @@ import (
 
 var (
 	ContractCommand = cli.Command{
-		Action:    utils.MigrateFlags(contract),
-		Name:      "contract",
-		Usage:     "Generate golang contract code",
-		ArgsUsage: "<genesisPath>",
-		Flags: []cli.Flag{
-			abiFlag,
-			outputFlag,
-			typeFlag,
-			pkgFlag,
-			aliasFlag,
+		Name: "contract",
+
+		Subcommands: []cli.Command{
+			{
+				Action:    utils.MigrateFlags(contractCreate),
+				Name:      "new",
+				Usage:     "Generate golang contract code",
+				ArgsUsage: "<genesisPath>",
+				Flags: []cli.Flag{
+					abiFlag,
+					outputFlag,
+					typeFlag,
+					pkgFlag,
+					aliasFlag,
+					receiverNameFlag,
+				},
+				Category:           "BLOCKCHAIN COMMANDS",
+				Description:        `Output golang contract`,
+				CustomHelpTemplate: flags.CommandHelpTemplate,
+			},
+			{
+				Action:    utils.MigrateFlags(contractUpgrade),
+				Name:      "upgrade",
+				Usage:     "Generate golang upgrade contract code",
+				ArgsUsage: "<genesisPath>",
+				Flags: []cli.Flag{
+					abiFlag,
+					outputFlag,
+					typeFlag,
+					pkgFlag,
+					aliasFlag,
+					versionFlag,
+					receiverNameFlag,
+					upgradeMethodsFlag,
+					newMethodsFlag,
+					newStructsFlag,
+					newEventsFlag,
+				},
+				Category:           "BLOCKCHAIN COMMANDS",
+				Description:        `Output golang contract`,
+				CustomHelpTemplate: flags.CommandHelpTemplate,
+			},
 		},
-		Category:           "BLOCKCHAIN COMMANDS",
-		Description:        `Output golang contract`,
 		CustomHelpTemplate: flags.CommandHelpTemplate,
 	}
 
@@ -63,9 +92,169 @@ var (
 		Name:  "alias",
 		Usage: "Comma separated aliases for function and event renaming, e.g. original1=alias1, original2=alias2",
 	}
+	receiverNameFlag = cli.StringFlag{
+		Name:  "receiver-name",
+		Usage: "receiver name",
+		Value: "c",
+	}
+	versionFlag = cli.Uint64Flag{
+		Name:  "version",
+		Usage: "upgrade version",
+	}
+	upgradeMethodsFlag = cli.StringFlag{
+		Name:  "upgrade-method",
+		Usage: "Upgrade method",
+	}
+	newMethodsFlag = cli.StringFlag{
+		Name:  "new-method",
+		Usage: "New method,comma separated events, e.g. method1,method2",
+	}
+	newStructsFlag = cli.StringFlag{
+		Name:  "new-struct",
+		Usage: "New event,comma separated events, e.g. event1,event2",
+	}
+	newEventsFlag = cli.StringFlag{
+		Name:  "new-event",
+		Usage: "New event,comma separated events, e.g. event1,event2",
+	}
 )
 
-func contract(ctx *cli.Context) error {
+func contractUpgrade(ctx *cli.Context) error {
+	if ctx.String(pkgFlag.Name) == "" {
+		fmt.Println("No destination package specified (--pkg)")
+		os.Exit(1)
+	}
+	abiFile := ctx.String(abiFlag.Name)
+
+	abiJson, err := os.ReadFile(abiFile)
+	if err != nil {
+		return err
+	}
+	version := ctx.Uint64(versionFlag.Name)
+	aliases := make(map[string]string)
+	upgradeMethods := make(map[string]struct{})
+	newMethods := make(map[string]struct{})
+	newEvents := make(map[string]struct{})
+	newStructs := make(map[string]struct{})
+	// Extract all aliases from the flags
+	if ctx.IsSet(aliasFlag.Name) {
+		// We support multi-versions for aliasing
+		// e.g.
+		//      foo=bar,foo2=bar2
+		//      foo:bar,foo2:bar2
+		re := regexp.MustCompile(`(?:(\w+)[:=](\w+))`)
+		submatches := re.FindAllStringSubmatch(ctx.String(aliasFlag.Name), -1)
+		for _, match := range submatches {
+			aliases[match[1]] = match[2]
+
+		}
+	}
+
+	if ctx.IsSet(upgradeMethodsFlag.Name) {
+		methods := strings.Split(ctx.String(upgradeMethodsFlag.Name), ",")
+		for _, m := range methods {
+			mv := fmt.Sprintf("%sV%d", m, version)
+			upgradeMethods[m] = struct{}{}
+			aliases[m] = mv
+		}
+	}
+
+	if ctx.IsSet(newMethodsFlag.Name) {
+		methods := strings.Split(ctx.String(newMethodsFlag.Name), ",")
+		for _, m := range methods {
+			newMethods[m] = struct{}{}
+		}
+	}
+
+	if ctx.IsSet(newEventsFlag.Name) {
+		methods := strings.Split(ctx.String(newEventsFlag.Name), ",")
+		for _, m := range methods {
+			newEvents[m] = struct{}{}
+		}
+	}
+
+	if ctx.IsSet(newStructsFlag.Name) {
+		methods := strings.Split(ctx.String(newStructsFlag.Name), ",")
+		for _, m := range methods {
+			newStructs[m] = struct{}{}
+		}
+	}
+	receiverName := ""
+	if ctx.IsSet(receiverNameFlag.Name) {
+		receiverName = ctx.String(receiverNameFlag.Name)
+	}
+
+	var types string
+	if ctx.IsSet(typeFlag.Name) {
+		types = ctx.String(typeFlag.Name)
+	} else {
+		types = ctx.String(pkgFlag.Name)
+	}
+
+	funcs, bindData, err := BindData(string(abiJson), types, ctx.String(pkgFlag.Name), aliases)
+	if err != nil {
+		return err
+	}
+	data := &tmplUpgradeData{
+		tmplData:   bindData,
+		NewStructs: make(map[string]*tmplStruct),
+	}
+	data.Version = uint16(version)
+	entries := make(map[string]string)
+	for _, e := range data.Contract.Calls {
+		entries[hexId(e.Original.ID)] = e.Normalized.Name
+	}
+	for _, e := range data.Contract.Transacts {
+		entries[hexId(e.Original.ID)] = e.Normalized.Name
+	}
+	data.Entries = entries
+	for name, _ := range data.Contract.Calls {
+		_, upgrade := upgradeMethods[name]
+		_, new := newMethods[name]
+		if !upgrade && !new {
+			delete(data.Contract.Calls, name)
+		}
+	}
+
+	for name, _ := range data.Contract.Transacts {
+		_, upgrade := upgradeMethods[name]
+		_, new := newMethods[name]
+		if !upgrade && !new {
+			delete(data.Contract.Transacts, name)
+		}
+	}
+
+	for name, _ := range data.Contract.Events {
+		if _, ok := newEvents[name]; !ok {
+			delete(data.Contract.Events, name)
+		}
+	}
+	for name, _ := range newStructs {
+		for _, v := range data.Structs {
+			if v.Name == name {
+				data.NewStructs[name] = v
+				break
+			}
+		}
+	}
+
+	data.ReceiverName = receiverName
+	upgradeCode, err := GenerateCode(funcs, data, tmplUpgrade)
+	if err != nil {
+		return err
+	}
+	if !ctx.IsSet(outputFlag.Name) {
+		fmt.Printf("%s\n", upgradeCode)
+		return nil
+	}
+	if err := os.WriteFile(filepath.Join(ctx.String(outputFlag.Name), strings.ToLower(types)+fmt.Sprintf("v%d.go", version)), []byte(upgradeCode), 0600); err != nil {
+		fmt.Printf("Failed to write ABI binding: %v", err)
+		os.Exit(1)
+	}
+	return nil
+}
+
+func contractCreate(ctx *cli.Context) error {
 	if ctx.String(pkgFlag.Name) == "" {
 		fmt.Println("No destination package specified (--pkg)")
 		os.Exit(1)
@@ -78,13 +267,13 @@ func contract(ctx *cli.Context) error {
 	}
 	aliases := make(map[string]string)
 	// Extract all aliases from the flags
-	if ctx.GlobalIsSet(aliasFlag.Name) {
+	if ctx.IsSet(aliasFlag.Name) {
 		// We support multi-versions for aliasing
 		// e.g.
 		//      foo=bar,foo2=bar2
 		//      foo:bar,foo2:bar2
 		re := regexp.MustCompile(`(?:(\w+)[:=](\w+))`)
-		submatches := re.FindAllStringSubmatch(ctx.GlobalString(aliasFlag.Name), -1)
+		submatches := re.FindAllStringSubmatch(ctx.String(aliasFlag.Name), -1)
 		for _, match := range submatches {
 			aliases[match[1]] = match[2]
 		}
@@ -96,7 +285,7 @@ func contract(ctx *cli.Context) error {
 		types = ctx.String(pkgFlag.Name)
 	}
 
-	frame, impl, caller, err := Bind(string(abiJson), types, ctx.String(pkgFlag.Name), aliases)
+	frame, impl, caller, err := Bind(string(abiJson), types, ctx.String(pkgFlag.Name), aliases, ctx.String(receiverNameFlag.Name))
 	if err != nil {
 		return err
 	}
@@ -124,11 +313,12 @@ func contract(ctx *cli.Context) error {
 	return nil
 }
 
-func Bind(abiJson string, types string, pkg string, aliases map[string]string) (string, string, string, error) {
+func Bind(abiJson string, types string, pkg string, aliases map[string]string, receiverName string) (string, string, string, error) {
 	funcs, data, err := BindData(abiJson, types, pkg, aliases)
 	if err != nil {
 		return "", "", "", err
 	}
+	data.ReceiverName = receiverName
 	frameCode, err := GenerateCode(funcs, data, tmplFrameSource)
 	if err != nil {
 		return "", "", "", err
@@ -266,7 +456,7 @@ func BindData(abiJson string, types string, pkg string, aliases map[string]strin
 	return funcs, data, nil
 }
 
-func GenerateCode(funcs map[string]interface{}, data *tmplData, source string) (string, error) {
+func GenerateCode(funcs map[string]interface{}, data any, source string) (string, error) {
 	buffer := new(bytes.Buffer)
 
 	tmpl := template.Must(template.New("").Funcs(funcs).Parse(source))
