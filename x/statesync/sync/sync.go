@@ -117,7 +117,7 @@ func (l *L1Sync) scanLogs(ctx context.Context, start, end uint64) error {
 		l.log.Debug("try scan logs", "from", from, "to", to)
 		logs, err := l.cli.FilterLogs(ctx, platon.FilterQuery{
 			FromBlock: new(big.Int).SetUint64(from),
-			ToBlock:   new(big.Int).SetUint64(end),
+			ToBlock:   new(big.Int).SetUint64(to),
 			Addresses: []common.Address{l.stateSenderAddr},
 			Topics:    [][]common.Hash{[]common.Hash{SyncAbi.Events["StateSynced"].ID}},
 		})
