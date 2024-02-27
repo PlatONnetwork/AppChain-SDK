@@ -7,6 +7,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward"
 	"github.com/PlatONnetwork/AppChain-SDK/x/stage"
 	"github.com/PlatONnetwork/AppChain-SDK/x/statesender"
+	"github.com/PlatONnetwork/AppChain-SDK/x/upgrade"
 	"github.com/PlatONnetwork/AppChain-SDK/x/vrf"
 
 	"github.com/PlatONnetwork/AppChain-SDK/baseapp"
@@ -84,16 +85,20 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 
 	extraVote := extravote.NewExtraVote(store, []extravote.ExtraVerifier{stateSync, checkpoint})
 
-	manager := module.NewManager(stateSync, stateEvent, l1Module, extraVote, rootchainTxRelayer, checkpoint, stageModule, vrfModule, stakeModule, rewardModule, depositModule, l2StateSender)
+	upgrade := upgrade.NewModule()
+
+	manager := module.NewManager(stateSync, stateEvent, l1Module, extraVote, rootchainTxRelayer, checkpoint, stageModule, vrfModule, stakeModule, rewardModule, depositModule, l2StateSender, upgrade)
 	manager.SetElection(stakeModule.Name())
 	manager.SetConsensusExtend(extraVote.Name())
 	//manager.SetWorker(stateSync.Name())
 	manager.SetOrderTransaction(stateSync.Name(), vrfModule.Name(), stakeModule.Name())
 	manager.SetOrderInit(stateSync.Name(), rootchainTxRelayer.Name(), checkpoint.Name(), vrfModule.Name(), stakeModule.Name(), rewardModule.Name())
-	manager.SetOrderGenesis(l1Module.Name(), stageModule.Name(), vrfModule.Name(), stakeModule.Name(), rewardModule.Name(), depositModule.Name(), l2StateSender.Name(), stateSync.Name())
-	manager.SetOrderBeginBlocker(stageModule.Name(), stakeModule.Name(), rewardModule.Name())
+	manager.SetOrderGenesis(l1Module.Name(), stageModule.Name(), vrfModule.Name(), stakeModule.Name(), rewardModule.Name(), depositModule.Name(), l2StateSender.Name(), stateSync.Name(), upgrade.Name())
+	manager.SetOrderBeginBlocker(upgrade.Name(), stageModule.Name(), stakeModule.Name(), rewardModule.Name())
 	manager.SetOrderEndBlocker(stageModule.Name(), vrfModule.Name(), stakeModule.Name(), rewardModule.Name())
 	manager.SetOrderBlockCommitter(stakeModule.Name(), stateEvent.Name(), checkpoint.Name())
+
+	manager.RegisterUpgradeHandler(upgrade)
 
 	app := &SimApp{}
 	baseApp, err := baseapp.NewBaseApp("simapp", store, manager)

@@ -63,7 +63,7 @@ func (app *BaseApp) InitChain(ctx sdk.InitContext) error {
 	return app.manager.InitChain(ctx)
 }
 
-func (app *BaseApp) Contracts(statedb sdk.StateDBReader, blockNumber uint64) []sdk.SDKContract {
+func (app *BaseApp) Contracts(statedb sdk.StateDB, blockNumber uint64) []sdk.SDKContract {
 	return app.manager.Contracts(statedb, blockNumber)
 }
 

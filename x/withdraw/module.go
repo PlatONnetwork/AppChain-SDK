@@ -42,6 +42,17 @@ func (w *WithdrawModule) Version() uint64 {
 func (w *WithdrawModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
 	// init withdraw manager  account nonce
 	initAccountNonce(db, w.Address())
+
+	raw, err := data.MarshalJSON()
+	if err != nil {
+		return err
+	}
+	var config module.ModuleGenesisConfig
+	if err := json.Unmarshal(raw, &config); err != nil {
+		return err
+	}
+	// TODO: set create block
+
 	return nil
 }
 
@@ -54,7 +65,7 @@ func (w *WithdrawModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, r
 	return withdrawManaher.Run(input)
 }
 
-func (w *WithdrawModule) ContractCreateBlockNumber(statedb sdk.StateDBReader) uint64 {
+func (w *WithdrawModule) ContractCreateBlockNumber(statedb sdk.StateDB) uint64 {
 	// TODO: implement me
 	return 0
 }

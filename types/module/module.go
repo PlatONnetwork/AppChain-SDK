@@ -17,6 +17,11 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 )
 
+type UpgradeHandler func(ctx sdk.WorkerContext) error
+
+// VersionMap is map of moduleName -> version
+type VersionMap map[string]uint64
+
 type Module interface {
 	Name() string
 	Version() uint64
@@ -90,6 +95,15 @@ type WorkerModule interface {
 type TransactionModule interface {
 	Module
 	AddTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions) (map[common.Address]types.Transactions, error)
+}
+
+type UpgradeRegistrar interface {
+	RegisterUpgradeHandler(module string, version uint64, handler UpgradeHandler) error
+}
+
+type RegistryModule interface {
+	Module
+	RegistryUpgradeHandler(registrar UpgradeRegistrar) error
 }
 
 type Manager struct {
@@ -230,7 +244,7 @@ func (m *Manager) InitChain(ctx sdk.InitContext) error {
 	return nil
 }
 
-func (m *Manager) Contracts(statedb sdk.StateDBReader, blockNumber uint64) []sdk.SDKContract {
+func (m *Manager) Contracts(statedb sdk.StateDB, blockNumber uint64) []sdk.SDKContract {
 	contracts := make([]sdk.SDKContract, 0)
 	for _, mod := range m.Modules {
 		if module, ok := mod.(ContractModule); ok {
@@ -475,6 +489,18 @@ func (m *Manager) SortTxs(ctx sdk.WorkerContext, local, remote map[common.Addres
 	}
 	return allTxs, nil
 }
+
+func (m *Manager) RegisterUpgradeHandler(registrar UpgradeRegistrar) error {
+	for _, module := range m.Modules {
+		if mod, ok := module.(RegistryModule); ok {
+			if err := mod.RegistryUpgradeHandler(registrar); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 
 func (m *Manager) assertNoForgottenModules(setOrderFnName string, moduleNames []string, pass func(moduleName string) bool) {
 	ms := make(map[string]bool)

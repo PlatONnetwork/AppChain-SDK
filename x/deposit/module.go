@@ -45,6 +45,16 @@ func (d *DepositModule) Version() uint64 {
 func (d *DepositModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
 	// init deposit handler  account nonce
 	initAccountNonce(db, d.Address())
+
+	raw, err := data.MarshalJSON()
+	if err != nil {
+		return err
+	}
+	var config module.ModuleGenesisConfig
+	if err := json.Unmarshal(raw, &config); err != nil {
+		return err
+	}
+	// TODO: set create block
 	return nil
 }
 
@@ -58,7 +68,7 @@ func (d *DepositModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, re
 	return depositHandler.Run(input)
 }
 
-func (d *DepositModule) ContractCreateBlockNumber(statedb sdk.StateDBReader) uint64 {
+func (d *DepositModule) ContractCreateBlockNumber(statedb sdk.StateDB) uint64 {
 	// TODO: implement me
 	return 0
 }

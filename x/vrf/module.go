@@ -89,7 +89,8 @@ func (v *VRFModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *pa
 	// init vrf manager  account nonce
 	initAccountNonce(db, v.Address())
 	initGenesisVRFNonce(db, v.Address(), chainConfig, configParams)
-	log.Info("Succeed init genesis", "module", v.Name(), "VRFNetworkParams", configParams.String())
+	// TODO: set create block
+	log.Info("Succeed init genesis", "module", v.Name(), "createBlock", configParams.CreateBlock, "VRFNetworkParams", configParams.String())
 	return nil
 }
 
@@ -104,7 +105,7 @@ func (v *VRFModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOn
 	return vrfManager.Run(input)
 }
 
-func (v *VRFModule) ContractCreateBlockNumber(statedb sdk.StateDBReader) uint64 {
+func (v *VRFModule) ContractCreateBlockNumber(statedb sdk.StateDB) uint64 {
 	// TODO: implement me
 	return 0
 }

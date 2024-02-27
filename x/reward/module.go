@@ -80,6 +80,8 @@ func (r *RewardModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig 
 	// set config params
 	initConfigParams(db, r.Address(), configParams)
 
+	// TODO: set create block
+
 	log.Info("Succeed init genesis", "module", r.Name(), "RewardNetworkParams", configParams.String())
 	return nil
 }
@@ -96,7 +98,7 @@ func (r *RewardModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, rea
 	return rewardManager.Run(input)
 }
 
-func (r *RewardModule) ContractCreateBlockNumber(statedb sdk.StateDBReader) uint64 {
+func (r *RewardModule) ContractCreateBlockNumber(statedb sdk.StateDB) uint64 {
 	// TODO: implement me
 	return 0
 }

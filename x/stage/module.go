@@ -73,6 +73,8 @@ func (s *StageModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *
 		return err
 	}
 
+	// TODO: set create block
+
 	log.Info("Succeed init genesis", "module", s.Name(), "StageNetworkParams", configParams.String())
 	return nil
 }
@@ -85,7 +87,7 @@ func (s *StageModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, read
 	return nil, nil
 }
 
-func (s *StageModule) ContractCreateBlockNumber(statedb sdk.StateDBReader) uint64 {
+func (s *StageModule) ContractCreateBlockNumber(statedb sdk.StateDB) uint64 {
 	// TODO: implement me
 	return 0
 }

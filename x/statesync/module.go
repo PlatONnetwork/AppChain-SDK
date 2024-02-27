@@ -90,6 +90,17 @@ func NewModule(ctx *cli.Context, l1Module *l1.L1Module, validator ElectionValida
 func (s *StateSync) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
 	db.SetNonce(constants.StateSyncAddress, 1)
 	s.logger.Info("Set StateSync Nonce", "nonce", 1)
+
+	raw, err := data.MarshalJSON()
+	if err != nil {
+		return err
+	}
+	var config module.ModuleGenesisConfig
+	if err := json.Unmarshal(raw, &config); err != nil {
+		return err
+	}
+	// TODO: set create block
+
 	return nil
 }
 
@@ -155,7 +166,7 @@ func (s *StateSync) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOn
 	return stateReceiver.Run(input)
 }
 
-func (s *StateSync) ContractCreateBlockNumber(statedb sdk.StateDBReader) uint64 {
+func (s *StateSync) ContractCreateBlockNumber(statedb sdk.StateDB) uint64 {
 	// TODO: implement me
 	return 0
 }
