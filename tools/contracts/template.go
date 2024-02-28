@@ -88,7 +88,7 @@ var (
 	_ = platon.NotFound
 	_ = bind.Bind
 	_ = common.Big1
-	_ = math.MaxUint64
+	_ = math.ReadBits
 	_ = binary.BigEndian
 	_ = types.BloomLookup
 	_ = event.NewSubscription

@@ -33,6 +33,7 @@ var (
 					pkgFlag,
 					aliasFlag,
 					receiverNameFlag,
+					filePrefixFlag,
 				},
 				Category:           "BLOCKCHAIN COMMANDS",
 				Description:        `Output golang contract`,
@@ -50,6 +51,7 @@ var (
 					pkgFlag,
 					aliasFlag,
 					versionFlag,
+					filePrefixFlag,
 					receiverNameFlag,
 					upgradeMethodsFlag,
 					newMethodsFlag,
@@ -87,6 +89,10 @@ var (
 	pkgFlag = cli.StringFlag{
 		Name:  "pkg",
 		Usage: "Package name to generate the binding into",
+	}
+	filePrefixFlag = cli.StringFlag{
+		Name:  "file-prefix",
+		Usage: "Output file name prefix",
 	}
 	aliasFlag = cli.StringFlag{
 		Name:  "alias",
@@ -247,7 +253,11 @@ func contractUpgrade(ctx *cli.Context) error {
 		fmt.Printf("%s\n", upgradeCode)
 		return nil
 	}
-	if err := os.WriteFile(filepath.Join(ctx.String(outputFlag.Name), strings.ToLower(types)+fmt.Sprintf("v%d.go", version)), []byte(upgradeCode), 0600); err != nil {
+	filePrefix := strings.ToLower(types)
+	if ctx.IsSet(filePrefixFlag.Name) {
+		filePrefix = ctx.String(filePrefixFlag.Name)
+	}
+	if err := os.WriteFile(filepath.Join(ctx.String(outputFlag.Name), filePrefix+fmt.Sprintf("_v%d.go", version)), []byte(upgradeCode), 0600); err != nil {
 		fmt.Printf("Failed to write ABI binding: %v", err)
 		os.Exit(1)
 	}
@@ -295,18 +305,21 @@ func contractCreate(ctx *cli.Context) error {
 		fmt.Printf("%s\n", caller)
 		return nil
 	}
-
-	if err := os.WriteFile(filepath.Join(ctx.String(outputFlag.Name), strings.ToLower(types)+".go"), []byte(frame), 0600); err != nil {
+	filePrefix := strings.ToLower(types)
+	if ctx.IsSet(filePrefixFlag.Name) {
+		filePrefix = ctx.String(filePrefixFlag.Name)
+	}
+	if err := os.WriteFile(filepath.Join(ctx.String(outputFlag.Name), filePrefix+".go"), []byte(frame), 0600); err != nil {
 		fmt.Printf("Failed to write ABI binding: %v", err)
 		os.Exit(1)
 	}
 
-	if err := os.WriteFile(filepath.Join(ctx.String(outputFlag.Name), strings.ToLower(types)+"_impl.go"), []byte(impl), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(ctx.String(outputFlag.Name), filePrefix+"_impl.go"), []byte(impl), 0600); err != nil {
 		fmt.Printf("Failed to write ABI binding: %v", err)
 		os.Exit(1)
 	}
 
-	if err := os.WriteFile(filepath.Join(ctx.String(outputFlag.Name), strings.ToLower(types)+"_caller.go"), []byte(caller), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(ctx.String(outputFlag.Name), filePrefix+"_caller.go"), []byte(caller), 0600); err != nil {
 		fmt.Printf("Failed to write ABI binding: %v", err)
 		os.Exit(1)
 	}
