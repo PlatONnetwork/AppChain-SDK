@@ -36,27 +36,33 @@ var (
 )
 
 type StateReceiver struct {
-	abi          *abi.ABI
-	methodEntry  map[string]func([]byte) ([]byte, error)
-	readOnly     bool
-	contract     *vm.Contract
-	evm          *vm.EVM
-	burner       contracts.Burn
-	stateDb      *contracts.StateDB
-	fallback     func(input []byte) ([]byte, error)
-	verifyQCFunc func(qc *QuorumCert) error
+	abi           *abi.ABI
+	abis          map[uint16]*abi.ABI
+	methodEntry   map[string]func([]byte) ([]byte, error)
+	methodEntries map[uint16]map[string]func([]byte) ([]byte, error)
+	readOnly      bool
+	contract      *vm.Contract
+	evm           *vm.EVM
+	burner        contracts.Burn
+	stateDb       *contracts.StateDB
+	fallback      func(input []byte) ([]byte, error)
+	verifyQCFunc  func(qc *QuorumCert) error
 }
 
 func NewStateReceiver(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*StateReceiver, error) {
 	s := &StateReceiver{
-		abi:      &Abi,
-		evm:      evm,
-		contract: contract,
-		burner:   contracts.NewBurner(contract),
-		stateDb:  contracts.NewStateDB(evm, contract),
-		readOnly: readOnly,
+		abi:           nil,
+		abis:          make(map[uint16]*abi.ABI),
+		methodEntry:   make(map[string]func([]byte) ([]byte, error)),
+		methodEntries: make(map[uint16]map[string]func([]byte) ([]byte, error)),
+		evm:           evm,
+		contract:      contract,
+		burner:        contracts.NewBurner(contract),
+		stateDb:       contracts.NewStateDB(evm, contract),
+		readOnly:      readOnly,
 	}
 	s.verifyQCFunc = s.verifySignature
+	s.initABI()
 	s.initMethodEntry()
 	return s, nil
 }

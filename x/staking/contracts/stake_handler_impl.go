@@ -39,29 +39,35 @@ var (
 )
 
 type StakeHandler struct {
-	abi          *abi.ABI
-	methodEntry  map[string]func([]byte) ([]byte, error)
-	readOnly     bool
-	contract     *vm.Contract
-	evm          *vm.EVM
-	burner       contracts.Burn
-	stateDb      *contracts.StateDB
-	fallback     func(input []byte) ([]byte, error)
-	l1Module     staketypes.L1Moduler
-	stageModule  staketypes.StageModuler
-	stakeModule  staketypes.StakeModuler
-	rewardModule staketypes.RewardModuler
+	abi           *abi.ABI
+	abis          map[uint16]*abi.ABI
+	methodEntry   map[string]func([]byte) ([]byte, error)
+	methodEntries map[uint16]map[string]func([]byte) ([]byte, error)
+	readOnly      bool
+	contract      *vm.Contract
+	evm           *vm.EVM
+	burner        contracts.Burn
+	stateDb       *contracts.StateDB
+	fallback      func(input []byte) ([]byte, error)
+	l1Module      staketypes.L1Moduler
+	stageModule   staketypes.StageModuler
+	stakeModule   staketypes.StakeModuler
+	rewardModule  staketypes.RewardModuler
 }
 
 func NewStakeHandler(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*StakeHandler, error) {
 	s := &StakeHandler{
-		abi:      &Abi,
-		evm:      evm,
-		contract: contract,
-		burner:   contracts.NewBurner(contract),
-		stateDb:  contracts.NewStateDB(evm, contract),
-		readOnly: readOnly,
+		abi:           nil,
+		abis:          make(map[uint16]*abi.ABI),
+		methodEntry:   make(map[string]func([]byte) ([]byte, error)),
+		methodEntries: make(map[uint16]map[string]func([]byte) ([]byte, error)),
+		evm:           evm,
+		contract:      contract,
+		burner:        contracts.NewBurner(contract),
+		stateDb:       contracts.NewStateDB(evm, contract),
+		readOnly:      readOnly,
 	}
+	s.initABI()
 	s.initMethodEntry()
 	return s, nil
 }
