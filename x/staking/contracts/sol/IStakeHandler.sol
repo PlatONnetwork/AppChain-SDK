@@ -1,4 +1,4 @@
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.7;
 
 import "../../../statereceiver/contracts/sol/IL1StateReceiver.sol";
 
