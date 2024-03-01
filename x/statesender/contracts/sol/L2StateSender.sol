@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.7;
 
-import "./IStateSender.sol";
-
-contract L2StateSender is IStateSender {
+contract L2StateSender {
     uint256 public constant MAX_LENGTH = 2048;
     uint256 public counter;
 
