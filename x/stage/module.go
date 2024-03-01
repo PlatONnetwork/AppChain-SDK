@@ -73,8 +73,6 @@ func (s *StageModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *
 		return err
 	}
 
-	// TODO: set create block
-
 	log.Info("Succeed init genesis", "module", s.Name(), "StageNetworkParams", configParams.String())
 	return nil
 }

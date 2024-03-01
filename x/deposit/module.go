@@ -6,6 +6,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/deposit/contracts"
+	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
 	deposittypes "github.com/PlatONnetwork/AppChain-SDK/x/deposit/types"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
@@ -54,7 +55,8 @@ func (d *DepositModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig
 	if err := json.Unmarshal(raw, &config); err != nil {
 		return err
 	}
-	// TODO: set create block
+	depositContract, _ := contracts.NewDepositHandler(sdkcontracts.NewEVM(db), sdkcontracts.NewContract(d, d), false)
+	depositContract.SetCreateBlock(config.CreateBlock)
 	return nil
 }
 
@@ -69,6 +71,6 @@ func (d *DepositModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, re
 }
 
 func (d *DepositModule) ContractCreateBlockNumber(statedb sdk.StateDB) uint64 {
-	// TODO: implement me
-	return 0
+	depositContract, _ := contracts.NewDepositHandler(sdkcontracts.NewEVM(statedb), sdkcontracts.NewContract(d, d), false)
+	return depositContract.GetCreateBlock()
 }

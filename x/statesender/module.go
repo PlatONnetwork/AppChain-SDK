@@ -3,6 +3,7 @@ package statesender
 import (
 	"encoding/json"
 
+	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/statesender/contracts"
@@ -51,7 +52,9 @@ func (s *StateSenderModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainCo
 	if err := json.Unmarshal(raw, &config); err != nil {
 		return err
 	}
-	// TODO: set create block
+
+	stateSender, _ := contracts.NewL2StateSender(sdkcontracts.NewEVM(db), sdkcontracts.NewContract(s, s), false)
+	stateSender.SetCreateBlock(config.CreateBlock)
 
 	return nil
 }
@@ -66,6 +69,6 @@ func (s *StateSenderModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte
 }
 
 func (s *StateSenderModule) ContractCreateBlockNumber(statedb sdk.StateDB) uint64 {
-	// TODO: implement me
-	return 0
+	stateSender, _ := contracts.NewL2StateSender(sdkcontracts.NewEVM(statedb), sdkcontracts.NewContract(s, s), false)
+	return stateSender.GetCreateBlock()
 }
