@@ -11,6 +11,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/contracts"
+	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
 	rewarddb "github.com/PlatONnetwork/AppChain-SDK/x/reward/db"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/types"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
@@ -80,8 +81,8 @@ func (r *RewardModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig 
 	// set config params
 	initConfigParams(db, r.Address(), configParams)
 
-	// TODO: set create block
-
+	rewardContrct, _ := contracts.NewRewardManager(sdkcontracts.NewEVM(db), sdkcontracts.NewContract(r, r), false)
+	rewardContrct.SetCreateBlock(conf.CreateBlock)
 	log.Info("Succeed init genesis", "module", r.Name(), "RewardNetworkParams", configParams.String())
 	return nil
 }

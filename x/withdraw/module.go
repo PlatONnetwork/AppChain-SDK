@@ -3,6 +3,7 @@ package withdraw
 import (
 	"encoding/json"
 
+	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/withdraw/contracts"
@@ -51,7 +52,9 @@ func (w *WithdrawModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfi
 	if err := json.Unmarshal(raw, &config); err != nil {
 		return err
 	}
-	// TODO: set create block
+
+	withdraw, _ := contracts.NewWithdrawManager(sdkcontracts.NewEVM(db), sdkcontracts.NewContract(w, w), false)
+	withdraw.SetCreateBlock(config.CreateBlock)
 
 	return nil
 }
@@ -66,6 +69,6 @@ func (w *WithdrawModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, r
 }
 
 func (w *WithdrawModule) ContractCreateBlockNumber(statedb sdk.StateDB) uint64 {
-	// TODO: implement me
-	return 0
+	withdraw, _ := contracts.NewWithdrawManager(sdkcontracts.NewEVM(statedb), sdkcontracts.NewContract(w, w), false)
+	return withdraw.GetCreateBlock()
 }

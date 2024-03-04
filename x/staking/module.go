@@ -8,6 +8,7 @@ import (
 	"math/big"
 
 	"github.com/PlatONnetwork/AppChain-SDK/common"
+	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/config"
@@ -104,8 +105,8 @@ func (s *StakeModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *
 		return err
 	}
 
-	// TODO: set create block
-
+	stakingContract, _ := contracts.NewStakeHandler(sdkcontracts.NewEVM(db), sdkcontracts.NewContract(s, s), false)
+	stakingContract.SetCreateBlock(conf.CreateBlock)
 	log.Info("Succeed init genesis", "module", s.Name(), "StakeNetworkParams", configParams.String())
 	return nil
 }
@@ -128,8 +129,8 @@ func (s *StakeModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, read
 }
 
 func (s *StakeModule) ContractCreateBlockNumber(statedb sdk.StateDB) uint64 {
-	// TODO: implement me
-	return 0
+	stakingContract, _ := contracts.NewStakeHandler(sdkcontracts.NewEVM(statedb), sdkcontracts.NewContract(s, s), false)
+	return stakingContract.GetCreateBlock()
 }
 
 func (s *StakeModule) AddTxs(ctx sdk.WorkerContext, local map[basecommon.Address]types.Transactions) (map[basecommon.Address]types.Transactions, error) {

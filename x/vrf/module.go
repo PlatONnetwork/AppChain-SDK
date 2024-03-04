@@ -21,6 +21,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"gopkg.in/urfave/cli.v1"
 
+	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/vrf/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/vrf/contracts"
@@ -89,7 +90,10 @@ func (v *VRFModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *pa
 	// init vrf manager  account nonce
 	initAccountNonce(db, v.Address())
 	initGenesisVRFNonce(db, v.Address(), chainConfig, configParams)
-	// TODO: set create block
+
+	vrf, _ := contracts.NewVRFManager(sdkcontracts.NewEVM(db), sdkcontracts.NewContract(v, v), false)
+	vrf.SetCreateBlock(conf.CreateBlock)
+
 	log.Info("Succeed init genesis", "module", v.Name(), "createBlock", configParams.CreateBlock, "VRFNetworkParams", configParams.String())
 	return nil
 }
@@ -106,8 +110,8 @@ func (v *VRFModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOn
 }
 
 func (v *VRFModule) ContractCreateBlockNumber(statedb sdk.StateDB) uint64 {
-	// TODO: implement me
-	return 0
+	vrf, _ := contracts.NewVRFManager(sdkcontracts.NewEVM(statedb), sdkcontracts.NewContract(v, v), false)
+	return vrf.GetCreateBlock()
 }
 
 func (v *VRFModule) AddTxs(ctx sdk.WorkerContext, local map[basecommon.Address]types.Transactions) (map[basecommon.Address]types.Transactions, error) {

@@ -21,6 +21,9 @@ import (
 
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/common/math"
+	"github.com/PlatONnetwork/PlatON-Go/core/vm"
+	"github.com/PlatONnetwork/PlatON-Go/params"
+	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"github.com/holiman/uint256"
 )
 
@@ -97,4 +100,12 @@ func allZero(b []byte) bool {
 		}
 	}
 	return true
+}
+
+func NewEVM(statedb sdk.StateDB) *vm.EVM {
+	return vm.NewEVM(vm.BlockContext{GasLimit: math.MaxUint64}, vm.TxContext{}, statedb, &params.ChainConfig{}, vm.Config{}, nil)
+}
+
+func NewContract(caller, contract vm.ContractRef) *vm.Contract {
+	return vm.NewContract(caller, contract, big.NewInt(0), math.MaxUint64)
 }

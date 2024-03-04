@@ -19,6 +19,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
 
+	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/store"
 	"github.com/PlatONnetwork/AppChain-SDK/x"
 	"github.com/PlatONnetwork/AppChain-SDK/x/extravote"
@@ -99,7 +100,9 @@ func (s *StateSync) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *pa
 	if err := json.Unmarshal(raw, &config); err != nil {
 		return err
 	}
-	// TODO: set create block
+
+	stateSync, _ := contracts.NewStateReceiver(sdkcontracts.NewEVM(db), sdkcontracts.NewContract(s, s), false)
+	stateSync.SetCreateBlock(config.CreateBlock)
 
 	return nil
 }
@@ -167,8 +170,8 @@ func (s *StateSync) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOn
 }
 
 func (s *StateSync) ContractCreateBlockNumber(statedb sdk.StateDB) uint64 {
-	// TODO: implement me
-	return 0
+	stateSync, _ := contracts.NewStateReceiver(sdkcontracts.NewEVM(statedb), sdkcontracts.NewContract(s, s), false)
+	return stateSync.GetCreateBlock()
 }
 
 func (s *StateSync) Protocols() []p2p.Protocol {
