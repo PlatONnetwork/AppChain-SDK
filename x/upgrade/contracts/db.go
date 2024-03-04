@@ -1,10 +1,12 @@
 package contracts
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 
 	"github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
 
 	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
@@ -24,6 +26,11 @@ var (
 )
 
 type NameArarry []string
+
+func (u *IUpgradePlan) String() string {
+	buf, _ := json.Marshal(u)
+	return string(buf)
+}
 
 func (c *Upgrade) setOwner(newOwner common.Address) {
 	c.stateDb.SetState(c.contract.Address(), ownerKey, newOwner.Bytes())
@@ -51,7 +58,14 @@ func (c *Upgrade) getUpgradePlan(height uint64) ([]IUpgradePlan, error) {
 	return c.getUpgradePlanByHeight(height)
 }
 
-func (c *Upgrade) addUpgradePlan(plan IUpgradePlan) error {
+func (c *Upgrade) addUpgradePlan(plan IUpgradePlan) (err error) {
+	defer func() {
+		if err != nil {
+			log.Warn("failed to add upgrade plan", "module", "upgrade", "plan", plan.String(), "err", err)
+		} else {
+			log.Info("Add upgrade plan success", "module", "upgrade", "plan", plan.String())
+		}
+	}()
 	oldPlan, err := c.getUpgradePlanByName(plan.Name)
 	if err != nil && err != ErrPlanNotFound {
 		return err
@@ -79,6 +93,7 @@ func (c *Upgrade) setUpgradePlanDone(height uint64) error {
 }
 
 func (c *Upgrade) getUpgradePlanByHeight(height uint64) (plans []IUpgradePlan, err error) {
+	log.Info("Get upgrade plan", "module", "upgrade", "height", height, "plans", len(plans), "err", err)
 	names, _ := c.getUpgradePlanNameListByHeight(height)
 	for _, name := range names {
 		plan, err := c.getUpgradePlanByName(name)
