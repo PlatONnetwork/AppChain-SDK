@@ -24,7 +24,7 @@ import (
 
 const (
 	ModuleName    = "reward"
-	ModuleVersion = 1
+	ModuleVersion = 0
 )
 
 var _ module.ContractModule = (*RewardModule)(nil)

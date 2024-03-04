@@ -17,7 +17,7 @@ import (
 
 const (
 	ModuleName           = "l2StateSender"
-	ModuleVersion uint64 = 1
+	ModuleVersion uint64 = 0
 )
 
 var _ module.ContractModule = (*StateSenderModule)(nil)

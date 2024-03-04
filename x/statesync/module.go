@@ -38,7 +38,7 @@ import (
 
 const (
 	ModuleName           = "stateSync"
-	ModuleVersion uint64 = 1
+	ModuleVersion uint64 = 0
 )
 
 var _ module.ContractModule = (*StateSync)(nil)

@@ -19,7 +19,7 @@ import (
 
 const (
 	ModuleName    = "txRelayer"
-	ModuleVersion = 1
+	ModuleVersion = 0
 
 	DefaultRPCAddress     = "http://127.0.0.1:6789"
 	DefaultReceiptTimeout = 50 * time.Millisecond

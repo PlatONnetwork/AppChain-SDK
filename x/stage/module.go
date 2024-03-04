@@ -18,7 +18,7 @@ import (
 
 const (
 	ModuleName    = "stage"
-	ModuleVersion = 1
+	ModuleVersion = 0
 )
 
 var _ module.ContractModule = (*StageModule)(nil)

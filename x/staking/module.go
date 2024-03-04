@@ -34,7 +34,7 @@ import (
 
 const (
 	ModuleName    = "staking"
-	ModuleVersion = 1
+	ModuleVersion = 0
 )
 
 var _ module.ContractModule = (*StakeModule)(nil)

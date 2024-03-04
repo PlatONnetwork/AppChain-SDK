@@ -16,7 +16,7 @@ const (
 	cacheSize         = 100
 	ExtraVoteDatabase = "extraVote"
 
-	ModuleVersion uint64 = 1
+	ModuleVersion uint64 = 0
 )
 
 type ExtraVerifier interface {

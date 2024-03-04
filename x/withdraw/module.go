@@ -17,7 +17,7 @@ import (
 
 const (
 	ModuleName           = "withdraw"
-	ModuleVersion uint64 = 1
+	ModuleVersion uint64 = 0
 )
 
 var _ module.ContractModule = (*WithdrawModule)(nil)

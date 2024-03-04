@@ -19,7 +19,7 @@ import (
 
 const (
 	ModuleName           = "upgrade"
-	ModuleVersion uint64 = 1
+	ModuleVersion uint64 = 0
 )
 
 var (
