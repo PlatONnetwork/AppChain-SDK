@@ -74,7 +74,7 @@ func (c *VRFManager) Run(input []byte) (ret []byte, err error) {
 }
 
 func (c *VRFManager) initABI() {
-	V0 := uint16(0)
+	V0 := uint64(0)
 	c.abis[V0] = &Abi
 }
 
@@ -84,7 +84,7 @@ func (c *VRFManager) initMethodEntry() {
 
 		"5bf28775": c.PushNonceAndProofEntry,
 	}
-	V0 := uint16(0)
+	V0 := uint64(0)
 	c.methodEntries[V0] = methodEntry
 
 }
@@ -116,18 +116,18 @@ func (c *VRFManager) GetCreateBlock() uint64 {
 	return binary.BigEndian.Uint64(blockNumber)
 }
 
-func (c *VRFManager) SetVersion(version uint16) {
-	var data [2]byte
-	binary.BigEndian.PutUint16(data[:], version)
+func (c *VRFManager) SetVersion(version uint64) {
+	var data [8]byte
+	binary.BigEndian.PutUint64(data[:], version)
 	c.evm.StateDB.SetState(c.contract.Address(), versionKey, data[:])
 }
 
-func (c *VRFManager) GetVersion() uint16 {
+func (c *VRFManager) GetVersion() uint64 {
 	version := c.evm.StateDB.GetState(c.contract.Address(), versionKey)
 	if len(version) == 0 {
 		return 0
 	}
-	return binary.BigEndian.Uint16(version)
+	return binary.BigEndian.Uint64(version)
 }
 
 func (c *VRFManager) PushNonceAndProofEntry(input []byte) ([]byte, error) {

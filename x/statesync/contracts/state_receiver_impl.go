@@ -37,9 +37,9 @@ var (
 
 type StateReceiver struct {
 	abi           *abi.ABI
-	abis          map[uint16]*abi.ABI
+	abis          map[uint64]*abi.ABI
 	methodEntry   map[string]func([]byte) ([]byte, error)
-	methodEntries map[uint16]map[string]func([]byte) ([]byte, error)
+	methodEntries map[uint64]map[string]func([]byte) ([]byte, error)
 	readOnly      bool
 	contract      *vm.Contract
 	evm           *vm.EVM
@@ -52,9 +52,9 @@ type StateReceiver struct {
 func NewStateReceiver(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*StateReceiver, error) {
 	s := &StateReceiver{
 		abi:           nil,
-		abis:          make(map[uint16]*abi.ABI),
+		abis:          make(map[uint64]*abi.ABI),
 		methodEntry:   make(map[string]func([]byte) ([]byte, error)),
-		methodEntries: make(map[uint16]map[string]func([]byte) ([]byte, error)),
+		methodEntries: make(map[uint64]map[string]func([]byte) ([]byte, error)),
 		evm:           evm,
 		contract:      contract,
 		burner:        contracts.NewBurner(contract),

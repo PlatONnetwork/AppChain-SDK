@@ -107,7 +107,7 @@ func (c *StateReceiver) Run(input []byte) (ret []byte, err error) {
 }
 
 func (c *StateReceiver) initABI() {
-	V0 := uint16(0)
+	V0 := uint64(0)
 	c.abis[V0] = &Abi
 }
 
@@ -123,7 +123,7 @@ func (c *StateReceiver) initMethodEntry() {
 		"50d5b95b": c.ExecuteEntry,
 		"d1673d87": c.GetStateSyncIdEntry,
 	}
-	V0 := uint16(0)
+	V0 := uint64(0)
 	c.methodEntries[V0] = methodEntry
 
 }
@@ -155,18 +155,18 @@ func (c *StateReceiver) GetCreateBlock() uint64 {
 	return binary.BigEndian.Uint64(blockNumber)
 }
 
-func (c *StateReceiver) SetVersion(version uint16) {
-	var data [2]byte
-	binary.BigEndian.PutUint16(data[:], version)
+func (c *StateReceiver) SetVersion(version uint64) {
+	var data [8]byte
+	binary.BigEndian.PutUint64(data[:], version)
 	c.evm.StateDB.SetState(c.contract.Address(), versionKey, data[:])
 }
 
-func (c *StateReceiver) GetVersion() uint16 {
+func (c *StateReceiver) GetVersion() uint64 {
 	version := c.evm.StateDB.GetState(c.contract.Address(), versionKey)
 	if len(version) == 0 {
 		return 0
 	}
-	return binary.BigEndian.Uint16(version)
+	return binary.BigEndian.Uint64(version)
 }
 
 func (c *StateReceiver) GetCommitmentByStateSyncIdEntry(input []byte) ([]byte, error) {

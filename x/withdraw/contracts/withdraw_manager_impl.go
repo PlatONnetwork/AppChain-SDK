@@ -34,9 +34,9 @@ var (
 
 type WithdrawManager struct {
 	abi           *abi.ABI
-	abis          map[uint16]*abi.ABI
+	abis          map[uint64]*abi.ABI
 	methodEntry   map[string]func([]byte) ([]byte, error)
-	methodEntries map[uint16]map[string]func([]byte) ([]byte, error)
+	methodEntries map[uint64]map[string]func([]byte) ([]byte, error)
 	readOnly      bool
 	contract      *vm.Contract
 	evm           *vm.EVM
@@ -48,9 +48,9 @@ type WithdrawManager struct {
 func NewWithdrawManager(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*WithdrawManager, error) {
 	s := &WithdrawManager{
 		abi:           nil,
-		abis:          make(map[uint16]*abi.ABI),
+		abis:          make(map[uint64]*abi.ABI),
 		methodEntry:   make(map[string]func([]byte) ([]byte, error)),
-		methodEntries: make(map[uint16]map[string]func([]byte) ([]byte, error)),
+		methodEntries: make(map[uint64]map[string]func([]byte) ([]byte, error)),
 		evm:           evm,
 		contract:      contract,
 		burner:        contracts.NewBurner(contract),

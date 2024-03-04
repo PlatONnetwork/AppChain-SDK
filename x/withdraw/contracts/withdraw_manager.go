@@ -74,7 +74,7 @@ func (c *WithdrawManager) Run(input []byte) (ret []byte, err error) {
 }
 
 func (c *WithdrawManager) initABI() {
-	V0 := uint16(0)
+	V0 := uint64(0)
 	c.abis[V0] = &Abi
 }
 
@@ -85,7 +85,7 @@ func (c *WithdrawManager) initMethodEntry() {
 		"47e7ef24": c.DepositEntry,
 		"eeb49945": c.OnStateReceiveEntry,
 	}
-	V0 := uint16(0)
+	V0 := uint64(0)
 	c.methodEntries[V0] = methodEntry
 
 }
@@ -117,18 +117,18 @@ func (c *WithdrawManager) GetCreateBlock() uint64 {
 	return binary.BigEndian.Uint64(blockNumber)
 }
 
-func (c *WithdrawManager) SetVersion(version uint16) {
-	var data [2]byte
-	binary.BigEndian.PutUint16(data[:], version)
+func (c *WithdrawManager) SetVersion(version uint64) {
+	var data [8]byte
+	binary.BigEndian.PutUint64(data[:], version)
 	c.evm.StateDB.SetState(c.contract.Address(), versionKey, data[:])
 }
 
-func (c *WithdrawManager) GetVersion() uint16 {
+func (c *WithdrawManager) GetVersion() uint64 {
 	version := c.evm.StateDB.GetState(c.contract.Address(), versionKey)
 	if len(version) == 0 {
 		return 0
 	}
-	return binary.BigEndian.Uint16(version)
+	return binary.BigEndian.Uint64(version)
 }
 
 func (c *WithdrawManager) DepositEntry(input []byte) ([]byte, error) {
