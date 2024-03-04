@@ -54,6 +54,8 @@ func (m *Module) Version() uint64 {
 }
 
 func (m *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
+	db.SetNonce(m.Address(), 1)
+
 	var config types.GenesisConfig
 	raw, err := data.MarshalJSON()
 	if err != nil {
