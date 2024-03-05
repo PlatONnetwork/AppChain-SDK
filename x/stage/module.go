@@ -85,7 +85,7 @@ func (s *StageModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, read
 	return nil, nil
 }
 
-func (s *StageModule) ContractCreateBlockNumber(statedb sdk.StateDB) uint64 {
+func (s *StageModule) ContractCreateBlockNumber(statedb sdk.StateDBReader) uint64 {
 	// TODO: implement me
 	return 0
 }

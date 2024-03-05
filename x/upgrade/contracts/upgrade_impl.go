@@ -71,6 +71,7 @@ func (c *Upgrade) GetUpgradePlan(height uint64) ([]IUpgradePlan, error) {
 
 func (c *Upgrade) AddUpgradePlan(plan IUpgradePlan) error {
 	c.onlyOwner()
+	contracts.Require(plan.Height > c.evm.Context.BlockNumber.Uint64(), "invalid height")
 	return c.addUpgradePlan(plan)
 }
 
@@ -82,5 +83,6 @@ func (c *Upgrade) SetOwner(newOwner common.Address) error {
 
 func (c *Upgrade) SetUpgradePlanDone(height uint64) error {
 	c.onlyOwner()
+	contracts.Require(height == c.evm.Context.BlockNumber.Uint64(), "invalid height")
 	return c.setUpgradePlanDone(height)
 }

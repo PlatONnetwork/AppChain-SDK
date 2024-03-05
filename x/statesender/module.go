@@ -2,12 +2,14 @@ package statesender
 
 import (
 	"encoding/json"
+	"math/big"
 
 	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/statesender/contracts"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/params"
@@ -53,7 +55,7 @@ func (s *StateSenderModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainCo
 		return err
 	}
 
-	stateSender, _ := contracts.NewL2StateSender(sdkcontracts.NewEVM(db), sdkcontracts.NewContract(s, s), false)
+	stateSender, _ := contracts.NewL2StateSender(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(s, s), false)
 	stateSender.SetCreateBlock(config.CreateBlock)
 
 	return nil
@@ -68,7 +70,7 @@ func (s *StateSenderModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte
 	return l2StateSender.Run(input)
 }
 
-func (s *StateSenderModule) ContractCreateBlockNumber(statedb sdk.StateDB) uint64 {
-	stateSender, _ := contracts.NewL2StateSender(sdkcontracts.NewEVM(statedb), sdkcontracts.NewContract(s, s), false)
+func (s *StateSenderModule) ContractCreateBlockNumber(statedb sdk.StateDBReader) uint64 {
+	stateSender, _ := contracts.NewL2StateSender(sdkcontracts.NewEVM(types.NewStateDBWrapper(statedb), big.NewInt(0)), sdkcontracts.NewContract(s, s), false)
 	return stateSender.GetCreateBlock()
 }

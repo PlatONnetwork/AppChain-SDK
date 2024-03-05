@@ -2,13 +2,15 @@ package deposit
 
 import (
 	"encoding/json"
+	"math/big"
 
+	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/deposit/contracts"
-	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
 	deposittypes "github.com/PlatONnetwork/AppChain-SDK/x/deposit/types"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/params"
@@ -55,7 +57,7 @@ func (d *DepositModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig
 	if err := json.Unmarshal(raw, &config); err != nil {
 		return err
 	}
-	depositContract, _ := contracts.NewDepositHandler(sdkcontracts.NewEVM(db), sdkcontracts.NewContract(d, d), false)
+	depositContract, _ := contracts.NewDepositHandler(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(d, d), false)
 	depositContract.SetCreateBlock(config.CreateBlock)
 	return nil
 }
@@ -70,7 +72,7 @@ func (d *DepositModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, re
 	return depositHandler.Run(input)
 }
 
-func (d *DepositModule) ContractCreateBlockNumber(statedb sdk.StateDB) uint64 {
-	depositContract, _ := contracts.NewDepositHandler(sdkcontracts.NewEVM(statedb), sdkcontracts.NewContract(d, d), false)
+func (d *DepositModule) ContractCreateBlockNumber(statedb sdk.StateDBReader) uint64 {
+	depositContract, _ := contracts.NewDepositHandler(sdkcontracts.NewEVM(types.NewStateDBWrapper(statedb), big.NewInt(0)), sdkcontracts.NewContract(d, d), false)
 	return depositContract.GetCreateBlock()
 }

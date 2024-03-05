@@ -38,7 +38,7 @@ func (c stateReceiverContract) Run(evm *vm.EVM, contract *vm.Contract, input []b
 	return stateReceiver.Run(input)
 }
 
-func (c stateReceiverContract) ContractCreateBlockNumber(statedb sdk.StateDB) uint64 {
+func (c stateReceiverContract) ContractCreateBlockNumber(statedb sdk.StateDBReader) uint64 {
 	return 0
 }
 

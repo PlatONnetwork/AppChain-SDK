@@ -91,7 +91,7 @@ func (v *VRFModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *pa
 	initAccountNonce(db, v.Address())
 	initGenesisVRFNonce(db, v.Address(), chainConfig, configParams)
 
-	vrf, _ := contracts.NewVRFManager(sdkcontracts.NewEVM(db), sdkcontracts.NewContract(v, v), false)
+	vrf, _ := contracts.NewVRFManager(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(v, v), false)
 	vrf.SetCreateBlock(conf.CreateBlock)
 
 	log.Info("Succeed init genesis", "module", v.Name(), "createBlock", configParams.CreateBlock, "VRFNetworkParams", configParams.String())
@@ -109,8 +109,8 @@ func (v *VRFModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOn
 	return vrfManager.Run(input)
 }
 
-func (v *VRFModule) ContractCreateBlockNumber(statedb sdk.StateDB) uint64 {
-	vrf, _ := contracts.NewVRFManager(sdkcontracts.NewEVM(statedb), sdkcontracts.NewContract(v, v), false)
+func (v *VRFModule) ContractCreateBlockNumber(statedb sdk.StateDBReader) uint64 {
+	vrf, _ := contracts.NewVRFManager(sdkcontracts.NewEVM(types.NewStateDBWrapper(statedb), big.NewInt(0)), sdkcontracts.NewContract(v, v), false)
 	return vrf.GetCreateBlock()
 }
 
