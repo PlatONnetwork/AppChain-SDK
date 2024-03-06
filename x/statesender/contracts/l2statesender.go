@@ -74,7 +74,7 @@ func (c *L2StateSender) Run(input []byte) (ret []byte, err error) {
 }
 
 func (c *L2StateSender) initABI() {
-	V0 := uint16(0)
+	V0 := uint64(0)
 	c.abis[V0] = &Abi
 }
 
@@ -86,7 +86,7 @@ func (c *L2StateSender) initMethodEntry() {
 
 		"16f19831": c.SyncStateEntry,
 	}
-	V0 := uint16(0)
+	V0 := uint64(0)
 	c.methodEntries[V0] = methodEntry
 
 }
@@ -118,18 +118,18 @@ func (c *L2StateSender) GetCreateBlock() uint64 {
 	return binary.BigEndian.Uint64(blockNumber)
 }
 
-func (c *L2StateSender) SetVersion(version uint16) {
-	var data [2]byte
-	binary.BigEndian.PutUint16(data[:], version)
+func (c *L2StateSender) SetVersion(version uint64) {
+	var data [8]byte
+	binary.BigEndian.PutUint64(data[:], version)
 	c.evm.StateDB.SetState(c.contract.Address(), versionKey, data[:])
 }
 
-func (c *L2StateSender) GetVersion() uint16 {
+func (c *L2StateSender) GetVersion() uint64 {
 	version := c.evm.StateDB.GetState(c.contract.Address(), versionKey)
 	if len(version) == 0 {
 		return 0
 	}
-	return binary.BigEndian.Uint16(version)
+	return binary.BigEndian.Uint64(version)
 }
 
 func (c *L2StateSender) MAXLENGTHEntry(input []byte) ([]byte, error) {
