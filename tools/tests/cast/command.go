@@ -11,6 +11,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l2staking"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l2statesender"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l2statesync"
+	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l2testcontract"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l2upgrade"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l2validator"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/l2withdraw"
@@ -37,6 +38,7 @@ var (
 			l2withdraw.Command,
 			l2validator.Command,
 			l2upgrade.Command,
+			l2testcontract.Command,
 		},
 		Flags: []cli.Flag{
 			flags.RPCFlags,

@@ -18,9 +18,10 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/stateevent"
 	"github.com/PlatONnetwork/AppChain-SDK/x/statesender"
 	"github.com/PlatONnetwork/AppChain-SDK/x/statesync"
-	"github.com/PlatONnetwork/AppChain-SDK/x/testmod"
 	"github.com/PlatONnetwork/AppChain-SDK/x/txrelayer"
 	"github.com/PlatONnetwork/AppChain-SDK/x/upgrade"
+	"github.com/PlatONnetwork/AppChain-SDK/x/upgrade/testcontract"
+	"github.com/PlatONnetwork/AppChain-SDK/x/upgrade/testmod"
 	"github.com/PlatONnetwork/AppChain-SDK/x/vrf"
 	"github.com/PlatONnetwork/PlatON-Go/cmd/utils"
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -119,6 +120,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 	app.upgrade = upgrade.NewModule()
 
 	tm := testmod.NewModule()
+	tc := testcontract.NewModule()
 
 	manager := module.NewManager(
 		app.stateSync,
@@ -134,7 +136,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		app.deposit,
 		app.l2StateSender,
 		app.upgrade,
-		tm)
+		tm, tc)
 	manager.SetElection(app.staking.Name())
 	manager.SetConsensusExtend(app.extraVote.Name())
 	manager.SetOrderTransaction(app.stateSync.Name(), app.vrf.Name(), app.staking.Name())
@@ -161,6 +163,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		app.stateSync.Name(),
 		app.upgrade.Name(),
 		tm.Name(),
+		tc.Name(),
 	)
 
 	manager.SetModuleValidChecker(app.upgrade.IsModuleValid)
