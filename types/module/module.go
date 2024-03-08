@@ -23,6 +23,30 @@ type UpgradeHandler func(ctx sdk.WorkerContext) error
 // VersionMap is map of moduleName -> version
 type VersionMap map[string]uint64
 
+type ModuleVersion struct {
+	Name    string
+	Version uint64
+}
+
+type ModuleVersionList []ModuleVersion
+
+func (vm VersionMap) AsSliceSorted() ModuleVersionList {
+	keys := make(sort.StringSlice, 0)
+	for name, _ := range vm {
+		keys = append(keys, name)
+	}
+	keys.Sort()
+
+	l := make(ModuleVersionList, len(keys))
+	for i, key := range keys {
+		l[i] = ModuleVersion{
+			Name:    key,
+			Version: vm[key],
+		}
+	}
+	return l
+}
+
 // ValidNumberMap is map of moduleName -> blockNumber
 type ValidNumberMap map[string]uint64
 
@@ -575,6 +599,14 @@ func (m *Manager) GetModuleInitValidNumberMap(chainConfig *params.ChainConfig, d
 		}
 	}
 	return vn
+}
+
+func (m *Manager) IsContractModule(moduleName string) bool {
+	yesOrNo := false
+	if module, ok := m.Modules[moduleName]; ok {
+		_, yesOrNo = module.(ContractModule)
+	}
+	return yesOrNo
 }
 
 func (m *Manager) assertNoForgottenModules(setOrderFnName string, moduleNames []string, pass func(moduleName string) bool) {

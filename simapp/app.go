@@ -117,7 +117,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 
 	app.extraVote = extravote.NewExtraVote(store, []extravote.ExtraVerifier{app.stateSync, app.checkpoint})
 
-	app.upgrade = upgrade.NewModule()
+	app.upgrade = upgrade.NewModule(store)
 
 	tm := testmod.NewModule()
 	tc := testcontract.NewModule()
@@ -169,6 +169,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 	manager.SetModuleValidChecker(app.upgrade.IsModuleValid)
 
 	manager.RegisterUpgradeHandler(app.upgrade)
+	app.upgrade.SetIsContractModule(manager.IsContractModule)
 
 	baseApp, err := baseapp.NewBaseApp("simapp", store, manager)
 	if err != nil {
@@ -270,7 +271,15 @@ func (s *SimApp) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *param
 	if err := s.manager.InitGenesis(ctx, db, chainConfig, data); err != nil {
 		return err
 	}
-	return s.upgrade.SetModuleValidNumberMap(db, s.manager.GetModuleInitValidNumberMap(chainConfig, db))
+	if err := s.upgrade.SetModuleValidNumberMap(db, s.manager.GetModuleInitValidNumberMap(chainConfig, db)); err != nil {
+		return err
+	}
+
+	vm, err := module.GetVersionMapFromGenesis(chainConfig.Modules)
+	if err != nil {
+		return err
+	}
+	return s.upgrade.SetModuleVersionMap(db, vm)
 }
 
 func (s *SimApp) BeginBlock(ctx sdk.WorkerContext) error {

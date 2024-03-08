@@ -6,9 +6,11 @@ import (
 	"math/big"
 
 	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
+	"github.com/PlatONnetwork/AppChain-SDK/store"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/upgrade/contracts"
+	"github.com/PlatONnetwork/AppChain-SDK/x/upgrade/storage"
 	"github.com/PlatONnetwork/AppChain-SDK/x/upgrade/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	coretypes "github.com/PlatONnetwork/PlatON-Go/core/types"
@@ -31,19 +33,27 @@ var (
 )
 
 type Module struct {
+	kv     *storage.Storage
 	logger log.Logger
 
 	upgradeHandlers      map[string]map[uint64]module.UpgradeHandler
 	moduleValidNumberMap map[string]uint64
+
+	isContractModule func(string) bool
 }
 
-func NewModule() *Module {
+func NewModule(store store.Store) *Module {
 	return &Module{
+		kv:     storage.NewStorage(store.GetKVStore(ModuleName)),
 		logger: log.New("module", ModuleName),
 
 		upgradeHandlers:      make(map[string]map[uint64]module.UpgradeHandler, 0),
 		moduleValidNumberMap: make(map[string]uint64, 0),
 	}
+}
+
+func (m *Module) SetIsContractModule(isContractModule func(string) bool) {
+	m.isContractModule = isContractModule
 }
 
 func (m *Module) Name() string {
@@ -67,11 +77,19 @@ func (m *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *param
 		m.logger.Error("Failed to unmarshal upgrade.GenesisConfig", "err", err)
 		return err
 	}
-	upgradeContract, _ := contracts.NewUpgrade(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(m, m), false)
-	upgradeContract.SetOwner(config.Owner)
-	upgradeContract.SetCreateBlock(config.CreateBlock)
+	upgrade, _ := contracts.NewUpgrade(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(m, m), false)
+	upgrade.SetOwner(config.Owner)
+	upgrade.SetCreateBlock(config.CreateBlock)
 	m.logger.Info("Init genesis", "owner", config.Owner, "createBlock", config.CreateBlock)
-	return nil
+
+	vm, err := module.GetVersionMapFromGenesis(chainConfig.Modules)
+	if err != nil {
+		m.logger.Error("Failed to get version map from genesis config", "err", err)
+		return err
+	}
+	buf, _ := json.Marshal(&vm)
+	m.logger.Info("Set version map to local storage", "vm", string(buf))
+	return m.kv.SetVersionMap(vm)
 }
 
 func (m *Module) Address() common.Address {
@@ -79,29 +97,70 @@ func (m *Module) Address() common.Address {
 }
 
 func (m *Module) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly bool) ([]byte, error) {
-	upgradeContract, _ := contracts.NewUpgrade(evm, contract, readOnly)
-	return upgradeContract.Run(input)
+	upgrade, _ := contracts.NewUpgrade(evm, contract, readOnly)
+	return upgrade.Run(input)
 }
 
 func (m *Module) ContractCreateBlockNumber(db sdk.StateDBReader) uint64 {
-	upgradeContract, _ := contracts.NewUpgrade(sdkcontracts.NewEVM(coretypes.NewStateDBWrapper(db), big.NewInt(0)), sdkcontracts.NewContract(m, m), true)
-	return upgradeContract.GetCreateBlock()
+	upgrade, _ := contracts.NewUpgrade(sdkcontracts.NewEVM(coretypes.NewStateDBWrapper(db), big.NewInt(0)), sdkcontracts.NewContract(m, m), true)
+	return upgrade.GetCreateBlock()
 }
 
 func (m *Module) BeginBlock(ctx sdk.WorkerContext) error {
-	// TODO: executing upgrade plan when fast sync finish
+	localVm, err := m.kv.GetVersionMap()
+	if err != nil {
+		m.logger.Error("Failed to get local version map", "err", err)
+		return err
+	}
 
 	blockNumber := ctx.Header().Number
-	upgradeContract, _ := contracts.NewUpgrade(sdkcontracts.NewEVM(ctx.StateDB(), blockNumber), sdkcontracts.NewContract(m, m), true)
-	plans, err := upgradeContract.GetUpgradePlan(ctx.Header().Number.Uint64())
+	upgrade, _ := contracts.NewUpgrade(sdkcontracts.NewEVM(ctx.StateDB(), blockNumber), sdkcontracts.NewContract(m, m), true)
+	stateVm, err := upgrade.GetModuleVersionMap()
+	if err != nil {
+		m.logger.Error("Failed to get state version map", "err", err)
+		return err
+	}
+
+	for name, ver := range stateVm {
+		if ver <= localVm[name] {
+			continue
+		}
+		localVm[name] = ver
+
+		// Contract module's states store in `StateDB`, so skip it after fast sync.
+		if m.isContractModule(name) {
+			continue
+		}
+
+		if m.upgradeHandlers[name] == nil {
+			panic(fmt.Sprintf("Cannot found the module's upgrade handler(name: %s,version:%d,height:%d)", name))
+		}
+		handlers := m.upgradeHandlers[name]
+
+		for i := localVm[name]; i <= ver; i++ {
+			err = handlers[i](ctx)
+			if err != nil {
+				panic(fmt.Sprintf("Failed to execute upgrade module handler(name:%s,version:%d,err:%v)", name, i, err))
+			}
+		}
+	}
+
+	plans, err := upgrade.GetUpgradePlan(ctx.Header().Number.Uint64())
 	if err != nil {
 		m.logger.Error("Failed to get plans", "height", ctx.Header().Number, "err", err)
 		return err
 	}
-	m.logger.Info("Begin block", "plans", len(plans), "number", ctx.Header().Number)
+	lb, _ := json.Marshal(&localVm)
+	sb, _ := json.Marshal(&stateVm)
+	m.logger.Info("Begin block", "plans", len(plans), "number", ctx.Header().Number, "lb", string(lb), "sb", string(sb))
 
 	for _, plan := range plans {
+		m.logger.Info("Begin block", "plan", plan.String())
 		for _, mod := range plan.Modules {
+			if ver, ok := localVm[mod.ModuleName]; ok && ver >= mod.Version {
+				continue
+			}
+
 			handlerFound := false
 			if handlers, ok := m.upgradeHandlers[mod.ModuleName]; ok {
 				if handler, found := handlers[mod.Version]; found && handler != nil {
@@ -110,6 +169,8 @@ func (m *Module) BeginBlock(ctx sdk.WorkerContext) error {
 					if err != nil {
 						panic(fmt.Sprintf("Failed to execute upgrade module handler(name:%s,version:%d,height:%d,err:%v)", mod.ModuleName, mod.Version, plan.Height, err))
 					}
+					localVm[mod.ModuleName] = mod.Version
+					stateVm[mod.ModuleName] = mod.Version
 					m.logger.Info("Module success upgraded", "upgradedModule", mod.ModuleName, "version", mod.Version, "height", plan.Height)
 				}
 			}
@@ -119,8 +180,15 @@ func (m *Module) BeginBlock(ctx sdk.WorkerContext) error {
 		}
 	}
 	if len(plans) > 0 {
-		if err := upgradeContract.SetUpgradePlanDone(blockNumber.Uint64()); err != nil {
+		if err := upgrade.SetUpgradePlanDone(blockNumber.Uint64()); err != nil {
 			panic(err)
+		}
+
+		if err := m.kv.SetVersionMap(localVm); err != nil {
+			return err
+		}
+		if err := upgrade.SetModuleVersionMap(stateVm); err != nil {
+			return err
 		}
 
 		vn, err := m.GetModuleValidNumberMap(ctx.StateDB())
@@ -151,6 +219,18 @@ func (m *Module) SetModuleValidNumberMap(db sdk.StateDB, vn module.ValidNumberMa
 func (m *Module) GetModuleValidNumberMap(db sdk.StateDBReader) (module.ValidNumberMap, error) {
 	upgradeContract, _ := contracts.NewUpgrade(sdkcontracts.NewEVM(coretypes.NewStateDBWrapper(db), big.NewInt(0)), sdkcontracts.NewContract(m, m), false)
 	return upgradeContract.GetModuleValidNumberMap()
+}
+
+func (m *Module) SetModuleVersionMap(db sdk.StateDB, vm module.VersionMap) error {
+	buf, _ := json.Marshal(&vm)
+	m.logger.Info("Set module version map", "vm", string(buf))
+	upgrade, _ := contracts.NewUpgrade(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(m, m), false)
+	return upgrade.SetModuleVersionMap(vm)
+}
+
+func (m *Module) GetModuleVersionMap(db sdk.StateDBReader) (module.VersionMap, error) {
+	upgrade, _ := contracts.NewUpgrade(sdkcontracts.NewEVM(coretypes.NewStateDBWrapper(db), big.NewInt(0)), sdkcontracts.NewContract(m, m), false)
+	return upgrade.GetModuleVersionMap()
 }
 
 func (m *Module) IsModuleValid(db sdk.StateDBReader, moduleName string, blockNumber uint64) bool {

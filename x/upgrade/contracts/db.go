@@ -24,6 +24,7 @@ var (
 	planKeyPrefix        = "plan/"
 	planHeightKeyPrefix  = "plan/height/"
 	moduleValidNumberKey = []byte("module/valid/number")
+	moduleVersionKey     = []byte("module/version")
 
 	ErrPlanNotFound = errors.New("upgrade plan not found")
 )
@@ -107,6 +108,7 @@ func (c *Upgrade) setUpgradePlanDone(height uint64) error {
 		if err != nil {
 			return err
 		}
+
 		plan.Status = DONE
 		if err = c.setUpgradePlan(plan); err != nil {
 			return err
@@ -188,9 +190,7 @@ func (c *Upgrade) getUpgradePlanNameListByHeight(height uint64) (names NameArarr
 type ModuleValidNumberList []module.ModuleValidNumber
 
 func (c *Upgrade) SetModuleValidNumberMap(vn module.ValidNumberMap) error {
-	if len(vn) == 0 {
-		return errors.New("empty module valid number map")
-	}
+	contracts.Require(len(vn) > 0, "empty module valid number map")
 
 	l := vn.AsSliceSorted()
 	val, err := rlp.EncodeToBytes(&l)
@@ -202,7 +202,7 @@ func (c *Upgrade) SetModuleValidNumberMap(vn module.ValidNumberMap) error {
 }
 
 func (c *Upgrade) GetModuleValidNumberMap() (module.ValidNumberMap, error) {
-	vn := make(map[string]uint64, 0)
+	vn := make(module.ValidNumberMap, 0)
 	val := c.stateDb.GetState(c.contract.Address(), moduleValidNumberKey)
 	if len(val) != 0 {
 		var l ModuleValidNumberList
@@ -215,6 +215,36 @@ func (c *Upgrade) GetModuleValidNumberMap() (module.ValidNumberMap, error) {
 		return vn, nil
 	}
 	return vn, errors.New("empty module valid number map")
+}
+
+func (c *Upgrade) SetModuleVersionMap(vm module.VersionMap) error {
+	c.onlyOwner()
+	contracts.Require(len(vm) > 0, "empty module version map")
+
+	l := vm.AsSliceSorted()
+	val, err := rlp.EncodeToBytes(&l)
+	if err != nil {
+		return err
+	}
+	c.stateDb.SetState(c.contract.Address(), moduleVersionKey, val)
+	return nil
+}
+
+func (c *Upgrade) GetModuleVersionMap() (module.VersionMap, error) {
+	vm := make(module.VersionMap, 0)
+	val := c.stateDb.GetState(c.contract.Address(), moduleVersionKey)
+	if len(val) != 0 {
+		var l module.ModuleVersionList
+		if err := rlp.DecodeBytes(val, &l); err != nil {
+			return vm, err
+		}
+
+		for _, mvm := range l {
+			vm[mvm.Name] = mvm.Version
+		}
+		return vm, nil
+	}
+	return vm, errors.New("empty version map")
 }
 
 func encodePlanKey(name string) []byte {
