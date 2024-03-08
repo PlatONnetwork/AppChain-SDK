@@ -45,7 +45,7 @@ type tmplContract struct {
 
 type tmplUpgradeData struct {
 	*tmplData
-	Version    uint16
+	Version    uint64
 	Entries    map[string]string
 	NewStructs map[string]*tmplStruct
 }
@@ -592,7 +592,7 @@ var (
 
 {{$contract := .Contract}}
 func ({{$ReceiverName}} *{{$contract.Type}}) initABIV{{.Version}}() {
-	V{{.Version}} := uint16({{.Version}})
+	V{{.Version}} := uint64({{.Version}})
 	{{$ReceiverName}}.abis[V{{.Version}}] = &AbiV{{.Version}}
 }
 
@@ -601,7 +601,7 @@ func ({{$ReceiverName}} *{{$contract.Type}}) initMethodV{{.Version}}Entry() {
         {{range $id, $name := .Entries}}
         "{{$id}}" : {{$ReceiverName}}.{{$name}}Entry,{{end}}
     }
-	V{{.Version}} := uint16({{.Version}})
+	V{{.Version}} := uint64({{.Version}})
 	{{$ReceiverName}}.methodEntries[V{{.Version}}] = methodEntry
 }
 {{range .Contract.Calls}}
