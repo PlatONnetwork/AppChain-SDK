@@ -185,10 +185,7 @@ func contractUpgrade(ctx *cli.Context) error {
 			newStructs[m] = struct{}{}
 		}
 	}
-	receiverName := ""
-	if ctx.IsSet(receiverNameFlag.Name) {
-		receiverName = ctx.String(receiverNameFlag.Name)
-	}
+	receiverName := ctx.String(receiverNameFlag.Name)
 
 	var types string
 	if ctx.IsSet(typeFlag.Name) {
@@ -205,7 +202,7 @@ func contractUpgrade(ctx *cli.Context) error {
 		tmplData:   bindData,
 		NewStructs: make(map[string]*tmplStruct),
 	}
-	data.Version = uint16(version)
+	data.Version = version
 	entries := make(map[string]string)
 	for _, e := range data.Contract.Calls {
 		entries[hexId(e.Original.ID)] = e.Normalized.Name
