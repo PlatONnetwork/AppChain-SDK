@@ -30,7 +30,7 @@ var (
 
 // L2testcontractMetaData contains all meta data concerning the L2testcontract contract.
 var L2testcontractMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[],\"name\":\"count\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"incr\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"name\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
+	ABI: "[{\"inputs\":[],\"name\":\"count\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"dec\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"incr\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"name\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
 }
 
 // L2testcontractABI is the input ABI used to generate the binding from.
@@ -239,6 +239,27 @@ func (_L2testcontract *L2testcontractSession) Name() (string, error) {
 // Solidity: function name() view returns(string)
 func (_L2testcontract *L2testcontractCallerSession) Name() (string, error) {
 	return _L2testcontract.Contract.Name(&_L2testcontract.CallOpts)
+}
+
+// Dec is a paid mutator transaction binding the contract method 0xb3bcfa82.
+//
+// Solidity: function dec() returns()
+func (_L2testcontract *L2testcontractTransactor) Dec(opts *bind.TransactOpts) (*types.Transaction, error) {
+	return _L2testcontract.contract.Transact(opts, "dec")
+}
+
+// Dec is a paid mutator transaction binding the contract method 0xb3bcfa82.
+//
+// Solidity: function dec() returns()
+func (_L2testcontract *L2testcontractSession) Dec() (*types.Transaction, error) {
+	return _L2testcontract.Contract.Dec(&_L2testcontract.TransactOpts)
+}
+
+// Dec is a paid mutator transaction binding the contract method 0xb3bcfa82.
+//
+// Solidity: function dec() returns()
+func (_L2testcontract *L2testcontractTransactorSession) Dec() (*types.Transaction, error) {
+	return _L2testcontract.Contract.Dec(&_L2testcontract.TransactOpts)
 }
 
 // Incr is a paid mutator transaction binding the contract method 0x119fbbd4.

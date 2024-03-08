@@ -15,10 +15,23 @@ func (c *Counter) count() uint64 {
 }
 
 func (c *Counter) incr() {
-	old := c.count()
-	old = old + 1
+	n := c.count()
+	n = n + 1
 
+	c.set(n)
+}
+
+func (c *Counter) dec() {
+	old := c.count()
+	if old > 0 {
+		old = old - 1
+	}
+
+	c.set(old)
+}
+
+func (c *Counter) set(n uint64) {
 	var data [8]byte
-	binary.BigEndian.PutUint64(data[:], old)
+	binary.BigEndian.PutUint64(data[:], n)
 	c.stateDb.SetState(c.contract.Address(), key, data[:])
 }

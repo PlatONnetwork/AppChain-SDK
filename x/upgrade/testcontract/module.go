@@ -17,7 +17,7 @@ import (
 
 const (
 	ModuleName           = "testcontract"
-	ModuleVersion uint64 = 0
+	ModuleVersion uint64 = 1
 )
 
 var (
@@ -68,13 +68,18 @@ func (m *Module) ContractCreateBlockNumber(db sdk.StateDBReader) uint64 {
 }
 
 func (m *Module) RegistryUpgradeHandler(registrar module.UpgradeRegistrar) error {
-	registrar.RegisterUpgradeHandler(ModuleName, ModuleVersion, func(ctx sdk.WorkerContext) error {
+	registrar.RegisterUpgradeHandler(ModuleName, 0, func(ctx sdk.WorkerContext) error {
 		if err := m.InitGenesis(ctx, ctx.StateDB(), ctx.Backend().ChainConfig(), nil); err != nil {
 			return err
 		}
 
 		c, _ := contracts.NewCounter(sdkcontracts.NewEVM(ctx.StateDB(), big.NewInt(0)), sdkcontracts.NewContract(m, m), false)
 		c.SetCreateBlock(ctx.Header().Number.Uint64())
+		return nil
+	})
+	registrar.RegisterUpgradeHandler(ModuleName, ModuleVersion, func(ctx sdk.WorkerContext) error {
+		m.logger.Info("Update contract version", "version", ModuleVersion)
+		c, _ := contracts.NewCounter(sdkcontracts.NewEVM(ctx.StateDB(), big.NewInt(0)), sdkcontracts.NewContract(m, m), false)
 		c.SetVersion(ModuleVersion)
 		return nil
 	})
