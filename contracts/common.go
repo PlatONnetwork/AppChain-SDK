@@ -102,8 +102,8 @@ func allZero(b []byte) bool {
 	return true
 }
 
-func NewEVM(statedb sdk.StateDB) *vm.EVM {
-	return vm.NewEVM(vm.BlockContext{GasLimit: math.MaxUint64}, vm.TxContext{}, statedb, &params.ChainConfig{}, vm.Config{}, nil)
+func NewEVM(statedb sdk.StateDB, blockNumber *big.Int) *vm.EVM {
+	return vm.NewEVM(vm.BlockContext{GasLimit: math.MaxUint64, BlockNumber: blockNumber}, vm.TxContext{}, statedb, &params.ChainConfig{}, vm.Config{}, nil)
 }
 
 func NewContract(caller, contract vm.ContractRef) *vm.Contract {

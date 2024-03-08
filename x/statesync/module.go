@@ -38,7 +38,7 @@ import (
 
 const (
 	ModuleName           = "stateSync"
-	ModuleVersion uint64 = 1
+	ModuleVersion uint64 = 0
 )
 
 var _ module.ContractModule = (*StateSync)(nil)
@@ -101,7 +101,7 @@ func (s *StateSync) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *pa
 		return err
 	}
 
-	stateSync, _ := contracts.NewStateReceiver(sdkcontracts.NewEVM(db), sdkcontracts.NewContract(s, s), false)
+	stateSync, _ := contracts.NewStateReceiver(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(s, s), false)
 	stateSync.SetCreateBlock(config.CreateBlock)
 
 	return nil
@@ -169,8 +169,8 @@ func (s *StateSync) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOn
 	return stateReceiver.Run(input)
 }
 
-func (s *StateSync) ContractCreateBlockNumber(statedb sdk.StateDB) uint64 {
-	stateSync, _ := contracts.NewStateReceiver(sdkcontracts.NewEVM(statedb), sdkcontracts.NewContract(s, s), false)
+func (s *StateSync) ContractCreateBlockNumber(statedb sdk.StateDBReader) uint64 {
+	stateSync, _ := contracts.NewStateReceiver(sdkcontracts.NewEVM(types.NewStateDBWrapper(statedb), big.NewInt(0)), sdkcontracts.NewContract(s, s), false)
 	return stateSync.GetCreateBlock()
 }
 

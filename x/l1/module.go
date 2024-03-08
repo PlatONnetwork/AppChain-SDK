@@ -14,7 +14,7 @@ import (
 
 const (
 	ModuleName    = "l1"
-	ModuleVersion = 1
+	ModuleVersion = 0
 )
 
 type L1ConfigParams struct {

@@ -5,6 +5,8 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
+	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
@@ -12,9 +14,6 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/event"
-
-	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
-	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -31,7 +30,7 @@ var (
 	_ = event.NewSubscription
 )
 
-type Upgrade struct {
+type Counter struct {
 	abi           *abi.ABI
 	abis          map[uint64]*abi.ABI
 	methodEntry   map[string]func([]byte) ([]byte, error)
@@ -44,8 +43,8 @@ type Upgrade struct {
 	fallback      func(input []byte) ([]byte, error)
 }
 
-func NewUpgrade(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*Upgrade, error) {
-	s := &Upgrade{
+func NewCounter(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*Counter, error) {
+	s := &Counter{
 		abi:           nil,
 		abis:          make(map[uint64]*abi.ABI),
 		methodEntry:   make(map[string]func([]byte) ([]byte, error)),
@@ -61,28 +60,15 @@ func NewUpgrade(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*Upgrade, er
 	return s, nil
 }
 
-func (c *Upgrade) GetOwner() (common.Address, error) {
-	return c.getOwner(), nil
+func (c *Counter) Count() (uint64, error) {
+	return c.count(), nil
 }
 
-func (c *Upgrade) GetUpgradePlan(height uint64) ([]IUpgradePlan, error) {
-	return c.getUpgradePlan(height)
+func (c *Counter) Name() (string, error) {
+	return "testcontract", nil
 }
 
-func (c *Upgrade) AddUpgradePlan(plan IUpgradePlan) error {
-	c.onlyOwner()
-	contracts.Require(plan.Height > c.evm.Context.BlockNumber.Uint64(), "invalid height")
-	return c.addUpgradePlan(plan)
-}
-
-func (c *Upgrade) SetOwner(newOwner common.Address) error {
-	c.onlyOwner()
-	c.setOwner(newOwner)
+func (c *Counter) Incr() error {
+	c.incr()
 	return nil
-}
-
-func (c *Upgrade) SetUpgradePlanDone(height uint64) error {
-	c.onlyOwner()
-	contracts.Require(height == c.evm.Context.BlockNumber.Uint64(), "invalid height")
-	return c.setUpgradePlanDone(height)
 }

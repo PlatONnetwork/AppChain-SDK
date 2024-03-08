@@ -25,7 +25,7 @@ import (
 	"gopkg.in/urfave/cli.v1"
 )
 
-const ModuleVersion uint64 = 1
+const ModuleVersion uint64 = 0
 
 var (
 	_ module.Module     = (*Module)(nil)

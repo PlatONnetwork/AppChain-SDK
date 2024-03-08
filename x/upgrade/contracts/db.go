@@ -1,13 +1,17 @@
 package contracts
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
 
 	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
+	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 )
 
 const (
@@ -16,14 +20,20 @@ const (
 )
 
 var (
-	ownerKey            = []byte("owner")
-	planKeyPrefix       = "plan/"
-	planHeightKeyPrefix = "plan/height/"
+	ownerKey             = []byte("owner")
+	planKeyPrefix        = "plan/"
+	planHeightKeyPrefix  = "plan/height/"
+	moduleValidNumberKey = []byte("module/valid/number")
 
 	ErrPlanNotFound = errors.New("upgrade plan not found")
 )
 
 type NameArarry []string
+
+func (u *IUpgradePlan) String() string {
+	buf, _ := json.Marshal(u)
+	return string(buf)
+}
 
 func (c *Upgrade) setOwner(newOwner common.Address) {
 	c.stateDb.SetState(c.contract.Address(), ownerKey, newOwner.Bytes())
@@ -51,7 +61,14 @@ func (c *Upgrade) getUpgradePlan(height uint64) ([]IUpgradePlan, error) {
 	return c.getUpgradePlanByHeight(height)
 }
 
-func (c *Upgrade) addUpgradePlan(plan IUpgradePlan) error {
+func (c *Upgrade) addUpgradePlan(plan IUpgradePlan) (err error) {
+	defer func() {
+		if err != nil {
+			log.Warn("failed to add upgrade plan", "module", "upgrade", "plan", plan.String(), "err", err)
+		} else {
+			log.Info("Add upgrade plan success", "module", "upgrade", "plan", plan.String())
+		}
+	}()
 	oldPlan, err := c.getUpgradePlanByName(plan.Name)
 	if err != nil && err != ErrPlanNotFound {
 		return err
@@ -60,10 +77,30 @@ func (c *Upgrade) addUpgradePlan(plan IUpgradePlan) error {
 	if err = c.setUpgradePlan(plan); err != nil {
 		return err
 	}
-	return c.addUpgradePlanToHeightArray(plan.Height, plan.Name)
+	if err := c.addUpgradePlanToHeightArray(plan.Height, plan.Name); err != nil {
+		return err
+	}
+
+	vn, err := c.GetModuleValidNumberMap()
+	if err != nil {
+		return err
+	}
+
+	for _, mod := range plan.Modules {
+		if _, ok := vn[mod.ModuleName]; !ok {
+			vn[mod.ModuleName] = math.MaxUint64
+			log.Info("Initialize module valid number", "module", mod.ModuleName, "validNumber", vn[mod.ModuleName])
+		}
+	}
+	return c.SetModuleValidNumberMap(vn)
 }
 
 func (c *Upgrade) setUpgradePlanDone(height uint64) error {
+	vn, err := c.GetModuleValidNumberMap()
+	if err != nil {
+		log.Warn("failed to get module valid number map", "module", "upgrade", "height", height)
+		return err
+	}
 	names, _ := c.getUpgradePlanNameListByHeight(height)
 	for _, name := range names {
 		plan, err := c.getUpgradePlanByName(name)
@@ -74,11 +111,21 @@ func (c *Upgrade) setUpgradePlanDone(height uint64) error {
 		if err = c.setUpgradePlan(plan); err != nil {
 			return err
 		}
+
+		for _, mod := range plan.Modules {
+			if _, ok := vn[mod.ModuleName]; ok {
+				if vn[mod.ModuleName] == math.MaxUint64 {
+					vn[mod.ModuleName] = height
+					log.Info("Set module valid number", "module", mod.ModuleName, "validNumber", vn[mod.ModuleName])
+				}
+			}
+		}
 	}
-	return nil
+	return c.SetModuleValidNumberMap(vn)
 }
 
 func (c *Upgrade) getUpgradePlanByHeight(height uint64) (plans []IUpgradePlan, err error) {
+	log.Info("Get upgrade plan", "module", "upgrade", "height", height, "plans", len(plans), "err", err)
 	names, _ := c.getUpgradePlanNameListByHeight(height)
 	for _, name := range names {
 		plan, err := c.getUpgradePlanByName(name)
@@ -136,6 +183,38 @@ func (c *Upgrade) getUpgradePlanNameListByHeight(height uint64) (names NameArarr
 		}
 	}
 	return
+}
+
+type ModuleValidNumberList []module.ModuleValidNumber
+
+func (c *Upgrade) SetModuleValidNumberMap(vn module.ValidNumberMap) error {
+	if len(vn) == 0 {
+		return errors.New("empty module valid number map")
+	}
+
+	l := vn.AsSliceSorted()
+	val, err := rlp.EncodeToBytes(&l)
+	if err != nil {
+		return err
+	}
+	c.stateDb.SetState(c.contract.Address(), moduleValidNumberKey, val)
+	return nil
+}
+
+func (c *Upgrade) GetModuleValidNumberMap() (module.ValidNumberMap, error) {
+	vn := make(map[string]uint64, 0)
+	val := c.stateDb.GetState(c.contract.Address(), moduleValidNumberKey)
+	if len(val) != 0 {
+		var l ModuleValidNumberList
+		if err := rlp.DecodeBytes(val, &l); err != nil {
+			return vn, err
+		}
+		for _, mvn := range l {
+			vn[mvn.Name] = mvn.ValidNumber
+		}
+		return vn, nil
+	}
+	return vn, errors.New("empty module valid number map")
 }
 
 func encodePlanKey(name string) []byte {

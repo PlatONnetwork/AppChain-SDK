@@ -2,12 +2,14 @@ package withdraw
 
 import (
 	"encoding/json"
+	"math/big"
 
 	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/withdraw/contracts"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/params"
@@ -17,7 +19,7 @@ import (
 
 const (
 	ModuleName           = "withdraw"
-	ModuleVersion uint64 = 1
+	ModuleVersion uint64 = 0
 )
 
 var _ module.ContractModule = (*WithdrawModule)(nil)
@@ -53,7 +55,7 @@ func (w *WithdrawModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfi
 		return err
 	}
 
-	withdraw, _ := contracts.NewWithdrawManager(sdkcontracts.NewEVM(db), sdkcontracts.NewContract(w, w), false)
+	withdraw, _ := contracts.NewWithdrawManager(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(w, w), false)
 	withdraw.SetCreateBlock(config.CreateBlock)
 
 	return nil
@@ -68,7 +70,7 @@ func (w *WithdrawModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, r
 	return withdrawManaher.Run(input)
 }
 
-func (w *WithdrawModule) ContractCreateBlockNumber(statedb sdk.StateDB) uint64 {
-	withdraw, _ := contracts.NewWithdrawManager(sdkcontracts.NewEVM(statedb), sdkcontracts.NewContract(w, w), false)
+func (w *WithdrawModule) ContractCreateBlockNumber(statedb sdk.StateDBReader) uint64 {
+	withdraw, _ := contracts.NewWithdrawManager(sdkcontracts.NewEVM(types.NewStateDBWrapper(statedb), big.NewInt(0)), sdkcontracts.NewContract(w, w), false)
 	return withdraw.GetCreateBlock()
 }

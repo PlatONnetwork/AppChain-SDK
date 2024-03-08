@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"strings"
 
+	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
@@ -15,25 +16,23 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/event"
-
-	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
 var (
-	_                     = vm.EVM{}
-	_                     = errors.New
-	_                     = big.NewInt
-	_                     = strings.NewReader
-	_                     = platon.NotFound
-	_                     = bind.Bind
-	_                     = common.Big1
-	_              uint64 = math.MaxUint64
-	_                     = binary.BigEndian
-	_                     = types.BloomLookup
-	_                     = event.NewSubscription
-	versionKey            = []byte("version")
-	createBlockKey        = []byte("createBlock")
+	_              = vm.EVM{}
+	_              = errors.New
+	_              = big.NewInt
+	_              = strings.NewReader
+	_              = platon.NotFound
+	_              = bind.Bind
+	_              = common.Big1
+	_              = math.ReadBits
+	_              = binary.BigEndian
+	_              = types.BloomLookup
+	_              = event.NewSubscription
+	versionKey     = []byte("version")
+	createBlockKey = []byte("createBlock")
 )
 
 // IUpgradeModule is an auto generated low-level Go binding around an user-defined struct.
@@ -90,7 +89,7 @@ func (c *Upgrade) Run(input []byte) (ret []byte, err error) {
 }
 
 func (c *Upgrade) initABI() {
-	V0 := uint16(0)
+	V0 := uint64(0)
 	c.abis[V0] = &Abi
 }
 
@@ -104,7 +103,7 @@ func (c *Upgrade) initMethodEntry() {
 		"13af4035": c.SetOwnerEntry,
 		"ab4f4c2f": c.SetUpgradePlanDoneEntry,
 	}
-	V0 := uint16(0)
+	V0 := uint64(0)
 	c.methodEntries[V0] = methodEntry
 
 }
@@ -136,18 +135,18 @@ func (c *Upgrade) GetCreateBlock() uint64 {
 	return binary.BigEndian.Uint64(blockNumber)
 }
 
-func (c *Upgrade) SetVersion(version uint16) {
-	var data [2]byte
-	binary.BigEndian.PutUint16(data[:], version)
+func (c *Upgrade) SetVersion(version uint64) {
+	var data [8]byte
+	binary.BigEndian.PutUint64(data[:], version)
 	c.evm.StateDB.SetState(c.contract.Address(), versionKey, data[:])
 }
 
-func (c *Upgrade) GetVersion() uint16 {
+func (c *Upgrade) GetVersion() uint64 {
 	version := c.evm.StateDB.GetState(c.contract.Address(), versionKey)
 	if len(version) == 0 {
 		return 0
 	}
-	return binary.BigEndian.Uint16(version)
+	return binary.BigEndian.Uint64(version)
 }
 
 func (c *Upgrade) GetOwnerEntry(input []byte) ([]byte, error) {

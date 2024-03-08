@@ -7,14 +7,15 @@ import (
 	"fmt"
 	"math/big"
 
+	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/contracts"
-	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
 	rewarddb "github.com/PlatONnetwork/AppChain-SDK/x/reward/db"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/types"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
+	coretypes "github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/params"
@@ -24,7 +25,7 @@ import (
 
 const (
 	ModuleName    = "reward"
-	ModuleVersion = 1
+	ModuleVersion = 0
 )
 
 var _ module.ContractModule = (*RewardModule)(nil)
@@ -81,7 +82,7 @@ func (r *RewardModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig 
 	// set config params
 	initConfigParams(db, r.Address(), configParams)
 
-	rewardContrct, _ := contracts.NewRewardManager(sdkcontracts.NewEVM(db), sdkcontracts.NewContract(r, r), false)
+	rewardContrct, _ := contracts.NewRewardManager(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(r, r), false)
 	rewardContrct.SetCreateBlock(conf.CreateBlock)
 	log.Info("Succeed init genesis", "module", r.Name(), "RewardNetworkParams", configParams.String())
 	return nil
@@ -99,9 +100,9 @@ func (r *RewardModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, rea
 	return rewardManager.Run(input)
 }
 
-func (r *RewardModule) ContractCreateBlockNumber(statedb sdk.StateDB) uint64 {
-	// TODO: implement me
-	return 0
+func (r *RewardModule) ContractCreateBlockNumber(statedb sdk.StateDBReader) uint64 {
+	rewardContrct, _ := contracts.NewRewardManager(sdkcontracts.NewEVM(coretypes.NewStateDBWrapper(statedb), big.NewInt(0)), sdkcontracts.NewContract(r, r), false)
+	return rewardContrct.GetCreateBlock()
 }
 
 func (r *RewardModule) BeginBlock(ctx sdk.WorkerContext) error {
@@ -227,9 +228,9 @@ func (r *RewardModule) handleEpochReward(stateDB sdk.StateDB, blockNumber uint64
 				r.stakeModule.GetValidatorStakeEpoch(stateDB, validatorAddr), currentEpoch,
 				realDelegateEpochReward, perShareDelegatorEpochReward); nil != err {
 
-				r.logger.Error("Set epoch  delegation reward for per share", "currentEpoch", currentEpoch, "error", err)
-				return err
-			}
+					r.logger.Error("Set epoch  delegation reward for per share", "currentEpoch", currentEpoch, "error", err)
+					return err
+				}
 		}
 		realValidatorEpochReward = new(big.Int).Sub(perValidatorEpochReward, realDelegateEpochReward)
 

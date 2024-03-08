@@ -3,14 +3,15 @@ package upgrade
 import (
 	"encoding/json"
 	"fmt"
-	"math"
 	"math/big"
 
+	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/upgrade/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/x/upgrade/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
+	coretypes "github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/params"
@@ -19,7 +20,7 @@ import (
 
 const (
 	ModuleName           = "upgrade"
-	ModuleVersion uint64 = 1
+	ModuleVersion uint64 = 0
 )
 
 var (
@@ -32,16 +33,16 @@ var (
 type Module struct {
 	logger log.Logger
 
-	upgradeHandlers map[string]map[uint64]module.UpgradeHandler
-	initVersionMap  module.VersionMap
+	upgradeHandlers      map[string]map[uint64]module.UpgradeHandler
+	moduleValidNumberMap map[string]uint64
 }
 
 func NewModule() *Module {
 	return &Module{
 		logger: log.New("module", ModuleName),
 
-		upgradeHandlers: make(map[string]map[uint64]module.UpgradeHandler, 0),
-		initVersionMap:  make(module.VersionMap, 0),
+		upgradeHandlers:      make(map[string]map[uint64]module.UpgradeHandler, 0),
+		moduleValidNumberMap: make(map[string]uint64, 0),
 	}
 }
 
@@ -54,6 +55,8 @@ func (m *Module) Version() uint64 {
 }
 
 func (m *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
+	db.SetNonce(m.Address(), 1)
+
 	var config types.GenesisConfig
 	raw, err := data.MarshalJSON()
 	if err != nil {
@@ -64,7 +67,7 @@ func (m *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *param
 		m.logger.Error("Failed to unmarshal upgrade.GenesisConfig", "err", err)
 		return err
 	}
-	upgradeContract, _ := contracts.NewUpgrade(vm.NewEVM(vm.BlockContext{GasLimit: math.MaxUint64}, vm.TxContext{}, db, &params.ChainConfig{}, vm.Config{}, nil), vm.NewContract(m, m, big.NewInt(0), math.MaxUint64), false)
+	upgradeContract, _ := contracts.NewUpgrade(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(m, m), false)
 	upgradeContract.SetOwner(config.Owner)
 	upgradeContract.SetCreateBlock(config.CreateBlock)
 	m.logger.Info("Init genesis", "owner", config.Owner, "createBlock", config.CreateBlock)
@@ -80,20 +83,22 @@ func (m *Module) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly 
 	return upgradeContract.Run(input)
 }
 
-func (m *Module) ContractCreateBlockNumber(statedb sdk.StateDB) uint64 {
-	upgradeContract, _ := contracts.NewUpgrade(vm.NewEVM(vm.BlockContext{GasLimit: math.MaxUint64}, vm.TxContext{}, statedb, &params.ChainConfig{}, vm.Config{}, nil), vm.NewContract(m, m, big.NewInt(0), math.MaxUint64), true)
+func (m *Module) ContractCreateBlockNumber(db sdk.StateDBReader) uint64 {
+	upgradeContract, _ := contracts.NewUpgrade(sdkcontracts.NewEVM(coretypes.NewStateDBWrapper(db), big.NewInt(0)), sdkcontracts.NewContract(m, m), true)
 	return upgradeContract.GetCreateBlock()
 }
 
 func (m *Module) BeginBlock(ctx sdk.WorkerContext) error {
 	// TODO: executing upgrade plan when fast sync finish
 
-	upgradeContract, _ := contracts.NewUpgrade(vm.NewEVM(vm.BlockContext{GasLimit: math.MaxUint64}, vm.TxContext{}, ctx.StateDB(), &params.ChainConfig{}, vm.Config{}, nil), vm.NewContract(m, m, big.NewInt(0), math.MaxUint64), true)
+	blockNumber := ctx.Header().Number
+	upgradeContract, _ := contracts.NewUpgrade(sdkcontracts.NewEVM(ctx.StateDB(), blockNumber), sdkcontracts.NewContract(m, m), true)
 	plans, err := upgradeContract.GetUpgradePlan(ctx.Header().Number.Uint64())
 	if err != nil {
 		m.logger.Error("Failed to get plans", "height", ctx.Header().Number, "err", err)
 		return err
 	}
+	m.logger.Info("Begin block", "plans", len(plans), "number", ctx.Header().Number)
 
 	for _, plan := range plans {
 		for _, mod := range plan.Modules {
@@ -114,13 +119,50 @@ func (m *Module) BeginBlock(ctx sdk.WorkerContext) error {
 		}
 	}
 	if len(plans) > 0 {
-		upgradeContract.SetUpgradePlanDone(ctx.Header().Number.Uint64())
+		if err := upgradeContract.SetUpgradePlanDone(blockNumber.Uint64()); err != nil {
+			panic(err)
+		}
+
+		vn, err := m.GetModuleValidNumberMap(ctx.StateDB())
+		if err != nil || len(vn) == 0 {
+			panic(fmt.Sprintf("empty module valid number map(err: %v)", err))
+		}
+		m.moduleValidNumberMap = vn
 	}
 	return nil
 }
 
-func (m *Module) RegisterUpgradeHandler(module string, version uint64, handle module.UpgradeHandler) error {
-	m.logger.Info("Register upgrade handler", "registeredModule", module, "version", version)
-	m.upgradeHandlers[module][version] = handle
+func (m *Module) RegisterUpgradeHandler(moduleName string, version uint64, handle module.UpgradeHandler) error {
+	m.logger.Info("Register upgrade handler", "registeredModule", moduleName, "version", version)
+	if m.upgradeHandlers[moduleName] == nil {
+		m.upgradeHandlers[moduleName] = make(map[uint64]module.UpgradeHandler, 0)
+	}
+	m.upgradeHandlers[moduleName][version] = handle
 	return nil
+}
+
+func (m *Module) SetModuleValidNumberMap(db sdk.StateDB, vn module.ValidNumberMap) error {
+	buf, _ := json.Marshal(&vn)
+	m.logger.Info("Set module valid number map", "vn", string(buf))
+	upgradeContract, _ := contracts.NewUpgrade(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(m, m), false)
+	return upgradeContract.SetModuleValidNumberMap(vn)
+}
+
+func (m *Module) GetModuleValidNumberMap(db sdk.StateDBReader) (module.ValidNumberMap, error) {
+	upgradeContract, _ := contracts.NewUpgrade(sdkcontracts.NewEVM(coretypes.NewStateDBWrapper(db), big.NewInt(0)), sdkcontracts.NewContract(m, m), false)
+	return upgradeContract.GetModuleValidNumberMap()
+}
+
+func (m *Module) IsModuleValid(db sdk.StateDBReader, moduleName string, blockNumber uint64) bool {
+	if len(m.moduleValidNumberMap) == 0 {
+		vn, err := m.GetModuleValidNumberMap(db)
+		if err != nil || len(vn) == 0 {
+			panic(fmt.Sprintf("empty module valid number map(err: %v)", err))
+		}
+		m.moduleValidNumberMap = vn
+	}
+	if validNumber, ok := m.moduleValidNumberMap[moduleName]; ok {
+		return blockNumber >= validNumber
+	}
+	return false
 }
