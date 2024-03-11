@@ -578,7 +578,7 @@ var (
 {{$contract := .Contract}}
 var (
     ABIV{{.Version}} = "{{$contract.InputABI}}"
-    AbiV{{.Version}}, _ = abi.JSON(strings.NewReader(ABI))
+    AbiV{{.Version}}, _ = abi.JSON(strings.NewReader(ABI{{.Version}}))
 )
 
 {{$structs := .Structs}}
