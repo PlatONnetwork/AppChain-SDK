@@ -30,7 +30,7 @@ var (
 
 // L2testcontractMetaData contains all meta data concerning the L2testcontract contract.
 var L2testcontractMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[],\"name\":\"count\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"dec\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"incr\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"name\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
+	ABI: "[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"n\",\"type\":\"uint256\"}],\"name\":\"add\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"count\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"dec\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"incr\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"n\",\"type\":\"uint256\"}],\"name\":\"minus\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"name\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
 }
 
 // L2testcontractABI is the input ABI used to generate the binding from.
@@ -241,6 +241,27 @@ func (_L2testcontract *L2testcontractCallerSession) Name() (string, error) {
 	return _L2testcontract.Contract.Name(&_L2testcontract.CallOpts)
 }
 
+// Add is a paid mutator transaction binding the contract method 0x1003e2d2.
+//
+// Solidity: function add(uint256 n) returns()
+func (_L2testcontract *L2testcontractTransactor) Add(opts *bind.TransactOpts, n *big.Int) (*types.Transaction, error) {
+	return _L2testcontract.contract.Transact(opts, "add", n)
+}
+
+// Add is a paid mutator transaction binding the contract method 0x1003e2d2.
+//
+// Solidity: function add(uint256 n) returns()
+func (_L2testcontract *L2testcontractSession) Add(n *big.Int) (*types.Transaction, error) {
+	return _L2testcontract.Contract.Add(&_L2testcontract.TransactOpts, n)
+}
+
+// Add is a paid mutator transaction binding the contract method 0x1003e2d2.
+//
+// Solidity: function add(uint256 n) returns()
+func (_L2testcontract *L2testcontractTransactorSession) Add(n *big.Int) (*types.Transaction, error) {
+	return _L2testcontract.Contract.Add(&_L2testcontract.TransactOpts, n)
+}
+
 // Dec is a paid mutator transaction binding the contract method 0xb3bcfa82.
 //
 // Solidity: function dec() returns()
@@ -281,4 +302,25 @@ func (_L2testcontract *L2testcontractSession) Incr() (*types.Transaction, error)
 // Solidity: function incr() returns()
 func (_L2testcontract *L2testcontractTransactorSession) Incr() (*types.Transaction, error) {
 	return _L2testcontract.Contract.Incr(&_L2testcontract.TransactOpts)
+}
+
+// Minus is a paid mutator transaction binding the contract method 0xd23aa460.
+//
+// Solidity: function minus(uint256 n) returns()
+func (_L2testcontract *L2testcontractTransactor) Minus(opts *bind.TransactOpts, n *big.Int) (*types.Transaction, error) {
+	return _L2testcontract.contract.Transact(opts, "minus", n)
+}
+
+// Minus is a paid mutator transaction binding the contract method 0xd23aa460.
+//
+// Solidity: function minus(uint256 n) returns()
+func (_L2testcontract *L2testcontractSession) Minus(n *big.Int) (*types.Transaction, error) {
+	return _L2testcontract.Contract.Minus(&_L2testcontract.TransactOpts, n)
+}
+
+// Minus is a paid mutator transaction binding the contract method 0xd23aa460.
+//
+// Solidity: function minus(uint256 n) returns()
+func (_L2testcontract *L2testcontractTransactorSession) Minus(n *big.Int) (*types.Transaction, error) {
+	return _L2testcontract.Contract.Minus(&_L2testcontract.TransactOpts, n)
 }

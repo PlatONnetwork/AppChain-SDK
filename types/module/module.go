@@ -437,22 +437,26 @@ func (m *Manager) GetLastNumber(ctx sdk.ConsensusContext, blockNumber uint64) ui
 
 	mod := m.Modules[m.Election]
 	if module, ok := mod.(ElectionModule); ok {
-		log.Debug("Get last number for module", "module", m.Election)
-		return module.GetLastNumber(ctx, blockNumber)
+		lastNumber := module.GetLastNumber(ctx, blockNumber)
+		log.Debug("Get last number for module", "module", m.Election, "blockNumber", blockNumber, "lastNumber", lastNumber)
+		return lastNumber
 	}
 	return 0
 }
 
 func (m *Manager) GetValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error) {
-	log.Info("Get validator for election app")
+	log.Info("Get validator for election app", "blockNumber", blockNumber)
 	if m.Modules[m.Election] == nil {
 		return nil, nil
 	}
 
 	mod := m.Modules[m.Election]
 	if module, ok := mod.(ElectionModule); ok {
-		log.Debug("Get last number for module", "module", m.Election)
-		return module.GetValidator(ctx, blockNumber)
+		vals, err := module.GetValidator(ctx, blockNumber)
+		if err == nil {
+			log.Debug("Get last number for module", "module", m.Election, "blockNumber", blockNumber, "validators", vals.String())
+		}
+		return vals, err
 	}
 	return nil, nil
 }

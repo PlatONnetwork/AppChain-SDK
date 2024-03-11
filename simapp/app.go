@@ -141,7 +141,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 	manager.SetConsensusExtend(app.extraVote.Name())
 	manager.SetOrderTransaction(app.stateSync.Name(), app.vrf.Name(), app.staking.Name())
 	manager.SetOrderBeginBlocker(app.upgrade.Name(), app.stage.Name(), app.staking.Name(), app.reward.Name(), tm.Name())
-	manager.SetOrderEndBlocker(app.stage.Name(), app.vrf.Name(), app.staking.Name(), app.reward.Name())
+	manager.SetOrderEndBlocker(app.upgrade.Name(), app.stage.Name(), app.vrf.Name(), app.staking.Name(), app.reward.Name())
 	manager.SetOrderBlockCommitter(app.staking.Name(), app.stateEvent.Name(), app.checkpoint.Name())
 
 	manager.SetOrderInit(
@@ -150,7 +150,9 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		app.checkpoint.Name(),
 		app.vrf.Name(),
 		app.staking.Name(),
-		app.reward.Name())
+		app.reward.Name(),
+		app.upgrade.Name(),
+	)
 
 	manager.SetOrderGenesis(
 		app.l1.Name(),

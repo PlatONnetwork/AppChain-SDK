@@ -63,6 +63,7 @@ func (c *Upgrade) getUpgradePlan(height uint64) ([]IUpgradePlan, error) {
 }
 
 func (c *Upgrade) addUpgradePlan(plan IUpgradePlan) (err error) {
+	// TODO: limit plan.Info length
 	defer func() {
 		if err != nil {
 			log.Warn("failed to add upgrade plan", "module", "upgrade", "plan", plan.String(), "err", err)
@@ -127,7 +128,6 @@ func (c *Upgrade) setUpgradePlanDone(height uint64) error {
 }
 
 func (c *Upgrade) getUpgradePlanByHeight(height uint64) (plans []IUpgradePlan, err error) {
-	log.Info("Get upgrade plan", "module", "upgrade", "height", height, "plans", len(plans), "err", err)
 	names, _ := c.getUpgradePlanNameListByHeight(height)
 	for _, name := range names {
 		plan, err := c.getUpgradePlanByName(name)
@@ -140,6 +140,7 @@ func (c *Upgrade) getUpgradePlanByHeight(height uint64) (plans []IUpgradePlan, e
 }
 
 func (c *Upgrade) setUpgradePlan(plan IUpgradePlan) error {
+	log.Info("Set upgrade plan", "plan", plan.String())
 	val, err := rlp.EncodeToBytes(&plan)
 	if err != nil {
 		return err
@@ -190,6 +191,7 @@ func (c *Upgrade) getUpgradePlanNameListByHeight(height uint64) (names NameArarr
 type ModuleValidNumberList []module.ModuleValidNumber
 
 func (c *Upgrade) SetModuleValidNumberMap(vn module.ValidNumberMap) error {
+	c.onlyOwner()
 	contracts.Require(len(vn) > 0, "empty module valid number map")
 
 	l := vn.AsSliceSorted()

@@ -30,6 +30,7 @@ var (
 	_ module.ContractModule     = (*Module)(nil)
 	_ module.BeginBlockerModule = (*Module)(nil)
 	_ module.GenesisModule      = (*Module)(nil)
+	_ module.InitModule         = (*Module)(nil)
 )
 
 type Module struct {
@@ -37,7 +38,8 @@ type Module struct {
 	logger log.Logger
 
 	upgradeHandlers      map[string]map[uint64]module.UpgradeHandler
-	moduleValidNumberMap map[string]uint64
+	localVersionMap      module.VersionMap
+	moduleValidNumberMap module.ValidNumberMap
 
 	isContractModule func(string) bool
 }
@@ -48,12 +50,23 @@ func NewModule(store store.Store) *Module {
 		logger: log.New("module", ModuleName),
 
 		upgradeHandlers:      make(map[string]map[uint64]module.UpgradeHandler, 0),
-		moduleValidNumberMap: make(map[string]uint64, 0),
+		localVersionMap:      make(module.VersionMap, 0),
+		moduleValidNumberMap: make(module.ValidNumberMap, 0),
 	}
 }
 
 func (m *Module) SetIsContractModule(isContractModule func(string) bool) {
 	m.isContractModule = isContractModule
+}
+
+func (m *Module) Init(ctx sdk.InitContext) error {
+	localVm, err := m.kv.GetVersionMap()
+	if err != nil {
+		m.logger.Error("Failed to get local version map", "err", err)
+		return err
+	}
+	m.localVersionMap = localVm
+	return nil
 }
 
 func (m *Module) Name() string {
@@ -107,11 +120,7 @@ func (m *Module) ContractCreateBlockNumber(db sdk.StateDBReader) uint64 {
 }
 
 func (m *Module) BeginBlock(ctx sdk.WorkerContext) error {
-	localVm, err := m.kv.GetVersionMap()
-	if err != nil {
-		m.logger.Error("Failed to get local version map", "err", err)
-		return err
-	}
+	localVm := m.localVersionMap
 
 	blockNumber := ctx.Header().Number
 	upgrade, _ := contracts.NewUpgrade(sdkcontracts.NewEVM(ctx.StateDB(), blockNumber), sdkcontracts.NewContract(m, m), true)
@@ -122,7 +131,7 @@ func (m *Module) BeginBlock(ctx sdk.WorkerContext) error {
 	}
 
 	for name, ver := range stateVm {
-		if ver <= localVm[name] {
+		if lver, ok := localVm[name]; ok && ver <= lver {
 			continue
 		}
 		localVm[name] = ver
@@ -142,6 +151,7 @@ func (m *Module) BeginBlock(ctx sdk.WorkerContext) error {
 			if err != nil {
 				panic(fmt.Sprintf("Failed to execute upgrade module handler(name:%s,version:%d,err:%v)", name, i, err))
 			}
+			m.logger.Info("Success invoke upgrade handler after fast sync", "upgradedMoudle", name, "version", i)
 		}
 	}
 
@@ -150,9 +160,7 @@ func (m *Module) BeginBlock(ctx sdk.WorkerContext) error {
 		m.logger.Error("Failed to get plans", "height", ctx.Header().Number, "err", err)
 		return err
 	}
-	lb, _ := json.Marshal(&localVm)
-	sb, _ := json.Marshal(&stateVm)
-	m.logger.Info("Begin block", "plans", len(plans), "number", ctx.Header().Number, "lb", string(lb), "sb", string(sb))
+	m.logger.Info("Begin block", "plans", len(plans), "number", ctx.Header().Number)
 
 	for _, plan := range plans {
 		m.logger.Info("Begin block", "plan", plan.String())
@@ -184,9 +192,7 @@ func (m *Module) BeginBlock(ctx sdk.WorkerContext) error {
 			panic(err)
 		}
 
-		if err := m.kv.SetVersionMap(localVm); err != nil {
-			return err
-		}
+		m.localVersionMap = localVm
 		if err := upgrade.SetModuleVersionMap(stateVm); err != nil {
 			return err
 		}
@@ -196,6 +202,14 @@ func (m *Module) BeginBlock(ctx sdk.WorkerContext) error {
 			panic(fmt.Sprintf("empty module valid number map(err: %v)", err))
 		}
 		m.moduleValidNumberMap = vn
+	}
+	return nil
+}
+
+func (m *Module) EndBlock(ctx *sdk.WorkerContext) error {
+	if err := m.kv.SetVersionMap(m.localVersionMap); err != nil {
+		m.logger.Error("Failed to set local version map", "err", err)
+		return err
 	}
 	return nil
 }
@@ -210,8 +224,6 @@ func (m *Module) RegisterUpgradeHandler(moduleName string, version uint64, handl
 }
 
 func (m *Module) SetModuleValidNumberMap(db sdk.StateDB, vn module.ValidNumberMap) error {
-	buf, _ := json.Marshal(&vn)
-	m.logger.Info("Set module valid number map", "vn", string(buf))
 	upgradeContract, _ := contracts.NewUpgrade(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(m, m), false)
 	return upgradeContract.SetModuleValidNumberMap(vn)
 }
@@ -222,8 +234,6 @@ func (m *Module) GetModuleValidNumberMap(db sdk.StateDBReader) (module.ValidNumb
 }
 
 func (m *Module) SetModuleVersionMap(db sdk.StateDB, vm module.VersionMap) error {
-	buf, _ := json.Marshal(&vm)
-	m.logger.Info("Set module version map", "vm", string(buf))
 	upgrade, _ := contracts.NewUpgrade(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(m, m), false)
 	return upgrade.SetModuleVersionMap(vm)
 }

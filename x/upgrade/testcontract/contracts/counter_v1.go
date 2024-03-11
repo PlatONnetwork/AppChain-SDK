@@ -5,7 +5,6 @@ import (
 	"math/big"
 	"strings"
 
-	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
@@ -13,6 +12,8 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/event"
+
+	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -30,7 +31,7 @@ var (
 
 var (
 	ABIV1    = "[{\"inputs\":[],\"name\":\"count\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"dec\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"incr\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"name\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]"
-	AbiV1, _ = abi.JSON(strings.NewReader(ABI))
+	AbiV1, _ = abi.JSON(strings.NewReader(ABIV1))
 )
 
 func (c *Counter) initABIV1() {

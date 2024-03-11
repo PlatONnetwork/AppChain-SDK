@@ -7,4 +7,10 @@ interface ICounter {
 
     // Version 1
     function dec() external;
+
+    // Version 2
+    function add(uint256 n) external;
+
+    // Version 3
+    function minus(uint256 n) external;
 }

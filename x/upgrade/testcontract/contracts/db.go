@@ -1,6 +1,9 @@
 package contracts
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+	"math/big"
+)
 
 var (
 	key = []byte("counter")
@@ -28,6 +31,24 @@ func (c *Counter) dec() {
 	}
 
 	c.set(old)
+}
+
+func (c *Counter) add(n *big.Int) {
+	i := c.count()
+	i = i + n.Uint64()
+
+	c.set(i)
+}
+
+func (c *Counter) minus(n *big.Int) {
+	i := c.count()
+	if i < n.Uint64() {
+		i = 0
+	} else {
+		i = i - n.Uint64()
+	}
+
+	c.set(i)
 }
 
 func (c *Counter) set(n uint64) {

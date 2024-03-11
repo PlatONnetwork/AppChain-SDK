@@ -57,8 +57,12 @@ func NewCounter(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*Counter, er
 	}
 	s.initABI()
 	s.initABIV1()
+	s.initABIV2()
+	s.initABIV3()
 	s.initMethodEntry()
 	s.initMethodV1Entry()
+	s.initMethodV2Entry()
+	s.initMethodV3Entry()
 	return s, nil
 }
 
