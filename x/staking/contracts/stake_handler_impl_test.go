@@ -26,8 +26,8 @@ func Test_RemoveInvalidValidatorPriorityWhenLowBlocks(t *testing.T) {
 	stakeHandlerTestConfig.StageModule.MockCurrentEpoch(epoch)
 	stakeHandlerTestConfig.StakeModule.MockInitValidatorGenesisPriority()
 	// get mock data
-	datas, _ := getStakeForData()
-	stakeFor(t, stakeHandler, epoch, datas)
+	_, datas := extractStakeForDataList()
+	stakeFor(t, stakeHandler, datas, false)
 
 	_, queue, _ := stakeHandler.GetValidators([]byte{}, common.Big100)
 
@@ -97,8 +97,8 @@ func Test_RemoveInvalidValidatorPriorityWhenSlash(t *testing.T) {
 	stakeHandlerTestConfig.StageModule.MockCurrentEpoch(epoch)
 	stakeHandlerTestConfig.StakeModule.MockInitValidatorGenesisPriority()
 	// get mock data
-	datas, _ := getStakeForData()
-	stakeFor(t, stakeHandler, epoch, datas)
+	_, datas := extractStakeForDataList()
+	stakeFor(t, stakeHandler, datas, false)
 
 	_, queue, _ := stakeHandler.GetValidators([]byte{}, common.Big100)
 
