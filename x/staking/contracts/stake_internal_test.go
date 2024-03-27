@@ -3,7 +3,6 @@ package contracts
 import (
 	"fmt"
 	"github.com/PlatONnetwork/PlatON-Go/common"
-	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/status-im/keycard-go/hexutils"
 	"github.com/test-go/testify/assert"
 	"math/big"
@@ -12,43 +11,10 @@ import (
 	"time"
 )
 
-func Test_Delegate(t *testing.T) {
-
-	//validatorAddr := common.HexToAddress("0x1111111111111111111111111111111111111111")
-	//delegatorAddr := common.HexToAddress("0x2222222222222222222222222222222222222222")
-	//ownerAddr := common.HexToAddress("0x3333333333333333333333333333333333333333")
-	//stakeHandler := newStakeHandler(common.ZeroAddr)
-	//var err error
-	//err = stakeHandler.stake(validatorAddr, ownerAddr, common.Big100, 10, []byte{}, enode.IDv0{})
-	//if nil != err {
-	//	t.Error(err)
-	//}
-	//err = stakeHandler.delegate(validatorAddr, delegatorAddr, common.Big32)
-	//if nil != err {
-	//	t.Error(err)
-	//}
-	//
-	//delegations, err := stakeHandler.GetDelegationsWithValidator([]common.Address{validatorAddr}, delegatorAddr)
-	//if nil != err {
-	//	t.Error(err)
-	//}
-	//
-	//t.Log("delegation size", len(delegations))
-}
-
 func Test_StakeFor(t *testing.T) {
-	stakeHandlerTestConfig := newStakeHandlerTestConfig()
+
 	epoch := uint64(1)
-	from := common.HexToAddress("0xB0568bF61e3E7AF10623054b9169Eb8030271D10")
-
-	// init stakeHandler
-	stakeHandler := newStakeHandler((stakeHandlerTestConfig.StateDB).(vm.StateDB), from, new(big.Int).SetUint64(2))
-	initStakeHandler(stakeHandler, stakeHandlerTestConfig.L1Module, stakeHandlerTestConfig.StageModule, stakeHandlerTestConfig.StakeModule, stakeHandlerTestConfig.RewardModule)
-
-	// mock init genesis
-	stakeHandlerTestConfig.StageModule.MockCurrentEpoch(epoch)
-	err := stakeHandlerTestConfig.StakeModule.MockInitValidatorGenesisPriority()
-	assert.Nil(t, err, "Failed to call MockInitValidatorGenesisPriority")
+	stakeHandler := stakePrepare(t, epoch, common.HexToAddress("0xB0568bF61e3E7AF10623054b9169Eb8030271D10"), true)
 	// get mock data
 	_, datas := extractStakeForDataList()
 	stakeFor(t, stakeHandler, datas, true)
@@ -78,18 +44,9 @@ func Test_StakeFor(t *testing.T) {
 
 func Test_AddStake(t *testing.T) {
 
-	stakeHandlerTestConfig := newStakeHandlerTestConfig()
 	epoch := uint64(1)
-	from := common.HexToAddress("0xB0568bF61e3E7AF10623054b9169Eb8030271D10")
+	stakeHandler := stakePrepare(t, epoch, common.HexToAddress("0xB0568bF61e3E7AF10623054b9169Eb8030271D10"), true)
 
-	// init stakeHandler
-	stakeHandler := newStakeHandler((stakeHandlerTestConfig.StateDB).(vm.StateDB), from, new(big.Int).SetUint64(2))
-	initStakeHandler(stakeHandler, stakeHandlerTestConfig.L1Module, stakeHandlerTestConfig.StageModule, stakeHandlerTestConfig.StakeModule, stakeHandlerTestConfig.RewardModule)
-
-	// mock init genesis
-	stakeHandlerTestConfig.StageModule.MockCurrentEpoch(epoch)
-	err := stakeHandlerTestConfig.StakeModule.MockInitValidatorGenesisPriority()
-	assert.Nil(t, err, "Failed to call MockInitValidatorGenesisPriority")
 	// get mock data
 	_, stakeDatas := extractStakeForDataList()
 	stakeFor(t, stakeHandler, stakeDatas, false)
@@ -99,21 +56,91 @@ func Test_AddStake(t *testing.T) {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	num := r.Intn(len(validatorAddrs)-1) + 1
 
-	cache := make(map[common.Address]*big.Int, num)
+	validatorStakeAmountCache := make(map[common.Address]*big.Int, num)
 
 	for _, validatorAddr := range validatorAddrs[:num] {
 		validator := stakeHandler.getValidator(validatorAddr)
 		assert.False(t, validator.IsEmpty(), fmt.Sprintf("validator is empty, %s", validatorAddr.Hex()))
 
-		cache[validatorAddr] = validator.StakeAmount
+		validatorStakeAmountCache[validatorAddr] = validator.StakeAmount
 	}
 
 	addStake(t, stakeHandler, addStakeDatas[:num], true)
 
 	addStakeDataCache := getAddStakeDataCache()
-	for validatorAddr, amount := range cache {
+	for validatorAddr, amount := range validatorStakeAmountCache {
 		validator := stakeHandler.getValidator(validatorAddr)
 		assert.Equal(t, new(big.Int).Add(addStakeDataCache[validatorAddr].Amount, amount), validator.StakeAmount, "STAKE AMOUNT MISMATCHING")
 	}
 
+}
+
+func Test_Delegate(t *testing.T) {
+
+	epoch := uint64(1)
+	stakeHandler := stakePrepare(t, epoch, common.HexToAddress("0xB0568bF61e3E7AF10623054b9169Eb8030271D10"), true)
+
+	// get mock data
+	validatorAddrs, stakeDatas := extractStakeForDataList()
+
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	num := r.Intn(len(validatorAddrs)-1) + 1
+
+	stakeFor(t, stakeHandler, stakeDatas[:num], true)
+
+	subValidatorAddrs := validatorAddrs[:num]
+
+	validatorDelegateAmountCache := make(map[common.Address]*big.Int, num)
+
+	for _, validatorAddr := range subValidatorAddrs {
+		validator := stakeHandler.getValidator(validatorAddr)
+		assert.False(t, validator.IsEmpty(), fmt.Sprintf("validator is empty, %s", validatorAddr.Hex()))
+
+		validatorDelegateAmountCache[validatorAddr] = validator.DelegateAmount
+
+	}
+
+	// delegate for
+	delegatorAddrs := extractDelegateDatList()
+
+	num = r.Intn(len(delegatorAddrs)-1) + 1
+
+	delegateRelationShipCache := make(map[common.Address][]common.Address, 0)
+
+	delegateDataCache := getDelegateDataCache()
+
+	for _, delegator := range delegatorAddrs[:num] {
+
+		// delegate for
+		var validator common.Address
+		if len(subValidatorAddrs) == 1 {
+			validator = subValidatorAddrs[0]
+		} else {
+			validator = subValidatorAddrs[r.Intn(len(subValidatorAddrs)-1)]
+		}
+
+		delegate(t, stakeHandler, encodeDelegateData(validator, delegateDataCache[delegator]), true)
+
+		delegatorArr, ok := delegateRelationShipCache[validator]
+		if !ok {
+			delegatorArr = make([]common.Address, 0)
+		}
+		delegatorArr = append(delegatorArr, delegator)
+		delegateRelationShipCache[validator] = delegatorArr
+	}
+
+	for validatorAddr, delegatorArr := range delegateRelationShipCache {
+
+		validator := stakeHandler.getValidator(validatorAddr)
+
+		oldDelegateAmount := validatorDelegateAmountCache[validatorAddr]
+
+		allDelegatorAmount := common.Big0
+
+		for _, delegator := range delegatorArr {
+			allDelegatorAmount = new(big.Int).Add(allDelegatorAmount, delegateDataCache[delegator].Amount)
+		}
+
+		assert.Equal(t, new(big.Int).Add(oldDelegateAmount, allDelegatorAmount), validator.DelegateAmount, "DELEGATE AMOUNT MISMATCHING")
+	}
 }

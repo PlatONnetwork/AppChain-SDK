@@ -25,7 +25,7 @@ func TestEncodeStakeData(t *testing.T) {
 	addr := common.HexToAddress("0xFA66dAa530328D0d914B6652e4B64B00d84e3a1a")
 	amount := 99
 	//abiType := abi.MustNewType("tuple(bytes32, address, uint256)")
-	abiType := abi.MustNewType("tuple(bytes32 STAKE_SIG, address addr, uint256 amount)")
+	abiType := abi.MustNewType("tuple(bytes32 ADDSTAKE_SIG, address addr, uint256 amount)")
 	input, err := abiType.Encode([]interface{}{ADDSTAKE_SIG, addr, amount})
 	if nil != err {
 		t.Error(err)
