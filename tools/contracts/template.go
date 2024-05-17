@@ -273,7 +273,7 @@ func ({{$ReceiverName}} *{{$contract.Type}}) {{.Normalized.Name}}Entry(input []b
 {{end}}
 {{range .Contract.Events}}
     {{ $length := len .Normalized.Inputs }}
-        func ({{$ReceiverName}} *{{$contract.Type}})Emit{{.Normalized.Name}}Event({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}} {{bindtype .Type $structs}}{{end}}) (*types.Log, error){
+        func ({{$ReceiverName}} *{{$contract.Type}}){{.Normalized.Name}}Event({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}} {{bindtype .Type $structs}}{{end}}) (*types.Log, error){
         event := {{$ReceiverName}}.abi.Events["{{.Normalized.Name}}"]
         hashes, err := contracts.PackEventTopics(event.ID, event.Inputs {{range $i, $_ := .Normalized.Inputs}},{{.Name}}{{end}})
         if err != nil {
@@ -290,6 +290,11 @@ func ({{$ReceiverName}} *{{$contract.Type}}) {{.Normalized.Name}}Entry(input []b
             BlockNumber: {{$ReceiverName}}.evm.Context.BlockNumber.Uint64(),
         }, nil
         }
+		func ({{$ReceiverName}} *{{$contract.Type}})Emit{{.Normalized.Name}}Event({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}} {{bindtype .Type $structs}}{{end}}){
+			log, err := {{$ReceiverName}}.{{.Normalized.Name}}Event({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}}{{end}})
+			contracts.Require(err == nil, "{{$contract.Type}}: emit {{.Normalized.Name}} event failed")
+			{{$ReceiverName}}.stateDb.AddLog(log)
+		}
 {{end}}
 `
 const implSource = `
@@ -336,6 +341,7 @@ type {{$contract.Type}} struct {
     evm *vm.EVM
 	burner       contracts.Burn
 	stateDb      *contracts.StateDB
+	context       *contracts.Context
 	fallback func(input []byte) ([]byte, error)
 }
 
@@ -349,6 +355,7 @@ func New{{$contract.Type}}(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*
         contract: contract,
 		burner:   contracts.NewBurner(contract),
 		stateDb:  contracts.NewStateDB(evm, contract),
+		context:  contracts.NewContext(evm, contract),
         readOnly: readOnly,
     }
 	s.initABI()
