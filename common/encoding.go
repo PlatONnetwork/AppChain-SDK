@@ -11,8 +11,15 @@ func EncodeUint64ToBytes(value uint64) []byte {
 }
 
 func EncodeUint32ToBytes(value uint32) []byte {
-	result := make([]byte, 8)
+	result := make([]byte, 4)
 	binary.BigEndian.PutUint32(result, value)
+
+	return result
+}
+
+func EncodeUint16ToBytes(value uint16) []byte {
+	result := make([]byte, 2)
+	binary.BigEndian.PutUint16(result, value)
 
 	return result
 }
@@ -24,4 +31,8 @@ func EncodeBytesToUint64(b []byte) uint64 {
 
 func EncodeBytesToUint32(b []byte) uint32 {
 	return binary.BigEndian.Uint32(b)
+}
+
+func EncodeBytesToUint16(b []byte) uint16 {
+	return binary.BigEndian.Uint16(b)
 }
