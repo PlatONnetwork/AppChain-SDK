@@ -31,6 +31,13 @@ var (
 	_ = types.BloomLookup
 	_ = event.NewSubscription
 )
+var (
+	balanceKey     = []byte("balance")
+	allowancesKey  = []byte("allowances")
+	totalSupplyKey = []byte("totalSupply")
+	nameKey        = []byte("name")
+	symbolKey      = []byte("symbol")
+)
 
 type Storage struct {
 	Balance     *container.Map[*big.Int]
@@ -53,7 +60,7 @@ type ERC20 struct {
 	fallback      func(input []byte) ([]byte, error)
 	storage       *Storage
 	context       *contracts.Context
-	contracts2.Ownable
+	*contracts2.Ownable
 }
 
 func NewERC20(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*ERC20, error) {
@@ -69,9 +76,29 @@ func NewERC20(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*ERC20, error)
 		context:       contracts.NewContext(evm, contract),
 		readOnly:      readOnly,
 	}
+	store := db.NewStore([]byte{}, contract.Address(), s.stateDb)
+	s.storage = &Storage{
+		Balance:     container.NewMap[*big.Int](balanceKey, contract.Address(), s.stateDb),
+		Allowances:  container.NewMap[*container.Map[*big.Int]](balanceKey, contract.Address(), s.stateDb),
+		TotalSupply: db.NewBase[*big.Int](totalSupplyKey, store),
+		Name:        db.NewBase[string](nameKey, store),
+		Symbol:      db.NewBase[string](nameKey, store),
+	}
+	ownable, err := contracts2.NewOwnable(evm, contract, readOnly)
+	if err != nil {
+		return nil, err
+	}
+	s.Ownable = ownable
 	s.initABI()
 	s.initMethodEntry()
+	s.loadMethodABI()
 	return s, nil
+}
+
+func (c *ERC20) Init(name, symbol string, owner common.Address) {
+	c.storage.Name.MustSet(name)
+	c.storage.Symbol.MustSet(symbol)
+	c.Ownable.Init(owner)
 }
 
 func (c *ERC20) Allowance(owner common.Address, spender common.Address) (*big.Int, error) {
@@ -98,16 +125,14 @@ func (c *ERC20) Symbol() (string, error) {
 
 func (c *ERC20) TotalSupply() (*big.Int, error) {
 	return c.storage.TotalSupply.MustGet(), nil
-
 }
 
 func (c *ERC20) Approve(spender common.Address, amount *big.Int) (bool, error) {
-	c.approve(c.context.Caller(), spender, amount)
+	c.ApproveFrom(c.context.Caller(), spender, amount)
 	return true, nil
-	panic("implement")
 }
 
-func (c *ERC20) approve(owner, spender common.Address, amount *big.Int) {
+func (c *ERC20) ApproveFrom(owner, spender common.Address, amount *big.Int) {
 	contracts.Require(owner != common.Address{}, "ERC20: approve from the zero address")
 	contracts.Require(spender != common.Address{}, "ERC20: approve to the zero address")
 	c.storage.Allowances.MustGet(owner).MustSet(spender, amount)
@@ -118,7 +143,7 @@ func (c *ERC20) Burn(account common.Address, amount *big.Int) error {
 	c.OnlyOwner()
 	contracts.Require(account != common.Address{}, "ERC20: burn from the zero address")
 	accountBalance := c.storage.Balance.MustGet(account)
-	contracts.Require(accountBalance.Cmp(amount) > 0, "ERC20: burn amount exceeds balance")
+	contracts.Require(accountBalance.Cmp(amount) >= 0, "ERC20: burn amount exceeds balance")
 	accountBalance.Sub(accountBalance, amount)
 	c.storage.Balance.MustSet(account, accountBalance)
 	totalSupply := c.storage.TotalSupply.MustGet()
@@ -134,14 +159,14 @@ func (c *ERC20) DecreaseAllowance(spender common.Address, subtractedValue *big.I
 	msgSender := c.context.Caller()
 	currentAllowance := c.storage.Allowances.MustGet(msgSender).MustGet(spender)
 	contracts.Require(currentAllowance.Cmp(subtractedValue) > 0, "ERC20: decreased allowance below zero")
-	c.approve(msgSender, spender, currentAllowance.Sub(currentAllowance, subtractedValue))
+	c.ApproveFrom(msgSender, spender, currentAllowance.Sub(currentAllowance, subtractedValue))
 	return true, nil
 }
 
 func (c *ERC20) IncreaseAllowance(spender common.Address, addedValue *big.Int) (bool, error) {
 	msgSender := c.context.Caller()
 	allowance := c.storage.Allowances.MustGet(msgSender).MustGet(spender)
-	c.approve(msgSender, spender, allowance.Add(allowance, addedValue))
+	c.ApproveFrom(msgSender, spender, allowance.Add(allowance, addedValue))
 	return true, nil
 }
 
@@ -166,7 +191,7 @@ func (c *ERC20) Transfer(recipient common.Address, amount *big.Int) (bool, error
 }
 func (c *ERC20) transfer(sender, recipient common.Address, amount *big.Int) {
 	senderBalance := c.storage.Balance.MustGet(sender)
-	contracts.Require(senderBalance.Cmp(amount) > 0, "ERC20: transfer amount exceeds balance")
+	contracts.Require(senderBalance.Cmp(amount) >= 0, "ERC20: transfer amount exceeds balance")
 	senderBalance.Sub(senderBalance, amount)
 	c.storage.Balance.MustSet(sender, senderBalance)
 	recipientBalance := c.storage.Balance.MustGet(recipient)
@@ -180,7 +205,7 @@ func (c *ERC20) TransferFrom(sender common.Address, recipient common.Address, am
 	c.transfer(sender, recipient, amount)
 	msgSender := c.context.Caller()
 	currentAllowance := c.storage.Allowances.MustGet(sender).MustGet(msgSender)
-	contracts.Require(currentAllowance.Cmp(amount) > 0, "ERC20: transfer amount exceeds allowance")
-	c.approve(sender, msgSender, currentAllowance.Sub(currentAllowance, amount))
+	contracts.Require(currentAllowance.Cmp(amount) >= 0, "ERC20: transfer amount exceeds allowance")
+	c.ApproveFrom(sender, msgSender, currentAllowance.Sub(currentAllowance, amount))
 	return true, nil
 }

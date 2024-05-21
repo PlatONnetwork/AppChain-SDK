@@ -44,7 +44,7 @@ type EIP712 interface {
 }
 
 type ERC20 interface {
-	Approve(owner, spender common.Address, amount *big.Int) (bool, error)
+	ApproveFrom(owner, spender common.Address, amount *big.Int)
 }
 
 type Storage struct {
@@ -86,8 +86,10 @@ func NewERC20Permit(evm *vm.EVM, contract *vm.Contract, readOnly bool, eip712 EI
 	s.storage = Storage{
 		Nonces: container.NewMap[*big.Int](nonceKey, contract.Address(), s.stateDb),
 	}
+
 	s.initABI()
 	s.initMethodEntry()
+	s.loadMethodABI()
 	return s, nil
 }
 
@@ -108,7 +110,7 @@ func (c *ERC20Permit) Permit(owner common.Address, spender common.Address, value
 	hash := c.eip712.HashTypedData(structHash)
 	signer := ecdsa.Recover(hash, v, r, s)
 	contracts.Require(signer == owner, "ERC20Permit: invalid signature")
-	c.erc20.Approve(owner, spender, value)
+	c.erc20.ApproveFrom(owner, spender, value)
 	return nil
 }
 

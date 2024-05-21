@@ -6,7 +6,10 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/core/contracts/db/container"
 	"github.com/PlatONnetwork/AppChain-SDK/core/contracts/ecdsa"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
+	"github.com/PlatONnetwork/AppChain-SDK/x/gov/contracts/eip712"
 	"github.com/PlatONnetwork/AppChain-SDK/x/gov/contracts/erc20"
+	contracts2 "github.com/PlatONnetwork/AppChain-SDK/x/gov/contracts/ownable"
+	"github.com/PlatONnetwork/AppChain-SDK/x/gov/contracts/permit"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
@@ -65,9 +68,10 @@ type ERC20Vote struct {
 	context       *contracts.Context
 	fallback      func(input []byte) ([]byte, error)
 	storage       Storage
-	eip712        EIP712
-	erc20Permit   ERC20Permit
-	erc20         erc20.ERC20
+	eip712        *eip712.EIP712
+	erc20Permit   *permit.ERC20Permit
+	erc20         *erc20.ERC20
+	*contracts2.Ownable
 }
 
 func NewERC20Vote(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*ERC20Vote, error) {
@@ -88,10 +92,28 @@ func NewERC20Vote(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*ERC20Vote
 		Checkpoints:            container.NewMap[*container.Array[Checkpoint]](checkpointsKey, contract.Address(), s.stateDb),
 		TotalSupplyCheckpoints: container.NewArray[Checkpoint](totalSupplyCheckpointKey, contract.Address(), s.stateDb),
 	}
-
+	var err error
+	s.eip712, err = eip712.NewEIP712(evm, contract, readOnly)
+	if err != nil {
+		return nil, err
+	}
+	s.erc20, err = erc20.NewERC20(evm, contract, readOnly)
+	if err != nil {
+		return nil, err
+	}
+	s.erc20Permit, err = permit.NewERC20Permit(evm, contract, readOnly, s.eip712, s.erc20)
+	if err != nil {
+		return nil, err
+	}
 	s.initABI()
 	s.initMethodEntry()
+	s.loadMethodABI()
 	return s, nil
+}
+
+func (c *ERC20Vote) Init(name, symbol, version string, owner common.Address) {
+	c.eip712.Init(name, version)
+	c.erc20.Init(name, symbol, owner)
 }
 
 func (c *ERC20Vote) Checkpoints(account common.Address, pos uint32) (Checkpoint, error) {
@@ -102,6 +124,13 @@ func (c *ERC20Vote) Checkpoints(account common.Address, pos uint32) (Checkpoint,
 	return cs.Index(pos)
 }
 
+func (c *ERC20Vote) getDelegate(account common.Address) common.Address {
+	delegate := c.storage.Delegate.MustGet(account)
+	if common.ZeroAddr == delegate {
+		return account
+	}
+	return delegate
+}
 func (c *ERC20Vote) Delegates(account common.Address) (common.Address, error) {
 	return c.storage.Delegate.MustGet(account), nil
 }
@@ -144,15 +173,14 @@ func (c *ERC20Vote) NumCheckpoints(account common.Address) (uint32, error) {
 }
 
 func (c *ERC20Vote) AfterTokenTransfer(from common.Address, to common.Address, amount *big.Int) error {
-	//todo afterTokenTransfer
-	src, _ := c.Delegates(from)
-	dst, _ := c.Delegates(to)
+	src := c.getDelegate(from)
+	dst := c.getDelegate(to)
 	c.moveVotingPower(src, dst, amount)
 	return nil
 }
 
 func (c *ERC20Vote) BeforeTokenTransfer(from common.Address, to common.Address, amount *big.Int) error {
-	panic("implement")
+	return nil
 }
 
 func (c *ERC20Vote) Delegate(delegatee common.Address) error {
@@ -181,16 +209,12 @@ func (c *ERC20Vote) delegate(delegator, delegatee common.Address) {
 func (c *ERC20Vote) moveVotingPower(src, dst common.Address, amount *big.Int) {
 	if src != dst && amount.Cmp(big.NewInt(0)) > 0 {
 		if src != common.ZeroAddr {
-			oldWeight, newWeight := c.writeCheckpoint(c.storage.Checkpoints.MustGet(src), func(b *big.Int, b2 *big.Int) *big.Int {
-				return new(big.Int).Sub(b, b2)
-			}, amount)
+			oldWeight, newWeight := c.writeCheckpoint(c.storage.Checkpoints.MustGet(src), sub, amount)
 			c.EmitDelegateVotesChangedEvent(src, oldWeight, newWeight)
 		}
 		if dst != common.ZeroAddr {
-			oldWeight, newWeight := c.writeCheckpoint(c.storage.Checkpoints.MustGet(src), func(b *big.Int, b2 *big.Int) *big.Int {
-				return new(big.Int).Add(b, b2)
-			}, amount)
-			c.EmitDelegateVotesChangedEvent(src, oldWeight, newWeight)
+			oldWeight, newWeight := c.writeCheckpoint(c.storage.Checkpoints.MustGet(dst), add, amount)
+			c.EmitDelegateVotesChangedEvent(dst, oldWeight, newWeight)
 		}
 	}
 }
@@ -267,7 +291,13 @@ func (c *ERC20Vote) Approve(spender common.Address, amount *big.Int) (bool, erro
 }
 
 func (c *ERC20Vote) Burn(account common.Address, amount *big.Int) error {
-	return c.erc20.Burn(account, amount)
+	c.BeforeTokenTransfer(account, common.Address{}, amount)
+
+	c.erc20.Burn(account, amount)
+	c.AfterTokenTransfer(account, common.Address{}, amount)
+	c.writeCheckpoint(c.storage.TotalSupplyCheckpoints, sub, amount)
+
+	return nil
 }
 
 func (c *ERC20Vote) DecreaseAllowance(spender common.Address, subtractedValue *big.Int) (bool, error) {
@@ -279,13 +309,29 @@ func (c *ERC20Vote) IncreaseAllowance(spender common.Address, addedValue *big.In
 }
 
 func (c *ERC20Vote) Mint(account common.Address, amount *big.Int) error {
-	return c.erc20.Mint(account, amount)
+	c.BeforeTokenTransfer(common.Address{}, account, amount)
+	c.erc20.Mint(account, amount)
+	c.AfterTokenTransfer(common.Address{}, account, amount)
+	c.writeCheckpoint(c.storage.TotalSupplyCheckpoints, add, amount)
+	return nil
 }
 
 func (c *ERC20Vote) Transfer(recipient common.Address, amount *big.Int) (bool, error) {
-	return c.erc20.Transfer(recipient, amount)
+	c.BeforeTokenTransfer(c.context.Caller(), recipient, amount)
+	c.erc20.Transfer(recipient, amount)
+	c.AfterTokenTransfer(c.context.Caller(), recipient, amount)
+	return true, nil
 }
 
 func (c *ERC20Vote) TransferFrom(sender common.Address, recipient common.Address, amount *big.Int) (bool, error) {
-	return c.erc20.TransferFrom(sender, recipient, amount)
+	c.BeforeTokenTransfer(sender, recipient, amount)
+	c.erc20.TransferFrom(sender, recipient, amount)
+	c.AfterTokenTransfer(sender, recipient, amount)
+	return true, nil
+}
+func add(b *big.Int, b2 *big.Int) *big.Int {
+	return new(big.Int).Add(b, b2)
+}
+func sub(b *big.Int, b2 *big.Int) *big.Int {
+	return new(big.Int).Sub(b, b2)
 }

@@ -42,8 +42,11 @@ func (a *Map[T]) Get(key any) (T, error) {
 	ty := v.Type()
 	if ty.Implements(initContainerType) {
 		prefix, err := db.GetState[[]byte](a.Store, key)
-		if err != nil || len(prefix) == 0 {
+		if err != nil {
 			return t, err
+		}
+		if len(prefix) == 0 {
+			prefix = a.CreatePrefix(key)
 		}
 		m, _ := v.Interface().(Container)
 

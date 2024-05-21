@@ -12,7 +12,13 @@ import (
 )
 
 var (
-	DomainSeparator = abi.MustNewType("tuple(bytes32 typeHash, bytes32 nameHash, bytes32 versionHash, uint256 chainId, address this)")
+	cachedDomainSeparatorKey = []byte("cachedDomainSeparator")
+	cachedChainIdKey         = []byte("cachedChainId")
+	cachedThisKey            = []byte("cachedThis")
+	hashedNameKey            = []byte("hashedName")
+	hashedVersionKey         = []byte("hashedVersion")
+	typeHashKey              = []byte("typeHash")
+	DomainSeparator          = abi.MustNewType("tuple(bytes32 typeHash, bytes32 nameHash, bytes32 versionHash, uint256 chainId, address this)")
 )
 
 type Storage struct {
@@ -30,11 +36,11 @@ type EIP712 struct {
 	burner   contracts.Burn
 	stateDb  *contracts.StateDB
 	fallback func(input []byte) ([]byte, error)
-	storage  *Storage
+	storage  Storage
 	context  *contracts.Context
 }
 
-func NewEIP712(evm *vm.EVM, contract *vm.Contract, readOnly bool, name, version string) (*EIP712, error) {
+func NewEIP712(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*EIP712, error) {
 	s := &EIP712{
 		evm:      evm,
 		contract: contract,
@@ -43,10 +49,19 @@ func NewEIP712(evm *vm.EVM, contract *vm.Contract, readOnly bool, name, version 
 		context:  contracts.NewContext(evm, contract),
 		readOnly: readOnly,
 	}
+	store := db.NewStore([]byte{}, contract.Address(), s.stateDb)
+	s.storage = Storage{
+		CACHED_DOMAIN_SEPARATOR: db.NewBase[common.Hash](cachedDomainSeparatorKey, store),
+		CACHED_CHAIN_ID:         db.NewBase[*big.Int](cachedChainIdKey, store),
+		CACHED_THIS:             db.NewBase[common.Address](cachedThisKey, store),
+		HASHED_NAME:             db.NewBase[common.Hash](hashedNameKey, store),
+		HASHED_VERSION:          db.NewBase[common.Hash](hashedVersionKey, store),
+		TYPE_HASH:               db.NewBase[common.Hash](typeHashKey, store),
+	}
 	return s, nil
 }
 
-func (c *EIP712) init(name, version string) {
+func (c *EIP712) Init(name, version string) {
 	hashedName := crypto.Keccak256Hash([]byte(name))
 	hashedVersion := crypto.Keccak256Hash([]byte(version))
 	typeHash := crypto.Keccak256Hash(

@@ -7,7 +7,7 @@ type Base[T any] struct {
 	store *Store
 }
 
-func NewBase[T any](store *Store, key any) *Base[T] {
+func NewBase[T any](key any, store *Store) *Base[T] {
 	return &Base[T]{
 		key:   key,
 		store: store,

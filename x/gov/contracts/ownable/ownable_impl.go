@@ -29,9 +29,12 @@ var (
 	_ = types.BloomLookup
 	_ = event.NewSubscription
 )
+var (
+	ownerKey = []byte("owner")
+)
 
 type Storage struct {
-	Owner db.Base[common.Address]
+	Owner *db.Base[common.Address]
 }
 
 type Ownable struct {
@@ -62,11 +65,15 @@ func NewOwnable(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*Ownable, er
 		context:       contracts.NewContext(evm, contract),
 		readOnly:      readOnly,
 	}
+	store := db.NewStore([]byte{}, contract.Address(), s.stateDb)
+	s.storage = Storage{Owner: db.NewBase[common.Address](ownerKey, store)}
 	s.initABI()
 	s.initMethodEntry()
 	return s, nil
 }
-
+func (c *Ownable) Init(owner common.Address) {
+	c.storage.Owner.MustSet(owner)
+}
 func (c *Ownable) Owner() (common.Address, error) {
 	return c.storage.Owner.MustGet(), nil
 }
@@ -84,7 +91,7 @@ func (c *Ownable) RenounceOwnership() error {
 }
 
 func (c *Ownable) TransferOwnership(newOwner common.Address) error {
-	contracts.Require(newOwner == common.Address{}, "Ownable: new owner is the zero address")
+	contracts.Require(newOwner != common.Address{}, "Ownable: new owner is the zero address")
 	c.transferOwnership(newOwner)
 	return nil
 }

@@ -43,3 +43,15 @@ func TestDBKey(t *testing.T) {
 	store := NewStore([]byte{}, common.Address{}, statedb)
 	require.Nil(t, SetState(store, nil, nil))
 }
+
+func TestInit(t *testing.T) {
+	v := initValue[*big.Int]()
+	t.Log(v)
+	v1 := initValue[*string]()
+	t.Log(*v1)
+	v2 := initValue[*common.Address]()
+	t.Log(*v2)
+	v3 := initValue[*uint64]()
+	t.Log(*v3)
+	t.Log(new(uint64))
+}

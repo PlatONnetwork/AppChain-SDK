@@ -78,8 +78,8 @@ type Governance struct {
 	fallback      func(input []byte) ([]byte, error)
 	storage       Storage
 	voteCaller    *erc20vote.ERC20VoteCaller
-	eip712        EIP712
-	contracts2.Ownable
+	//eip712        EIP712
+	*contracts2.Ownable
 }
 
 func NewGovernance(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*Governance, error) {
@@ -95,16 +95,29 @@ func NewGovernance(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*Governan
 		context:       contracts.NewContext(evm, contract),
 		readOnly:      readOnly,
 	}
+	store := db.NewStore([]byte{}, contract.Address(), s.stateDb)
 	s.storage = Storage{
-		Name:      db.NewBase[string](db.NewStore([]byte{}, common.Address{}, s.stateDb), nameKey),
+		Name:      db.NewBase[string](nameKey, store),
 		Proposals: container.NewMap[ProposalCore](proposalKey, common.Address{}, s.stateDb),
 	}
 	s.initABI()
 	s.initMethodEntry()
+	s.loadMethodABI()
 	return s, nil
 }
+
+func (c *Governance) Init(name, version string, voteDelay, votePeriod, quorumNumerator, proposalThreshold *big.Int, owner common.Address) {
+	c.storage.Name.MustSet(name)
+	c.storage.Version.MustSet(version)
+	c.storage.VoteDelay.MustSet(voteDelay)
+	c.storage.VotePeriod.MustSet(votePeriod)
+	c.storage.QuorumNumerator.MustSet(quorumNumerator)
+	c.storage.ProposalThreshold.MustSet(proposalThreshold)
+	c.Ownable.Init(owner)
+}
 func (c *Governance) onlyGovernance() {
-	//contracts.Require(c.context.Caller() == )
+	owner, _ := c.Ownable.Owner()
+	contracts.Require(c.context.Caller() == owner, "Governance: caller is not Governor")
 }
 func (c *Governance) Name() (string, error) {
 	return c.storage.Name.MustGet(), nil

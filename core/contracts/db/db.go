@@ -3,6 +3,7 @@ package db
 import (
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
+	"reflect"
 )
 
 type Store struct {
@@ -49,9 +50,18 @@ func SetState(store *Store, key any, value any) error {
 	store.StateDB.SetState(store.Address, keyBuf, valBuf)
 	return nil
 }
+func initValue[T any]() T {
+	var t T
+	ty := reflect.TypeOf(t)
+	if ty.Kind() == reflect.Ptr {
+		s := reflect.New(ty.Elem())
+		t = s.Interface().(T)
+	}
+	return t
+}
 
 func GetState[T any](store *Store, key any) (T, error) {
-	var v T
+	v := initValue[T]()
 	keyBuf, err := store.KeyEncoder.EncodeKey(store.Prefix, key)
 	if err != nil {
 		return v, err
