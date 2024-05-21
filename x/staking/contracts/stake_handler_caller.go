@@ -46,6 +46,20 @@ func NewStakeHandlerCaller(evm *vm.EVM, contract *vm.Contract, to common.Address
 	return s, nil
 }
 
+func (c *StakeHandlerCaller) GetBlocksOfValidators(periodType uint8, period *big.Int) ([]BlocksOfValidator, error) {
+	var out []interface{}
+	err := c.BoundContract.Caller(c.to, &out, "getBlocksOfValidators", periodType, period)
+
+	if err != nil {
+		return *new([]BlocksOfValidator), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]BlocksOfValidator)).(*[]BlocksOfValidator)
+
+	return out0, err
+
+}
+
 func (c *StakeHandlerCaller) GetDelegationsWithValidator(validators []common.Address, delegator common.Address) ([]DelegationInfo, error) {
 	var out []interface{}
 	err := c.BoundContract.Caller(c.to, &out, "getDelegationsWithValidator", validators, delegator)
@@ -274,6 +288,20 @@ func NewStakeHandlerDelegateCaller(evm *vm.EVM, contract *vm.Contract, to common
 		to: to,
 	}
 	return s, nil
+}
+
+func (c *StakeHandlerDelegateCaller) GetBlocksOfValidators(periodType uint8, period *big.Int) ([]BlocksOfValidator, error) {
+	var out []interface{}
+	err := c.BoundContract.DelegateCaller(c.to, &out, "getBlocksOfValidators", periodType, period)
+
+	if err != nil {
+		return *new([]BlocksOfValidator), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]BlocksOfValidator)).(*[]BlocksOfValidator)
+
+	return out0, err
+
 }
 
 func (c *StakeHandlerDelegateCaller) GetDelegationsWithValidator(validators []common.Address, delegator common.Address) ([]DelegationInfo, error) {

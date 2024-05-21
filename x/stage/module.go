@@ -243,6 +243,22 @@ func (s *StageModule) GetEpochAndBlockBoundByBlockNumber(stateDB sdk.StateDBRead
 	return epoch, item.StartBlock, item.EndBlock
 }
 
+func (s *StageModule) GetRoundFlatten(stateDB sdk.StateDBReader, round uint64) (uint64, uint64) {
+	item := db.GetRoundItem(stateDB, s.Address(), round)
+	if nil == item {
+		return 0, 0
+	}
+	return item.StartBlock, item.EndBlock
+}
+
+func (s *StageModule) GetEpochFlatten(stateDB sdk.StateDBReader, epoch uint64) (uint64, uint64, uint64) {
+	item := db.GetEpochItem(stateDB, s.Address(), epoch)
+	if nil == item {
+		return 0, 0, 0
+	}
+	return item.StartBlock, item.EndBlock, item.RoundCount
+}
+
 func (s *StageModule) GetRoundValidatorElectionDistance(stateDB sdk.StateDBReader) uint64 {
 	return db.GetRoundValidatorElectionDistance(stateDB, s.Address())
 }

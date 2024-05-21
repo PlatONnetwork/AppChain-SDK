@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
+	"github.com/PlatONnetwork/AppChain-SDK/x/stage/types"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/p2p/enode"
@@ -30,7 +31,9 @@ var (
 	checkpointAddressKey     = []byte("checkpointAddress")
 	stakeManagerAddressKey   = []byte("stakeManagerAddress")
 	depositManagerAddressKey = []byte("depositManagerAddress")
-	// for stage module
+	// for stage
+	roundSizeKey       = []byte("roundSize")
+	epochSizeKey       = []byte("epochSize")
 	currentEpochKey    = []byte("currentEpoch") // "currentEpoch" => currentEpoch (It is a number)
 	currentRoundKey    = []byte("currentRound") // "currentRound" => currentRound (It is a number)
 	epochItemKeyPrefix = []byte("epochItem")    // "epochItem":epochId => {preEpoch, nextEpoch, startBlock, endBlock, epochCount}
@@ -91,6 +94,14 @@ var (
 	// for vrf module mock
 	nonceOfVRFForMockKeyPrefix = []byte("nonceOfVRFForMock") // "nonceOfVRFForMock":blockNumber => nonce
 )
+
+func encodeEpochItemKey(epoch uint64) []byte {
+	return append(epochItemKeyPrefix, common.Uint64ToBytes(epoch)...)
+}
+
+func encodeRoundItemKey(round uint64) []byte {
+	return append(roundItemKeyPrefix, common.Uint64ToBytes(round)...)
+}
 
 // for stage module mock
 func encodeBlockRoundKey(blockNumber uint64) []byte {
@@ -267,11 +278,26 @@ func NewMockStageModule(statedb sdk.StateDB) *MockStageModule {
 	}
 }
 
+func (stage *MockStageModule) MockRoundSize(size uint64) {
+	stage.statedb.SetState(stage.addr, roundSizeKey, common.Uint64ToBytes(size))
+}
+func (stage *MockStageModule) MockEpochSize(size uint64) {
+	stage.statedb.SetState(stage.addr, epochSizeKey, common.Uint64ToBytes(size))
+}
+
 func (stage *MockStageModule) MockCurrentRound(round uint64) {
 	stage.statedb.SetState(stage.addr, currentRoundKey, common.Uint64ToBytes(round))
 }
 func (stage *MockStageModule) MockCurrentEpoch(epoch uint64) {
 	stage.statedb.SetState(stage.addr, currentEpochKey, common.Uint64ToBytes(epoch))
+}
+
+func (stage *MockStageModule) MockRound(round uint64, item []byte) {
+	stage.statedb.SetState(stage.addr, encodeRoundItemKey(round), item)
+}
+
+func (stage *MockStageModule) MockEpoch(epoch uint64, item []byte) {
+	stage.statedb.SetState(stage.addr, encodeEpochItemKey(epoch), item)
 }
 
 func (stage *MockStageModule) MockBlockRound(blockNumber, round uint64) {
@@ -335,6 +361,13 @@ func (stage *MockStageModule) MockRoundAndBlockBoundEnd(blockNumber, endBlock ui
 }
 func (stage *MockStageModule) MockEpochAndBlockBoundEnd(blockNumber, endBlock uint64) {
 	stage.statedb.SetState(stage.addr, encodeEpochAndBlockBoundEndKey(blockNumber), common.Uint64ToBytes(endBlock))
+}
+
+func (stage *MockStageModule) GetRoundSize(stateDB sdk.StateDBReader) uint64 {
+	return common.BytesToUint64(stage.statedb.GetState(stage.addr, roundSizeKey))
+}
+func (stage *MockStageModule) GetEpochSize(stateDB sdk.StateDBReader) uint64 {
+	return common.BytesToUint64(stage.statedb.GetState(stage.addr, epochSizeKey))
 }
 
 func (stage *MockStageModule) GetCurrentRound(statedb sdk.StateDBReader) uint64 {
@@ -429,6 +462,36 @@ func (stage *MockStageModule) GetEpochAndBlockBoundByBlockNumber(statedb sdk.Sta
 	return common.BytesToUint64(statedb.GetState(stage.addr, encodeBlockEpochKey(blockNumber))),
 		common.BytesToUint64(statedb.GetState(stage.addr, encodeEpochAndBlockBoundBeginKey(blockNumber))),
 		common.BytesToUint64(statedb.GetState(stage.addr, encodeEpochAndBlockBoundEndKey(blockNumber)))
+}
+
+func (stage *MockStageModule) GetRoundFlatten(db sdk.StateDBReader, round uint64) (uint64, uint64) {
+
+	value := db.GetState(stage.addr, encodeRoundItemKey(round))
+	if len(value) == 0 {
+		return 0, 0
+	}
+
+	var item types.RoundItem
+	if err := rlp.DecodeBytes(value, &item); nil == err {
+		return (&item).StartBlock, (&item).EndBlock
+	}
+
+	return 0, 0
+}
+
+func (stage *MockStageModule) GetEpochFlatten(db sdk.StateDBReader, epoch uint64) (uint64, uint64, uint64) {
+
+	value := db.GetState(stage.addr, encodeEpochItemKey(epoch))
+	if len(value) == 0 {
+		return 0, 0, 0
+	}
+
+	var item types.EpochItem
+	if err := rlp.DecodeBytes(value, &item); nil == err {
+		return (&item).StartBlock, (&item).EndBlock, (&item).RoundCount
+	}
+
+	return 0, 0, 0
 }
 
 type MockStakeModule struct {

@@ -67,6 +67,30 @@ func NewStakeHandler(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*StakeH
 }
 
 // external
+
+// @notice Query the list of information on the number of sealed blocks of validators for a certain period
+// @dev For the convenience of expanding the list of validators with multiple period properties
+// @param periodType represents a period of a certain type
+// @param period represents the number of intervals
+// @return BlocksOfValidator array for query
+//
+// ## NOTE ##
+// periodType options:
+// 0: unknown
+// 1: round
+// 2: epoch
+// ...
+func (c *StakeHandler) GetBlocksOfValidators(periodType uint8, period *big.Int) ([]BlocksOfValidator, error) {
+	switch periodType {
+	case 1: // round
+		return c.getBlocksOfValidatorsForRound(period.Uint64())
+	case 2: // epoch
+		return c.getBlocksOfValidatorsForEpoch(period.Uint64())
+	default:
+		return nil, typesdk.NewRevertError("StakeHandler: UNKNOWN PERIOD TYPE")
+	}
+}
+
 func (c *StakeHandler) GetDelegationsWithValidator(validators []common.Address, delegator common.Address) ([]DelegationInfo, error) {
 	delegationQueue := make([]DelegationInfo, 0)
 	for _, validatorAddr := range validators {

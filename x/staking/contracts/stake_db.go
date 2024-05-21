@@ -2,6 +2,7 @@ package contracts
 
 import (
 	"bytes"
+	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	db "github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -254,7 +255,7 @@ func (c *StakeHandler) releaseValidatorDelegationRcItem(validatorAddr common.Add
 	return db.ReleaseValidatorDelegationRcItem(c.evm.StateDB, c.contract.Address(), validatorAddr, stakeEpoch, decrement)
 }
 
-// ----
+// -------
 
 func (c *StakeHandler) setSlashProcessed(exitEventId *big.Int, queue types.SlashValidatorWithdrawItemQueue) error {
 	return db.SetSlashProcessed(c.evm.StateDB, c.contract.Address(), exitEventId, queue)
@@ -266,4 +267,57 @@ func (c *StakeHandler) hasSlashProcessed(exitEventId *big.Int) bool {
 
 func (c *StakeHandler) hasNotSlashProcessed(exitEventId *big.Int) bool {
 	return db.HasNotSlashProcessed(c.evm.StateDB, c.contract.Address(), exitEventId)
+}
+
+// ------
+
+func (c *StakeHandler) getBlocksOfValidatorsForRound(round uint64) ([]BlocksOfValidator, error) {
+
+	validatorAddrQueue := c.getRoundValidatorIds(round)
+	queue := make([]BlocksOfValidator, len(validatorAddrQueue))
+	for i := 0; i < len(validatorAddrQueue); i++ {
+		validatorAddr := validatorAddrQueue[i]
+		blocks := db.GetNumberOfBlocksForRoundValidator(c.evm.StateDB, c.contract.Address(), validatorAddr, round)
+
+		queue[i] = BlocksOfValidator{
+			ValidatorAddr: validatorAddr,
+			Blocks:        new(big.Int).SetUint64(blocks),
+		}
+	}
+	return queue, nil
+}
+
+func (c *StakeHandler) getBlocksOfValidatorsForEpoch(epoch uint64) ([]BlocksOfValidator, error) {
+
+	start, epochEnd, roundCount := c.stageModule.GetEpochFlatten(c.evm.StateDB, epoch)
+
+	startRound := c.stageModule.GetRoundByBlockNumber(c.evm.StateDB, start)
+
+	endRound := startRound + roundCount - 1
+
+	_, endRoundEnd := c.stageModule.GetRoundFlatten(c.evm.StateDB, endRound)
+
+	if endRoundEnd != epochEnd {
+		return nil, typesdk.NewRevertError("StakeHandler: SYSTEM ERROR")
+	}
+
+	validatorAddrQueue := c.getEpochValidatorIds(epoch)
+	queue := make([]BlocksOfValidator, len(validatorAddrQueue))
+
+	for i := 0; i < len(validatorAddrQueue); i++ {
+
+		validatorAddr := validatorAddrQueue[i]
+
+		var accumulateBlocks uint64
+
+		for roundIndex := startRound; roundIndex <= endRoundEnd; roundIndex++ {
+			accumulateBlocks += db.GetNumberOfBlocksForRoundValidator(c.evm.StateDB, c.contract.Address(), validatorAddr, roundIndex)
+		}
+
+		queue[i] = BlocksOfValidator{
+			ValidatorAddr: validatorAddr,
+			Blocks:        new(big.Int).SetUint64(accumulateBlocks),
+		}
+	}
+	return queue, nil
 }

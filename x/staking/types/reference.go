@@ -10,6 +10,9 @@ type L1Moduler interface {
 }
 
 type StageModuler interface {
+	GetRoundSize(stateDB sdk.StateDBReader) uint64
+	GetEpochSize(stateDB sdk.StateDBReader) uint64
+
 	GetCurrentRound(stateDB sdk.StateDBReader) uint64
 	GetCurrentEpoch(stateDB sdk.StateDBReader) uint64
 
@@ -46,6 +49,9 @@ type StageModuler interface {
 
 	GetRoundAndBlockBoundByBlockNumber(db sdk.StateDBReader, blockNumber uint64) (uint64, uint64, uint64)
 	GetEpochAndBlockBoundByBlockNumber(db sdk.StateDBReader, blockNumber uint64) (uint64, uint64, uint64)
+
+	GetRoundFlatten(stateDB sdk.StateDBReader, round uint64) (uint64, uint64)
+	GetEpochFlatten(stateDB sdk.StateDBReader, epoch uint64) (uint64, uint64, uint64)
 }
 
 type StakeModuler interface {
