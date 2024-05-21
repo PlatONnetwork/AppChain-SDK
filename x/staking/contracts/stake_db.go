@@ -289,15 +289,14 @@ func (c *StakeHandler) getBlocksOfValidatorsForRound(round uint64) ([]BlocksOfVa
 
 func (c *StakeHandler) getBlocksOfValidatorsForEpoch(epoch uint64) ([]BlocksOfValidator, error) {
 
-	start, epochEnd, roundCount := c.stageModule.GetEpochFlatten(c.evm.StateDB, epoch)
+	epochStartBlockNumber, epochEndBlockNumber, roundCount := c.stageModule.GetEpochFlatten(c.evm.StateDB, epoch)
 
-	startRound := c.stageModule.GetRoundByBlockNumber(c.evm.StateDB, start)
+	firstRound := c.stageModule.GetRoundByBlockNumber(c.evm.StateDB, epochStartBlockNumber)
+	lastRound := firstRound + roundCount - 1
 
-	endRound := startRound + roundCount - 1
-
-	_, endRoundEnd := c.stageModule.GetRoundFlatten(c.evm.StateDB, endRound)
-
-	if endRoundEnd != epochEnd {
+	// check block number end edge
+	_, lastRoundEndBlockNumber := c.stageModule.GetRoundFlatten(c.evm.StateDB, lastRound)
+	if lastRoundEndBlockNumber != epochEndBlockNumber {
 		return nil, typesdk.NewRevertError("StakeHandler: SYSTEM ERROR")
 	}
 
@@ -310,7 +309,7 @@ func (c *StakeHandler) getBlocksOfValidatorsForEpoch(epoch uint64) ([]BlocksOfVa
 
 		var accumulateBlocks uint64
 
-		for roundIndex := startRound; roundIndex <= endRoundEnd; roundIndex++ {
+		for roundIndex := firstRound; roundIndex <= lastRound; roundIndex++ {
 			accumulateBlocks += db.GetNumberOfBlocksForRoundValidator(c.evm.StateDB, c.contract.Address(), validatorAddr, roundIndex)
 		}
 
