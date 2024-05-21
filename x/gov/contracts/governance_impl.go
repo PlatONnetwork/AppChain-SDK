@@ -127,17 +127,13 @@ func (c *Governance) Version() (string, error) {
 	return c.storage.Version.MustGet(), nil
 }
 
-func (c *Governance) GetExecutableProposal() ([]Proposal, error) {
-	panic("implement")
-}
-
 func (c *Governance) HasVoted(proposalId *big.Int, account common.Address) (bool, error) {
 	hasVoted := c.storage.HasVoted.MustGet(proposalId)
 	return hasVoted.MustGet(account), nil
 }
 
-func (c *Governance) HashProposal(proposalType uint8, targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash common.Hash) (*big.Int, error) {
-	data, _ := abi2.Encode([]interface{}{proposalType, targets, values, calldatas, descriptionHash}, abi2.MustNewType(""))
+func (c *Governance) HashProposal(targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash common.Hash) (*big.Int, error) {
+	data, _ := abi2.Encode([]interface{}{targets, values, calldatas, descriptionHash}, abi2.MustNewType("tuple(address[] targets, uint256[] values, bytes[] calldatas, bytes32 descriptionHash)"))
 	return crypto.Keccak256Hash(data).Big(), nil
 }
 
@@ -208,8 +204,8 @@ func (c *Governance) countVote(proposalId *big.Int, account common.Address, supp
 	c.storage.ProposalVotes.MustSet(proposalId, proposalVote)
 }
 
-func (c *Governance) Cancel(proposalType uint8, targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash common.Hash) (*big.Int, error) {
-	proposalId, _ := c.HashProposal(proposalType, targets, values, calldatas, descriptionHash)
+func (c *Governance) Cancel(targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash common.Hash) (*big.Int, error) {
+	proposalId, _ := c.HashProposal(targets, values, calldatas, descriptionHash)
 	status, _ := c.State(proposalId)
 	contracts.Require(status != Canceled && status != Expired || status != Executed, "Governance: proposal not active")
 	proposal := c.storage.Proposals.MustGet(proposalId)
@@ -223,6 +219,7 @@ func (c *Governance) CastVote(proposalId *big.Int, support uint8) (*big.Int, err
 	voter := c.context.Caller()
 	return c.castVote(proposalId, voter, support, ""), nil
 }
+
 func (c *Governance) castVote(proposalId *big.Int, account common.Address, support uint8, reason string) *big.Int {
 	proposal := c.storage.Proposals.MustGet(proposalId)
 	status, _ := c.State(proposalId)
@@ -238,30 +235,30 @@ func (c *Governance) CastVoteBySig(proposalId *big.Int, support uint8, v uint8, 
 	return c.castVote(proposalId, voter, support, ""), nil
 }
 
-func (c *Governance) Execute(proposalType uint8, targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash common.Hash) (*big.Int, error) {
-	proposalId, _ := c.HashProposal(proposalType, targets, values, calldatas, descriptionHash)
+func (c *Governance) Execute(targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash common.Hash) (*big.Int, error) {
+	proposalId, _ := c.HashProposal(targets, values, calldatas, descriptionHash)
 	status, _ := c.State(proposalId)
 	contracts.Require(status == Succeeded || status == Queued, "Governance: proposal not successful")
 	proposal := c.storage.Proposals.MustGet(proposalId)
 	proposal.Executed = true
 	c.storage.Proposals.MustSet(proposalId, proposal)
 	c.EmitProposalExecutedEvent(proposalId)
-	c.execute(proposalType, targets, values, calldatas, descriptionHash)
+	c.execute(targets, values, calldatas, descriptionHash)
 	return proposalId, nil
 }
 
-func (c *Governance) execute(proposalType uint8, targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash common.Hash) {
+func (c *Governance) execute(targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash common.Hash) {
 	for i := 0; i < len(targets); i++ {
 		_, err := contracts.Call(c.evm, c.contract, targets[i], calldatas[i], c.context.Gas(), values[i])
 		contracts.Require(err == nil, "Governance: call reverted without message")
 	}
 }
 
-func (c *Governance) Propose(proposalType uint8, targets []common.Address, values []*big.Int, calldatas [][]byte, description string) (*big.Int, error) {
+func (c *Governance) Propose(targets []common.Address, values []*big.Int, calldatas [][]byte, description string) (*big.Int, error) {
 	votes, _ := c.GetVotes(c.context.Caller(), c.context.BlockNumber())
 	threshold, _ := c.ProposalThreshold()
 	contracts.Require(votes.Cmp(threshold) >= 0, "Governance: proposer votes below proposal threshold")
-	proposalId, _ := c.HashProposal(proposalType, targets, values, calldatas, crypto.Keccak256Hash([]byte(description)))
+	proposalId, _ := c.HashProposal(targets, values, calldatas, crypto.Keccak256Hash([]byte(description)))
 	contracts.Require(len(targets) == len(values), "Governance: invalid proposal length")
 	contracts.Require(len(targets) == len(calldatas), "Governance: invalid proposal length")
 	contracts.Require(len(targets) > 0, "Governance: empty proposal")
@@ -271,7 +268,7 @@ func (c *Governance) Propose(proposalType uint8, targets []common.Address, value
 	deadline := snapshot + c.storage.VotePeriod.MustGet().Uint64()
 	proposal.VoteStart = BlockNumber(snapshot)
 	proposal.VoteEnd = BlockNumber(deadline)
-	c.EmitProposalCreatedEvent(proposalId, c.context.Caller(), proposalType, targets, values, make([]string, len(targets)), calldatas, new(big.Int).SetUint64(snapshot), new(big.Int).SetUint64(deadline), description)
+	c.EmitProposalCreatedEvent(proposalId, c.context.Caller(), targets, values, make([]string, len(targets)), calldatas, new(big.Int).SetUint64(snapshot), new(big.Int).SetUint64(deadline), description)
 	return proposalId, nil
 }
 

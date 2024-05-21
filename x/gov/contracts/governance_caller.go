@@ -46,15 +46,15 @@ func NewGovernanceCaller(evm *vm.EVM, contract *vm.Contract, to common.Address) 
 	return s, nil
 }
 
-func (c *GovernanceCaller) GetExecutableProposal() ([]Proposal, error) {
+func (c *GovernanceCaller) GetVotes(account common.Address, blockNumber *big.Int) (*big.Int, error) {
 	var out []interface{}
-	err := c.BoundContract.Caller(c.to, &out, "getExecutableProposal")
+	err := c.BoundContract.Caller(c.to, &out, "getVotes", account, blockNumber)
 
 	if err != nil {
-		return *new([]Proposal), err
+		return *new(*big.Int), err
 	}
 
-	out0 := *abi.ConvertType(out[0], new([]Proposal)).(*[]Proposal)
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
 
 	return out0, err
 
@@ -74,15 +74,29 @@ func (c *GovernanceCaller) HasVoted(proposalId *big.Int, account common.Address)
 
 }
 
-func (c *GovernanceCaller) HashProposal(proposalType uint8, targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash common.Hash) (*big.Int, error) {
+func (c *GovernanceCaller) HashProposal(targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash common.Hash) (*big.Int, error) {
 	var out []interface{}
-	err := c.BoundContract.Caller(c.to, &out, "hashProposal", proposalType, targets, values, calldatas, descriptionHash)
+	err := c.BoundContract.Caller(c.to, &out, "hashProposal", targets, values, calldatas, descriptionHash)
 
 	if err != nil {
 		return *new(*big.Int), err
 	}
 
 	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+func (c *GovernanceCaller) Name() (string, error) {
+	var out []interface{}
+	err := c.BoundContract.Caller(c.to, &out, "name")
+
+	if err != nil {
+		return *new(string), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(string)).(*string)
 
 	return out0, err
 
@@ -130,6 +144,48 @@ func (c *GovernanceCaller) ProposalThreshold() (*big.Int, error) {
 
 }
 
+func (c *GovernanceCaller) Quorum(blockNumber *big.Int) (*big.Int, error) {
+	var out []interface{}
+	err := c.BoundContract.Caller(c.to, &out, "quorum", blockNumber)
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+func (c *GovernanceCaller) QuorumDenominator() (*big.Int, error) {
+	var out []interface{}
+	err := c.BoundContract.Caller(c.to, &out, "quorumDenominator")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+func (c *GovernanceCaller) QuorumNumerator() (*big.Int, error) {
+	var out []interface{}
+	err := c.BoundContract.Caller(c.to, &out, "quorumNumerator")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
 func (c *GovernanceCaller) State(proposalId *big.Int) (uint8, error) {
 	var out []interface{}
 	err := c.BoundContract.Caller(c.to, &out, "state", proposalId)
@@ -144,9 +200,51 @@ func (c *GovernanceCaller) State(proposalId *big.Int) (uint8, error) {
 
 }
 
-func (c *GovernanceCaller) Cancel(proposalType uint8, targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash common.Hash) (*big.Int, error) {
+func (c *GovernanceCaller) Version() (string, error) {
 	var out []interface{}
-	err := c.BoundContract.Caller(c.to, &out, "cancel", proposalType, targets, values, calldatas, descriptionHash)
+	err := c.BoundContract.Caller(c.to, &out, "version")
+
+	if err != nil {
+		return *new(string), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(string)).(*string)
+
+	return out0, err
+
+}
+
+func (c *GovernanceCaller) VotingDelay() (*big.Int, error) {
+	var out []interface{}
+	err := c.BoundContract.Caller(c.to, &out, "votingDelay")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+func (c *GovernanceCaller) VotingPeriod() (*big.Int, error) {
+	var out []interface{}
+	err := c.BoundContract.Caller(c.to, &out, "votingPeriod")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+func (c *GovernanceCaller) Cancel(targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash common.Hash) (*big.Int, error) {
+	var out []interface{}
+	err := c.BoundContract.Caller(c.to, &out, "cancel", targets, values, calldatas, descriptionHash)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -186,9 +284,9 @@ func (c *GovernanceCaller) CastVoteBySig(proposalId *big.Int, support uint8, v u
 
 }
 
-func (c *GovernanceCaller) Execute(proposalType uint8, targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash common.Hash) (*big.Int, error) {
+func (c *GovernanceCaller) Execute(targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash common.Hash) (*big.Int, error) {
 	var out []interface{}
-	err := c.BoundContract.Caller(c.to, &out, "execute", proposalType, targets, values, calldatas, descriptionHash)
+	err := c.BoundContract.Caller(c.to, &out, "execute", targets, values, calldatas, descriptionHash)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -200,9 +298,9 @@ func (c *GovernanceCaller) Execute(proposalType uint8, targets []common.Address,
 
 }
 
-func (c *GovernanceCaller) Propose(proposalType uint8, targets []common.Address, values []*big.Int, calldatas [][]byte, description string) (*big.Int, error) {
+func (c *GovernanceCaller) Propose(targets []common.Address, values []*big.Int, calldatas [][]byte, description string) (*big.Int, error) {
 	var out []interface{}
-	err := c.BoundContract.Caller(c.to, &out, "propose", proposalType, targets, values, calldatas, description)
+	err := c.BoundContract.Caller(c.to, &out, "propose", targets, values, calldatas, description)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -211,6 +309,54 @@ func (c *GovernanceCaller) Propose(proposalType uint8, targets []common.Address,
 	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
 
 	return out0, err
+
+}
+
+func (c *GovernanceCaller) SetProposalThreshold(newProposalThreshold *big.Int) error {
+	var out []interface{}
+	err := c.BoundContract.Caller(c.to, &out, "setProposalThreshold", newProposalThreshold)
+
+	if err != nil {
+		return err
+	}
+
+	return err
+
+}
+
+func (c *GovernanceCaller) SetVotingDelay(newVotingDelay *big.Int) error {
+	var out []interface{}
+	err := c.BoundContract.Caller(c.to, &out, "setVotingDelay", newVotingDelay)
+
+	if err != nil {
+		return err
+	}
+
+	return err
+
+}
+
+func (c *GovernanceCaller) SetVotingPeriod(newVotingPeriod *big.Int) error {
+	var out []interface{}
+	err := c.BoundContract.Caller(c.to, &out, "setVotingPeriod", newVotingPeriod)
+
+	if err != nil {
+		return err
+	}
+
+	return err
+
+}
+
+func (c *GovernanceCaller) UpdateQuorumNumerator(newQuorumNumerator *big.Int) error {
+	var out []interface{}
+	err := c.BoundContract.Caller(c.to, &out, "updateQuorumNumerator", newQuorumNumerator)
+
+	if err != nil {
+		return err
+	}
+
+	return err
 
 }
 
@@ -231,15 +377,15 @@ func NewGovernanceDelegateCaller(evm *vm.EVM, contract *vm.Contract, to common.A
 	return s, nil
 }
 
-func (c *GovernanceDelegateCaller) GetExecutableProposal() ([]Proposal, error) {
+func (c *GovernanceDelegateCaller) GetVotes(account common.Address, blockNumber *big.Int) (*big.Int, error) {
 	var out []interface{}
-	err := c.BoundContract.DelegateCaller(c.to, &out, "getExecutableProposal")
+	err := c.BoundContract.DelegateCaller(c.to, &out, "getVotes", account, blockNumber)
 
 	if err != nil {
-		return *new([]Proposal), err
+		return *new(*big.Int), err
 	}
 
-	out0 := *abi.ConvertType(out[0], new([]Proposal)).(*[]Proposal)
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
 
 	return out0, err
 
@@ -259,15 +405,29 @@ func (c *GovernanceDelegateCaller) HasVoted(proposalId *big.Int, account common.
 
 }
 
-func (c *GovernanceDelegateCaller) HashProposal(proposalType uint8, targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash common.Hash) (*big.Int, error) {
+func (c *GovernanceDelegateCaller) HashProposal(targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash common.Hash) (*big.Int, error) {
 	var out []interface{}
-	err := c.BoundContract.DelegateCaller(c.to, &out, "hashProposal", proposalType, targets, values, calldatas, descriptionHash)
+	err := c.BoundContract.DelegateCaller(c.to, &out, "hashProposal", targets, values, calldatas, descriptionHash)
 
 	if err != nil {
 		return *new(*big.Int), err
 	}
 
 	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+func (c *GovernanceDelegateCaller) Name() (string, error) {
+	var out []interface{}
+	err := c.BoundContract.DelegateCaller(c.to, &out, "name")
+
+	if err != nil {
+		return *new(string), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(string)).(*string)
 
 	return out0, err
 
@@ -315,6 +475,48 @@ func (c *GovernanceDelegateCaller) ProposalThreshold() (*big.Int, error) {
 
 }
 
+func (c *GovernanceDelegateCaller) Quorum(blockNumber *big.Int) (*big.Int, error) {
+	var out []interface{}
+	err := c.BoundContract.DelegateCaller(c.to, &out, "quorum", blockNumber)
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+func (c *GovernanceDelegateCaller) QuorumDenominator() (*big.Int, error) {
+	var out []interface{}
+	err := c.BoundContract.DelegateCaller(c.to, &out, "quorumDenominator")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+func (c *GovernanceDelegateCaller) QuorumNumerator() (*big.Int, error) {
+	var out []interface{}
+	err := c.BoundContract.DelegateCaller(c.to, &out, "quorumNumerator")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
 func (c *GovernanceDelegateCaller) State(proposalId *big.Int) (uint8, error) {
 	var out []interface{}
 	err := c.BoundContract.DelegateCaller(c.to, &out, "state", proposalId)
@@ -329,9 +531,51 @@ func (c *GovernanceDelegateCaller) State(proposalId *big.Int) (uint8, error) {
 
 }
 
-func (c *GovernanceDelegateCaller) Cancel(proposalType uint8, targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash common.Hash) (*big.Int, error) {
+func (c *GovernanceDelegateCaller) Version() (string, error) {
 	var out []interface{}
-	err := c.BoundContract.DelegateCaller(c.to, &out, "cancel", proposalType, targets, values, calldatas, descriptionHash)
+	err := c.BoundContract.DelegateCaller(c.to, &out, "version")
+
+	if err != nil {
+		return *new(string), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(string)).(*string)
+
+	return out0, err
+
+}
+
+func (c *GovernanceDelegateCaller) VotingDelay() (*big.Int, error) {
+	var out []interface{}
+	err := c.BoundContract.DelegateCaller(c.to, &out, "votingDelay")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+func (c *GovernanceDelegateCaller) VotingPeriod() (*big.Int, error) {
+	var out []interface{}
+	err := c.BoundContract.DelegateCaller(c.to, &out, "votingPeriod")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+func (c *GovernanceDelegateCaller) Cancel(targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash common.Hash) (*big.Int, error) {
+	var out []interface{}
+	err := c.BoundContract.DelegateCaller(c.to, &out, "cancel", targets, values, calldatas, descriptionHash)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -371,9 +615,9 @@ func (c *GovernanceDelegateCaller) CastVoteBySig(proposalId *big.Int, support ui
 
 }
 
-func (c *GovernanceDelegateCaller) Execute(proposalType uint8, targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash common.Hash) (*big.Int, error) {
+func (c *GovernanceDelegateCaller) Execute(targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash common.Hash) (*big.Int, error) {
 	var out []interface{}
-	err := c.BoundContract.DelegateCaller(c.to, &out, "execute", proposalType, targets, values, calldatas, descriptionHash)
+	err := c.BoundContract.DelegateCaller(c.to, &out, "execute", targets, values, calldatas, descriptionHash)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -385,9 +629,9 @@ func (c *GovernanceDelegateCaller) Execute(proposalType uint8, targets []common.
 
 }
 
-func (c *GovernanceDelegateCaller) Propose(proposalType uint8, targets []common.Address, values []*big.Int, calldatas [][]byte, description string) (*big.Int, error) {
+func (c *GovernanceDelegateCaller) Propose(targets []common.Address, values []*big.Int, calldatas [][]byte, description string) (*big.Int, error) {
 	var out []interface{}
-	err := c.BoundContract.DelegateCaller(c.to, &out, "propose", proposalType, targets, values, calldatas, description)
+	err := c.BoundContract.DelegateCaller(c.to, &out, "propose", targets, values, calldatas, description)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -396,5 +640,53 @@ func (c *GovernanceDelegateCaller) Propose(proposalType uint8, targets []common.
 	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
 
 	return out0, err
+
+}
+
+func (c *GovernanceDelegateCaller) SetProposalThreshold(newProposalThreshold *big.Int) error {
+	var out []interface{}
+	err := c.BoundContract.DelegateCaller(c.to, &out, "setProposalThreshold", newProposalThreshold)
+
+	if err != nil {
+		return err
+	}
+
+	return err
+
+}
+
+func (c *GovernanceDelegateCaller) SetVotingDelay(newVotingDelay *big.Int) error {
+	var out []interface{}
+	err := c.BoundContract.DelegateCaller(c.to, &out, "setVotingDelay", newVotingDelay)
+
+	if err != nil {
+		return err
+	}
+
+	return err
+
+}
+
+func (c *GovernanceDelegateCaller) SetVotingPeriod(newVotingPeriod *big.Int) error {
+	var out []interface{}
+	err := c.BoundContract.DelegateCaller(c.to, &out, "setVotingPeriod", newVotingPeriod)
+
+	if err != nil {
+		return err
+	}
+
+	return err
+
+}
+
+func (c *GovernanceDelegateCaller) UpdateQuorumNumerator(newQuorumNumerator *big.Int) error {
+	var out []interface{}
+	err := c.BoundContract.DelegateCaller(c.to, &out, "updateQuorumNumerator", newQuorumNumerator)
+
+	if err != nil {
+		return err
+	}
+
+	return err
 
 }

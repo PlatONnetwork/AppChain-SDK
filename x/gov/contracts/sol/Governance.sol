@@ -30,7 +30,6 @@ enum ProposalState {
 }
 
 struct Proposal {
-    ProposalType proposalType;
     address[] targets;
     uint256[] values;
     bytes[] calldatas;
@@ -60,7 +59,7 @@ struct ProposalVote {
 }
 
 interface Governance {
-    event ProposalCreated(uint256 proposalId, address proposer, ProposalType proposalType, address[] targets, uint256[] values, string[] signatures, bytes[] calldatas, uint256 startBlock, uint256 endBlock, string description);
+    event ProposalCreated(uint256 proposalId, address proposer, address[] targets, uint256[] values, string[] signatures, bytes[] calldatas, uint256 startBlock, uint256 endBlock, string description);
     event ProposalCanceled(uint256 proposalId);
     event ProposalExecuted(uint256 proposalId);
     event VoteCast(address indexed voter, uint256 proposalId, uint8 support, uint256 weight, string reason);
@@ -88,7 +87,6 @@ interface Governance {
     function proposalThreshold() external view  returns (uint256);
 
     function propose(
-        ProposalType proposalType,
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas,
@@ -96,7 +94,6 @@ interface Governance {
     ) external returns (uint256 proposalId);
 
     function execute(
-        ProposalType proposalType,
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas,
@@ -104,7 +101,6 @@ interface Governance {
     ) external payable  returns (uint256 proposalId);
 
     function cancel(
-        ProposalType proposalType,
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas,
@@ -114,7 +110,6 @@ interface Governance {
     function castVote(uint256 proposalId, uint8 support) external  returns (uint256 balance);
     function castVoteBySig(uint256 proposalId, uint8 support, uint8 v, bytes32 r, bytes32 s) external returns (uint256);
     function hashProposal(
-        ProposalType proposalType,
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas,
@@ -123,5 +118,4 @@ interface Governance {
 
     function hasVoted(uint256 proposalId, address account) external view  returns (bool);
 
-    function getExecutableProposal() external view returns( Proposal[]memory);
 }

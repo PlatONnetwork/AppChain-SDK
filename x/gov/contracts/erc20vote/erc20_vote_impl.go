@@ -190,7 +190,7 @@ func (c *ERC20Vote) Delegate(delegatee common.Address) error {
 
 func (c *ERC20Vote) DelegateBySig(delegatee common.Address, nonce *big.Int, expiry *big.Int, v uint8, r common.Hash, s common.Hash) error {
 	contracts.Require(c.context.Timestamp() <= expiry.Int64(), "ERC20Vote: signature expired")
-	data, err := abi2.Encode([]interface{}{DELEGATION_TYPEHASH, delegatee, nonce, expiry}, nil)
+	data, err := abi2.Encode([]interface{}{DELEGATION_TYPEHASH, delegatee, nonce, expiry}, abi2.MustNewType("tuple(bytes32 hash, address delegatee, uint256 nonce, uint256 expiry)"))
 	contracts.Require(err == nil, "ERC20Vote: encode failed")
 	signer := ecdsa.Recover(c.eip712.HashTypedData(crypto.Keccak256Hash(data)), v, r, s)
 	contracts.Require(nonce.Cmp(c.erc20Permit.UseNonce(signer)) == 0, "ERC20Vote: invalid nonce")
