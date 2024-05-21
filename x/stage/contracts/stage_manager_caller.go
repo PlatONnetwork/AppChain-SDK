@@ -74,18 +74,19 @@ func (c *StageManagerCaller) GetPeriodEdge(periodType uint8, period *big.Int) (P
 
 }
 
-func (c *StageManagerCaller) GetPeriodEdges(periodType uint8, start *big.Int, size *big.Int) (*big.Int, []PeriodEdge, error) {
+func (c *StageManagerCaller) GetPeriodEdges(periodType uint8, start *big.Int, size *big.Int) (*big.Int, []*big.Int, []PeriodEdge, error) {
 	var out []interface{}
 	err := c.BoundContract.Caller(c.to, &out, "getPeriodEdges", periodType, start, size)
 
 	if err != nil {
-		return *new(*big.Int), *new([]PeriodEdge), err
+		return *new(*big.Int), *new([]*big.Int), *new([]PeriodEdge), err
 	}
 
 	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-	out1 := *abi.ConvertType(out[1], new([]PeriodEdge)).(*[]PeriodEdge)
+	out1 := *abi.ConvertType(out[1], new([]*big.Int)).(*[]*big.Int)
+	out2 := *abi.ConvertType(out[2], new([]PeriodEdge)).(*[]PeriodEdge)
 
-	return out0, out1, err
+	return out0, out1, out2, err
 
 }
 
@@ -134,17 +135,18 @@ func (c *StageManagerDelegateCaller) GetPeriodEdge(periodType uint8, period *big
 
 }
 
-func (c *StageManagerDelegateCaller) GetPeriodEdges(periodType uint8, start *big.Int, size *big.Int) (*big.Int, []PeriodEdge, error) {
+func (c *StageManagerDelegateCaller) GetPeriodEdges(periodType uint8, start *big.Int, size *big.Int) (*big.Int, []*big.Int, []PeriodEdge, error) {
 	var out []interface{}
 	err := c.BoundContract.DelegateCaller(c.to, &out, "getPeriodEdges", periodType, start, size)
 
 	if err != nil {
-		return *new(*big.Int), *new([]PeriodEdge), err
+		return *new(*big.Int), *new([]*big.Int), *new([]PeriodEdge), err
 	}
 
 	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-	out1 := *abi.ConvertType(out[1], new([]PeriodEdge)).(*[]PeriodEdge)
+	out1 := *abi.ConvertType(out[1], new([]*big.Int)).(*[]*big.Int)
+	out2 := *abi.ConvertType(out[2], new([]PeriodEdge)).(*[]PeriodEdge)
 
-	return out0, out1, err
+	return out0, out1, out2, err
 
 }

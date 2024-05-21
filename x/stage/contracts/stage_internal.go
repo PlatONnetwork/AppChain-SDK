@@ -47,40 +47,47 @@ func (c *StageManager) getPeriodEdgeForEpoch(epoch uint64) (*PeriodEdge, error) 
 	}, nil
 }
 
-func (c *StageManager) getPeriodEdgesForRound(start, size uint64) (*big.Int, []PeriodEdge, error) {
+func (c *StageManager) getPeriodEdgesForRound(start, size uint64) (*big.Int, []*big.Int, []PeriodEdge, error) {
 
 	indexs, queue := db.GetRoundQueueAndIndexSince(c.evm.StateDB, c.contract.Address(), start, size)
 
 	if len(queue) == 0 {
-		return common.Big0, nil, nil
+		return common.Big0, nil, nil, nil
 	}
-	arr := make([]PeriodEdge, len(queue))
-
+	periodEdges := make([]PeriodEdge, len(queue))
+	rounds := make([]*big.Int, len(queue))
 	for i := 0; i < len(queue); i++ {
-		arr[i] = PeriodEdge{
+
+		rounds[i] = new(big.Int).SetUint64(indexs[i])
+
+		periodEdges[i] = PeriodEdge{
 			StartBlock: new(big.Int).SetUint64(queue[i].StartBlock),
 			EndBlock:   new(big.Int).SetUint64(queue[i].EndBlock),
 		}
 	}
 
-	return new(big.Int).SetUint64(indexs[len(indexs)-1] + 1), arr, nil
+	return new(big.Int).SetUint64(indexs[len(indexs)-1] + 1), rounds, periodEdges, nil
 }
 
-func (c *StageManager) getPeriodEdgesForEpoch(start, size uint64) (*big.Int, []PeriodEdge, error) {
+func (c *StageManager) getPeriodEdgesForEpoch(start, size uint64) (*big.Int, []*big.Int, []PeriodEdge, error) {
 
 	indexs, queue := db.GetEpochQueueAndIndexSince(c.evm.StateDB, c.contract.Address(), start, size)
 
 	if len(queue) == 0 {
-		return common.Big0, nil, nil
+		return common.Big0, nil, nil, nil
 	}
-	arr := make([]PeriodEdge, len(queue))
+	periodEdges := make([]PeriodEdge, len(queue))
+	epochs := make([]*big.Int, len(queue))
 
 	for i := 0; i < len(queue); i++ {
-		arr[i] = PeriodEdge{
+
+		epochs[i] = new(big.Int).SetUint64(indexs[i])
+
+		periodEdges[i] = PeriodEdge{
 			StartBlock: new(big.Int).SetUint64(queue[i].StartBlock),
 			EndBlock:   new(big.Int).SetUint64(queue[i].EndBlock),
 		}
 	}
 
-	return new(big.Int).SetUint64(indexs[len(indexs)-1] + 1), arr, nil
+	return new(big.Int).SetUint64(indexs[len(indexs)-1] + 1), epochs, periodEdges, nil
 }

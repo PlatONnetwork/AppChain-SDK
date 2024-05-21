@@ -110,13 +110,13 @@ func (c *StageManager) GetPeriodEdge(periodType uint8, period *big.Int) (PeriodE
 // 1: round
 // 2: epoch
 // ...
-func (c *StageManager) GetPeriodEdges(periodType uint8, start *big.Int, size *big.Int) (*big.Int, []PeriodEdge, error) {
+func (c *StageManager) GetPeriodEdges(periodType uint8, start *big.Int, size *big.Int) (*big.Int, []*big.Int, []PeriodEdge, error) {
 	switch periodType {
 	case 1: // round
 		return c.getPeriodEdgesForRound(start.Uint64(), size.Uint64())
 	case 2: // epoch
 		return c.getPeriodEdgesForEpoch(start.Uint64(), size.Uint64())
 	default:
-		return common.Big0, nil, typesdk.NewRevertError("StageManager: UNKNOWN PERIOD TYPE")
+		return common.Big0, nil, nil, typesdk.NewRevertError("StageManager: UNKNOWN PERIOD TYPE")
 	}
 }
