@@ -25,7 +25,7 @@ func NewBlockContext() vm.BlockContext {
 			core.Transfer(db, address, address2, b)
 		},
 		GetHash:     vmTestBlockHash,
-		BlockNumber: new(big.Int).SetUint64(0),
+		BlockNumber: new(big.Int).SetUint64(10),
 		Time:        new(big.Int).SetUint64(1),
 		GasLimit:    100000000,
 	}

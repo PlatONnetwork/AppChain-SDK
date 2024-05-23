@@ -7,6 +7,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/core/contracts/db/container"
 	"github.com/PlatONnetwork/AppChain-SDK/core/contracts/ecdsa"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
+	"github.com/PlatONnetwork/AppChain-SDK/x/gov/contracts/eip712"
 	"github.com/PlatONnetwork/AppChain-SDK/x/gov/contracts/erc20vote"
 	contracts2 "github.com/PlatONnetwork/AppChain-SDK/x/gov/contracts/ownable"
 	platon "github.com/PlatONnetwork/PlatON-Go"
@@ -37,14 +38,20 @@ var (
 )
 
 var (
-	nameKey         = []byte("name")
-	proposalKey     = []byte("proposal")
-	BALLOT_TYPEHASH = crypto.Keccak256Hash([]byte("Ballot(uint256 proposalId,uint8 support)"))
+	nameKey              = []byte("name")
+	govVersionKey        = []byte("govVersion")
+	voteTokenKey         = []byte("voteToken")
+	proposalKey          = []byte("proposal")
+	quorumNumeratorKey   = []byte("quorumNumerator")
+	proposalVotesKey     = []byte("proposalVotes")
+	hasVotedKey          = []byte("hasVoted")
+	voteDelayKey         = []byte("voteDelay")
+	votePeriodKey        = []byte("votePeriod")
+	proposalThresholdKey = []byte("proposalThreshold")
+	BALLOT_TYPEHASH      = crypto.Keccak256Hash([]byte("Ballot(uint256 proposalId,uint8 support)"))
+	CastVoteType         = abi2.MustNewType("tuple(bytes32 ballot,uint256 proposalId,uint8 support)")
 )
 
-type EIP712 interface {
-	HashTypedData(structHash common.Hash) common.Hash
-}
 type ProposalCore struct {
 	VoteStart BlockNumber
 	VoteEnd   BlockNumber
@@ -55,6 +62,7 @@ type ProposalCore struct {
 type Storage struct {
 	Name              *db.Base[string]
 	Version           *db.Base[string]
+	VoteToken         *db.Base[common.Address]
 	Proposals         *container.Map[ProposalCore]
 	QuorumNumerator   *db.Base[*big.Int]
 	ProposalVotes     *container.Map[ProposalVote]
@@ -77,8 +85,7 @@ type Governance struct {
 	context       *contracts.Context
 	fallback      func(input []byte) ([]byte, error)
 	storage       Storage
-	voteCaller    *erc20vote.ERC20VoteCaller
-	//eip712        EIP712
+	eip712        *eip712.EIP712
 	*contracts2.Ownable
 }
 
@@ -95,10 +102,29 @@ func NewGovernance(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*Governan
 		context:       contracts.NewContext(evm, contract),
 		readOnly:      readOnly,
 	}
+
 	store := db.NewStore([]byte{}, contract.Address(), s.stateDb)
 	s.storage = Storage{
-		Name:      db.NewBase[string](nameKey, store),
-		Proposals: container.NewMap[ProposalCore](proposalKey, common.Address{}, s.stateDb),
+		Name:              db.NewBase[string](nameKey, store),
+		Version:           db.NewBase[string](govVersionKey, store),
+		VoteToken:         db.NewBase[common.Address](voteTokenKey, store),
+		Proposals:         container.NewMap[ProposalCore](proposalKey, contract.Address(), s.stateDb),
+		QuorumNumerator:   db.NewBase[*big.Int](quorumNumeratorKey, store),
+		ProposalVotes:     container.NewMap[ProposalVote](proposalVotesKey, contract.Address(), s.stateDb),
+		HasVoted:          container.NewMap[*container.Map[bool]](hasVotedKey, contract.Address(), s.stateDb),
+		VoteDelay:         db.NewBase[*big.Int](voteDelayKey, store),
+		VotePeriod:        db.NewBase[*big.Int](votePeriodKey, store),
+		ProposalThreshold: db.NewBase[*big.Int](proposalThresholdKey, store),
+	}
+	var err error
+	s.Ownable, err = contracts2.NewOwnable(evm, contract, readOnly)
+	if err != nil {
+		return nil, err
+	}
+
+	s.eip712, err = eip712.NewEIP712(evm, contract, readOnly)
+	if err != nil {
+		return nil, err
 	}
 	s.initABI()
 	s.initMethodEntry()
@@ -106,7 +132,8 @@ func NewGovernance(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*Governan
 	return s, nil
 }
 
-func (c *Governance) Init(name, version string, voteDelay, votePeriod, quorumNumerator, proposalThreshold *big.Int, owner common.Address) {
+func (c *Governance) Init(name, version string, voteDelay, votePeriod, quorumNumerator, proposalThreshold *big.Int, owner common.Address, token common.Address) {
+	c.eip712.Init(name, version)
 	c.storage.Name.MustSet(name)
 	c.storage.Version.MustSet(version)
 	c.storage.VoteDelay.MustSet(voteDelay)
@@ -114,6 +141,13 @@ func (c *Governance) Init(name, version string, voteDelay, votePeriod, quorumNum
 	c.storage.QuorumNumerator.MustSet(quorumNumerator)
 	c.storage.ProposalThreshold.MustSet(proposalThreshold)
 	c.Ownable.Init(owner)
+	c.storage.VoteToken.MustSet(token)
+}
+func (c *Governance) voteCaller() *erc20vote.ERC20VoteCaller {
+	token := c.storage.VoteToken.MustGet()
+	voteCaller, err := erc20vote.NewERC20VoteCaller(c.evm, c.contract, token)
+	contracts.Require(err == nil, "Governance: new vote caller failed")
+	return voteCaller
 }
 func (c *Governance) onlyGovernance() {
 	owner, _ := c.Ownable.Owner()
@@ -158,7 +192,7 @@ func (c *Governance) State(proposalId *big.Int) (uint8, error) {
 		return Canceled, nil
 	}
 	snapshot, _ := c.ProposalSnapshot(proposalId)
-	contracts.Require(snapshot.Cmp(big.NewInt(0)) == 0, "Governance: unknown proposal id")
+	contracts.Require(snapshot.Cmp(big.NewInt(0)) != 0, "Governance: unknown proposal id")
 
 	if snapshot.Uint64() > c.context.BlockNumber().Uint64() {
 		return Pending, nil
@@ -178,13 +212,13 @@ func (c *Governance) quorumReached(proposalId *big.Int) bool {
 	proposalVote := c.storage.ProposalVotes.MustGet(proposalId)
 	blockNumber, _ := c.ProposalSnapshot(proposalId)
 	quorum, _ := c.Quorum(blockNumber)
-	return quorum.Cmp(new(big.Int).Add(proposalVote.ForVotes, proposalVote.AbstainVotes)) >= 0
+	return quorum.Cmp(new(big.Int).Add(&proposalVote.ForVotes, &proposalVote.AbstainVotes)) <= 0
 
 }
 
 func (c *Governance) voteSucceeded(proposalId *big.Int) bool {
 	proposalVote := c.storage.ProposalVotes.MustGet(proposalId)
-	return proposalVote.ForVotes.Cmp(proposalVote.AgainstVotes) > 0
+	return proposalVote.ForVotes.Cmp(&proposalVote.AgainstVotes) > 0
 }
 
 func (c *Governance) countVote(proposalId *big.Int, account common.Address, support uint8, weight *big.Int) {
@@ -193,11 +227,11 @@ func (c *Governance) countVote(proposalId *big.Int, account common.Address, supp
 	contracts.Require(!hasVoted.MustGet(account), "Governance: vote already cast")
 	hasVoted.MustSet(account, true)
 	if support == Against {
-		proposalVote.AgainstVotes.Add(proposalVote.AgainstVotes, weight)
+		proposalVote.AgainstVotes.Add(&proposalVote.AgainstVotes, weight)
 	} else if support == For {
-		proposalVote.ForVotes.Add(proposalVote.ForVotes, weight)
+		proposalVote.ForVotes.Add(&proposalVote.ForVotes, weight)
 	} else if support == Abstain {
-		proposalVote.AbstainVotes.Add(proposalVote.AbstainVotes, weight)
+		proposalVote.AbstainVotes.Add(&proposalVote.AbstainVotes, weight)
 	} else {
 		contracts.Require(false, "Governance: invalid value for enum VoteType")
 	}
@@ -231,7 +265,10 @@ func (c *Governance) castVote(proposalId *big.Int, account common.Address, suppo
 }
 
 func (c *Governance) CastVoteBySig(proposalId *big.Int, support uint8, v uint8, r common.Hash, s common.Hash) (*big.Int, error) {
-	voter := ecdsa.Recover(common.Hash{}, v, r, s)
+	data, err := abi2.Encode([]interface{}{BALLOT_TYPEHASH, proposalId, support}, CastVoteType)
+	contracts.Require(err == nil, "Governance: encode ballot hash")
+	hash := c.eip712.HashTypedData(crypto.Keccak256Hash(data))
+	voter := ecdsa.Recover(hash, v, r, s)
 	return c.castVote(proposalId, voter, support, ""), nil
 }
 
@@ -255,7 +292,7 @@ func (c *Governance) execute(targets []common.Address, values []*big.Int, callda
 }
 
 func (c *Governance) Propose(targets []common.Address, values []*big.Int, calldatas [][]byte, description string) (*big.Int, error) {
-	votes, _ := c.GetVotes(c.context.Caller(), c.context.BlockNumber())
+	votes, _ := c.GetVotes(c.context.Caller(), new(big.Int).Sub(c.context.BlockNumber(), big.NewInt(1)))
 	threshold, _ := c.ProposalThreshold()
 	contracts.Require(votes.Cmp(threshold) >= 0, "Governance: proposer votes below proposal threshold")
 	proposalId, _ := c.HashProposal(targets, values, calldatas, crypto.Keccak256Hash([]byte(description)))
@@ -268,16 +305,17 @@ func (c *Governance) Propose(targets []common.Address, values []*big.Int, callda
 	deadline := snapshot + c.storage.VotePeriod.MustGet().Uint64()
 	proposal.VoteStart = BlockNumber(snapshot)
 	proposal.VoteEnd = BlockNumber(deadline)
+	c.storage.Proposals.MustSet(proposalId, proposal)
 	c.EmitProposalCreatedEvent(proposalId, c.context.Caller(), targets, values, make([]string, len(targets)), calldatas, new(big.Int).SetUint64(snapshot), new(big.Int).SetUint64(deadline), description)
 	return proposalId, nil
 }
 
 func (c *Governance) GetVotes(account common.Address, blockNumber *big.Int) (*big.Int, error) {
-	return c.voteCaller.GetPastVotes(account, blockNumber)
+	return c.voteCaller().GetPastVotes(account, blockNumber)
 }
 
 func (c *Governance) Quorum(blockNumber *big.Int) (*big.Int, error) {
-	totalSupply, _ := c.voteCaller.GetPastTotalSupply(blockNumber)
+	totalSupply, _ := c.voteCaller().GetPastTotalSupply(blockNumber)
 	quorumNumerator, _ := c.QuorumNumerator()
 	quorumDenominator, _ := c.QuorumDenominator()
 	totalSupply.Mul(totalSupply, quorumNumerator)
@@ -285,11 +323,11 @@ func (c *Governance) Quorum(blockNumber *big.Int) (*big.Int, error) {
 }
 
 func (c *Governance) QuorumDenominator() (*big.Int, error) {
-	return c.storage.QuorumNumerator.MustGet(), nil
+	return big.NewInt(100), nil
 }
 
 func (c *Governance) QuorumNumerator() (*big.Int, error) {
-	return big.NewInt(100), nil
+	return c.storage.QuorumNumerator.MustGet(), nil
 }
 
 func (c *Governance) UpdateQuorumNumerator(newQuorumNumerator *big.Int) error {

@@ -3,7 +3,7 @@ package contracts
 import "math/big"
 
 const (
-	Pending = iota
+	Pending = uint8(iota)
 	Active
 	Canceled
 	Defeated
@@ -13,7 +13,7 @@ const (
 	Executed
 )
 const (
-	Against = iota
+	Against = uint8(iota)
 	For
 	Abstain
 )
@@ -41,7 +41,7 @@ func (b *BlockNumber) isPending(number BlockNumber) bool {
 }
 
 type ProposalVote struct {
-	AgainstVotes *big.Int
-	ForVotes     *big.Int
-	AbstainVotes *big.Int
+	AgainstVotes big.Int
+	ForVotes     big.Int
+	AbstainVotes big.Int
 }

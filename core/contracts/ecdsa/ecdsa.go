@@ -12,6 +12,9 @@ func Recover(hash common.Hash, v uint8, r common.Hash, s common.Hash) common.Add
 	var sig [65]byte
 	copy(sig[:], r.Bytes())
 	copy(sig[32:], s.Bytes())
+	if v >= 27 {
+		v = v - 27
+	}
 	sig[64] = v
 	pubKey, err := crypto.Ecrecover(hash.Bytes(), sig[:])
 	contracts.Require(err == nil, "ECDSA: invalid signature")

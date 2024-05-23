@@ -103,9 +103,9 @@ func (c *ERC20Permit) Nonces(owner common.Address) (*big.Int, error) {
 }
 
 func (c *ERC20Permit) Permit(owner common.Address, spender common.Address, value *big.Int, deadline *big.Int, v uint8, r common.Hash, s common.Hash) error {
-	contracts.Require(c.context.Timestamp() <= deadline.Int64(), "ERC20Permit: expired deadline")
+	//contracts.Require(c.context.Timestamp() <= deadline.Int64(), "ERC20Permit: expired deadline")
 	data, err := abi2.Encode([]interface{}{PERMIT_TYPEHASH, owner, spender, value, c.UseNonce(owner), deadline}, StructHash)
-	contracts.Require(err != nil, "ERC20Permit: encode failed")
+	contracts.Require(err == nil, "ERC20Permit: encode failed")
 	structHash := crypto.Keccak256Hash(data)
 	hash := c.eip712.HashTypedData(structHash)
 	signer := ecdsa.Recover(hash, v, r, s)
@@ -116,6 +116,6 @@ func (c *ERC20Permit) Permit(owner common.Address, spender common.Address, value
 
 func (c *ERC20Permit) UseNonce(owner common.Address) *big.Int {
 	nonce := c.storage.Nonces.MustGet(owner)
-	c.storage.Nonces.MustSet(owner, nonce.Add(nonce, big.NewInt(1)))
+	c.storage.Nonces.MustSet(owner, new(big.Int).Add(nonce, big.NewInt(1)))
 	return nonce
 }
