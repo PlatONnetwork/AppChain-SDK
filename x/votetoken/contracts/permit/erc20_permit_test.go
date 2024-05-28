@@ -2,7 +2,7 @@ package permit
 
 import (
 	"github.com/PlatONnetwork/AppChain-SDK/core/contracts/test"
-	"github.com/PlatONnetwork/AppChain-SDK/x/gov/contracts/eip712"
+	"github.com/PlatONnetwork/AppChain-SDK/x/votetoken/contracts/eip712"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/stretchr/testify/require"

@@ -18,6 +18,42 @@ const (
 	Abstain
 )
 
+func StateToString(state uint8) string {
+	str := "Unknown"
+	switch state {
+	case Pending:
+		str = "Pending"
+	case Active:
+		str = "Active"
+	case Canceled:
+		str = "Canceled"
+	case Defeated:
+		str = "Defeated"
+	case Succeeded:
+		str = "Succeeded"
+	case Queued:
+		str = "Queued"
+	case Expired:
+		str = "Expired"
+	case Executed:
+		str = "Executed"
+	}
+	return str
+}
+
+func VoteToString(vote uint8) string {
+	str := "Unknown"
+	switch vote {
+	case Against:
+		str = "Against"
+	case For:
+		str = "For"
+	case Abstain:
+		str = "Abstain"
+	}
+	return str
+}
+
 type BlockNumber uint64
 
 func (b *BlockNumber) isExpired(number BlockNumber) bool {

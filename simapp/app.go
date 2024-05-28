@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"github.com/PlatONnetwork/AppChain-SDK/x/gov"
+	"github.com/PlatONnetwork/AppChain-SDK/x/votetoken"
 	"path/filepath"
 
 	"github.com/PlatONnetwork/AppChain-SDK/baseapp"
@@ -54,8 +56,9 @@ type SimApp struct {
 	checkpoint         *checkpoint.Module
 	extraVote          *extravote.ExtraVote
 	upgrade            *upgrade.Module
-
-	manager *module.Manager
+	voteToken          *votetoken.Module
+	gov                *gov.Module
+	manager            *module.Manager
 }
 
 func NewSimApp(ctx *cli.Context) (*SimApp, error) {
@@ -119,6 +122,8 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 
 	app.upgrade = upgrade.NewModule(store)
 
+	app.voteToken, _ = votetoken.NewModule()
+	app.gov, _ = gov.NewModule(ctx)
 	tm := testmod.NewModule()
 	tc := testcontract.NewModule()
 
@@ -152,6 +157,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		app.staking.Name(),
 		app.reward.Name(),
 		app.upgrade.Name(),
+		app.gov.Name(),
 	)
 
 	manager.SetOrderGenesis(
@@ -164,6 +170,8 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		app.l2StateSender.Name(),
 		app.stateSync.Name(),
 		app.upgrade.Name(),
+		app.voteToken.Name(),
+		app.gov.Name(),
 		tm.Name(),
 		tc.Name(),
 	)

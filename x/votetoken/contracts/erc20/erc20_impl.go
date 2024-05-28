@@ -6,7 +6,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/core/contracts/db"
 	"github.com/PlatONnetwork/AppChain-SDK/core/contracts/db/container"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
-	contracts2 "github.com/PlatONnetwork/AppChain-SDK/x/gov/contracts/ownable"
+	contracts2 "github.com/PlatONnetwork/AppChain-SDK/x/votetoken/contracts/ownable"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
