@@ -52,6 +52,7 @@ func (g *Module) Init(ctx sdk.InitContext) error {
 }
 
 func (g *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, raw json.RawMessage) error {
+	db.SetNonce(constants.VoteTokenAddress, 1)
 	var params GenesisParams
 	if err := json.Unmarshal(raw, &params); nil != err {
 		log.Error("Failed UnmarshalJSON params", "error", err)
