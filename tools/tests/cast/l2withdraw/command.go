@@ -11,17 +11,11 @@ import (
 
 var (
 	Command = cli.Command{
-		Action:    utils.MigrateFlags(run),
-		Name:      "l2.withdraw",
-		Usage:     "l2.withdraw",
-		ArgsUsage: "",
-		Flags: []cli.Flag{
-			flags.RPCFlags,
-			flags.KeyFlags,
-			flags.AddressFlags,
-			flags.MethodFlags,
-			flags.TypeFlags,
-		},
+		Action:             utils.MigrateFlags(run),
+		Name:               "l2.withdraw",
+		Usage:              "l2.withdraw",
+		ArgsUsage:          "",
+		Flags:              flags.DefaultFlag,
 		Category:           "L2 WITHDRAW COMMANDS",
 		Description:        ``,
 		HelpName:           "cast l2.withdraw",

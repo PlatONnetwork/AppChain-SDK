@@ -35,6 +35,7 @@ var (
 			appchainRPCFlag,
 			flags.RPCFlags,
 			flags.KeyFlags,
+			flags.TypeFlags,
 			flags.AddressFlags,
 			exitIDFlag,
 		},

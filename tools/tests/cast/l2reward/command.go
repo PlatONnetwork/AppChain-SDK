@@ -11,17 +11,11 @@ import (
 
 var (
 	Command = cli.Command{
-		Action:    utils.MigrateFlags(run),
-		Name:      "l2.reward",
-		Usage:     "l2.reward",
-		ArgsUsage: "",
-		Flags: []cli.Flag{
-			flags.RPCFlags,
-			flags.KeyFlags,
-			flags.AddressFlags,
-			flags.MethodFlags,
-			flags.TypeFlags,
-		},
+		Action:             utils.MigrateFlags(run),
+		Name:               "l2.reward",
+		Usage:              "l2.reward",
+		ArgsUsage:          "",
+		Flags:              flags.DefaultFlag,
 		Category:           "L2 REWARD COMMANDS",
 		Description:        ``,
 		HelpName:           "cast l2.reward",

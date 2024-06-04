@@ -12,17 +12,11 @@ import (
 
 var (
 	Command = cli.Command{
-		Action:    utils.MigrateFlags(run),
-		Name:      "l2.upgrade",
-		Usage:     "l2.upgrade",
-		ArgsUsage: "",
-		Flags: []cli.Flag{
-			flags.RPCFlags,
-			flags.KeyFlags,
-			flags.AddressFlags,
-			flags.MethodFlags,
-			flags.TypeFlags,
-		},
+		Action:             utils.MigrateFlags(run),
+		Name:               "l2.upgrade",
+		Usage:              "l2.upgrade",
+		ArgsUsage:          "",
+		Flags:              flags.DefaultFlag,
 		Category:           "L2 UPGRADE COMMANDS",
 		Description:        "",
 		HelpName:           "cast l2.upgrade",

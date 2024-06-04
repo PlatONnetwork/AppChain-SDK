@@ -12,17 +12,11 @@ import (
 
 var (
 	Command = cli.Command{
-		Action:    utils.MigrateFlags(run),
-		Name:      "l2.testcontract",
-		Usage:     "l2.testcontract",
-		ArgsUsage: "",
-		Flags: []cli.Flag{
-			flags.RPCFlags,
-			flags.KeyFlags,
-			flags.AddressFlags,
-			flags.MethodFlags,
-			flags.TypeFlags,
-		},
+		Action:             utils.MigrateFlags(run),
+		Name:               "l2.testcontract",
+		Usage:              "l2.testcontract",
+		ArgsUsage:          "",
+		Flags:              flags.DefaultFlag,
 		Category:           "L2 TEST CONTRACT",
 		Description:        "",
 		HelpName:           "cast l2.testcontract",

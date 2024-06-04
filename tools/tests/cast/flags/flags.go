@@ -21,6 +21,23 @@ var (
 		Usage:  "private key used to send tx",
 		EnvVar: "SDK_KEY",
 	}
+	NonceFlags = cli.Uint64Flag{
+		Name:   "nonce",
+		Usage:  "transaction nonce",
+		EnvVar: "NONCE",
+	}
+	GasLimitFlags = cli.Uint64Flag{
+		Name:   "gas-limit",
+		Usage:  "transaction gas limit",
+		EnvVar: "GASLIMIT",
+		Value:  2000000,
+	}
+	GasPriceFlags = cli.Uint64Flag{
+		Name:   "gas-price",
+		Usage:  "transaction gas price",
+		EnvVar: "GASPRICE",
+		Value:  2000000000,
+	}
 	MethodFlags = cli.StringFlag{
 		Name:  "method",
 		Usage: "method name",
@@ -62,3 +79,14 @@ OPTIONS:
    {{end}}{{end}}
 `
 )
+
+var DefaultFlag = []cli.Flag{
+	RPCFlags,
+	KeyFlags,
+	AddressFlags,
+	MethodFlags,
+	TypeFlags,
+	NonceFlags,
+	GasLimitFlags,
+	GasPriceFlags,
+}
