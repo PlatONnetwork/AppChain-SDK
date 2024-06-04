@@ -23,6 +23,11 @@ struct DelegationInfo {
     uint256 delegateEpoch;
 }
 
+struct BlocksOfValidator {
+    address validatorAddr;
+    uint256 blocks;
+}
+
 interface IStakeHandler is IL1StateReceiver {
     event Slashed(uint256 indexed exitId, address[] validators, uint256[] amounts);
     event ValidatorRegistered(
@@ -142,4 +147,14 @@ interface IStakeHandler is IL1StateReceiver {
     /// @param validators addr of validators
     /// @return ValidatorInfo array for query
     function getValidatorsWithAddr(address[] calldata validators) external view returns (ValidatorInfo[] memory);
+
+    /// @notice Query the list of information on the number of sealed blocks of validators for a certain period
+    /// @dev For the convenience of expanding the list of datas with multiple period properties
+    /// @param periodType represents a period of a certain type
+    /// @param period represents the number of intervals
+    /// @return BlocksOfValidator array for query
+    function getBlocksOfValidators(uint8 periodType, uint256 period)
+        external
+        view
+        returns (BlocksOfValidator[] memory);
 }
