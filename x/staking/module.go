@@ -8,6 +8,8 @@ import (
 	"math/big"
 
 	"github.com/PlatONnetwork/AppChain-SDK/common"
+	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
+	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/contracts"
@@ -31,8 +33,11 @@ import (
 )
 
 const (
-	ModuleName = "staking"
+	ModuleName    = "staking"
+	ModuleVersion = 0
 )
+
+var _ module.ContractModule = (*StakeModule)(nil)
 
 type StakeModule struct {
 	p2p            *stakingp2p.StakingP2P
@@ -63,6 +68,10 @@ func (s *StakeModule) SetVRFModule(vrf staketypes.VRFModuler) {
 
 func (s *StakeModule) Name() string {
 	return ModuleName
+}
+
+func (s *StakeModule) Version() uint64 {
+	return ModuleVersion
 }
 
 func (s *StakeModule) Init(ctx sdk.InitContext) error {
@@ -96,6 +105,8 @@ func (s *StakeModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *
 		return err
 	}
 
+	stakingContract, _ := contracts.NewStakeHandler(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(s, s), false)
+	stakingContract.SetCreateBlock(conf.CreateBlock)
 	log.Info("Succeed init genesis", "module", s.Name(), "StakeNetworkParams", configParams.String())
 	return nil
 }
@@ -115,6 +126,11 @@ func (s *StakeModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, read
 	stakeHandler.SetStakeModule(s)
 	stakeHandler.SetRewardModule(s.rewardModule)
 	return stakeHandler.Run(input)
+}
+
+func (s *StakeModule) ContractCreateBlockNumber(statedb sdk.StateDBReader) uint64 {
+	stakingContract, _ := contracts.NewStakeHandler(sdkcontracts.NewEVM(types.NewStateDBWrapper(statedb), big.NewInt(0)), sdkcontracts.NewContract(s, s), false)
+	return stakingContract.GetCreateBlock()
 }
 
 func (s *StakeModule) AddTxs(ctx sdk.WorkerContext, local map[basecommon.Address]types.Transactions) (map[basecommon.Address]types.Transactions, error) {

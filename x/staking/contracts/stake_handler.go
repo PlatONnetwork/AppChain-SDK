@@ -1,6 +1,7 @@
 package contracts
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
@@ -9,6 +10,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
 	"github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/common/math"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/event"
@@ -18,15 +20,19 @@ import (
 
 // Reference imports to suppress errors if they are not otherwise used.
 var (
-	_ = vm.EVM{}
-	_ = errors.New
-	_ = big.NewInt
-	_ = strings.NewReader
-	_ = platon.NotFound
-	_ = bind.Bind
-	_ = common.Big1
-	_ = types.BloomLookup
-	_ = event.NewSubscription
+	_              = vm.EVM{}
+	_              = errors.New
+	_              = big.NewInt
+	_              = strings.NewReader
+	_              = platon.NotFound
+	_              = bind.Bind
+	_              = common.Big1
+	_              = math.ReadBits
+	_              = binary.BigEndian
+	_              = types.BloomLookup
+	_              = event.NewSubscription
+	versionKey     = []byte("version")
+	createBlockKey = []byte("createBlock")
 )
 
 // BlocksOfValidator is an auto generated low-level Go binding around an user-defined struct.
@@ -78,6 +84,10 @@ func (c *StakeHandler) Run(input []byte) (ret []byte, err error) {
 			}
 		}
 	}()
+	if err := c.loadMethodABI(); err != nil {
+		return nil, errors.New("load version failed")
+	}
+
 	if len(input) < 4 {
 		return nil, errors.New("input too short")
 	}
@@ -91,9 +101,15 @@ func (c *StakeHandler) Run(input []byte) (ret []byte, err error) {
 	}
 	return entry(input[4:])
 }
+
+func (c *StakeHandler) initABI() {
+	V0 := uint64(0)
+	c.abis[V0] = &Abi
+}
+
 func (c *StakeHandler) initMethodEntry() {
 
-	c.methodEntry = map[string]func([]byte) ([]byte, error){
+	methodEntry := map[string]func([]byte) ([]byte, error){
 		"e6cc2826": c.GetBlocksOfValidatorsEntry,
 		"abec6a74": c.GetDelegationsWithValidatorEntry,
 		"23bc38f4": c.GetValidatorAddrsEntry,
@@ -113,7 +129,50 @@ func (c *StakeHandler) initMethodEntry() {
 		"b4065e75": c.WithdrawUndelegateEntry,
 		"c76d485f": c.WithdrawUnstakeEntry,
 	}
+	V0 := uint64(0)
+	c.methodEntries[V0] = methodEntry
 
+}
+func (c *StakeHandler) loadMethodABI() error {
+	version := c.GetVersion()
+	entries, ok := c.methodEntries[version]
+	if !ok {
+		return errors.New("unknown version")
+	}
+	c.methodEntry = entries
+	abi, ok := c.abis[version]
+	if !ok {
+		return errors.New("unknown version")
+	}
+	c.abi = abi
+	return nil
+}
+func (c *StakeHandler) SetCreateBlock(blockNumber uint64) {
+	var data [8]byte
+	binary.BigEndian.PutUint64(data[:], blockNumber)
+	c.evm.StateDB.SetState(c.contract.Address(), createBlockKey, data[:])
+}
+
+func (c *StakeHandler) GetCreateBlock() uint64 {
+	blockNumber := c.evm.StateDB.GetState(c.contract.Address(), createBlockKey)
+	if len(blockNumber) == 0 {
+		return math.MaxUint64
+	}
+	return binary.BigEndian.Uint64(blockNumber)
+}
+
+func (c *StakeHandler) SetVersion(version uint64) {
+	var data [8]byte
+	binary.BigEndian.PutUint64(data[:], version)
+	c.evm.StateDB.SetState(c.contract.Address(), versionKey, data[:])
+}
+
+func (c *StakeHandler) GetVersion() uint64 {
+	version := c.evm.StateDB.GetState(c.contract.Address(), versionKey)
+	if len(version) == 0 {
+		return 0
+	}
+	return binary.BigEndian.Uint64(version)
 }
 
 func (c *StakeHandler) GetBlocksOfValidatorsEntry(input []byte) ([]byte, error) {

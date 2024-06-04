@@ -2,10 +2,15 @@ package deposit
 
 import (
 	"encoding/json"
+	"math/big"
+
+	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
+	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/deposit/contracts"
 	deposittypes "github.com/PlatONnetwork/AppChain-SDK/x/deposit/types"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/params"
@@ -14,8 +19,11 @@ import (
 )
 
 const (
-	ModuleName = "deposit"
+	ModuleName           = "deposit"
+	ModuleVersion uint64 = 0
 )
+
+var _ module.ContractModule = (*DepositModule)(nil)
 
 type DepositModule struct {
 	logger   log.Logger
@@ -23,7 +31,6 @@ type DepositModule struct {
 }
 
 func NewModule(ctx *cli.Context, l1Module deposittypes.L1Moduler) *DepositModule {
-
 	return &DepositModule{
 		logger:   log.New("module", ModuleName),
 		l1Module: l1Module,
@@ -34,9 +41,24 @@ func (d *DepositModule) Name() string {
 	return ModuleName
 }
 
+func (d *DepositModule) Version() uint64 {
+	return ModuleVersion
+}
+
 func (d *DepositModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
 	// init deposit handler  account nonce
 	initAccountNonce(db, d.Address())
+
+	raw, err := data.MarshalJSON()
+	if err != nil {
+		return err
+	}
+	var config module.ModuleGenesisConfig
+	if err := json.Unmarshal(raw, &config); err != nil {
+		return err
+	}
+	depositContract, _ := contracts.NewDepositHandler(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(d, d), false)
+	depositContract.SetCreateBlock(config.CreateBlock)
 	return nil
 }
 
@@ -48,4 +70,9 @@ func (d *DepositModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, re
 	depositHandler, _ := contracts.NewDepositHandler(evm, contract, readOnly)
 	depositHandler.SetL1Module(d.l1Module)
 	return depositHandler.Run(input)
+}
+
+func (d *DepositModule) ContractCreateBlockNumber(statedb sdk.StateDBReader) uint64 {
+	depositContract, _ := contracts.NewDepositHandler(sdkcontracts.NewEVM(types.NewStateDBWrapper(statedb), big.NewInt(0)), sdkcontracts.NewContract(d, d), false)
+	return depositContract.GetCreateBlock()
 }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.19;
+pragma solidity ^0.8.7;
     struct StateSync {
         uint256 id;
         address sender;
@@ -35,8 +35,8 @@ contract StateReceiver {
     function commit(
         StateSyncCommitment calldata commitment,
         uint64 index,
-        byte32[] proof,
-        QuorumCert calldata qc,
+        bytes32[] calldata proof,
+        QuorumCert calldata qc
     ) external {}
 
     function execute(bytes32[] calldata proof, StateSync calldata obj) external {}

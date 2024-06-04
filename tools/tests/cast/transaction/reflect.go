@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
+	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/common/hexutil"
 	"github.com/PlatONnetwork/PlatON-Go/common/json"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
@@ -11,15 +12,19 @@ import (
 	"strings"
 )
 
+var (
+	addressType   = reflect.TypeOf([20]uint8{})
+	hashType      = reflect.TypeOf([32]uint8{})
+	byteArrayType = reflect.TypeOf([][]byte{})
+)
+
 func Send(method string, inputs []string, t reflect.Type, v reflect.Value, opt *bind.TransactOpts) (*types.Transaction, error) {
 	lowerMethod := strings.ToLower(method)
 
 	for i := 0; i < t.NumMethod(); i++ {
 		m := t.Method(i)
-		//fmt.Println(m.Name)
 		if strings.ToLower(m.Name) == lowerMethod {
 			num := m.Type.NumIn()
-			//fmt.Println("field string", m.Type.In(0).String(), m.Type.In(1).String())
 
 			if len(inputs) != num-2 {
 				return nil, fmt.Errorf("inputs mismatch, expect:%d, actual:%d", num, len(inputs))
@@ -42,8 +47,28 @@ func Send(method string, inputs []string, t reflect.Type, v reflect.Value, opt *
 				if call.IsValid() {
 					call.Call([]reflect.Value{reflect.ValueOf([]byte(inputs[i-2]))})
 				} else {
-					if err := json.Unmarshal([]byte(inputs[i-2]), s.Interface()); err != nil {
-						return nil, err
+					switch newType {
+					case addressType:
+						var addr common.Hash
+						json.Unmarshal([]byte(inputs[i-2]), &addr)
+						res := s.Interface().(*[20]byte)
+						copy(res[:], addr.Bytes())
+					case hashType:
+						var hash common.Hash
+						json.Unmarshal([]byte(inputs[i-2]), &hash)
+						res := s.Interface().(*[32]byte)
+						copy(res[:], hash.Bytes())
+					case byteArrayType:
+						var arrays []hexutil.Bytes
+						json.Unmarshal([]byte(inputs[i-2]), &arrays)
+						res := s.Interface().(*[][]byte)
+						for _, b := range arrays {
+							*res = append(*res, b)
+						}
+					default:
+						if err := json.Unmarshal([]byte(inputs[i-2]), s.Interface()); err != nil {
+							return nil, err
+						}
 					}
 				}
 				if !isPointer {
@@ -69,10 +94,8 @@ func Call(method string, inputs []string, t reflect.Type, v reflect.Value, opt *
 
 	for i := 0; i < t.NumMethod(); i++ {
 		m := t.Method(i)
-		//fmt.Println(m.Name)
 		if strings.ToLower(m.Name) == lowerMethod {
 			num := m.Type.NumIn()
-			//fmt.Println("field string", m.Type.In(0).String(), m.Type.In(1).String())
 
 			if len(inputs) != num-2 {
 				return nil, fmt.Errorf("inputs mismatch, expect:%d, actual:%d", num, len(inputs))
@@ -95,8 +118,28 @@ func Call(method string, inputs []string, t reflect.Type, v reflect.Value, opt *
 				if call.IsValid() {
 					call.Call([]reflect.Value{reflect.ValueOf([]byte(inputs[i-2]))})
 				} else {
-					if err := json.Unmarshal([]byte(inputs[i-2]), s.Interface()); err != nil {
-						return nil, err
+					switch newType {
+					case addressType:
+						var addr common.Hash
+						json.Unmarshal([]byte(inputs[i-2]), &addr)
+						res := s.Interface().(*[20]byte)
+						copy(res[:], addr.Bytes())
+					case hashType:
+						var hash common.Hash
+						json.Unmarshal([]byte(inputs[i-2]), &hash)
+						res := s.Interface().(*[32]byte)
+						copy(res[:], hash.Bytes())
+					case byteArrayType:
+						var arrays []hexutil.Bytes
+						json.Unmarshal([]byte(inputs[i-2]), &arrays)
+						res := s.Interface().(*[][]byte)
+						for _, b := range arrays {
+							*res = append(*res, b)
+						}
+					default:
+						if err := json.Unmarshal([]byte(inputs[i-2]), s.Interface()); err != nil {
+							return nil, err
+						}
 					}
 				}
 				//c.MethodByName("UnmarshalText").Call([]reflect.Value{reflect.ValueOf([]byte(inputs[i-2]))})

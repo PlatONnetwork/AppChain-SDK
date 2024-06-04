@@ -25,6 +25,8 @@ import (
 	"gopkg.in/urfave/cli.v1"
 )
 
+const ModuleVersion uint64 = 0
+
 var (
 	_ module.Module     = (*Module)(nil)
 	_ module.InitModule = (*Module)(nil)
@@ -85,6 +87,10 @@ func NewModule(
 
 func (m *Module) Name() string {
 	return types.ModuleName
+}
+
+func (m *Module) Version() uint64 {
+	return ModuleVersion
 }
 
 func (m *Module) Init(ctx sdk.InitContext) error {
@@ -307,7 +313,7 @@ func (m *Module) OnCommit(ctx sdk.ConsensusContext, block *coretypes.Block) erro
 
 	logger.Info("OnCommit", "isEndOfRound", isEndOfRound, "isProposer", ctx.IsProposer())
 
-	if ctx.View() > 0 && ctx.BlockIndex() == 0 &&  ctx.IsProposer() {
+	if ctx.View() > 0 && ctx.BlockIndex() == 0 && ctx.IsProposer() {
 		// Try to submit old checkpoint to rootchain.
 		go func(number uint64) {
 			if err := m.submitCheckpoint(ctx, number, nil); err != nil {

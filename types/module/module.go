@@ -17,11 +17,68 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 )
 
+type ModuleValidChecker func(db sdk.StateDBReader, name string, blockNumber uint64) bool
+type UpgradeHandler func(ctx sdk.WorkerContext) error
+
+// VersionMap is map of moduleName -> version
+type VersionMap map[string]uint64
+
+type ModuleVersion struct {
+	Name    string
+	Version uint64
+}
+
+type ModuleVersionList []ModuleVersion
+
+func (vm VersionMap) AsSliceSorted() ModuleVersionList {
+	keys := make(sort.StringSlice, 0)
+	for name, _ := range vm {
+		keys = append(keys, name)
+	}
+	keys.Sort()
+
+	l := make(ModuleVersionList, len(keys))
+	for i, key := range keys {
+		l[i] = ModuleVersion{
+			Name:    key,
+			Version: vm[key],
+		}
+	}
+	return l
+}
+
+// ValidNumberMap is map of moduleName -> blockNumber
+type ValidNumberMap map[string]uint64
+
+type ModuleValidNumber struct {
+	Name        string
+	ValidNumber uint64
+}
+
+func (vn ValidNumberMap) AsSliceSorted() []ModuleValidNumber {
+	keys := make(sort.StringSlice, 0)
+	for name, _ := range vn {
+		keys = append(keys, name)
+	}
+	keys.Sort()
+
+	l := make([]ModuleValidNumber, len(keys))
+	for i, key := range keys {
+		l[i] = ModuleValidNumber{
+			Name:        key,
+			ValidNumber: vn[key],
+		}
+	}
+	return l
+}
+
 type Module interface {
 	Name() string
+	Version() uint64
 }
 
 type InitModule interface {
+	Module
 	Init(ctx sdk.InitContext) error
 }
 
@@ -91,8 +148,17 @@ type TransactionModule interface {
 	AddTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions) (map[common.Address]types.Transactions, error)
 }
 
+type UpgradeRegistrar interface {
+	RegisterUpgradeHandler(module string, version uint64, handler UpgradeHandler) error
+}
+
+type RegistryModule interface {
+	Module
+	RegistryUpgradeHandler(registrar UpgradeRegistrar) error
+}
+
 type Manager struct {
-	Modules map[string]interface{}
+	Modules map[string]Module
 
 	ConsensusExtend     string
 	Election            string
@@ -105,10 +171,13 @@ type Manager struct {
 	OrderEndBlocker     []string
 	OrderBlocker        []string
 	OrderTransaction    []string
+
+	moduleValidChecker ModuleValidChecker
+	initValidNumberMap ValidNumberMap
 }
 
 func NewManager(modules ...Module) *Manager {
-	moduleMap := make(map[string]interface{})
+	moduleMap := make(map[string]Module)
 	moduleStr := make([]string, 0, len(modules))
 	for _, module := range modules {
 		moduleMap[module.Name()] = module
@@ -124,6 +193,7 @@ func NewManager(modules ...Module) *Manager {
 		OrderEndBlocker:     moduleStr,
 		OrderBlocker:        moduleStr,
 		OrderTransaction:    moduleStr,
+		initValidNumberMap:  ValidNumberMap{},
 	}
 }
 
@@ -214,9 +284,14 @@ func (m *Manager) SetOrderTransaction(moduleNames ...string) {
 	m.OrderTransaction = moduleNames
 }
 
+func (m *Manager) SetModuleValidChecker(moduleValidChecker ModuleValidChecker) {
+	m.moduleValidChecker = moduleValidChecker
+}
+
 func (m *Manager) InitChain(ctx sdk.InitContext) error {
 	log.Info("Init modules for sdk")
 	for _, moduleName := range m.OrderInit {
+
 		mod := m.Modules[moduleName]
 		if module, ok := mod.(InitModule); ok {
 			log.Info("Init for module", "module", moduleName)
@@ -229,11 +304,13 @@ func (m *Manager) InitChain(ctx sdk.InitContext) error {
 	return nil
 }
 
-func (m *Manager) Contracts() []sdk.SDKContract {
+func (m *Manager) Contracts(statedb sdk.StateDBReader, blockNumber uint64) []sdk.SDKContract {
 	contracts := make([]sdk.SDKContract, 0)
 	for _, mod := range m.Modules {
 		if module, ok := mod.(ContractModule); ok {
-			contracts = append(contracts, module)
+			if module.ContractCreateBlockNumber(statedb) <= blockNumber {
+				contracts = append(contracts, module)
+			}
 		}
 	}
 	return contracts
@@ -262,6 +339,11 @@ func (m *Manager) Protocols() []p2p.Protocol {
 func (m *Manager) CheckTx(ctx sdk.Context, tx *types.Transaction) error {
 	log.Info("Check transaction for tx pool", "hash", tx.Hash())
 	for _, moduleName := range m.OrderTxPool {
+		statedb, _ := ctx.Backend().State()
+		if !m.isModuleValid(statedb, moduleName, ctx.Backend().CurrentHeader().Number.Uint64()) {
+			continue
+		}
+
 		module := m.Modules[moduleName]
 		if txPoolModule, ok := module.(TxPoolModule); ok {
 			log.Debug("Check transaction for module", "module", moduleName, "hash", tx.Hash())
@@ -277,6 +359,11 @@ func (m *Manager) FilterPendingTxs(ctx sdk.Context, txs map[common.Address]types
 	log.Info("Filter pending transactions for tx pool")
 	filterTxs := txs
 	for _, moduleName := range m.OrderTxPool {
+		statedb, _ := ctx.Backend().State()
+		if !m.isModuleValid(statedb, moduleName, ctx.Backend().CurrentHeader().Number.Uint64()) {
+			continue
+		}
+
 		module := m.Modules[moduleName]
 		if txPoolModule, ok := module.(TxPoolModule); ok {
 			log.Debug("Filter pending transaction for module", "module", moduleName)
@@ -350,22 +437,26 @@ func (m *Manager) GetLastNumber(ctx sdk.ConsensusContext, blockNumber uint64) ui
 
 	mod := m.Modules[m.Election]
 	if module, ok := mod.(ElectionModule); ok {
-		log.Debug("Get last number for module", "module", m.Election)
-		return module.GetLastNumber(ctx, blockNumber)
+		lastNumber := module.GetLastNumber(ctx, blockNumber)
+		log.Debug("Get last number for module", "module", m.Election, "blockNumber", blockNumber, "lastNumber", lastNumber)
+		return lastNumber
 	}
 	return 0
 }
 
 func (m *Manager) GetValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error) {
-	log.Info("Get validator for election app")
+	log.Info("Get validator for election app", "blockNumber", blockNumber)
 	if m.Modules[m.Election] == nil {
 		return nil, nil
 	}
 
 	mod := m.Modules[m.Election]
 	if module, ok := mod.(ElectionModule); ok {
-		log.Debug("Get last number for module", "module", m.Election)
-		return module.GetValidator(ctx, blockNumber)
+		vals, err := module.GetValidator(ctx, blockNumber)
+		if err == nil {
+			log.Debug("Get last number for module", "module", m.Election, "blockNumber", blockNumber, "validators", vals.String())
+		}
+		return vals, err
 	}
 	return nil, nil
 }
@@ -387,6 +478,10 @@ func (m *Manager) IsCandidateNode(ctx sdk.ConsensusContext, nodeID enode.IDv0) b
 func (m *Manager) OnCommit(ctx sdk.ConsensusContext, block *types.Block) error {
 	log.Info("Notify block commit for election app")
 	for _, moduleName := range m.OrderBlockCommitter {
+		if !m.isModuleValid(ctx.StateDB(), moduleName, ctx.Header().Number.Uint64()) {
+			continue
+		}
+
 		mod := m.Modules[moduleName]
 		if module, ok := mod.(BlockCommitter); ok {
 			log.Debug("Notify block commit for module", "module", moduleName)
@@ -401,9 +496,14 @@ func (m *Manager) OnCommit(ctx sdk.ConsensusContext, block *types.Block) error {
 func (m *Manager) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data map[string]json.RawMessage) error {
 	log.Info("Init blockchain state from genesis.json")
 	for _, moduleName := range m.OrderGenesis {
+		if data[moduleName] == nil {
+			continue
+		}
+
 		mod := m.Modules[moduleName]
 		if module, ok := mod.(GenesisModule); ok {
 			log.Info("Running initialization for module ", "module", moduleName)
+
 			if err := module.InitGenesis(ctx, db, chainConfig, data[moduleName]); err != nil {
 				return err
 			}
@@ -414,6 +514,9 @@ func (m *Manager) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *para
 
 func (m *Manager) BeginBlock(ctx sdk.WorkerContext) error {
 	for _, moduleName := range m.OrderBeginBlocker {
+		if !m.isModuleValid(ctx.StateDB(), moduleName, ctx.Header().Number.Uint64()) {
+			continue
+		}
 		if module, ok := m.Modules[moduleName].(BeginBlockerModule); ok {
 			if err := module.BeginBlock(ctx); err != nil {
 				return err
@@ -425,6 +528,9 @@ func (m *Manager) BeginBlock(ctx sdk.WorkerContext) error {
 
 func (m *Manager) EndBlock(ctx sdk.WorkerContext) error {
 	for _, moduleName := range m.OrderEndBlocker {
+		if !m.isModuleValid(ctx.StateDB(), moduleName, ctx.Header().Number.Uint64()) {
+			continue
+		}
 		if module, ok := m.Modules[moduleName].(EndBlockerModule); ok {
 			if err := module.EndBlock(ctx); err != nil {
 				return err
@@ -438,6 +544,9 @@ func (m *Manager) AddTxs(ctx sdk.WorkerContext) (types.Transactions, error) {
 	local := make(map[common.Address]types.Transactions, 0)
 	var err error
 	for _, module := range m.Modules {
+		if !m.isModuleValid(ctx.StateDB(), module.Name(), ctx.Header().Number.Uint64()) {
+			continue
+		}
 		if txModule, ok := module.(TransactionModule); ok {
 			local, err = txModule.AddTxs(ctx, local)
 			if err != nil {
@@ -454,7 +563,8 @@ func (m *Manager) AddTxs(ctx sdk.WorkerContext) (types.Transactions, error) {
 }
 
 func (m *Manager) SortTxs(ctx sdk.WorkerContext, local, remote map[common.Address]types.Transactions) (types.Transactions, error) {
-	if module, ok := m.Modules[m.Worker].(WorkerModule); ok {
+	isValid := m.isModuleValid(ctx.StateDB(), m.Worker, ctx.Header().Number.Uint64())
+	if module, ok := m.Modules[m.Worker].(WorkerModule); ok && isValid {
 		return module.SortTxs(ctx, local, remote)
 	}
 
@@ -466,6 +576,41 @@ func (m *Manager) SortTxs(ctx sdk.WorkerContext, local, remote map[common.Addres
 		allTxs = append(allTxs, txs...)
 	}
 	return allTxs, nil
+}
+
+func (m *Manager) RegisterUpgradeHandler(registrar UpgradeRegistrar) error {
+	for _, module := range m.Modules {
+		if mod, ok := module.(RegistryModule); ok {
+			if err := mod.RegistryUpgradeHandler(registrar); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (m *Manager) GetModuleInitValidNumberMap(chainConfig *params.ChainConfig, db sdk.StateDBReader) ValidNumberMap {
+	vn := ValidNumberMap{}
+	for name, _ := range chainConfig.Modules {
+		if m.Modules[name] == nil {
+			continue
+		}
+
+		vn[name] = 0
+		mod := m.Modules[name]
+		if module, ok := mod.(ContractModule); ok {
+			vn[name] = module.ContractCreateBlockNumber(db)
+		}
+	}
+	return vn
+}
+
+func (m *Manager) IsContractModule(moduleName string) bool {
+	yesOrNo := false
+	if module, ok := m.Modules[moduleName]; ok {
+		_, yesOrNo = module.(ContractModule)
+	}
+	return yesOrNo
 }
 
 func (m *Manager) assertNoForgottenModules(setOrderFnName string, moduleNames []string, pass func(moduleName string) bool) {
@@ -489,4 +634,11 @@ func (m *Manager) assertNoForgottenModules(setOrderFnName string, moduleNames []
 		panic(fmt.Sprintf(
 			"all modules must be defined when setting %s, missing: %v", setOrderFnName, missing))
 	}
+}
+
+func (m *Manager) isModuleValid(db sdk.StateDBReader, name string, blockNumber uint64) bool {
+	if m.moduleValidChecker != nil {
+		return m.moduleValidChecker(db, name, blockNumber)
+	}
+	return true
 }

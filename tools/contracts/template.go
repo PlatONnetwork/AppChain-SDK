@@ -43,17 +43,26 @@ type tmplContract struct {
 	Events      map[string]*tmplEvent  // Contract events accessors
 }
 
+type tmplUpgradeData struct {
+	*tmplData
+	Version    uint64
+	Entries    map[string]string
+	NewStructs map[string]*tmplStruct
+}
+
 // tmplData is the data structure required to fill the binding template.
 type tmplData struct {
-	Package  string                 // Name of the package to place the generated file in
-	Contract *tmplContract          // List of contracts to generate into this file
-	Structs  map[string]*tmplStruct // Contract struct type definitions
+	ReceiverName string
+	Package      string                 // Name of the package to place the generated file in
+	Contract     *tmplContract          // List of contracts to generate into this file
+	Structs      map[string]*tmplStruct // Contract struct type definitions
 }
 
 const tmplFrameSource = `
 package {{.Package}}
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
@@ -62,6 +71,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
 	"github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/common/math"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/event"
@@ -78,10 +88,14 @@ var (
 	_ = platon.NotFound
 	_ = bind.Bind
 	_ = common.Big1
+	_ = math.ReadBits
+	_ = binary.BigEndian
 	_ = types.BloomLookup
 	_ = event.NewSubscription
+	versionKey = []byte("version")
+	createBlockKey = []byte("createBlock")
 )
-
+{{$ReceiverName := .ReceiverName}}
 {{$structs := .Structs}}
 {{range $structs}}
 	// {{.Name}} is an auto generated low-level Go binding around an user-defined struct.
@@ -97,7 +111,7 @@ var (
     Abi, _ = abi.JSON(strings.NewReader(ABI))
 )
 
-func (c *{{$contract.Type}})Run(input []byte) (ret []byte, err error) {
+func ({{$ReceiverName}} *{{$contract.Type}})Run(input []byte) (ret []byte, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			switch e := r.(type) {
@@ -112,35 +126,89 @@ func (c *{{$contract.Type}})Run(input []byte) (ret []byte, err error) {
 			}
 		}
 	}()
+	if err := {{$ReceiverName}}.loadMethodABI(); err != nil {
+		return nil, errors.New("load version failed")
+	}
+
     if len(input) < 4 {
         return nil, errors.New("input too short")
     }
     id := input[0:4]
-    entry, ok := c.methodEntry[hex.EncodeToString(id)]
+    entry, ok := {{$ReceiverName}}.methodEntry[hex.EncodeToString(id)]
     if !ok {
-		if c.fallback != nil {
-			return c.fallback(input)
+		if {{$ReceiverName}}.fallback != nil {
+			return {{$ReceiverName}}.fallback(input)
 		}
         return nil, errors.New("methods not found")
     }
     return entry(input[4:])
 }
-func (c *{{$contract.Type}}) initMethodEntry() {
 
-    c.methodEntry = map[string]func([]byte) ([]byte, error){
-        {{range .Contract.Calls}}"{{hexid .Original.ID}}" : c.{{.Normalized.Name}}Entry,
+func ({{$ReceiverName}} *{{$contract.Type}}) initABI() {
+	V0 := uint64(0)
+	{{$ReceiverName}}.abis[V0] = &Abi
+}
+
+func ({{$ReceiverName}} *{{$contract.Type}}) initMethodEntry() {
+
+    methodEntry := map[string]func([]byte) ([]byte, error){
+        {{range .Contract.Calls}}"{{hexid .Original.ID}}" : {{$ReceiverName}}.{{.Normalized.Name}}Entry,
         {{end}}
         {{range .Contract.Transacts}}
-        "{{hexid .Original.ID}}" : c.{{.Normalized.Name}}Entry,{{end}}
+        "{{hexid .Original.ID}}" : {{$ReceiverName}}.{{.Normalized.Name}}Entry,{{end}}
     }
+	V0 := uint64(0)
+	{{$ReceiverName}}.methodEntries[V0] = methodEntry
 
 }
+func ({{$ReceiverName}} *{{$contract.Type}}) loadMethodABI() error {
+	version := {{$ReceiverName}}.GetVersion()
+	entries, ok := {{$ReceiverName}}.methodEntries[version]
+	if !ok {
+		return errors.New("unknown version")
+	}
+	{{$ReceiverName}}.methodEntry = entries
+	abi, ok := {{$ReceiverName}}.abis[version]
+	if !ok {
+		return errors.New("unknown version")
+	}
+	{{$ReceiverName}}.abi = abi
+	return nil
+}
+func ({{$ReceiverName}} *{{$contract.Type}}) SetCreateBlock(blockNumber uint64) {
+	var data [8]byte
+	binary.BigEndian.PutUint64(data[:], blockNumber)
+	{{$ReceiverName}}.evm.StateDB.SetState({{$ReceiverName}}.contract.Address(), createBlockKey, data[:])
+}
+
+func ({{$ReceiverName}} *{{$contract.Type}}) GetCreateBlock() uint64 {
+	blockNumber := {{$ReceiverName}}.evm.StateDB.GetState({{$ReceiverName}}.contract.Address(), createBlockKey)
+	if len(blockNumber) == 0 {
+		return math.MaxUint64
+	}
+	return binary.BigEndian.Uint64(blockNumber)
+}
+
+func ({{$ReceiverName}} *{{$contract.Type}}) SetVersion(version uint64) {
+	var data [8]byte
+	binary.BigEndian.PutUint64(data[:], version)
+	{{$ReceiverName}}.evm.StateDB.SetState({{$ReceiverName}}.contract.Address(), versionKey, data[:])
+}
+
+func ({{$ReceiverName}} *{{$contract.Type}}) GetVersion() uint64 {
+	version := {{$ReceiverName}}.evm.StateDB.GetState({{$ReceiverName}}.contract.Address(), versionKey)
+	if len(version) == 0 {
+		return 0
+	}
+	return binary.BigEndian.Uint64(version)
+}
+
 {{range .Contract.Calls}}
-func (c *{{$contract.Type}}) {{.Normalized.Name}}Entry(input []byte) ([]byte, error) {
+func ({{$ReceiverName}} *{{$contract.Type}}) {{.Normalized.Name}}Entry(input []byte) ([]byte, error) {
     {{ $inputLen := len .Normalized.Inputs }}
     {{ $outputLen := len .Normalized.Outputs }}
     {{if or (ne $inputLen 0) (ne $outputLen 0) }}
-    method := c.abi.Methods["{{.Original.Name}}"]
+    method := {{$ReceiverName}}.abi.Methods["{{.Original.Name}}"]
     {{end}}
     var err error
     {{ $length := len .Normalized.Inputs }}
@@ -150,7 +218,7 @@ func (c *{{$contract.Type}}) {{.Normalized.Name}}Entry(input []byte) ([]byte, er
         return nil, err
     }
     {{end}}
-    {{range $i, $_ := .Normalized.Outputs}}res{{$i}}, {{end}} err {{if ne $outputLen 0 }} := {{else}} ={{end}} c.{{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} *abi.ConvertType(args[{{$i}}], new({{bindtype .Type $structs}})).(*{{bindtype .Type $structs}}) {{end}})
+    {{range $i, $_ := .Normalized.Outputs}}res{{$i}}, {{end}} err {{if ne $outputLen 0 }} := {{else}} ={{end}} {{$ReceiverName}}.{{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} *abi.ConvertType(args[{{$i}}], new({{bindtype .Type $structs}})).(*{{bindtype .Type $structs}}) {{end}})
     if err != nil {
 		if r, ok := err.(*typesdk.RevertError); ok {
 			return r.ReturnData, vm.ErrExecutionReverted
@@ -170,11 +238,11 @@ func (c *{{$contract.Type}}) {{.Normalized.Name}}Entry(input []byte) ([]byte, er
 {{end}}
 
 {{range .Contract.Transacts}}
-func (c *{{$contract.Type}}) {{.Normalized.Name}}Entry(input []byte) ([]byte, error) {
+func ({{$ReceiverName}} *{{$contract.Type}}) {{.Normalized.Name}}Entry(input []byte) ([]byte, error) {
     {{ $inputLen := len .Normalized.Inputs }}
     {{ $outputLen := len .Normalized.Outputs }}
     {{if or (ne $inputLen 0) (ne $outputLen 0) }}
-    method := c.abi.Methods["{{.Original.Name}}"]
+    method := {{$ReceiverName}}.abi.Methods["{{.Original.Name}}"]
     {{end}}
     var err error
 
@@ -185,7 +253,7 @@ func (c *{{$contract.Type}}) {{.Normalized.Name}}Entry(input []byte) ([]byte, er
         return nil, err
     }
     {{end}}
-    {{range $i, $_ := .Normalized.Outputs}}res{{$i}}, {{end}} err {{if ne $outputLen 0 }} := {{else}} ={{end}} c.{{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} *abi.ConvertType(args[{{$i}}], new({{bindtype .Type $structs}})).(*{{bindtype .Type $structs}}) {{end}})
+    {{range $i, $_ := .Normalized.Outputs}}res{{$i}}, {{end}} err {{if ne $outputLen 0 }} := {{else}} ={{end}} {{$ReceiverName}}.{{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} *abi.ConvertType(args[{{$i}}], new({{bindtype .Type $structs}})).(*{{bindtype .Type $structs}}) {{end}})
     if err != nil {
 		if r, ok := err.(*typesdk.RevertError); ok {
 			return r.ReturnData, vm.ErrExecutionReverted
@@ -205,8 +273,8 @@ func (c *{{$contract.Type}}) {{.Normalized.Name}}Entry(input []byte) ([]byte, er
 {{end}}
 {{range .Contract.Events}}
     {{ $length := len .Normalized.Inputs }}
-        func (c *{{$contract.Type}})Emit{{.Normalized.Name}}Event({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}} {{bindtype .Type $structs}}{{end}}) (*types.Log, error){
-        event := c.abi.Events["{{.Normalized.Name}}"]
+        func ({{$ReceiverName}} *{{$contract.Type}}){{.Normalized.Name}}Event({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}} {{bindtype .Type $structs}}{{end}}) (*types.Log, error){
+        event := {{$ReceiverName}}.abi.Events["{{.Normalized.Name}}"]
         hashes, err := contracts.PackEventTopics(event.ID, event.Inputs {{range $i, $_ := .Normalized.Inputs}},{{.Name}}{{end}})
         if err != nil {
             return nil, err
@@ -216,12 +284,17 @@ func (c *{{$contract.Type}}) {{.Normalized.Name}}Entry(input []byte) ([]byte, er
             return nil, err
         }
         return &types.Log{
-            Address: c.contract.Address(),
+            Address: {{$ReceiverName}}.contract.Address(),
             Topics: hashes,
             Data:   data,
-            BlockNumber: c.evm.Context.BlockNumber.Uint64(),
+            BlockNumber: {{$ReceiverName}}.evm.Context.BlockNumber.Uint64(),
         }, nil
         }
+		func ({{$ReceiverName}} *{{$contract.Type}})Emit{{.Normalized.Name}}Event({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}} {{bindtype .Type $structs}}{{end}}){
+			log, err := {{$ReceiverName}}.{{.Normalized.Name}}Event({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}}{{end}})
+			contracts.Require(err == nil, "{{$contract.Type}}: emit {{.Normalized.Name}} event failed")
+			{{$ReceiverName}}.stateDb.AddLog(log)
+		}
 {{end}}
 `
 const implSource = `
@@ -257,40 +330,48 @@ var (
 )
 {{$contract := .Contract}}
 {{$structs := .Structs}}
-
+{{$ReceiverName := .ReceiverName}}
 type {{$contract.Type}} struct {
     abi *abi.ABI
-    methodEntry map[string]func([]byte) ([]byte, error)
+    abis          map[uint64]*abi.ABI
+	methodEntry   map[string]func([]byte) ([]byte, error)
+	methodEntries map[uint64]map[string]func([]byte) ([]byte, error)
     readOnly bool
     contract *vm.Contract
     evm *vm.EVM
 	burner       contracts.Burn
 	stateDb      *contracts.StateDB
+	context       *contracts.Context
 	fallback func(input []byte) ([]byte, error)
 }
 
 func New{{$contract.Type}}(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*{{$contract.Type}}, error) {
     s := &{{$contract.Type}}{
-        abi: &Abi,
+		abi:           nil,
+        abis:          make(map[uint64]*abi.ABI),
+		methodEntry:   make(map[string]func([]byte) ([]byte, error)),
+		methodEntries: make(map[uint64]map[string]func([]byte) ([]byte, error)),
         evm:evm,
         contract: contract,
 		burner:   contracts.NewBurner(contract),
 		stateDb:  contracts.NewStateDB(evm, contract),
+		context:  contracts.NewContext(evm, contract),
         readOnly: readOnly,
     }
+	s.initABI()
     s.initMethodEntry()
     return s, nil
 }
 
 {{range .Contract.Calls}}
-func (c *{{$contract.Type}}) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
+func ({{$ReceiverName}} *{{$contract.Type}}) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
     panic("implement")
 }
 {{end}}
 
 
 {{range .Contract.Transacts}}
-func (c *{{$contract.Type}}) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
+func ({{$ReceiverName}} *{{$contract.Type}}) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
     panic("implement")
 }
 {{end}}
@@ -329,7 +410,7 @@ var (
 )
 {{$contract := .Contract}}
 {{$structs := .Structs}}
-
+{{$ReceiverName := .ReceiverName}}
 type {{$contract.Type}}Caller struct {
     contracts.BoundContract
 	to common.Address
@@ -349,9 +430,9 @@ func New{{$contract.Type}}Caller(evm *vm.EVM, contract *vm.Contract, to common.A
 
 
 {{range .Contract.Calls}}
-func (c *{{$contract.Type}}Caller) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
+func ({{$ReceiverName}} *{{$contract.Type}}Caller) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
     var out []interface{}
-	err := c.BoundContract.Caller(c.to, &out, "{{.Original.Name}}" {{range .Normalized.Inputs}}, {{.Name}}{{end}})
+	err := {{$ReceiverName}}.BoundContract.Caller({{$ReceiverName}}.to, &out, "{{.Original.Name}}" {{range .Normalized.Inputs}}, {{.Name}}{{end}})
 	{{if .Structured}}
 	outstruct := new(struct{ {{range .Normalized.Outputs}} {{.Name}} {{bindtype .Type $structs}}; {{end}} })
 	if err != nil {
@@ -375,9 +456,9 @@ func (c *{{$contract.Type}}Caller) {{.Normalized.Name}}({{range $i, $_ := .Norma
 
 
 {{range .Contract.Transacts}}
-func (c *{{$contract.Type}}Caller) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
+func ({{$ReceiverName}} *{{$contract.Type}}Caller) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
         var out []interface{}
-	err := c.BoundContract.Caller(c.to, &out, "{{.Original.Name}}" {{range .Normalized.Inputs}}, {{.Name}}{{end}})
+	err := {{$ReceiverName}}.BoundContract.Caller({{$ReceiverName}}.to, &out, "{{.Original.Name}}" {{range .Normalized.Inputs}}, {{.Name}}{{end}})
 	{{if .Structured}}
 	outstruct := new(struct{ {{range .Normalized.Outputs}} {{.Name}} {{bindtype .Type $structs}}; {{end}} })
 	if err != nil {
@@ -418,9 +499,9 @@ func New{{$contract.Type}}DelegateCaller(evm *vm.EVM, contract *vm.Contract, to 
 
 
 {{range .Contract.Calls}}
-func (c *{{$contract.Type}}DelegateCaller) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
+func ({{$ReceiverName}} *{{$contract.Type}}DelegateCaller) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
     var out []interface{}
-	err := c.BoundContract.DelegateCaller(c.to, &out, "{{.Original.Name}}" {{range .Normalized.Inputs}}, {{.Name}}{{end}})
+	err := {{$ReceiverName}}.BoundContract.DelegateCaller({{$ReceiverName}}.to, &out, "{{.Original.Name}}" {{range .Normalized.Inputs}}, {{.Name}}{{end}})
 	{{if .Structured}}
 	outstruct := new(struct{ {{range .Normalized.Outputs}} {{.Name}} {{bindtype .Type $structs}}; {{end}} })
 	if err != nil {
@@ -444,9 +525,9 @@ func (c *{{$contract.Type}}DelegateCaller) {{.Normalized.Name}}({{range $i, $_ :
 
 
 {{range .Contract.Transacts}}
-func (c *{{$contract.Type}}DelegateCaller) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
+func ({{$ReceiverName}} *{{$contract.Type}}DelegateCaller) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
         var out []interface{}
-	err := c.BoundContract.DelegateCaller(c.to, &out, "{{.Original.Name}}" {{range .Normalized.Inputs}}, {{.Name}}{{end}})
+	err := {{$ReceiverName}}.BoundContract.DelegateCaller({{$ReceiverName}}.to, &out, "{{.Original.Name}}" {{range .Normalized.Inputs}}, {{.Name}}{{end}})
 	{{if .Structured}}
 	outstruct := new(struct{ {{range .Normalized.Outputs}} {{.Name}} {{bindtype .Type $structs}}; {{end}} })
 	if err != nil {
@@ -466,5 +547,162 @@ func (c *{{$contract.Type}}DelegateCaller) {{.Normalized.Name}}({{range $i, $_ :
 	return {{range $i, $t := .Normalized.Outputs}}out{{$i}}, {{end}} err
 	{{end}}
 }
+{{end}}
+`
+
+const tmplUpgrade = `
+package {{.Package}}
+
+import (
+	"encoding/hex"
+	"errors"
+	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
+	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
+	platon "github.com/PlatONnetwork/PlatON-Go"
+	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
+	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
+	"github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/core/types"
+	"github.com/PlatONnetwork/PlatON-Go/core/vm"
+	"github.com/PlatONnetwork/PlatON-Go/event"
+	"math/big"
+	"strings"
+)
+
+// Reference imports to suppress errors if they are not otherwise used.
+var (
+    _ = vm.EVM{}
+	_ = errors.New
+	_ = big.NewInt
+	_ = strings.NewReader
+	_ = platon.NotFound
+	_ = bind.Bind
+	_ = common.Big1
+	_ = types.BloomLookup
+	_ = event.NewSubscription
+)
+{{$ReceiverName := .ReceiverName}}
+{{$contract := .Contract}}
+var (
+    ABIV{{.Version}} = "{{$contract.InputABI}}"
+    AbiV{{.Version}}, _ = abi.JSON(strings.NewReader(ABI{{.Version}}))
+)
+
+{{$structs := .Structs}}
+{{range .NewStructs}}
+	// {{.Name}} is an auto generated low-level Go binding around an user-defined struct.
+	type {{.Name}} struct {
+	{{range $field := .Fields}}
+	{{$field.Name}} {{$field.Type}}{{end}}
+	}
+{{end}}
+
+{{$contract := .Contract}}
+func ({{$ReceiverName}} *{{$contract.Type}}) initABIV{{.Version}}() {
+	V{{.Version}} := uint64({{.Version}})
+	{{$ReceiverName}}.abis[V{{.Version}}] = &AbiV{{.Version}}
+}
+
+func ({{$ReceiverName}} *{{$contract.Type}}) initMethodV{{.Version}}Entry() {
+    methodEntry := map[string]func([]byte) ([]byte, error){
+        {{range $id, $name := .Entries}}
+        "{{$id}}" : {{$ReceiverName}}.{{$name}}Entry,{{end}}
+    }
+	V{{.Version}} := uint64({{.Version}})
+	{{$ReceiverName}}.methodEntries[V{{.Version}}] = methodEntry
+}
+{{range .Contract.Calls}}
+func ({{$ReceiverName}} *{{$contract.Type}}) {{.Normalized.Name}}Entry(input []byte) ([]byte, error) {
+    {{ $inputLen := len .Normalized.Inputs }}
+    {{ $outputLen := len .Normalized.Outputs }}
+    {{if or (ne $inputLen 0) (ne $outputLen 0) }}
+    method := {{$ReceiverName}}.abi.Methods["{{.Original.Name}}"]
+    {{end}}
+    var err error
+    {{ $length := len .Normalized.Inputs }}
+    {{if ne $length 0 }}
+    args, err := method.Inputs.Unpack(input)
+    if err != nil {
+        return nil, err
+    }
+    {{end}}
+    {{range $i, $_ := .Normalized.Outputs}}res{{$i}}, {{end}} err {{if ne $outputLen 0 }} := {{else}} ={{end}} {{$ReceiverName}}.{{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} *abi.ConvertType(args[{{$i}}], new({{bindtype .Type $structs}})).(*{{bindtype .Type $structs}}) {{end}})
+    if err != nil {
+		if r, ok := err.(*typesdk.RevertError); ok {
+			return r.ReturnData, vm.ErrExecutionReverted
+		}
+        return nil, err
+    }
+    var output []byte
+    {{ $length := len .Normalized.Outputs }}
+    {{if ne $length 0 }}
+    output, err = method.Outputs.Pack({{range $i, $_ := .Normalized.Outputs}}{{if ne $i 0}},{{end}}res{{$i}}{{end}})
+    if err != nil {
+        return nil, err
+    }
+    {{end}}
+    return output, err
+}
+func ({{$ReceiverName}} *{{$contract.Type}}) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
+    panic("implement")
+}
+{{end}}
+
+{{range .Contract.Transacts}}
+func ({{$ReceiverName}} *{{$contract.Type}}) {{.Normalized.Name}}Entry(input []byte) ([]byte, error) {
+    {{ $inputLen := len .Normalized.Inputs }}
+    {{ $outputLen := len .Normalized.Outputs }}
+    {{if or (ne $inputLen 0) (ne $outputLen 0) }}
+    method := {{$ReceiverName}}.abi.Methods["{{.Original.Name}}"]
+    {{end}}
+    var err error
+
+    {{ $length := len .Normalized.Inputs }}
+    {{if ne $length 0 }}
+    args, err := method.Inputs.Unpack(input)
+    if err != nil {
+        return nil, err
+    }
+    {{end}}
+    {{range $i, $_ := .Normalized.Outputs}}res{{$i}}, {{end}} err {{if ne $outputLen 0 }} := {{else}} ={{end}} {{$ReceiverName}}.{{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} *abi.ConvertType(args[{{$i}}], new({{bindtype .Type $structs}})).(*{{bindtype .Type $structs}}) {{end}})
+    if err != nil {
+		if r, ok := err.(*typesdk.RevertError); ok {
+			return r.ReturnData, vm.ErrExecutionReverted
+		}
+        return nil, err
+    }
+    var output []byte
+    {{ $length := len .Normalized.Outputs }}
+    {{if ne $length 0 }}
+    output, err = method.Outputs.Pack({{range $i, $_ := .Normalized.Outputs}}{{if ne $i 0}},{{end}}res{{$i}}{{end}})
+    if err != nil {
+        return nil, err
+    }
+    {{end}}
+    return output, err
+}
+func ({{$ReceiverName}} *{{$contract.Type}}) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
+    panic("implement")
+}
+{{end}}
+{{range .Contract.Events}}
+    {{ $length := len .Normalized.Inputs }}
+        func ({{$ReceiverName}} *{{$contract.Type}})Emit{{.Normalized.Name}}Event({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}} {{bindtype .Type $structs}}{{end}}) (*types.Log, error){
+        event := {{$ReceiverName}}.abi.Events["{{.Normalized.Name}}"]
+        hashes, err := contracts.PackEventTopics(event.ID, event.Inputs {{range $i, $_ := .Normalized.Inputs}},{{.Name}}{{end}})
+        if err != nil {
+            return nil, err
+        }
+        data, err := contracts.PackEventData(event.Inputs {{range $i, $_ := .Normalized.Inputs}},{{.Name}}{{end}})
+        if err != nil {
+            return nil, err
+        }
+        return &types.Log{
+            Address: {{$ReceiverName}}.contract.Address(),
+            Topics: hashes,
+            Data:   data,
+            BlockNumber: {{$ReceiverName}}.evm.Context.BlockNumber.Uint64(),
+        }, nil
+        }
 {{end}}
 `

@@ -2,11 +2,14 @@ package config
 
 import (
 	"fmt"
+
+	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 )
 
 type StakeNetworkParams struct {
+	module.ModuleGenesisConfig
 	// For genesis node stake
 	// ###### NOTE: ######
 	// (Suggest a value greater than or equal to the "minStack" parameter set in
@@ -27,6 +30,7 @@ type StakeNetworkParams struct {
 
 func DefualtStakeNetworkParams() *StakeNetworkParams {
 	return &StakeNetworkParams{
+		ModuleGenesisConfig:          module.ModuleGenesisConfig{CreateBlock: 0},
 		GenesisStakeAmount:           0,
 		GenesisValidatorOwner:        common.ZeroAddr,
 		StakeWithdrawalWaitPeriod:    constants.STAKE_WITHDRAWAL_WAIT_PERIOD,
@@ -40,6 +44,6 @@ func DefualtStakeNetworkParams() *StakeNetworkParams {
 }
 
 func (params *StakeNetworkParams) String() string {
-	return fmt.Sprintf(`{"genesisValidatorOwner": "%s", "genesisStakeAmount": %d, "genesisCommissionRate": %d,  "stakeWithdrawalWaitPeriod": %d, "delegateWithdrawalWaitPeriod": %d, "slashingPercentage": %d, "slashIncentivePercentage": %d, "maxRoundValidatorsSize": %d, "maxEpochValidatorsSize": %d, "minBlocksOfRoundValidator": %d}`,
-		params.GenesisValidatorOwner.Hex(), params.GenesisStakeAmount, params.GenesisCommissionRate, params.StakeWithdrawalWaitPeriod, params.DelegateWithdrawalWaitPeriod, params.SlashingPercentage, params.SlashIncentivePercentage, params.MaxRoundValidatorsSize, params.MaxEpochValidatorsSize, params.MinBlocksOfRoundValidator)
+	return fmt.Sprintf(`{"createBlock": %d, "genesisValidatorOwner": "%s", "genesisStakeAmount": %d, "genesisCommissionRate": %d,  "stakeWithdrawalWaitPeriod": %d, "delegateWithdrawalWaitPeriod": %d, "slashingPercentage": %d, "slashIncentivePercentage": %d, "maxRoundValidatorsSize": %d, "maxEpochValidatorsSize": %d, "minBlocksOfRoundValidator": %d}`,
+		params.CreateBlock, params.GenesisValidatorOwner.Hex(), params.GenesisStakeAmount, params.GenesisCommissionRate, params.StakeWithdrawalWaitPeriod, params.DelegateWithdrawalWaitPeriod, params.SlashingPercentage, params.SlashIncentivePercentage, params.MaxRoundValidatorsSize, params.MaxEpochValidatorsSize, params.MinBlocksOfRoundValidator)
 }
