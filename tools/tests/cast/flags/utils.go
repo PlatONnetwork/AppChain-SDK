@@ -56,8 +56,14 @@ func InitGlobal(ctx *cli.Context) (*ethclient.Client, common.Address, *bind.Tran
 		if err != nil {
 			return nil, common.Address{}, nil, err
 		}
-		opt.GasLimit = ctx.Uint64(GasLimitFlags.Name)
-		opt.GasPrice = new(big.Int).SetUint64(ctx.Uint64(GasPriceFlags.Name))
+		opt.GasLimit = GasLimitFlags.Value
+		if ctx.IsSet(GasLimitFlags.Name) {
+			opt.GasLimit = ctx.Uint64(GasLimitFlags.Name)
+		}
+		opt.GasPrice = new(big.Int).SetUint64(GasPriceFlags.Value)
+		if ctx.IsSet(GasPriceFlags.Name) {
+			opt.GasPrice = new(big.Int).SetUint64(ctx.Uint64(GasPriceFlags.Name))
+		}
 		if ctx.IsSet(NonceFlags.Name) {
 			opt.Nonce = new(big.Int).SetUint64(ctx.Uint64(NonceFlags.Name))
 		}
