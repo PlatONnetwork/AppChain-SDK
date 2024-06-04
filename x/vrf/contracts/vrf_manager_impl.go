@@ -86,7 +86,7 @@ func (c *VRFManager) PushNonceAndProof(nonceAndProof []byte) error {
 		return err
 	}
 
-	log.Info("PushNonceAndProof for", "validatorAddr", validatorAddr, "nonceAndProof", hex.EncodeToString(nonceAndProof),
+	log.Info("PushNonceAndProof for", "validatorAddr", validatorAddr.Hex(), "nonceAndProof", hex.EncodeToString(nonceAndProof),
 		"currentEpoch", c.stageModule.GetCurrentEpoch(c.evm.StateDB), "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }

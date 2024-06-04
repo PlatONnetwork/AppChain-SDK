@@ -3,8 +3,8 @@ package module
 import "encoding/json"
 
 type ModuleGenesisConfig struct {
-	Version     uint64 `json:"version"`
-	CreateBlock uint64 `json:"createBlock"`
+	Version     uint64 `json:"version,omitempty"`
+	CreateBlock uint64 `json:"createBlock,omitempty"`
 }
 
 func GetVersionMapFromGenesis(modules map[string]json.RawMessage) (VersionMap, error) {
@@ -19,7 +19,7 @@ func GetVersionMapFromGenesis(modules map[string]json.RawMessage) (VersionMap, e
 		if err := json.Unmarshal(raw, &conf); err != nil {
 			return vm, err
 		}
-		vm[name]= conf.Version
+		vm[name] = conf.Version
 	}
 	return vm, nil
 }

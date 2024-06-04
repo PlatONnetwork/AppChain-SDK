@@ -141,10 +141,12 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		app.deposit,
 		app.l2StateSender,
 		app.upgrade,
+		app.gov,
+		app.voteToken,
 		tm, tc)
 	manager.SetElection(app.staking.Name())
 	manager.SetConsensusExtend(app.extraVote.Name())
-	manager.SetOrderTransaction(app.stateSync.Name(), app.vrf.Name(), app.staking.Name())
+	manager.SetOrderTransaction(app.stateSync.Name(), app.vrf.Name(), app.staking.Name(), app.gov.Name())
 	manager.SetOrderBeginBlocker(app.upgrade.Name(), app.stage.Name(), app.staking.Name(), app.reward.Name(), tm.Name())
 	manager.SetOrderEndBlocker(app.upgrade.Name(), app.stage.Name(), app.vrf.Name(), app.staking.Name(), app.reward.Name())
 	manager.SetOrderBlockCommitter(app.staking.Name(), app.stateEvent.Name(), app.checkpoint.Name())

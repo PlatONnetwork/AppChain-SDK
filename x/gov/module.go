@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	common2 "github.com/PlatONnetwork/AppChain-SDK/common"
 	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
+	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/utils"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	contracts2 "github.com/PlatONnetwork/AppChain-SDK/x/gov/contracts"
@@ -18,6 +19,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/rpc"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"gopkg.in/urfave/cli.v1"
+	"math"
 	"math/big"
 	"sync"
 )
@@ -28,8 +30,9 @@ const (
 )
 
 type GenesisParams struct {
+	module.ModuleGenesisConfig
 	Name              string         `json:"name"`
-	Version           string         `json:"version"`
+	Version           string         `json:"govVersion"`
 	VoteDelay         *big.Int       `json:"voteDelay"`
 	VotePeriod        *big.Int       `json:"votePeriod"`
 	QuorumNumerator   *big.Int       `json:"quorumNumerator"`
@@ -65,7 +68,13 @@ func (g *Module) Version() uint64 {
 func (g *Module) Address() common.Address {
 	return constants.GovAddress
 }
-
+func (g *Module) ContractCreateBlockNumber(statedb vm.StateDBReader) uint64 {
+	return 0
+}
+func (m *Module) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly bool) ([]byte, error) {
+	gov, _ := contracts2.NewGovernance(evm, contract, readOnly)
+	return gov.Run(input)
+}
 func (g *Module) Init(ctx sdk.InitContext) error {
 	key, err := utils.DecodePrivateKey(g.keystoreFile, g.passwordFile)
 	if err != nil {
@@ -82,7 +91,9 @@ func (g *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *param
 		log.Error("Failed UnmarshalJSON RewardNetworkParams", "error", err)
 		return err
 	}
-	gov, _ := contracts2.NewGovernance(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(g, g), false)
+	evm := vm.NewEVM(vm.BlockContext{GasLimit: math.MaxUint64, BlockNumber: big.NewInt(0)}, vm.TxContext{}, db, chainConfig, vm.Config{}, nil)
+
+	gov, _ := contracts2.NewGovernance(evm, sdkcontracts.NewContract(g, g), false)
 	gov.Init(params.Name, params.Version, params.VoteDelay, params.VotePeriod, params.QuorumNumerator, params.ProposalThreshold, params.Owner, params.VoteToken)
 	return nil
 }

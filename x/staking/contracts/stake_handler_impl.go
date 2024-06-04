@@ -424,12 +424,14 @@ func (c *StakeHandler) WithdrawUnstake(validatorAddr common.Address) error {
 }
 
 func (c *StakeHandler) mintVoteToken(account common.Address, amount *big.Int) {
+	log.Debug("mint vote token", "account", account.Hex(), "amount", amount)
 	caller, err := erc20vote.NewERC20VoteCaller(c.evm, c.contract, constants.VoteTokenAddress)
 	contracts.Require(err == nil, "StakeHandler: CREATE VOTE CALLER FAILED")
 	contracts.Require(caller.Mint(account, amount) == nil, "StakeHandler: MINT VOTE TOKEN FAILED")
 }
 
 func (c *StakeHandler) burnVoteToken(account common.Address, amount *big.Int) {
+	log.Debug("burn vote token", "account", account.Hex(), "amount", amount)
 	caller, err := erc20vote.NewERC20VoteCaller(c.evm, c.contract, constants.VoteTokenAddress)
 	contracts.Require(err == nil, "StakeHandler: CREATE VOTE CALLER FAILED")
 	contracts.Require(caller.Burn(account, amount) == nil, "StakeHandler: BURN VOTE TOKEN FAILED")

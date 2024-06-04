@@ -18,6 +18,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
 	"github.com/PlatONnetwork/PlatON-Go/event"
+	"github.com/PlatONnetwork/PlatON-Go/log"
 	abi2 "github.com/umbracle/ethgo/abi"
 	"math/big"
 	"strings"
@@ -87,6 +88,7 @@ type Governance struct {
 	storage       Storage
 	eip712        *eip712.EIP712
 	*contracts2.Ownable
+	log log.Logger
 }
 
 func NewGovernance(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*Governance, error) {
@@ -101,6 +103,7 @@ func NewGovernance(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*Governan
 		stateDb:       contracts.NewStateDB(evm, contract),
 		context:       contracts.NewContext(evm, contract),
 		readOnly:      readOnly,
+		log:           log.New("contract", "governance"),
 	}
 
 	store := db.NewStore([]byte{}, contract.Address(), s.stateDb)
@@ -180,11 +183,11 @@ func (c *Governance) ProposalSnapshot(proposalId *big.Int) (*big.Int, error) {
 }
 
 func (c *Governance) ProposalThreshold() (*big.Int, error) {
-	return big.NewInt(0), nil
+	return c.storage.ProposalThreshold.MustGet(), nil
 }
-
 func (c *Governance) State(proposalId *big.Int) (uint8, error) {
 	proposal := c.storage.Proposals.MustGet(proposalId)
+	c.log.Debug("Get proposal", "proposalId", proposalId, "proposal", proposal)
 	if proposal.Executed {
 		return Executed, nil
 	}
@@ -212,16 +215,19 @@ func (c *Governance) quorumReached(proposalId *big.Int) bool {
 	proposalVote := c.storage.ProposalVotes.MustGet(proposalId)
 	blockNumber, _ := c.ProposalSnapshot(proposalId)
 	quorum, _ := c.Quorum(blockNumber)
+	c.log.Debug("Get quorum info", "vote", proposalVote, "blockNumber", blockNumber, "quorum", quorum)
 	return quorum.Cmp(new(big.Int).Add(&proposalVote.ForVotes, &proposalVote.AbstainVotes)) <= 0
 
 }
 
 func (c *Governance) voteSucceeded(proposalId *big.Int) bool {
 	proposalVote := c.storage.ProposalVotes.MustGet(proposalId)
+	c.log.Debug("Get vote succeed info", "vote", proposalVote)
 	return proposalVote.ForVotes.Cmp(&proposalVote.AgainstVotes) > 0
 }
 
 func (c *Governance) countVote(proposalId *big.Int, account common.Address, support uint8, weight *big.Int) {
+	c.log.Debug("Count vote", "proposalId", proposalId, "account", account.Hex(), "support", support, "weight", weight)
 	proposalVote := c.storage.ProposalVotes.MustGet(proposalId)
 	hasVoted := c.storage.HasVoted.MustGet(proposalId)
 	contracts.Require(!hasVoted.MustGet(account), "Governance: vote already cast")
@@ -235,6 +241,7 @@ func (c *Governance) countVote(proposalId *big.Int, account common.Address, supp
 	} else {
 		contracts.Require(false, "Governance: invalid value for enum VoteType")
 	}
+	c.log.Debug("Count vote", "proposalId", proposalId, "vote", proposalVote)
 	c.storage.ProposalVotes.MustSet(proposalId, proposalVote)
 }
 
@@ -255,6 +262,7 @@ func (c *Governance) CastVote(proposalId *big.Int, support uint8) (*big.Int, err
 }
 
 func (c *Governance) castVote(proposalId *big.Int, account common.Address, support uint8, reason string) *big.Int {
+	c.log.Debug("Cast vote", "proposalId", proposalId, "account", account, "support", support, "reason", reason)
 	proposal := c.storage.Proposals.MustGet(proposalId)
 	status, _ := c.State(proposalId)
 	contracts.Require(status == Active, "Governance: vote not currently active")
@@ -294,6 +302,7 @@ func (c *Governance) execute(targets []common.Address, values []*big.Int, callda
 func (c *Governance) Propose(targets []common.Address, values []*big.Int, calldatas [][]byte, description string) (*big.Int, error) {
 	votes, _ := c.GetVotes(c.context.Caller(), new(big.Int).Sub(c.context.BlockNumber(), big.NewInt(1)))
 	threshold, _ := c.ProposalThreshold()
+	c.log.Debug("New proposal", "threshold", threshold, "votes", votes, "caller", c.context.Caller())
 	contracts.Require(votes.Cmp(threshold) >= 0, "Governance: proposer votes below proposal threshold")
 	proposalId, _ := c.HashProposal(targets, values, calldatas, crypto.Keccak256Hash([]byte(description)))
 	contracts.Require(len(targets) == len(values), "Governance: invalid proposal length")
@@ -305,6 +314,7 @@ func (c *Governance) Propose(targets []common.Address, values []*big.Int, callda
 	deadline := snapshot + c.storage.VotePeriod.MustGet().Uint64()
 	proposal.VoteStart = BlockNumber(snapshot)
 	proposal.VoteEnd = BlockNumber(deadline)
+	c.log.Debug("Proposal", "proposalId", proposalId, "proposal", proposal)
 	c.storage.Proposals.MustSet(proposalId, proposal)
 	c.EmitProposalCreatedEvent(proposalId, c.context.Caller(), targets, values, make([]string, len(targets)), calldatas, new(big.Int).SetUint64(snapshot), new(big.Int).SetUint64(deadline), description)
 	return proposalId, nil
@@ -318,8 +328,9 @@ func (c *Governance) Quorum(blockNumber *big.Int) (*big.Int, error) {
 	totalSupply, _ := c.voteCaller().GetPastTotalSupply(blockNumber)
 	quorumNumerator, _ := c.QuorumNumerator()
 	quorumDenominator, _ := c.QuorumDenominator()
-	totalSupply.Mul(totalSupply, quorumNumerator)
-	return new(big.Int).Div(totalSupply, quorumDenominator), nil
+	newTotalSupply := new(big.Int).Mul(totalSupply, quorumNumerator)
+	c.log.Debug("Quorum", "totalSupply", totalSupply, "quorumNumerator", quorumNumerator, "quorumDenominator", quorumDenominator)
+	return new(big.Int).Div(newTotalSupply, quorumDenominator), nil
 }
 
 func (c *Governance) QuorumDenominator() (*big.Int, error) {

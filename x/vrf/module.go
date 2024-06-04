@@ -202,7 +202,8 @@ func (v *VRFModule) VerifyVrf(ctx sdk.WorkerContext, blockNumber uint64, nonceAn
 	}
 
 	if err := vrfwrap.VerifyVrf(nonceAndProof, previousNonce, key); nil != err {
-		v.logger.Error("Failed to verify vrf", "blockNumber", blockNumber, "nonceAndProof", hex.EncodeToString(nonceAndProof), "data", previousNonce.Hex(), "error", err)
+		v.logger.Error("Failed to verify vrf", "blockNumber", blockNumber, "nonceAndProof", hex.EncodeToString(nonceAndProof),
+			"data", previousNonce.Hex(), "nodeId", enode.PublicKeyToIDv0(key).String(), "address", crypto.PubkeyToAddress(*key).Hex(), "error", err)
 		return err
 	}
 	v.logger.Info("Succeed to verify vrf nonceAndProof", "blockNumber", blockNumber, "nonceAndProof", hex.EncodeToString(nonceAndProof), "data", previousNonce.Hex())
