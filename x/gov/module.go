@@ -69,7 +69,8 @@ func (g *Module) Address() common.Address {
 	return constants.GovAddress
 }
 func (g *Module) ContractCreateBlockNumber(statedb vm.StateDBReader) uint64 {
-	return 0
+	gov, _ := contracts2.NewGovernance(sdkcontracts.NewEVM(types.NewStateDBWrapper(statedb), big.NewInt(0)), sdkcontracts.NewContract(g, g), false)
+	return gov.GetCreateBlock()
 }
 func (m *Module) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly bool) ([]byte, error) {
 	gov, _ := contracts2.NewGovernance(evm, contract, readOnly)
@@ -95,6 +96,7 @@ func (g *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *param
 
 	gov, _ := contracts2.NewGovernance(evm, sdkcontracts.NewContract(g, g), false)
 	gov.Init(params.Name, params.Version, params.VoteDelay, params.VotePeriod, params.QuorumNumerator, params.ProposalThreshold, params.Owner, params.VoteToken)
+	gov.SetCreateBlock(params.CreateBlock)
 	return nil
 }
 
