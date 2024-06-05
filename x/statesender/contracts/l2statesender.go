@@ -31,8 +31,8 @@ var (
 	_              = binary.BigEndian
 	_              = types.BloomLookup
 	_              = event.NewSubscription
-	versionKey     = []byte("version")
-	createBlockKey = []byte("createBlock")
+	versionKey     = []byte("__version")
+	createBlockKey = []byte("__createBlock")
 )
 
 var (
@@ -201,7 +201,7 @@ func (c *L2StateSender) SyncStateEntry(input []byte) ([]byte, error) {
 	return output, err
 }
 
-func (c *L2StateSender) EmitL2StateSyncedEvent(id *big.Int, sender common.Address, receiver common.Address, callData []byte) (*types.Log, error) {
+func (c *L2StateSender) L2StateSyncedEvent(id *big.Int, sender common.Address, receiver common.Address, callData []byte) (*types.Log, error) {
 	event := c.abi.Events["L2StateSynced"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, id, sender, receiver, callData)
 	if err != nil {
@@ -217,4 +217,9 @@ func (c *L2StateSender) EmitL2StateSyncedEvent(id *big.Int, sender common.Addres
 		Data:        data,
 		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
 	}, nil
+}
+func (c *L2StateSender) EmitL2StateSyncedEvent(id *big.Int, sender common.Address, receiver common.Address, callData []byte) {
+	log, err := c.L2StateSyncedEvent(id, sender, receiver, callData)
+	contracts.Require(err == nil, "L2StateSender: emit L2StateSynced event failed")
+	c.stateDb.AddLog(log)
 }

@@ -31,8 +31,8 @@ var (
 	_              = binary.BigEndian
 	_              = types.BloomLookup
 	_              = event.NewSubscription
-	versionKey     = []byte("version")
-	createBlockKey = []byte("createBlock")
+	versionKey     = []byte("__version")
+	createBlockKey = []byte("__createBlock")
 )
 
 var (
@@ -177,7 +177,7 @@ func (c *WithdrawManager) OnStateReceiveEntry(input []byte) ([]byte, error) {
 	return output, err
 }
 
-func (c *WithdrawManager) EmitL2MintableCoinDepositEvent(recipient common.Address, depositor common.Address, amount *big.Int) (*types.Log, error) {
+func (c *WithdrawManager) L2MintableCoinDepositEvent(recipient common.Address, depositor common.Address, amount *big.Int) (*types.Log, error) {
 	event := c.abi.Events["L2MintableCoinDeposit"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, recipient, depositor, amount)
 	if err != nil {
@@ -194,8 +194,13 @@ func (c *WithdrawManager) EmitL2MintableCoinDepositEvent(recipient common.Addres
 		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
 	}, nil
 }
+func (c *WithdrawManager) EmitL2MintableCoinDepositEvent(recipient common.Address, depositor common.Address, amount *big.Int) {
+	log, err := c.L2MintableCoinDepositEvent(recipient, depositor, amount)
+	contracts.Require(err == nil, "WithdrawManager: emit L2MintableCoinDeposit event failed")
+	c.stateDb.AddLog(log)
+}
 
-func (c *WithdrawManager) EmitL2MintableCoinWithdrawEvent(recipient common.Address, withdrawer common.Address, amount *big.Int) (*types.Log, error) {
+func (c *WithdrawManager) L2MintableCoinWithdrawEvent(recipient common.Address, withdrawer common.Address, amount *big.Int) (*types.Log, error) {
 	event := c.abi.Events["L2MintableCoinWithdraw"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, recipient, withdrawer, amount)
 	if err != nil {
@@ -211,4 +216,9 @@ func (c *WithdrawManager) EmitL2MintableCoinWithdrawEvent(recipient common.Addre
 		Data:        data,
 		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
 	}, nil
+}
+func (c *WithdrawManager) EmitL2MintableCoinWithdrawEvent(recipient common.Address, withdrawer common.Address, amount *big.Int) {
+	log, err := c.L2MintableCoinWithdrawEvent(recipient, withdrawer, amount)
+	contracts.Require(err == nil, "WithdrawManager: emit L2MintableCoinWithdraw event failed")
+	c.stateDb.AddLog(log)
 }

@@ -31,8 +31,8 @@ var (
 	_              = binary.BigEndian
 	_              = types.BloomLookup
 	_              = event.NewSubscription
-	versionKey     = []byte("version")
-	createBlockKey = []byte("createBlock")
+	versionKey     = []byte("__version")
+	createBlockKey = []byte("__createBlock")
 )
 
 var (
@@ -153,7 +153,7 @@ func (c *VRFManager) PushNonceAndProofEntry(input []byte) ([]byte, error) {
 	return output, err
 }
 
-func (c *VRFManager) EmitVRFNonceAddedEvent(block *big.Int, nonce []byte) (*types.Log, error) {
+func (c *VRFManager) VRFNonceAddedEvent(block *big.Int, nonce []byte) (*types.Log, error) {
 	event := c.abi.Events["VRFNonceAdded"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, block, nonce)
 	if err != nil {
@@ -169,4 +169,9 @@ func (c *VRFManager) EmitVRFNonceAddedEvent(block *big.Int, nonce []byte) (*type
 		Data:        data,
 		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
 	}, nil
+}
+func (c *VRFManager) EmitVRFNonceAddedEvent(block *big.Int, nonce []byte) {
+	log, err := c.VRFNonceAddedEvent(block, nonce)
+	contracts.Require(err == nil, "VRFManager: emit VRFNonceAdded event failed")
+	c.stateDb.AddLog(log)
 }

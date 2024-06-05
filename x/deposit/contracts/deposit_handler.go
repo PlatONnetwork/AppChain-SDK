@@ -31,8 +31,8 @@ var (
 	_              = binary.BigEndian
 	_              = types.BloomLookup
 	_              = event.NewSubscription
-	versionKey     = []byte("version")
-	createBlockKey = []byte("createBlock")
+	versionKey     = []byte("__version")
+	createBlockKey = []byte("__createBlock")
 )
 
 var (
@@ -177,7 +177,7 @@ func (c *DepositHandler) WithdrawEntry(input []byte) ([]byte, error) {
 	return output, err
 }
 
-func (c *DepositHandler) EmitL2CoinDepositEvent(recipient common.Address, depositor common.Address, amount *big.Int) (*types.Log, error) {
+func (c *DepositHandler) L2CoinDepositEvent(recipient common.Address, depositor common.Address, amount *big.Int) (*types.Log, error) {
 	event := c.abi.Events["L2CoinDeposit"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, recipient, depositor, amount)
 	if err != nil {
@@ -194,8 +194,13 @@ func (c *DepositHandler) EmitL2CoinDepositEvent(recipient common.Address, deposi
 		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
 	}, nil
 }
+func (c *DepositHandler) EmitL2CoinDepositEvent(recipient common.Address, depositor common.Address, amount *big.Int) {
+	log, err := c.L2CoinDepositEvent(recipient, depositor, amount)
+	contracts.Require(err == nil, "DepositHandler: emit L2CoinDeposit event failed")
+	c.stateDb.AddLog(log)
+}
 
-func (c *DepositHandler) EmitL2CoinWithdrawEvent(recipient common.Address, withdrawer common.Address, amount *big.Int) (*types.Log, error) {
+func (c *DepositHandler) L2CoinWithdrawEvent(recipient common.Address, withdrawer common.Address, amount *big.Int) (*types.Log, error) {
 	event := c.abi.Events["L2CoinWithdraw"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, recipient, withdrawer, amount)
 	if err != nil {
@@ -211,4 +216,9 @@ func (c *DepositHandler) EmitL2CoinWithdrawEvent(recipient common.Address, withd
 		Data:        data,
 		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
 	}, nil
+}
+func (c *DepositHandler) EmitL2CoinWithdrawEvent(recipient common.Address, withdrawer common.Address, amount *big.Int) {
+	log, err := c.L2CoinWithdrawEvent(recipient, withdrawer, amount)
+	contracts.Require(err == nil, "DepositHandler: emit L2CoinWithdraw event failed")
+	c.stateDb.AddLog(log)
 }

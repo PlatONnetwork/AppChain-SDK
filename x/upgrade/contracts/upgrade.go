@@ -31,8 +31,8 @@ var (
 	_              = binary.BigEndian
 	_              = types.BloomLookup
 	_              = event.NewSubscription
-	versionKey     = []byte("version")
-	createBlockKey = []byte("createBlock")
+	versionKey     = []byte("__version")
+	createBlockKey = []byte("__createBlock")
 )
 
 // IUpgradeModule is an auto generated low-level Go binding around an user-defined struct.

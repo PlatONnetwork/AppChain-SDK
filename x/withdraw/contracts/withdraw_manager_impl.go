@@ -42,6 +42,7 @@ type WithdrawManager struct {
 	evm           *vm.EVM
 	burner        contracts.Burn
 	stateDb       *contracts.StateDB
+	context       *contracts.Context
 	fallback      func(input []byte) ([]byte, error)
 }
 
@@ -55,10 +56,12 @@ func NewWithdrawManager(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*Wit
 		contract:      contract,
 		burner:        contracts.NewBurner(contract),
 		stateDb:       contracts.NewStateDB(evm, contract),
+		context:       contracts.NewContext(evm, contract),
 		readOnly:      readOnly,
 	}
 	s.initABI()
 	s.initMethodEntry()
+	s.loadMethodABI()
 	return s, nil
 }
 

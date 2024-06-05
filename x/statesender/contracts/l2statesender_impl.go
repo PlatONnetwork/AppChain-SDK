@@ -40,6 +40,7 @@ type L2StateSender struct {
 	evm           *vm.EVM
 	burner        contracts.Burn
 	stateDb       *contracts.StateDB
+	context       *contracts.Context
 	fallback      func(input []byte) ([]byte, error)
 	maxLength     uint64
 }
@@ -54,6 +55,8 @@ func NewL2StateSender(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*L2Sta
 		contract:      contract,
 		burner:        contracts.NewBurner(contract),
 		stateDb:       contracts.NewStateDB(evm, contract),
+		context:       contracts.NewContext(evm, contract),
+		readOnly:      readOnly,
 		maxLength:     2048,
 	}
 	s.initABI()

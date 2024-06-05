@@ -41,6 +41,7 @@ type Upgrade struct {
 	evm           *vm.EVM
 	burner        contracts.Burn
 	stateDb       *contracts.StateDB
+	context       *contracts.Context
 	fallback      func(input []byte) ([]byte, error)
 }
 
@@ -54,10 +55,12 @@ func NewUpgrade(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*Upgrade, er
 		contract:      contract,
 		burner:        contracts.NewBurner(contract),
 		stateDb:       contracts.NewStateDB(evm, contract),
+		context:       contracts.NewContext(evm, contract),
 		readOnly:      readOnly,
 	}
 	s.initABI()
 	s.initMethodEntry()
+	s.loadMethodABI()
 	return s, nil
 }
 

@@ -31,8 +31,8 @@ var (
 	_              = binary.BigEndian
 	_              = types.BloomLookup
 	_              = event.NewSubscription
-	versionKey     = []byte("version")
-	createBlockKey = []byte("createBlock")
+	versionKey     = []byte("__version")
+	createBlockKey = []byte("__createBlock")
 )
 
 // BitArray is an auto generated low-level Go binding around an user-defined struct.
@@ -340,7 +340,7 @@ func (c *StateReceiver) GetStateSyncIdEntry(input []byte) ([]byte, error) {
 	return output, err
 }
 
-func (c *StateReceiver) EmitNewCommitmentEvent(startId *big.Int, endId *big.Int, root common.Hash) (*types.Log, error) {
+func (c *StateReceiver) NewCommitmentEvent(startId *big.Int, endId *big.Int, root common.Hash) (*types.Log, error) {
 	event := c.abi.Events["NewCommitment"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, startId, endId, root)
 	if err != nil {
@@ -357,8 +357,13 @@ func (c *StateReceiver) EmitNewCommitmentEvent(startId *big.Int, endId *big.Int,
 		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
 	}, nil
 }
+func (c *StateReceiver) EmitNewCommitmentEvent(startId *big.Int, endId *big.Int, root common.Hash) {
+	log, err := c.NewCommitmentEvent(startId, endId, root)
+	contracts.Require(err == nil, "StateReceiver: emit NewCommitment event failed")
+	c.stateDb.AddLog(log)
+}
 
-func (c *StateReceiver) EmitStateSyncResultEvent(counter *big.Int, status bool, message []byte) (*types.Log, error) {
+func (c *StateReceiver) StateSyncResultEvent(counter *big.Int, status bool, message []byte) (*types.Log, error) {
 	event := c.abi.Events["StateSyncResult"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, counter, status, message)
 	if err != nil {
@@ -374,4 +379,9 @@ func (c *StateReceiver) EmitStateSyncResultEvent(counter *big.Int, status bool, 
 		Data:        data,
 		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
 	}, nil
+}
+func (c *StateReceiver) EmitStateSyncResultEvent(counter *big.Int, status bool, message []byte) {
+	log, err := c.StateSyncResultEvent(counter, status, message)
+	contracts.Require(err == nil, "StateReceiver: emit StateSyncResult event failed")
+	c.stateDb.AddLog(log)
 }

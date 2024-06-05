@@ -31,8 +31,8 @@ var (
 	_              = binary.BigEndian
 	_              = types.BloomLookup
 	_              = event.NewSubscription
-	versionKey     = []byte("version")
-	createBlockKey = []byte("createBlock")
+	versionKey     = []byte("__version")
+	createBlockKey = []byte("__createBlock")
 )
 
 // BlocksOfValidator is an auto generated low-level Go binding around an user-defined struct.
@@ -614,7 +614,7 @@ func (c *StakeHandler) WithdrawUnstakeEntry(input []byte) ([]byte, error) {
 	return output, err
 }
 
-func (c *StakeHandler) EmitDelegateWithdrawalEvent(delegator common.Address, validator common.Address, amount *big.Int) (*types.Log, error) {
+func (c *StakeHandler) DelegateWithdrawalEvent(delegator common.Address, validator common.Address, amount *big.Int) (*types.Log, error) {
 	event := c.abi.Events["DelegateWithdrawal"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, delegator, validator, amount)
 	if err != nil {
@@ -631,8 +631,13 @@ func (c *StakeHandler) EmitDelegateWithdrawalEvent(delegator common.Address, val
 		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
 	}, nil
 }
+func (c *StakeHandler) EmitDelegateWithdrawalEvent(delegator common.Address, validator common.Address, amount *big.Int) {
+	log, err := c.DelegateWithdrawalEvent(delegator, validator, amount)
+	contracts.Require(err == nil, "StakeHandler: emit DelegateWithdrawal event failed")
+	c.stateDb.AddLog(log)
+}
 
-func (c *StakeHandler) EmitDelegateWithdrawalRegisteredEvent(delegator common.Address, validator common.Address, amount *big.Int) (*types.Log, error) {
+func (c *StakeHandler) DelegateWithdrawalRegisteredEvent(delegator common.Address, validator common.Address, amount *big.Int) (*types.Log, error) {
 	event := c.abi.Events["DelegateWithdrawalRegistered"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, delegator, validator, amount)
 	if err != nil {
@@ -649,8 +654,13 @@ func (c *StakeHandler) EmitDelegateWithdrawalRegisteredEvent(delegator common.Ad
 		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
 	}, nil
 }
+func (c *StakeHandler) EmitDelegateWithdrawalRegisteredEvent(delegator common.Address, validator common.Address, amount *big.Int) {
+	log, err := c.DelegateWithdrawalRegisteredEvent(delegator, validator, amount)
+	contracts.Require(err == nil, "StakeHandler: emit DelegateWithdrawalRegistered event failed")
+	c.stateDb.AddLog(log)
+}
 
-func (c *StakeHandler) EmitDelegationAddedEvent(delegator common.Address, validator common.Address, amount *big.Int) (*types.Log, error) {
+func (c *StakeHandler) DelegationAddedEvent(delegator common.Address, validator common.Address, amount *big.Int) (*types.Log, error) {
 	event := c.abi.Events["DelegationAdded"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, delegator, validator, amount)
 	if err != nil {
@@ -667,8 +677,13 @@ func (c *StakeHandler) EmitDelegationAddedEvent(delegator common.Address, valida
 		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
 	}, nil
 }
+func (c *StakeHandler) EmitDelegationAddedEvent(delegator common.Address, validator common.Address, amount *big.Int) {
+	log, err := c.DelegationAddedEvent(delegator, validator, amount)
+	contracts.Require(err == nil, "StakeHandler: emit DelegationAdded event failed")
+	c.stateDb.AddLog(log)
+}
 
-func (c *StakeHandler) EmitSlashedEvent(exitId *big.Int, validators []common.Address, amounts []*big.Int) (*types.Log, error) {
+func (c *StakeHandler) SlashedEvent(exitId *big.Int, validators []common.Address, amounts []*big.Int) (*types.Log, error) {
 	event := c.abi.Events["Slashed"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, exitId, validators, amounts)
 	if err != nil {
@@ -685,8 +700,13 @@ func (c *StakeHandler) EmitSlashedEvent(exitId *big.Int, validators []common.Add
 		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
 	}, nil
 }
+func (c *StakeHandler) EmitSlashedEvent(exitId *big.Int, validators []common.Address, amounts []*big.Int) {
+	log, err := c.SlashedEvent(exitId, validators, amounts)
+	contracts.Require(err == nil, "StakeHandler: emit Slashed event failed")
+	c.stateDb.AddLog(log)
+}
 
-func (c *StakeHandler) EmitStakeAddedEvent(validator common.Address, amount *big.Int) (*types.Log, error) {
+func (c *StakeHandler) StakeAddedEvent(validator common.Address, amount *big.Int) (*types.Log, error) {
 	event := c.abi.Events["StakeAdded"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, validator, amount)
 	if err != nil {
@@ -703,8 +723,13 @@ func (c *StakeHandler) EmitStakeAddedEvent(validator common.Address, amount *big
 		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
 	}, nil
 }
+func (c *StakeHandler) EmitStakeAddedEvent(validator common.Address, amount *big.Int) {
+	log, err := c.StakeAddedEvent(validator, amount)
+	contracts.Require(err == nil, "StakeHandler: emit StakeAdded event failed")
+	c.stateDb.AddLog(log)
+}
 
-func (c *StakeHandler) EmitStakeWithdrawalEvent(validator common.Address, amount *big.Int) (*types.Log, error) {
+func (c *StakeHandler) StakeWithdrawalEvent(validator common.Address, amount *big.Int) (*types.Log, error) {
 	event := c.abi.Events["StakeWithdrawal"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, validator, amount)
 	if err != nil {
@@ -721,8 +746,13 @@ func (c *StakeHandler) EmitStakeWithdrawalEvent(validator common.Address, amount
 		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
 	}, nil
 }
+func (c *StakeHandler) EmitStakeWithdrawalEvent(validator common.Address, amount *big.Int) {
+	log, err := c.StakeWithdrawalEvent(validator, amount)
+	contracts.Require(err == nil, "StakeHandler: emit StakeWithdrawal event failed")
+	c.stateDb.AddLog(log)
+}
 
-func (c *StakeHandler) EmitStakeWithdrawalRegisteredEvent(validator common.Address, amount *big.Int) (*types.Log, error) {
+func (c *StakeHandler) StakeWithdrawalRegisteredEvent(validator common.Address, amount *big.Int) (*types.Log, error) {
 	event := c.abi.Events["StakeWithdrawalRegistered"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, validator, amount)
 	if err != nil {
@@ -739,8 +769,13 @@ func (c *StakeHandler) EmitStakeWithdrawalRegisteredEvent(validator common.Addre
 		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
 	}, nil
 }
+func (c *StakeHandler) EmitStakeWithdrawalRegisteredEvent(validator common.Address, amount *big.Int) {
+	log, err := c.StakeWithdrawalRegisteredEvent(validator, amount)
+	contracts.Require(err == nil, "StakeHandler: emit StakeWithdrawalRegistered event failed")
+	c.stateDb.AddLog(log)
+}
 
-func (c *StakeHandler) EmitUnDelegatedEvent(delegator common.Address, validator common.Address, amount *big.Int) (*types.Log, error) {
+func (c *StakeHandler) UnDelegatedEvent(delegator common.Address, validator common.Address, amount *big.Int) (*types.Log, error) {
 	event := c.abi.Events["UnDelegated"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, delegator, validator, amount)
 	if err != nil {
@@ -757,8 +792,13 @@ func (c *StakeHandler) EmitUnDelegatedEvent(delegator common.Address, validator 
 		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
 	}, nil
 }
+func (c *StakeHandler) EmitUnDelegatedEvent(delegator common.Address, validator common.Address, amount *big.Int) {
+	log, err := c.UnDelegatedEvent(delegator, validator, amount)
+	contracts.Require(err == nil, "StakeHandler: emit UnDelegated event failed")
+	c.stateDb.AddLog(log)
+}
 
-func (c *StakeHandler) EmitUnStakedEvent(validator common.Address, amount *big.Int) (*types.Log, error) {
+func (c *StakeHandler) UnStakedEvent(validator common.Address, amount *big.Int) (*types.Log, error) {
 	event := c.abi.Events["UnStaked"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, validator, amount)
 	if err != nil {
@@ -775,8 +815,13 @@ func (c *StakeHandler) EmitUnStakedEvent(validator common.Address, amount *big.I
 		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
 	}, nil
 }
+func (c *StakeHandler) EmitUnStakedEvent(validator common.Address, amount *big.Int) {
+	log, err := c.UnStakedEvent(validator, amount)
+	contracts.Require(err == nil, "StakeHandler: emit UnStaked event failed")
+	c.stateDb.AddLog(log)
+}
 
-func (c *StakeHandler) EmitUpdateValidatorStatusEvent(validator common.Address, status *big.Int) (*types.Log, error) {
+func (c *StakeHandler) UpdateValidatorStatusEvent(validator common.Address, status *big.Int) (*types.Log, error) {
 	event := c.abi.Events["UpdateValidatorStatus"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, validator, status)
 	if err != nil {
@@ -793,8 +838,13 @@ func (c *StakeHandler) EmitUpdateValidatorStatusEvent(validator common.Address, 
 		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
 	}, nil
 }
+func (c *StakeHandler) EmitUpdateValidatorStatusEvent(validator common.Address, status *big.Int) {
+	log, err := c.UpdateValidatorStatusEvent(validator, status)
+	contracts.Require(err == nil, "StakeHandler: emit UpdateValidatorStatus event failed")
+	c.stateDb.AddLog(log)
+}
 
-func (c *StakeHandler) EmitValidatorRegisteredEvent(validator common.Address, owner common.Address, commissionRate *big.Int, pubKey []byte, blsKey []byte) (*types.Log, error) {
+func (c *StakeHandler) ValidatorRegisteredEvent(validator common.Address, owner common.Address, commissionRate *big.Int, pubKey []byte, blsKey []byte) (*types.Log, error) {
 	event := c.abi.Events["ValidatorRegistered"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, validator, owner, commissionRate, pubKey, blsKey)
 	if err != nil {
@@ -810,4 +860,9 @@ func (c *StakeHandler) EmitValidatorRegisteredEvent(validator common.Address, ow
 		Data:        data,
 		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
 	}, nil
+}
+func (c *StakeHandler) EmitValidatorRegisteredEvent(validator common.Address, owner common.Address, commissionRate *big.Int, pubKey []byte, blsKey []byte) {
+	log, err := c.ValidatorRegisteredEvent(validator, owner, commissionRate, pubKey, blsKey)
+	contracts.Require(err == nil, "StakeHandler: emit ValidatorRegistered event failed")
+	c.stateDb.AddLog(log)
 }

@@ -31,8 +31,8 @@ var (
 	_              = binary.BigEndian
 	_              = types.BloomLookup
 	_              = event.NewSubscription
-	versionKey     = []byte("version")
-	createBlockKey = []byte("createBlock")
+	versionKey     = []byte("__version")
+	createBlockKey = []byte("__createBlock")
 )
 
 var (
@@ -264,7 +264,7 @@ func (c *RewardManager) WithdrawValidatorRewardsEntry(input []byte) ([]byte, err
 	return output, err
 }
 
-func (c *RewardManager) EmitBlockRewardEvent(epochId *big.Int, validators []common.Address, amounts []*big.Int) (*types.Log, error) {
+func (c *RewardManager) BlockRewardEvent(epochId *big.Int, validators []common.Address, amounts []*big.Int) (*types.Log, error) {
 	event := c.abi.Events["BlockReward"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, epochId, validators, amounts)
 	if err != nil {
@@ -281,8 +281,13 @@ func (c *RewardManager) EmitBlockRewardEvent(epochId *big.Int, validators []comm
 		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
 	}, nil
 }
+func (c *RewardManager) EmitBlockRewardEvent(epochId *big.Int, validators []common.Address, amounts []*big.Int) {
+	log, err := c.BlockRewardEvent(epochId, validators, amounts)
+	contracts.Require(err == nil, "RewardManager: emit BlockReward event failed")
+	c.stateDb.AddLog(log)
+}
 
-func (c *RewardManager) EmitDelegatorRewardWithdrawalEvent(validator common.Address, amount *big.Int, caller common.Address) (*types.Log, error) {
+func (c *RewardManager) DelegatorRewardWithdrawalEvent(validator common.Address, amount *big.Int, caller common.Address) (*types.Log, error) {
 	event := c.abi.Events["DelegatorRewardWithdrawal"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, validator, amount, caller)
 	if err != nil {
@@ -299,8 +304,13 @@ func (c *RewardManager) EmitDelegatorRewardWithdrawalEvent(validator common.Addr
 		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
 	}, nil
 }
+func (c *RewardManager) EmitDelegatorRewardWithdrawalEvent(validator common.Address, amount *big.Int, caller common.Address) {
+	log, err := c.DelegatorRewardWithdrawalEvent(validator, amount, caller)
+	contracts.Require(err == nil, "RewardManager: emit DelegatorRewardWithdrawal event failed")
+	c.stateDb.AddLog(log)
+}
 
-func (c *RewardManager) EmitEpochRewardEvent(epochId *big.Int, validators []common.Address, amounts []*big.Int) (*types.Log, error) {
+func (c *RewardManager) EpochRewardEvent(epochId *big.Int, validators []common.Address, amounts []*big.Int) (*types.Log, error) {
 	event := c.abi.Events["EpochReward"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, epochId, validators, amounts)
 	if err != nil {
@@ -317,8 +327,13 @@ func (c *RewardManager) EmitEpochRewardEvent(epochId *big.Int, validators []comm
 		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
 	}, nil
 }
+func (c *RewardManager) EmitEpochRewardEvent(epochId *big.Int, validators []common.Address, amounts []*big.Int) {
+	log, err := c.EpochRewardEvent(epochId, validators, amounts)
+	contracts.Require(err == nil, "RewardManager: emit EpochReward event failed")
+	c.stateDb.AddLog(log)
+}
 
-func (c *RewardManager) EmitRewardDistributedEvent(epochId *big.Int, totalReward *big.Int) (*types.Log, error) {
+func (c *RewardManager) RewardDistributedEvent(epochId *big.Int, totalReward *big.Int) (*types.Log, error) {
 	event := c.abi.Events["RewardDistributed"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, epochId, totalReward)
 	if err != nil {
@@ -335,8 +350,13 @@ func (c *RewardManager) EmitRewardDistributedEvent(epochId *big.Int, totalReward
 		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
 	}, nil
 }
+func (c *RewardManager) EmitRewardDistributedEvent(epochId *big.Int, totalReward *big.Int) {
+	log, err := c.RewardDistributedEvent(epochId, totalReward)
+	contracts.Require(err == nil, "RewardManager: emit RewardDistributed event failed")
+	c.stateDb.AddLog(log)
+}
 
-func (c *RewardManager) EmitValidatorRewardWithdrawalEvent(validator common.Address, amount *big.Int, caller common.Address) (*types.Log, error) {
+func (c *RewardManager) ValidatorRewardWithdrawalEvent(validator common.Address, amount *big.Int, caller common.Address) (*types.Log, error) {
 	event := c.abi.Events["ValidatorRewardWithdrawal"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, validator, amount, caller)
 	if err != nil {
@@ -352,4 +372,9 @@ func (c *RewardManager) EmitValidatorRewardWithdrawalEvent(validator common.Addr
 		Data:        data,
 		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
 	}, nil
+}
+func (c *RewardManager) EmitValidatorRewardWithdrawalEvent(validator common.Address, amount *big.Int, caller common.Address) {
+	log, err := c.ValidatorRewardWithdrawalEvent(validator, amount, caller)
+	contracts.Require(err == nil, "RewardManager: emit ValidatorRewardWithdrawal event failed")
+	c.stateDb.AddLog(log)
 }

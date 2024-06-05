@@ -43,6 +43,7 @@ type VRFManager struct {
 	evm           *vm.EVM
 	burner        contracts.Burn
 	stateDb       *contracts.StateDB
+	context       *contracts.Context
 	fallback      func(input []byte) ([]byte, error)
 	stageModule   vrftypes.StageModuler
 	stakeModule   vrftypes.StakeModuler
@@ -58,10 +59,12 @@ func NewVRFManager(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*VRFManag
 		contract:      contract,
 		burner:        contracts.NewBurner(contract),
 		stateDb:       contracts.NewStateDB(evm, contract),
+		context:       contracts.NewContext(evm, contract),
 		readOnly:      readOnly,
 	}
 	s.initABI()
 	s.initMethodEntry()
+	s.loadMethodABI()
 	return s, nil
 }
 

@@ -92,8 +92,8 @@ var (
 	_ = binary.BigEndian
 	_ = types.BloomLookup
 	_ = event.NewSubscription
-	versionKey = []byte("version")
-	createBlockKey = []byte("createBlock")
+	versionKey = []byte("__version")
+	createBlockKey = []byte("__createBlock")
 )
 {{$ReceiverName := .ReceiverName}}
 {{$structs := .Structs}}
@@ -360,6 +360,7 @@ func New{{$contract.Type}}(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*
     }
 	s.initABI()
     s.initMethodEntry()
+	s.loadMethodABI()
     return s, nil
 }
 
