@@ -142,7 +142,7 @@ func (m *Module) BeginBlock(ctx sdk.WorkerContext) error {
 		}
 
 		if m.upgradeHandlers[name] == nil {
-			panic(fmt.Sprintf("Cannot found the module's upgrade handler(name: %s,version:%d,height:%d)", name))
+			panic(fmt.Sprintf("Cannot found the module's upgrade handler(name: %s,version:%d,height:%d)", name, ver, blockNumber))
 		}
 		handlers := m.upgradeHandlers[name]
 
@@ -151,7 +151,7 @@ func (m *Module) BeginBlock(ctx sdk.WorkerContext) error {
 			if err != nil {
 				panic(fmt.Sprintf("Failed to execute upgrade module handler(name:%s,version:%d,err:%v)", name, i, err))
 			}
-			m.logger.Info("Success invoke upgrade handler after fast sync", "upgradedMoudle", name, "version", i)
+			m.logger.Info("Success invoke upgrade handler after fast sync", "upgradedModule", name, "version", i)
 		}
 	}
 
