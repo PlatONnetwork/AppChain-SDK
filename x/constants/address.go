@@ -11,4 +11,7 @@ var (
 	RewardManagerAddress   = common.HexToAddress("0x1000000000000000000000000000000000000006") // reward manager (management reward, stake reward of epoch and blocks reward of round)
 	DepositHandlerAddress  = common.HexToAddress("0x1000000000000000000000000000000000000007") // deposit handler (dealing with the circulation of assets issued by L1 between L1 and L2)
 	WithdrawManagerAddress = common.HexToAddress("0x1000000000000000000000000000000000000008") // TODO ### Not yet enabled !!! ###  withdrwa manager (dealing with the circulation of assets issued by L2 between L2 and L1)
+	UpgradeAddress         = common.HexToAddress("0x1000000000000000000000000000000000000009") // upgrade contract address
+	GovAddress             = common.HexToAddress("0x100000000000000000000000000000000000000A") // governance contract address
+	VoteTokenAddress       = common.HexToAddress("0x100000000000000000000000000000000000000B") // vote contract address
 )

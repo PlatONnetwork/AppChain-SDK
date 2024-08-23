@@ -5,9 +5,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/PlatONnetwork/AppChain-SDK/common"
 	"math/big"
 	"time"
+
+	"github.com/PlatONnetwork/AppChain-SDK/common"
+	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
@@ -19,6 +21,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"gopkg.in/urfave/cli.v1"
 
+	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/vrf/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/vrf/contracts"
@@ -27,10 +30,13 @@ import (
 )
 
 const (
-	ModuleName = "vrf"
+	ModuleName           = "vrf"
+	ModuleVersion uint64 = 0
 )
 
 var (
+	_ module.ContractModule = (*VRFModule)(nil)
+
 	NonceStorageKey = []byte("nonceStorageKey")
 )
 
@@ -54,6 +60,10 @@ func (v *VRFModule) SetStakeModule(stake vrftypes.StakeModuler) {
 
 func (v *VRFModule) Name() string {
 	return ModuleName
+}
+
+func (v *VRFModule) Version() uint64 {
+	return ModuleVersion
 }
 
 func (v *VRFModule) Init(ctx sdk.InitContext) error {
@@ -80,7 +90,11 @@ func (v *VRFModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *pa
 	// init vrf manager  account nonce
 	initAccountNonce(db, v.Address())
 	initGenesisVRFNonce(db, v.Address(), chainConfig, configParams)
-	log.Info("Succeed init genesis", "module", v.Name(), "VRFNetworkParams", configParams.String())
+
+	vrf, _ := contracts.NewVRFManager(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(v, v), false)
+	vrf.SetCreateBlock(conf.CreateBlock)
+
+	log.Info("Succeed init genesis", "module", v.Name(), "createBlock", configParams.CreateBlock, "VRFNetworkParams", configParams.String())
 	return nil
 }
 
@@ -93,6 +107,11 @@ func (v *VRFModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOn
 	vrfManager.SetStageModule(v.stageModule)
 	vrfManager.SetStakeModule(v.stakeModule)
 	return vrfManager.Run(input)
+}
+
+func (v *VRFModule) ContractCreateBlockNumber(statedb sdk.StateDBReader) uint64 {
+	vrf, _ := contracts.NewVRFManager(sdkcontracts.NewEVM(types.NewStateDBWrapper(statedb), big.NewInt(0)), sdkcontracts.NewContract(v, v), false)
+	return vrf.GetCreateBlock()
 }
 
 func (v *VRFModule) AddTxs(ctx sdk.WorkerContext, local map[basecommon.Address]types.Transactions) (map[basecommon.Address]types.Transactions, error) {
@@ -183,7 +202,8 @@ func (v *VRFModule) VerifyVrf(ctx sdk.WorkerContext, blockNumber uint64, nonceAn
 	}
 
 	if err := vrfwrap.VerifyVrf(nonceAndProof, previousNonce, key); nil != err {
-		v.logger.Error("Failed to verify vrf", "blockNumber", blockNumber, "nonceAndProof", hex.EncodeToString(nonceAndProof), "data", previousNonce.Hex(), "error", err)
+		v.logger.Error("Failed to verify vrf", "blockNumber", blockNumber, "nonceAndProof", hex.EncodeToString(nonceAndProof),
+			"data", previousNonce.Hex(), "nodeId", enode.PublicKeyToIDv0(key).String(), "address", crypto.PubkeyToAddress(*key).Hex(), "error", err)
 		return err
 	}
 	v.logger.Info("Succeed to verify vrf nonceAndProof", "blockNumber", blockNumber, "nonceAndProof", hex.EncodeToString(nonceAndProof), "data", previousNonce.Hex())

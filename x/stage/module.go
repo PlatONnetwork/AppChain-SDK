@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/stage/config"
 	"github.com/PlatONnetwork/AppChain-SDK/x/stage/db"
@@ -16,8 +17,11 @@ import (
 )
 
 const (
-	ModuleName = "stage"
+	ModuleName    = "stage"
+	ModuleVersion = 0
 )
+
+var _ module.ContractModule = (*StageModule)(nil)
 
 type StageModule struct {
 	logger log.Logger
@@ -31,6 +35,10 @@ func NewModule(ctx *cli.Context) *StageModule {
 
 func (s *StageModule) Name() string {
 	return ModuleName
+}
+
+func (s *StageModule) Version() uint64 {
+	return ModuleVersion
 }
 
 func (s *StageModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
@@ -75,6 +83,11 @@ func (s *StageModule) Address() basecommon.Address {
 
 func (s *StageModule) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly bool) ([]byte, error) {
 	return nil, nil
+}
+
+func (s *StageModule) ContractCreateBlockNumber(statedb sdk.StateDBReader) uint64 {
+	// TODO: implement me
+	return 0
 }
 
 func (s *StageModule) BeginBlock(ctx sdk.WorkerContext) error {

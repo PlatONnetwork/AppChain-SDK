@@ -18,7 +18,8 @@ import (
 )
 
 const (
-	ModuleName = "txRelayer"
+	ModuleName    = "txRelayer"
+	ModuleVersion = 0
 
 	DefaultRPCAddress     = "http://127.0.0.1:6789"
 	DefaultReceiptTimeout = 50 * time.Millisecond
@@ -49,6 +50,10 @@ func NewModule(rpcAddress string, receiptTimeout time.Duration, numRetries int) 
 
 func (m *Module) Name() string {
 	return ModuleName
+}
+
+func (m *Module) Version() uint64 {
+	return ModuleVersion
 }
 
 func (m *Module) Init(ctx sdk.InitContext) error {

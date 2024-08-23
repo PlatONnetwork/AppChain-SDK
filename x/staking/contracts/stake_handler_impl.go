@@ -3,12 +3,12 @@ package contracts
 import (
 	"bytes"
 	"errors"
-
 	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
 	staketypes "github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
+	"github.com/PlatONnetwork/AppChain-SDK/x/votetoken/contracts/erc20vote"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/common/math"
 
@@ -39,30 +39,39 @@ var (
 )
 
 type StakeHandler struct {
-	abi          *abi.ABI
-	methodEntry  map[string]func([]byte) ([]byte, error)
-	readOnly     bool
-	contract     *vm.Contract
-	evm          *vm.EVM
-	burner       contracts.Burn
-	stateDb      *contracts.StateDB
-	fallback     func(input []byte) ([]byte, error)
-	l1Module     staketypes.L1Moduler
-	stageModule  staketypes.StageModuler
-	stakeModule  staketypes.StakeModuler
-	rewardModule staketypes.RewardModuler
+	abi           *abi.ABI
+	abis          map[uint64]*abi.ABI
+	methodEntry   map[string]func([]byte) ([]byte, error)
+	methodEntries map[uint64]map[string]func([]byte) ([]byte, error)
+	readOnly      bool
+	contract      *vm.Contract
+	evm           *vm.EVM
+	burner        contracts.Burn
+	stateDb       *contracts.StateDB
+	context       *contracts.Context
+	fallback      func(input []byte) ([]byte, error)
+	l1Module      staketypes.L1Moduler
+	stageModule   staketypes.StageModuler
+	stakeModule   staketypes.StakeModuler
+	rewardModule  staketypes.RewardModuler
 }
 
 func NewStakeHandler(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*StakeHandler, error) {
 	s := &StakeHandler{
-		abi:      &Abi,
-		evm:      evm,
-		contract: contract,
-		burner:   contracts.NewBurner(contract),
-		stateDb:  contracts.NewStateDB(evm, contract),
-		readOnly: readOnly,
+		abi:           nil,
+		abis:          make(map[uint64]*abi.ABI),
+		methodEntry:   make(map[string]func([]byte) ([]byte, error)),
+		methodEntries: make(map[uint64]map[string]func([]byte) ([]byte, error)),
+		evm:           evm,
+		contract:      contract,
+		burner:        contracts.NewBurner(contract),
+		stateDb:       contracts.NewStateDB(evm, contract),
+		context:       contracts.NewContext(evm, contract),
+		readOnly:      readOnly,
 	}
+	s.initABI()
 	s.initMethodEntry()
+	s.loadMethodABI()
 	return s, nil
 }
 
@@ -257,6 +266,7 @@ func (c *StakeHandler) Slash() error {
 			return err
 		}
 		slashingValidatorAddrCache[validatorAddr] = struct{}{}
+		c.burnVoteToken(validatorAddr, validator.StakeAmount)
 	}
 	// ###### NOTE: ######
 	// remove validator from epoch validators
@@ -340,6 +350,7 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 			}
 		}
 	}
+	c.burnVoteToken(delegatorAddr, amount)
 	if err := c.registerDelegateWithdrawal(delegatorAddr, validatorAddr, paid, true); nil != err {
 		return err
 	}
@@ -355,7 +366,7 @@ func (c *StakeHandler) Unstake(validatorAddr common.Address, amount *big.Int) er
 	if err := c.unStake(validatorAddr, amount); nil != err {
 		return err
 	}
-
+	c.burnVoteToken(validatorAddr, amount)
 	if err := c.registerStakeWithdrawal(validatorAddr, amount, true); nil != err {
 		return err
 	}
@@ -437,4 +448,18 @@ func (c *StakeHandler) WithdrawUnstake(validatorAddr common.Address) error {
 
 	log.Info("Withdraw unstake for", "validatorAddr", validatorAddr.Hex(), "amount", amount, "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber)
 	return nil
+}
+
+func (c *StakeHandler) mintVoteToken(account common.Address, amount *big.Int) {
+	log.Debug("mint vote token", "account", account.Hex(), "amount", amount)
+	caller, err := erc20vote.NewERC20VoteCaller(c.evm, c.contract, constants.VoteTokenAddress)
+	contracts.Require(err == nil, "StakeHandler: CREATE VOTE CALLER FAILED")
+	contracts.Require(caller.Mint(account, amount) == nil, "StakeHandler: MINT VOTE TOKEN FAILED")
+}
+
+func (c *StakeHandler) burnVoteToken(account common.Address, amount *big.Int) {
+	log.Debug("burn vote token", "account", account.Hex(), "amount", amount)
+	caller, err := erc20vote.NewERC20VoteCaller(c.evm, c.contract, constants.VoteTokenAddress)
+	contracts.Require(err == nil, "StakeHandler: CREATE VOTE CALLER FAILED")
+	contracts.Require(caller.Burn(account, amount) == nil, "StakeHandler: BURN VOTE TOKEN FAILED")
 }

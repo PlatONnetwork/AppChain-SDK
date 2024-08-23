@@ -10,7 +10,7 @@ import (
 )
 
 func WaitTx(client *ethclient.Client, hash common.Hash) (*types.Receipt, error) {
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 20; i++ {
 		receipt, _ := client.TransactionReceipt(context.Background(), hash)
 		if receipt != nil {
 			return receipt, nil

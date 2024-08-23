@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	common2 "github.com/PlatONnetwork/AppChain-SDK/common"
-	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
 	"math/big"
+
+	common2 "github.com/PlatONnetwork/AppChain-SDK/common"
+	"github.com/PlatONnetwork/AppChain-SDK/types/module"
+	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
 
 	"github.com/PlatONnetwork/AppChain-SDK/utils"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
@@ -17,6 +19,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
 
+	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/store"
 	"github.com/PlatONnetwork/AppChain-SDK/x"
 	"github.com/PlatONnetwork/AppChain-SDK/x/extravote"
@@ -34,8 +37,11 @@ import (
 )
 
 const (
-	ModuleName = "stateSync"
+	ModuleName           = "stateSync"
+	ModuleVersion uint64 = 0
 )
+
+var _ module.ContractModule = (*StateSync)(nil)
 
 type ElectionValidator interface {
 	GetRoundValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error)
@@ -85,11 +91,28 @@ func NewModule(ctx *cli.Context, l1Module *l1.L1Module, validator ElectionValida
 func (s *StateSync) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
 	db.SetNonce(constants.StateSyncAddress, 1)
 	s.logger.Info("Set StateSync Nonce", "nonce", 1)
+
+	raw, err := data.MarshalJSON()
+	if err != nil {
+		return err
+	}
+	var config module.ModuleGenesisConfig
+	if err := json.Unmarshal(raw, &config); err != nil {
+		return err
+	}
+
+	stateSync, _ := contracts.NewStateReceiver(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(s, s), false)
+	stateSync.SetCreateBlock(config.CreateBlock)
+
 	return nil
 }
 
 func (s *StateSync) Name() string {
 	return ModuleName
+}
+
+func (s *StateSync) Version() uint64 {
+	return ModuleVersion
 }
 
 func (s *StateSync) Init(ctx sdk.InitContext) error {
@@ -144,6 +167,11 @@ func (s *StateSync) Address() common.Address {
 func (s *StateSync) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly bool) ([]byte, error) {
 	stateReceiver, _ := contracts.NewStateReceiver(evm, contract, readOnly)
 	return stateReceiver.Run(input)
+}
+
+func (s *StateSync) ContractCreateBlockNumber(statedb sdk.StateDBReader) uint64 {
+	stateSync, _ := contracts.NewStateReceiver(sdkcontracts.NewEVM(types.NewStateDBWrapper(statedb), big.NewInt(0)), sdkcontracts.NewContract(s, s), false)
+	return stateSync.GetCreateBlock()
 }
 
 func (s *StateSync) Protocols() []p2p.Protocol {

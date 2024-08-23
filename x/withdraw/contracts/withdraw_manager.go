@@ -1,6 +1,7 @@
 package contracts
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
@@ -9,6 +10,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
 	"github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/common/math"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/event"
@@ -18,15 +20,19 @@ import (
 
 // Reference imports to suppress errors if they are not otherwise used.
 var (
-	_ = vm.EVM{}
-	_ = errors.New
-	_ = big.NewInt
-	_ = strings.NewReader
-	_ = platon.NotFound
-	_ = bind.Bind
-	_ = common.Big1
-	_ = types.BloomLookup
-	_ = event.NewSubscription
+	_              = vm.EVM{}
+	_              = errors.New
+	_              = big.NewInt
+	_              = strings.NewReader
+	_              = platon.NotFound
+	_              = bind.Bind
+	_              = common.Big1
+	_              = math.ReadBits
+	_              = binary.BigEndian
+	_              = types.BloomLookup
+	_              = event.NewSubscription
+	versionKey     = []byte("__version")
+	createBlockKey = []byte("__createBlock")
 )
 
 var (
@@ -49,6 +55,10 @@ func (c *WithdrawManager) Run(input []byte) (ret []byte, err error) {
 			}
 		}
 	}()
+	if err := c.loadMethodABI(); err != nil {
+		return nil, errors.New("load version failed")
+	}
+
 	if len(input) < 4 {
 		return nil, errors.New("input too short")
 	}
@@ -62,14 +72,63 @@ func (c *WithdrawManager) Run(input []byte) (ret []byte, err error) {
 	}
 	return entry(input[4:])
 }
+
+func (c *WithdrawManager) initABI() {
+	V0 := uint64(0)
+	c.abis[V0] = &Abi
+}
+
 func (c *WithdrawManager) initMethodEntry() {
 
-	c.methodEntry = map[string]func([]byte) ([]byte, error){
+	methodEntry := map[string]func([]byte) ([]byte, error){
 
 		"47e7ef24": c.DepositEntry,
 		"eeb49945": c.OnStateReceiveEntry,
 	}
+	V0 := uint64(0)
+	c.methodEntries[V0] = methodEntry
 
+}
+func (c *WithdrawManager) loadMethodABI() error {
+	version := c.GetVersion()
+	entries, ok := c.methodEntries[version]
+	if !ok {
+		return errors.New("unknown version")
+	}
+	c.methodEntry = entries
+	abi, ok := c.abis[version]
+	if !ok {
+		return errors.New("unknown version")
+	}
+	c.abi = abi
+	return nil
+}
+func (c *WithdrawManager) SetCreateBlock(blockNumber uint64) {
+	var data [8]byte
+	binary.BigEndian.PutUint64(data[:], blockNumber)
+	c.evm.StateDB.SetState(c.contract.Address(), createBlockKey, data[:])
+}
+
+func (c *WithdrawManager) GetCreateBlock() uint64 {
+	blockNumber := c.evm.StateDB.GetState(c.contract.Address(), createBlockKey)
+	if len(blockNumber) == 0 {
+		return math.MaxUint64
+	}
+	return binary.BigEndian.Uint64(blockNumber)
+}
+
+func (c *WithdrawManager) SetVersion(version uint64) {
+	var data [8]byte
+	binary.BigEndian.PutUint64(data[:], version)
+	c.evm.StateDB.SetState(c.contract.Address(), versionKey, data[:])
+}
+
+func (c *WithdrawManager) GetVersion() uint64 {
+	version := c.evm.StateDB.GetState(c.contract.Address(), versionKey)
+	if len(version) == 0 {
+		return 0
+	}
+	return binary.BigEndian.Uint64(version)
 }
 
 func (c *WithdrawManager) DepositEntry(input []byte) ([]byte, error) {
@@ -118,7 +177,7 @@ func (c *WithdrawManager) OnStateReceiveEntry(input []byte) ([]byte, error) {
 	return output, err
 }
 
-func (c *WithdrawManager) EmitL2MintableCoinDepositEvent(recipient common.Address, depositor common.Address, amount *big.Int) (*types.Log, error) {
+func (c *WithdrawManager) L2MintableCoinDepositEvent(recipient common.Address, depositor common.Address, amount *big.Int) (*types.Log, error) {
 	event := c.abi.Events["L2MintableCoinDeposit"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, recipient, depositor, amount)
 	if err != nil {
@@ -135,8 +194,13 @@ func (c *WithdrawManager) EmitL2MintableCoinDepositEvent(recipient common.Addres
 		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
 	}, nil
 }
+func (c *WithdrawManager) EmitL2MintableCoinDepositEvent(recipient common.Address, depositor common.Address, amount *big.Int) {
+	log, err := c.L2MintableCoinDepositEvent(recipient, depositor, amount)
+	contracts.Require(err == nil, "WithdrawManager: emit L2MintableCoinDeposit event failed")
+	c.stateDb.AddLog(log)
+}
 
-func (c *WithdrawManager) EmitL2MintableCoinWithdrawEvent(recipient common.Address, withdrawer common.Address, amount *big.Int) (*types.Log, error) {
+func (c *WithdrawManager) L2MintableCoinWithdrawEvent(recipient common.Address, withdrawer common.Address, amount *big.Int) (*types.Log, error) {
 	event := c.abi.Events["L2MintableCoinWithdraw"]
 	hashes, err := contracts.PackEventTopics(event.ID, event.Inputs, recipient, withdrawer, amount)
 	if err != nil {
@@ -152,4 +216,9 @@ func (c *WithdrawManager) EmitL2MintableCoinWithdrawEvent(recipient common.Addre
 		Data:        data,
 		BlockNumber: c.evm.Context.BlockNumber.Uint64(),
 	}, nil
+}
+func (c *WithdrawManager) EmitL2MintableCoinWithdrawEvent(recipient common.Address, withdrawer common.Address, amount *big.Int) {
+	log, err := c.L2MintableCoinWithdrawEvent(recipient, withdrawer, amount)
+	contracts.Require(err == nil, "WithdrawManager: emit L2MintableCoinWithdraw event failed")
+	c.stateDb.AddLog(log)
 }

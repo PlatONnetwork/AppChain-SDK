@@ -36,27 +36,33 @@ var (
 )
 
 type StateReceiver struct {
-	abi          *abi.ABI
-	methodEntry  map[string]func([]byte) ([]byte, error)
-	readOnly     bool
-	contract     *vm.Contract
-	evm          *vm.EVM
-	burner       contracts.Burn
-	stateDb      *contracts.StateDB
-	fallback     func(input []byte) ([]byte, error)
-	verifyQCFunc func(qc *QuorumCert) error
+	abi           *abi.ABI
+	abis          map[uint64]*abi.ABI
+	methodEntry   map[string]func([]byte) ([]byte, error)
+	methodEntries map[uint64]map[string]func([]byte) ([]byte, error)
+	readOnly      bool
+	contract      *vm.Contract
+	evm           *vm.EVM
+	burner        contracts.Burn
+	stateDb       *contracts.StateDB
+	fallback      func(input []byte) ([]byte, error)
+	verifyQCFunc  func(qc *QuorumCert) error
 }
 
 func NewStateReceiver(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*StateReceiver, error) {
 	s := &StateReceiver{
-		abi:      &Abi,
-		evm:      evm,
-		contract: contract,
-		burner:   contracts.NewBurner(contract),
-		stateDb:  contracts.NewStateDB(evm, contract),
-		readOnly: readOnly,
+		abi:           nil,
+		abis:          make(map[uint64]*abi.ABI),
+		methodEntry:   make(map[string]func([]byte) ([]byte, error)),
+		methodEntries: make(map[uint64]map[string]func([]byte) ([]byte, error)),
+		evm:           evm,
+		contract:      contract,
+		burner:        contracts.NewBurner(contract),
+		stateDb:       contracts.NewStateDB(evm, contract),
+		readOnly:      readOnly,
 	}
 	s.verifyQCFunc = s.verifySignature
+	s.initABI()
 	s.initMethodEntry()
 	return s, nil
 }
@@ -110,8 +116,7 @@ func (c *StateReceiver) Commit(commitment StateSyncCommitment, index uint64, vot
 	c.SetCommitment(&commitment)
 
 	c.SetLastCommittedId(commitment.EndId)
-	log, _ := c.EmitNewCommitmentEvent(commitment.StartId, commitment.EndId, commitment.Root)
-	c.stateDb.AddLog(log)
+	c.EmitNewCommitmentEvent(commitment.StartId, commitment.EndId, commitment.Root)
 	return nil
 }
 
@@ -167,8 +172,7 @@ func (c *StateReceiver) Execute(proof []common.Hash, obj StateSync) error {
 	}
 	c.SetExecutedId(obj.Id)
 	result, err := CallOnStateReceive(c.evm, c.contract, c.contract.Gas, &obj)
-	log, _ := c.EmitStateSyncResultEvent(obj.Id, err == nil, result)
-	c.stateDb.AddLog(log)
+	c.EmitStateSyncResultEvent(obj.Id, err == nil, result)
 	return nil
 }
 func (c *StateReceiver) GetExecutedId() (*big.Int, error) {

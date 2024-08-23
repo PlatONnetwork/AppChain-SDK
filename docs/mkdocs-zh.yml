@@ -52,6 +52,7 @@ nav:
           - x/statesender: build/x/statesender.md
           - x/statesync: build/x/statesync.md
           - x/vrf: build/x/vrf.md
+          - x/gov: build/x/gov.md
       - 工具:
         - 合约工具: build/contract_tool.md
         - 交易测试工具: build/tx_test_tool.md

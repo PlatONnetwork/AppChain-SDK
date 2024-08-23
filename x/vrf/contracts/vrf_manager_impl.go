@@ -34,28 +34,37 @@ var (
 )
 
 type VRFManager struct {
-	abi         *abi.ABI
-	methodEntry map[string]func([]byte) ([]byte, error)
-	readOnly    bool
-	contract    *vm.Contract
-	evm         *vm.EVM
-	burner      contracts.Burn
-	stateDb     *contracts.StateDB
-	fallback    func(input []byte) ([]byte, error)
-	stageModule vrftypes.StageModuler
-	stakeModule vrftypes.StakeModuler
+	abi           *abi.ABI
+	abis          map[uint64]*abi.ABI
+	methodEntry   map[string]func([]byte) ([]byte, error)
+	methodEntries map[uint64]map[string]func([]byte) ([]byte, error)
+	readOnly      bool
+	contract      *vm.Contract
+	evm           *vm.EVM
+	burner        contracts.Burn
+	stateDb       *contracts.StateDB
+	context       *contracts.Context
+	fallback      func(input []byte) ([]byte, error)
+	stageModule   vrftypes.StageModuler
+	stakeModule   vrftypes.StakeModuler
 }
 
 func NewVRFManager(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*VRFManager, error) {
 	s := &VRFManager{
-		abi:      &Abi,
-		evm:      evm,
-		contract: contract,
-		burner:   contracts.NewBurner(contract),
-		stateDb:  contracts.NewStateDB(evm, contract),
-		readOnly: readOnly,
+		abi:           nil,
+		abis:          make(map[uint64]*abi.ABI),
+		methodEntry:   make(map[string]func([]byte) ([]byte, error)),
+		methodEntries: make(map[uint64]map[string]func([]byte) ([]byte, error)),
+		evm:           evm,
+		contract:      contract,
+		burner:        contracts.NewBurner(contract),
+		stateDb:       contracts.NewStateDB(evm, contract),
+		context:       contracts.NewContext(evm, contract),
+		readOnly:      readOnly,
 	}
+	s.initABI()
 	s.initMethodEntry()
+	s.loadMethodABI()
 	return s, nil
 }
 
@@ -80,7 +89,7 @@ func (c *VRFManager) PushNonceAndProof(nonceAndProof []byte) error {
 		return err
 	}
 
-	log.Info("PushNonceAndProof for", "validatorAddr", validatorAddr, "nonceAndProof", hex.EncodeToString(nonceAndProof),
+	log.Info("PushNonceAndProof for", "validatorAddr", validatorAddr.Hex(), "nonceAndProof", hex.EncodeToString(nonceAndProof),
 		"currentEpoch", c.stageModule.GetCurrentEpoch(c.evm.StateDB), "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }

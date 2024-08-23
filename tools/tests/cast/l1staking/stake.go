@@ -11,17 +11,11 @@ import (
 
 var (
 	Command = cli.Command{
-		Action:    utils.MigrateFlags(run),
-		Name:      "l1.staking",
-		Usage:     "l1.staking",
-		ArgsUsage: "",
-		Flags: []cli.Flag{
-			flags.RPCFlags,
-			flags.KeyFlags,
-			flags.AddressFlags,
-			flags.MethodFlags,
-			flags.TypeFlags,
-		},
+		Action:             utils.MigrateFlags(run),
+		Name:               "l1.staking",
+		Usage:              "l1.staking",
+		ArgsUsage:          "",
+		Flags:              flags.DefaultFlag,
 		Category:           "L1 STAKING COMMANDS",
 		Description:        ``,
 		HelpName:           "cast l1.staking",

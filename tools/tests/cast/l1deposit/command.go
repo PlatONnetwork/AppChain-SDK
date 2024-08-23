@@ -11,17 +11,11 @@ import (
 
 var (
 	Command = cli.Command{
-		Action:    utils.MigrateFlags(run),
-		Name:      "l1.deposit",
-		Usage:     "l1.deposit",
-		ArgsUsage: "",
-		Flags: []cli.Flag{
-			flags.RPCFlags,
-			flags.KeyFlags,
-			flags.AddressFlags,
-			flags.MethodFlags,
-			flags.TypeFlags,
-		},
+		Action:             utils.MigrateFlags(run),
+		Name:               "l1.deposit",
+		Usage:              "l1.deposit",
+		ArgsUsage:          "",
+		Flags:              flags.DefaultFlag,
 		Category:           "L1 DEPOSIT COMMANDS",
 		Description:        ``,
 		HelpName:           "cast l1.deposit",

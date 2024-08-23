@@ -12,6 +12,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
 	"github.com/PlatONnetwork/PlatON-Go/ethclient"
 	"gopkg.in/urfave/cli.v1"
+	"math/big"
 	"reflect"
 	"strings"
 )
@@ -55,7 +56,17 @@ func InitGlobal(ctx *cli.Context) (*ethclient.Client, common.Address, *bind.Tran
 		if err != nil {
 			return nil, common.Address{}, nil, err
 		}
-		opt.GasLimit = 2000000
+		opt.GasLimit = GasLimitFlags.Value
+		if ctx.IsSet(GasLimitFlags.Name) {
+			opt.GasLimit = ctx.Uint64(GasLimitFlags.Name)
+		}
+		opt.GasPrice = new(big.Int).SetUint64(GasPriceFlags.Value)
+		if ctx.IsSet(GasPriceFlags.Name) {
+			opt.GasPrice = new(big.Int).SetUint64(ctx.Uint64(GasPriceFlags.Name))
+		}
+		if ctx.IsSet(NonceFlags.Name) {
+			opt.Nonce = new(big.Int).SetUint64(ctx.Uint64(NonceFlags.Name))
+		}
 	}
 	return cli, stakeAddr, opt, nil
 }
@@ -85,6 +96,7 @@ func ExecuteCommand(ctx *cli.Context,
 		}
 		_, err = transaction.WaitTx(client, tx.Hash())
 		if err != nil {
+			fmt.Println("send failed", tx.Hash())
 			return err
 		}
 		fmt.Println("send success", tx.Hash())

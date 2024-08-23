@@ -34,27 +34,36 @@ var (
 )
 
 type DepositHandler struct {
-	abi         *abi.ABI
-	methodEntry map[string]func([]byte) ([]byte, error)
-	readOnly    bool
-	contract    *vm.Contract
-	evm         *vm.EVM
-	burner      contracts.Burn
-	stateDb     *contracts.StateDB
-	fallback    func(input []byte) ([]byte, error)
-	l1Module    deposittypes.L1Moduler
+	abi           *abi.ABI
+	abis          map[uint64]*abi.ABI
+	methodEntry   map[string]func([]byte) ([]byte, error)
+	methodEntries map[uint64]map[string]func([]byte) ([]byte, error)
+	readOnly      bool
+	contract      *vm.Contract
+	evm           *vm.EVM
+	burner        contracts.Burn
+	stateDb       *contracts.StateDB
+	context       *contracts.Context
+	fallback      func(input []byte) ([]byte, error)
+	l1Module      deposittypes.L1Moduler
 }
 
 func NewDepositHandler(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*DepositHandler, error) {
 	s := &DepositHandler{
-		abi:      &Abi,
-		evm:      evm,
-		contract: contract,
-		burner:   contracts.NewBurner(contract),
-		stateDb:  contracts.NewStateDB(evm, contract),
-		readOnly: readOnly,
+		abi:           nil,
+		abis:          make(map[uint64]*abi.ABI),
+		methodEntry:   make(map[string]func([]byte) ([]byte, error)),
+		methodEntries: make(map[uint64]map[string]func([]byte) ([]byte, error)),
+		evm:           evm,
+		contract:      contract,
+		burner:        contracts.NewBurner(contract),
+		stateDb:       contracts.NewStateDB(evm, contract),
+		context:       contracts.NewContext(evm, contract),
+		readOnly:      readOnly,
 	}
+	s.initABI()
 	s.initMethodEntry()
+	s.loadMethodABI()
 	return s, nil
 }
 
