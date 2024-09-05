@@ -1,0 +1,324 @@
+package main
+
+import (
+	"encoding/json"
+	"github.com/PlatONnetwork/AppChain-SDK/baseapp"
+	"github.com/PlatONnetwork/AppChain-SDK/store/storage"
+	"github.com/PlatONnetwork/AppChain-SDK/types/module"
+	"github.com/PlatONnetwork/AppChain-SDK/x/deposit"
+	"github.com/PlatONnetwork/AppChain-SDK/x/gov"
+	"github.com/PlatONnetwork/AppChain-SDK/x/l1"
+	"github.com/PlatONnetwork/AppChain-SDK/x/reward"
+	"github.com/PlatONnetwork/AppChain-SDK/x/stage"
+	"github.com/PlatONnetwork/AppChain-SDK/x/staking"
+	"github.com/PlatONnetwork/AppChain-SDK/x/stateevent"
+	"github.com/PlatONnetwork/AppChain-SDK/x/statesender"
+	"github.com/PlatONnetwork/AppChain-SDK/x/upgrade"
+	"github.com/PlatONnetwork/AppChain-SDK/x/upgrade/testcontract"
+	"github.com/PlatONnetwork/AppChain-SDK/x/upgrade/testmod"
+	"github.com/PlatONnetwork/AppChain-SDK/x/votetoken"
+	"github.com/PlatONnetwork/AppChain-SDK/x/vrf"
+	"github.com/PlatONnetwork/PlatON-Go/cmd/utils"
+	"github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/protocols"
+	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
+	"github.com/PlatONnetwork/PlatON-Go/core/types"
+	"github.com/PlatONnetwork/PlatON-Go/log"
+	"github.com/PlatONnetwork/PlatON-Go/node"
+	"github.com/PlatONnetwork/PlatON-Go/p2p"
+	"github.com/PlatONnetwork/PlatON-Go/p2p/enode"
+	"github.com/PlatONnetwork/PlatON-Go/params"
+	"github.com/PlatONnetwork/PlatON-Go/rpc"
+	"github.com/PlatONnetwork/PlatON-Go/sdk"
+	"gopkg.in/urfave/cli.v1"
+	"path/filepath"
+)
+
+type DemoApp struct {
+	stateEvent *stateevent.Module
+	*baseapp.BaseApp
+
+	l1            *l1.L1Module
+	stage         *stage.StageModule
+	vrf           *vrf.VRFModule
+	staking       *staking.StakeModule
+	reward        *reward.RewardModule
+	deposit       *deposit.DepositModule
+	l2StateSender *statesender.StateSenderModule
+	//stateSync     *statesync.StateSync
+	//rootchainTxRelayer *txrelayer.Module
+	//checkpoint         *checkpoint.Module
+	//extraVote          *extravote.ExtraVote
+	upgrade   *upgrade.Module
+	voteToken *votetoken.Module
+	gov       *gov.Module
+	manager   *module.Manager
+}
+
+func NewDemoApp(ctx *cli.Context) (*DemoApp, error) {
+	datadir := node.DefaultDataDir()
+	if ctx.GlobalIsSet(utils.DataDirFlag.Name) {
+		datadir = ctx.GlobalString(utils.DataDirFlag.Name)
+	}
+	if datadir != "" {
+		absdatadir, err := filepath.Abs(datadir)
+		if err != nil {
+			return nil, err
+		}
+		datadir = absdatadir
+	}
+
+	if signAlgo := ctx.GlobalString(utils.SignAlgoType.Name); signAlgo != "" {
+		err := common.SetSignAlgo(signAlgo)
+		if err != nil {
+			log.Debug("Setting signature algorithm failed", "err", err)
+			return nil, err
+		}
+	}
+
+	if hashAlgo := ctx.GlobalString(utils.HashAlgoType.Name); hashAlgo != "" {
+		err := common.SetHashAlgo(hashAlgo)
+		if err != nil {
+			log.Debug("Setting hash algorithm failed", "err", err)
+			return nil, err
+		}
+	}
+
+	dbfile := filepath.Join(datadir, "sdk")
+	store, err := storage.NewStorage(dbfile, 256, 512, "sdk")
+	if err != nil {
+		log.Error("failed to new storage", "err", err)
+		return nil, err
+	}
+
+	app := &DemoApp{}
+
+	app.l1 = l1.NewModule(store)
+
+	app.stateEvent = stateevent.NewModule(store)
+
+	app.stage = stage.NewModule(ctx)
+	app.vrf = vrf.NewModule(ctx, app.stage)
+	app.staking = staking.NewModule(ctx, app.l1, app.stage)
+	//app.stateSync, err = statesync.NewModule(ctx, app.l1, app.staking, store, extravote.NewExtraVoteDB(store))
+	if err != nil {
+		return nil, err
+	}
+	app.reward = reward.NewModule(ctx, app.stage)
+	app.deposit = deposit.NewModule(ctx, app.l1)
+	app.l2StateSender = statesender.NewModule(ctx)
+
+	app.vrf.SetStakeModule(app.staking)
+	app.staking.SetRewardModule(app.reward)
+	app.staking.SetVRFModule(app.vrf)
+	app.reward.SetStakeModule(app.staking)
+
+	//rootchainRpc := ctx.GlobalString(x.RootchainNodeRPCFlag.Name)
+	//app.rootchainTxRelayer = txrelayer.NewModule(rootchainRpc, txrelayer.DefaultReceiptTimeout, txrelayer.DefaultNumRetries)
+
+	/*
+		app.checkpoint, err = checkpoint.NewModule(
+			ctx,
+			store,
+			app.staking,
+			app.rootchainTxRelayer,
+			extravote.NewExtraVoteDB(store),
+			app.stateEvent,
+			app.l1)
+		if err != nil {
+			return nil, err
+		}
+		**/
+	//app.extraVote = extravote.NewExtraVote(store, []extravote.ExtraVerifier{app.stateSync, app.checkpoint})
+
+	app.upgrade = upgrade.NewModule(store)
+
+	app.voteToken, _ = votetoken.NewModule()
+	app.gov, _ = gov.NewModule(ctx)
+	tm := testmod.NewModule()
+	tc := testcontract.NewModule()
+
+	manager := module.NewManager(
+		//app.stateSync,
+		app.stateEvent,
+		app.l1,
+		//app.extraVote,
+		//app.rootchainTxRelayer,
+		//app.checkpoint,
+		app.stage,
+		app.vrf,
+		app.staking,
+		app.reward,
+		app.deposit,
+		app.l2StateSender,
+		app.upgrade,
+		app.gov,
+		app.voteToken,
+		tm, tc)
+	manager.SetElection(app.staking.Name())
+	//manager.SetConsensusExtend(app.extraVote.Name())
+	//manager.SetOrderTransaction(app.stateSync.Name(), app.vrf.Name(), app.staking.Name(), app.gov.Name())
+	manager.SetOrderTransaction(app.vrf.Name(), app.staking.Name(), app.gov.Name())
+	manager.SetOrderBeginBlocker(app.upgrade.Name(), app.stage.Name(), app.staking.Name(), app.reward.Name(), tm.Name())
+	manager.SetOrderEndBlocker(app.upgrade.Name(), app.stage.Name(), app.vrf.Name(), app.staking.Name(), app.reward.Name())
+	manager.SetOrderBlockCommitter(app.staking.Name(), app.stateEvent.Name())
+	//manager.SetOrderBlockCommitter(app.staking.Name(), app.stateEvent.Name(), app.checkpoint.Name())
+
+	manager.SetOrderInit(
+		//app.stateSync.Name(),
+		app.vrf.Name(),
+		//app.rootchainTxRelayer.Name(),
+		//app.checkpoint.Name(),
+		app.staking.Name(),
+		app.reward.Name(),
+		app.upgrade.Name(),
+		app.gov.Name(),
+	)
+
+	manager.SetOrderGenesis(
+		app.l1.Name(),
+		app.stage.Name(),
+		app.vrf.Name(),
+		app.staking.Name(),
+		app.reward.Name(),
+		app.deposit.Name(),
+		app.l2StateSender.Name(),
+		//app.stateSync.Name(),
+		app.upgrade.Name(),
+		app.voteToken.Name(),
+		app.gov.Name(),
+		tm.Name(),
+		tc.Name(),
+	)
+
+	manager.SetModuleValidChecker(app.upgrade.IsModuleValid)
+
+	manager.RegisterUpgradeHandler(app.upgrade)
+	app.upgrade.SetIsContractModule(manager.IsContractModule)
+
+	baseApp, err := baseapp.NewBaseApp("demoapp", store, manager)
+	if err != nil {
+		return nil, err
+	}
+	app.BaseApp = baseApp
+	app.manager = manager
+
+	app.SetInitChaner(app.InitChain)
+	app.SetContractser(app.Contracts)
+	app.SetStarter(app.Start)
+	app.SetStoper(app.Stop)
+	app.SetCheckTxer(app.CheckTx)
+	app.SetFilterPendingTxser(app.FilterPendingTxs)
+	app.SetAPIser(app.APIs)
+	app.SetProtocolser(app.Protocols)
+	app.SetExtendDataer(app.ExtendData)
+	app.SetVerifyExtendDataer(app.VerifyExtendData)
+	app.SetPrepareQCer(app.PrepareQC)
+	app.SetNewHeaderer(app.NewHeader)
+	app.SetGetLastNumberer(app.GetLastNumber)
+	app.SetGetValidatorer(app.GetValidator)
+	app.SetIsCandidateNoder(app.IsCandidateNode)
+	app.SetOnCommiter(app.OnCommit)
+	app.SetInitGenesiser(app.InitGenesis)
+	app.SetBeginBlocker(app.BeginBlock)
+	app.SetEndBlocker(app.EndBlock)
+	app.SetAddTxser(app.AddTxs)
+	app.SetSortTxser(app.SortTxs)
+
+	return app, nil
+}
+
+func (s *DemoApp) Start() error {
+	return nil
+}
+
+func (s *DemoApp) Stop() error {
+	return nil
+}
+
+func (s *DemoApp) InitChain(ctx sdk.InitContext) error {
+	return s.manager.InitChain(ctx)
+}
+
+func (s *DemoApp) Contracts(statedb sdk.StateDBReader, blockNumber uint64) []sdk.SDKContract {
+	return s.manager.Contracts(statedb, blockNumber)
+}
+
+func (s *DemoApp) CheckTx(ctx sdk.Context, tx *types.Transaction) error {
+	return s.manager.CheckTx(ctx, tx)
+}
+
+func (s *DemoApp) FilterPendingTxs(ctx sdk.Context, txs map[common.Address]types.Transactions) map[common.Address]types.Transactions {
+	return s.manager.FilterPendingTxs(ctx, txs)
+}
+
+func (s *DemoApp) APIs() []rpc.API {
+	return s.manager.APIs()
+}
+
+func (s *DemoApp) Protocols() []p2p.Protocol {
+	return s.manager.Protocols()
+}
+
+func (s *DemoApp) ExtendData(ctx sdk.ConsensusContext) []byte {
+	return s.manager.ExtendData(ctx)
+}
+
+func (s *DemoApp) VerifyExtendData(ctx sdk.ConsensusContext, data []byte) (common.Hash, error) {
+	return s.manager.VerifyExtendData(ctx, data)
+}
+
+func (s *DemoApp) PrepareQC(ctx sdk.ConsensusContext, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote) {
+	s.manager.PrepareQC(ctx, block, votes)
+}
+
+func (s *DemoApp) NewHeader(ctx sdk.ConsensusContext, header *types.Header) error {
+	return s.manager.NewHeader(ctx, header)
+}
+
+func (s *DemoApp) GetLastNumber(ctx sdk.ConsensusContext, blockNumber uint64) uint64 {
+	return s.manager.GetLastNumber(ctx, blockNumber)
+}
+
+func (s *DemoApp) GetValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error) {
+	return s.manager.GetValidator(ctx, blockNumber)
+}
+
+func (s *DemoApp) IsCandidateNode(ctx sdk.ConsensusContext, nodeID enode.IDv0) bool {
+	return s.manager.IsCandidateNode(ctx, nodeID)
+}
+
+func (s *DemoApp) OnCommit(ctx sdk.ConsensusContext, block *types.Block) error {
+	return s.manager.OnCommit(ctx, block)
+}
+
+func (s *DemoApp) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data map[string]json.RawMessage) error {
+	if err := s.manager.InitGenesis(ctx, db, chainConfig, data); err != nil {
+		return err
+	}
+	if err := s.upgrade.SetModuleValidNumberMap(db, s.manager.GetModuleInitValidNumberMap(chainConfig, db)); err != nil {
+		return err
+	}
+
+	vm, err := module.GetVersionMapFromGenesis(chainConfig.Modules)
+	if err != nil {
+		return err
+	}
+	return s.upgrade.SetModuleVersionMap(db, vm)
+}
+
+func (s *DemoApp) BeginBlock(ctx sdk.WorkerContext) error {
+	return s.manager.BeginBlock(ctx)
+}
+
+func (s *DemoApp) EndBlock(ctx sdk.WorkerContext) error {
+	return s.manager.EndBlock(ctx)
+}
+
+func (s *DemoApp) AddTxs(ctx sdk.WorkerContext) (types.Transactions, error) {
+	return s.manager.AddTxs(ctx)
+}
+
+func (s *DemoApp) SortTxs(ctx sdk.WorkerContext, local, remote map[common.Address]types.Transactions) (types.Transactions, error) {
+	return s.manager.SortTxs(ctx, local, remote)
+}

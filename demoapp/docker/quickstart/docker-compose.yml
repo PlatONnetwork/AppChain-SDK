@@ -1,0 +1,129 @@
+version: '3.7'
+
+services:
+  rootchain:
+    hostname: appchain-rootchain
+    image: rootchain
+    command:
+      --identity platon
+      --datadir /appchain/data
+      --nodekey /appchain/data/nodekey
+      --cbft.blskey /appchain/data/blskey
+      --port 18000
+      --verbosity 0
+      --pprof
+      --pprof.addr 0.0.0.0
+      --pprof.port 7000
+      --wsorigins "*"
+      --ws
+      --ws.addr 0.0.0.0
+      --ws.port 6600
+      --ws.api platon,debug,personal,admin,net,web3,txpool
+      --http
+      --http.ethcompatible
+      --http.addr 0.0.0.0
+      --http.port 8800
+      --http.api platon,debug,personal,admin,net,web3,txpool
+      --http.vhosts "*"
+      --cache 256
+      --metrics
+      --ipcdisable
+      --txpool.nolocals
+      --maxpeers 100
+      --maxconsensuspeers 75
+      --txpool.globaltxcount 1000
+      --nodiscover
+      --vm.wasm_type "wagon"
+      --networkid 102
+      --allow-insecure-unlock
+    expose:
+      - "8800"
+    ports:
+      - "8800:8800"
+    networks:
+      appchain-docker-custom:
+        ipv4_address: 192.168.213.2
+  l1init:
+    hostname: appchain-init-contract
+    image: appchain-contract
+    depends_on:
+      rootchain:
+        condition: service_started
+    networks:
+      appchain-docker-custom:
+        ipv4_address: 192.168.213.3
+    extra_hosts:
+      - "rpc.rootchain.network:192.168.213.2"
+  node1:
+    hostname: appchain-node1
+    image: appchain-cluster
+    command: sh -c "./init.sh 1 && ./start.sh 1"
+    depends_on:
+      rootchain:
+        condition: service_started
+    networks:
+      appchain-docker-custom:
+        ipv4_address: 192.168.213.4
+    ports:
+      - "8801:8801"
+      - "18001:18001"
+    extra_hosts:
+      - "rpc.rootchain.network:192.168.213.2"
+      - "node1.appchain.network:192.168.213.4"
+      - "node2.appchain.network:192.168.213.5"
+      - "node3.appchain.network:192.168.213.6"
+
+  node2:
+    hostname: appchain-node2
+    image: appchain-cluster
+    command: sh -c "./init.sh 2 && ./start.sh 2"
+    depends_on:
+      node1:
+        condition: service_started
+    networks:
+      appchain-docker-custom:
+        ipv4_address: 192.168.213.5
+    ports:
+      - "8802:8802"
+      - "18002:18002"
+    extra_hosts:
+      - "rpc.rootchain.network:192.168.213.2"
+      - "node1.appchain.network:192.168.213.4"
+      - "node2.appchain.network:192.168.213.5"
+      - "node3.appchain.network:192.168.213.6"
+  node3:
+    hostname: appchain-node3
+    image: appchain-cluster
+    command: sh -c "./init.sh 3 && ./start.sh 3"
+    depends_on:
+      node1:
+        condition: service_started
+    networks:
+      appchain-docker-custom:
+        ipv4_address: 192.168.213.6
+    ports:
+      - "8803:8803"
+      - "18003:18003"
+    extra_hosts:
+      - "rpc.rootchain.network:192.168.213.2"
+      - "node1.appchain.network:192.168.213.4"
+      - "node2.appchain.network:192.168.213.5"
+      - "node3.appchain.network:192.168.213.6"
+  tool:
+    hostname: appchain-tool
+    image: appchain-cluster
+    networks:
+      appchain-docker-custom:
+        ipv4_address: 192.168.213.7
+    extra_hosts:
+      - "rpc.rootchain.network:192.168.213.2"
+      - "node1.appchain.network:192.168.213.4"
+      - "node2.appchain.network:192.168.213.5"
+      - "node3.appchain.network:192.168.213.6"
+networks:
+  appchain-docker-custom:
+    driver: bridge
+    name: appchain-docker-custom
+    ipam:
+      config:
+        - subnet: 192.168.213.0/16
