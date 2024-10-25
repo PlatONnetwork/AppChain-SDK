@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/PlatONnetwork/PlatON-Go/crypto/sm"
 	"golang.org/x/crypto/sha3"
 	"hash"
 	"math"
@@ -77,7 +78,12 @@ type MerkleTree struct {
 
 // NewMerkleTree creates a new Merkle tree from the provided data and using the default hashing (Keccak256).
 func NewMerkleTree(data [][]byte) (*MerkleTree, error) {
-	return NewMerkleTreeWithHashing(data, sha3.NewLegacyKeccak256().(crypto.KeccakState))
+	return NewMerkleTreeWithHashing(data, func() crypto.KeccakState {
+		if common.GetHashAlgo() == common.SMHashAlgo {
+			return sm.NewSM3().(crypto.KeccakState)
+		}
+		return sha3.NewLegacyKeccak256().(crypto.KeccakState)
+	}())
 }
 
 // NewMerkleTreeWithHashing creates a new Merkle tree from the provided data and hash type
@@ -182,7 +188,12 @@ func (t *MerkleTree) findLeafNode(leaf []byte) *MerkleNode {
 
 // VerifyProof verifies a Merkle tree proof of membership for provided data using the default hash type (Keccak256)
 func VerifyProof(index uint64, leaf []byte, proof []common.Hash, root common.Hash) error {
-	return VerifyProofUsing(index, leaf, proof, root, sha3.NewLegacyKeccak256().(crypto.KeccakState))
+	return VerifyProofUsing(index, leaf, proof, root, func() crypto.KeccakState {
+		if common.GetHashAlgo() == common.SMHashAlgo {
+			return sm.NewSM3().(crypto.KeccakState)
+		}
+		return sha3.NewLegacyKeccak256().(crypto.KeccakState)
+	}())
 }
 
 // VerifyProofUsing verifies a Merkle tree proof of membership for provided data using the provided hash type
