@@ -38,9 +38,18 @@ var (
 		EnvVar: "GASPRICE",
 		Value:  2000000000,
 	}
+	ModuleFlags = cli.StringFlag{
+		Name:  "module",
+		Usage: "method name",
+	}
 	MethodFlags = cli.StringFlag{
 		Name:  "method",
 		Usage: "method name",
+	}
+	AbiFileFlags = cli.StringFlag{
+		Name:   "abifile",
+		Usage:  "abi file",
+		EnvVar: "ABI_FILE",
 	}
 	AddressFlags = cli.StringFlag{
 		Name:  "address",
@@ -84,6 +93,7 @@ var DefaultFlag = []cli.Flag{
 	RPCFlags,
 	KeyFlags,
 	AddressFlags,
+	ModuleFlags,
 	MethodFlags,
 	TypeFlags,
 	NonceFlags,
