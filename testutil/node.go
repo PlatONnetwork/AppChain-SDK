@@ -39,7 +39,7 @@ func NewMemoryNode(account *Account, genesisJson string, app sdk.App) (*node.Nod
 	p2pConfig.PrivateKey = nodePriKey
 	p2pConfig.BlsPublicKey = *blsPriKey.GetPublicKey()
 	stack, err := node.New(&node.Config{Name: "root", DataDir: "", P2P: p2pConfig, HTTPHost: "0.0.0.0", HTTPPort: account.HTTP, HTTPModules: []string{"platon"}})
-	chaindbs, err := InitGenesis(stack, genesisJson)
+	chaindbs, err := InitGenesis(stack, genesisJson, app)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -54,8 +54,9 @@ func NewMemoryNode(account *Account, genesisJson string, app sdk.App) (*node.Nod
 	return stack, backend, nil
 }
 
-func InitGenesis(stack *node.Node, genesisJson string) ([]ethdb.Database, error) {
+func InitGenesis(stack *node.Node, genesisJson string, app sdk.App) ([]ethdb.Database, error) {
 	genesis := new(core.Genesis)
+	genesis.SetApp(app)
 	if err := genesis.InitGenesisConfigFromJson(genesisJson); err != nil {
 		return nil, err
 	}
