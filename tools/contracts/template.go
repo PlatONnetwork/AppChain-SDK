@@ -36,6 +36,7 @@ type tmplStruct struct {
 type tmplContract struct {
 	Type        string                 // Type name of the main contract binding
 	InputABI    string                 // JSON ABI used as the input to generate the binding from
+	InputBin    string                 // Optional EVM bytecode used to generate deploy code from
 	FuncSigs    map[string]string      // Optional map: string signature -> 4-byte signature
 	Constructor abi.Method             // Contract constructor for deploy parametrization
 	Calls       map[string]*tmplMethod // Contract calls that only read state data
@@ -706,4 +707,269 @@ func ({{$ReceiverName}} *{{$contract.Type}}) {{.Normalized.Name}}({{range $i, $_
         }, nil
         }
 {{end}}
+`
+
+const tmplBackendCaller = `
+package {{.Package}}
+import (
+	vmsdk "github.com/PlatONnetwork/AppChain-SDK/core/vm"
+	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
+	"github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/core/vm"
+	"math"
+	"math/big"
+	"strings"
+	"sync"
+)
+
+{{$ReceiverName := .ReceiverName}}
+{{$contract := .Contract}}
+var (
+    {{$contract.Type}}BackendABI = "{{$contract.InputABI}}"
+	{{$contract.Type}}BackendCode = "{{$contract.InputBin}}"
+	{{$contract.Type}}DeployedCodeOnce sync.Once
+	{{$contract.Type}}DeployedCode     []byte
+)
+
+{{$contract := .Contract}}
+{{$structs := .Structs}}
+{{$ReceiverName := .ReceiverName}}
+type {{$contract.Type}}BackendCaller struct {
+	abi    *abi.ABI
+	proxy  common.Address
+	caller common.Address
+}
+
+func New{{$contract.Type}}BackendCaller(proxyAddress common.Address) (*{{$contract.Type}}BackendCaller, error) {
+	{{$contract.Type}}DeployedCodeOnce.Do(func() {
+		{{$contract.Type}}DeployedCode = vmsdk.MustDeployCode(common.FromHex({{$contract.Type}}BackendCode), nil)
+	})
+	abi, err := abi.JSON(strings.NewReader({{$contract.Type}}BackendABI))
+	if err != nil {
+		return nil, err
+	}
+	return &{{$contract.Type}}BackendCaller{
+		abi: &abi,
+		proxy: proxyAddress,
+	}, nil
+}
+
+{{range .Contract.Calls}}
+func ({{$ReceiverName}} *{{$contract.Type}}BackendCaller) {{.Normalized.Name}}(ctx vmsdk.BackendCallerContext {{range $i, $_ := .Normalized.Inputs}}, {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
+    con := vm.NewContract(vm.AccountRef({{$ReceiverName}}.caller), vm.AccountRef({{$ReceiverName}}.proxy), big.NewInt(0), math.MaxUint64)
+	con.SetCallCode(&{{$ReceiverName}}.proxy, common.Hash{}, {{$contract.Type}}DeployedCode)
+	evm, _, err := ctx.Backend().GetEVM(vmsdk.NewOnlyCallMessage({{$ReceiverName}}.caller), ctx.Header())
+	if err != nil {
+		return {{range $i, $_ := .Normalized.Outputs}}*new({{bindtype .Type $structs}}), {{end}} err
+	}
+	evm.StateDB = ctx.StateDB()
+
+    {{ $inputLen := len .Normalized.Inputs }}
+    {{ $outputLen := len .Normalized.Outputs }}
+	var input []byte
+	
+    input, err = {{$ReceiverName}}.abi.Pack("{{.Original.Name}}",{{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}}{{end}})
+    if err != nil {
+        return {{range $i, $_ := .Normalized.Outputs}}*new({{bindtype .Type $structs}}), {{end}} err
+    }
+
+    {{ $length := len .Normalized.Outputs }}
+    {{if ne $length 0 }}
+	var output []byte
+	output, err = evm.Interpreter().Run(con, input, false)
+    if err != nil {
+        return {{range $i, $_ := .Normalized.Outputs}}*new({{bindtype .Type $structs}}), {{end}} err
+    }
+	out, err := c.abi.Unpack("{{.Original.Name}}", output)
+    if err != nil {
+        return {{range $i, $_ := .Normalized.Outputs}}*new({{bindtype .Type $structs}}), {{end}} err
+    }
+	
+	{{range $i, $t := .Normalized.Outputs}}
+	out{{$i}} := *abi.ConvertType(out[{{$i}}], new({{bindtype .Type $structs}})).(*{{bindtype .Type $structs}}){{end}}
+	{{else}}
+	_, err = evm.Interpreter().Run(con, input, false)
+	{{end}}
+	return {{range $i, $t := .Normalized.Outputs}}out{{$i}}, {{end}} err
+}
+{{end}}
+
+{{range .Contract.Transacts}}
+func ({{$ReceiverName}} *{{$contract.Type}}BackendCaller) {{.Normalized.Name}}(ctx vmsdk.BackendCallerContext {{range $i, $_ := .Normalized.Inputs}}, {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
+    con := vm.NewContract(vm.AccountRef({{$ReceiverName}}.caller), vm.AccountRef({{$ReceiverName}}.proxy), big.NewInt(0), math.MaxUint64)
+	con.SetCallCode(&{{$ReceiverName}}.proxy, common.Hash{}, {{$contract.Type}}DeployedCode)
+	evm, _, err := ctx.Backend().GetEVM(vmsdk.NewOnlyCallMessage({{$ReceiverName}}.caller), ctx.Header())
+	if err != nil {
+		return {{range $i, $_ := .Normalized.Outputs}}*new({{bindtype .Type $structs}}), {{end}} err
+	}
+	evm.StateDB = ctx.StateDB()
+
+    {{ $inputLen := len .Normalized.Inputs }}
+    {{ $outputLen := len .Normalized.Outputs }}
+	var input []byte
+	
+    input, err = {{$ReceiverName}}.abi.Pack("{{.Original.Name}}",{{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}}{{end}})
+    if err != nil {
+        return {{range $i, $_ := .Normalized.Outputs}}*new({{bindtype .Type $structs}}), {{end}} err
+    }
+
+    {{ $length := len .Normalized.Outputs }}
+    {{if ne $length 0 }}
+	var output []byte
+	output, err = evm.Interpreter().Run(con, input, false)
+    if err != nil {
+        return {{range $i, $_ := .Normalized.Outputs}}*new({{bindtype .Type $structs}}), {{end}} err
+    }
+	out, err := c.abi.Unpack("{{.Original.Name}}", output)
+    if err != nil {
+        return {{range $i, $_ := .Normalized.Outputs}}*new({{bindtype .Type $structs}}), {{end}} err
+    }
+	
+	{{range $i, $t := .Normalized.Outputs}}
+	out{{$i}} := *abi.ConvertType(out[{{$i}}], new({{bindtype .Type $structs}})).(*{{bindtype .Type $structs}}){{end}}
+	{{else}}
+	_, err = evm.Interpreter().Run(con, input, false)
+	{{end}}
+	return {{range $i, $t := .Normalized.Outputs}}out{{$i}}, {{end}} err
+}
+{{end}}
+func ({{$ReceiverName}} *{{$contract.Type}}BackendCaller) ABI() *abi.ABI {
+	return {{$ReceiverName}}.abi
+}
+func ({{$ReceiverName}} *{{$contract.Type}}BackendCaller) WithCaller(caller common.Address) *{{$contract.Type}}BackendCaller {
+	{{$ReceiverName}}.caller = caller
+	return {{$ReceiverName}}
+}
+`
+
+const tmplGenesis = `
+package {{.Package}}
+import (
+	vm2 "github.com/PlatONnetwork/AppChain-SDK/core/vm"
+	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
+	"github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/core/vm"
+	"github.com/PlatONnetwork/PlatON-Go/params"
+	"github.com/PlatONnetwork/PlatON-Go/sdk"
+	"math"
+	"math/big"
+	"strings"
+)
+
+{{$ReceiverName := .ReceiverName}}
+{{$contract := .Contract}}
+var (
+    {{$contract.Type}}ABI = "{{$contract.InputABI}}"
+	{{$contract.Type}}Code = "{{$contract.InputBin}}"
+)
+
+{{$contract := .Contract}}
+{{$structs := .Structs}}
+{{$ReceiverName := .ReceiverName}}
+type {{$contract.Type}}GenesisCaller struct {
+   	evmFunc func(address common.Address) *vm.EVM
+	abi     *abi.ABI
+	to      common.Address
+	caller  common.Address
+}
+func New{{$contract.Type}}GenesisCaller(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig) (*{{$contract.Type}}GenesisCaller, error) {
+	abi, err := abi.JSON(strings.NewReader({{$contract.Type}}ABI))
+	if err != nil {
+		return nil, err
+	}
+   	return &{{$contract.Type}}GenesisCaller{
+		evmFunc: func(address common.Address) *vm.EVM {
+			return vm2.NewEVM(vm2.NewGenesisBlockContext(), address, db, chainConfig, nil)
+		},
+		abi: &abi,
+	}, nil
+}
+
+func ({{$ReceiverName}} *{{$contract.Type}}GenesisCaller) Deploy{{$contract.Type}}({{range $i, $_ := $contract.Constructor.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) error {
+    {{ $length := len $contract.Constructor.Inputs }}
+	var data []byte
+    {{if ne $length 0 }}
+    data, err := method.Inputs.Pack({{range $i, $_ := $contract.Constructor.Inputs}}{{if ne $i 0}},{{end}}{{.Name}}{{end}})
+    if err != nil {
+        return nil, err
+    }
+    {{end}}
+
+	evm := {{$ReceiverName}}.evmFunc({{$ReceiverName}}.caller)
+	_, _, _, err := evm.CreateAppContract(vm.AccountRef({{$ReceiverName}}.caller), append(common.FromHex({{$contract.Type}}Code), data...), {{$ReceiverName}}.to, math.MaxUint64, big.NewInt(0))
+	return err
+}
+
+{{range .Contract.Calls}}
+func ({{$ReceiverName}} *{{$contract.Type}}GenesisCaller) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
+   	evm := c.evmFunc(c.caller)
+    {{ $inputLen := len .Normalized.Inputs }}
+    {{ $outputLen := len .Normalized.Outputs }}
+    var err error
+	var input []byte
+	var output []byte
+    input, err = {{$ReceiverName}}.abi.Pack("{{.Original.Name}}",{{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}}{{end}})
+    if err != nil {
+        return {{range $i, $_ := .Normalized.Outputs}}*new({{bindtype .Type $structs}}), {{end}} err
+    }
+	output, _, err = evm.Call(vm.AccountRef(c.caller), c.to, input, math.MaxUint64, big.NewInt(0))
+    if err != nil {
+        return {{range $i, $_ := .Normalized.Outputs}}*new({{bindtype .Type $structs}}), {{end}} err
+    }
+
+	out, err := c.abi.Unpack("{{.Original.Name}}", output)
+    if err != nil {
+        return {{range $i, $_ := .Normalized.Outputs}}*new({{bindtype .Type $structs}}), {{end}} err
+    }
+	{{range $i, $t := .Normalized.Outputs}}
+	out{{$i}} := *abi.ConvertType(out[{{$i}}], new({{bindtype .Type $structs}})).(*{{bindtype .Type $structs}}){{end}}
+	
+	return {{range $i, $t := .Normalized.Outputs}}out{{$i}}, {{end}} err
+}
+{{end}}
+
+{{range .Contract.Transacts}}
+func ({{$ReceiverName}} *{{$contract.Type}}GenesisCaller) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
+   	evm := c.evmFunc(c.caller)
+    {{ $inputLen := len .Normalized.Inputs }}
+    {{ $outputLen := len .Normalized.Outputs }}
+    var err error
+	var input []byte
+	
+    input, err = {{$ReceiverName}}.abi.Pack("{{.Original.Name}}",{{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}}{{end}})
+    if err != nil {
+        return {{range $i, $_ := .Normalized.Outputs}}*new({{bindtype .Type $structs}}), {{end}} err
+    }
+    {{ $length := len .Normalized.Outputs }}
+    {{if ne $length 0 }}
+	var output []byte
+	output, _, err = evm.Call(vm.AccountRef(c.caller), c.to, input, math.MaxUint64, big.NewInt(0))
+    if err != nil {
+        return {{range $i, $_ := .Normalized.Outputs}}*new({{bindtype .Type $structs}}), {{end}} err
+    }
+	out, err := c.abi.Unpack("{{.Original.Name}}", output)
+    if err != nil {
+        return {{range $i, $_ := .Normalized.Outputs}}*new({{bindtype .Type $structs}}), {{end}} err
+    }
+	
+	{{range $i, $t := .Normalized.Outputs}}
+	out{{$i}} := *abi.ConvertType(out[{{$i}}], new({{bindtype .Type $structs}})).(*{{bindtype .Type $structs}}){{end}}
+	{{else}}
+	_, _, err = evm.Call(vm.AccountRef(c.caller), c.to, input, math.MaxUint64, big.NewInt(0))
+	{{end}}
+	return {{range $i, $t := .Normalized.Outputs}}out{{$i}}, {{end}} err
+}
+{{end}}
+func ({{$ReceiverName}} *{{$contract.Type}}GenesisCaller) ABI() *abi.ABI {
+	return {{$ReceiverName}}.abi
+}
+func ({{$ReceiverName}} *{{$contract.Type}}GenesisCaller) WithCaller(caller common.Address) *{{$contract.Type}}GenesisCaller {
+	{{$ReceiverName}}.caller = caller
+	return {{$ReceiverName}}
+}
+
+func ({{$ReceiverName}} *{{$contract.Type}}GenesisCaller) WithTo(to common.Address) *{{$contract.Type}}GenesisCaller {
+	{{$ReceiverName}}.to = to
+	return {{$ReceiverName}}
+}
 `
