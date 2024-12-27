@@ -1,0 +1,228 @@
+package contracts
+
+import (
+	vm2 "github.com/PlatONnetwork/AppChain-SDK/core/vm"
+	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
+	"github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/core/vm"
+	"github.com/PlatONnetwork/PlatON-Go/params"
+	"github.com/PlatONnetwork/PlatON-Go/sdk"
+	"math"
+	"math/big"
+	"strings"
+)
+
+var (
+	VRFStorageABI  = "[{\"type\":\"constructor\",\"inputs\":[{\"name\":\"addr\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"nonceProof\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"addProve\",\"inputs\":[{\"name\":\"pubKey\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"nonceProof\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"getNonce\",\"inputs\":[{\"name\":\"blockNumber\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"getNonceProof\",\"inputs\":[{\"name\":\"blockNumber\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"nonceProofs\",\"inputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"vrfAddr\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"event\",\"name\":\"AddProve\",\"inputs\":[{\"name\":\"blockNumber\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"creator\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false}]"
+	VRFStorageCode = "60806040523480156200001157600080fd5b5060405162000de138038062000de183398101604081905262000034916200013f565b60008080526020908152815162000071917fad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5919084019062000099565b5050600180546001600160a01b0319166001600160a01b039290921691909117905562000292565b828054620000a7906200023f565b90600052602060002090601f016020900481019282620000cb576000855562000116565b82601f10620000e657805160ff191683800117855562000116565b8280016001018555821562000116579182015b8281111562000116578251825591602001919060010190620000f9565b506200012492915062000128565b5090565b5b8082111562000124576000815560010162000129565b600080604083850312156200015357600080fd5b82516001600160a01b03811681146200016b57600080fd5b602084810151919350906001600160401b03808211156200018b57600080fd5b818601915086601f830112620001a057600080fd5b815181811115620001b557620001b56200027c565b604051601f8201601f19908116603f01168101908382118183101715620001e057620001e06200027c565b816040528281528986848701011115620001f957600080fd5b600093505b828410156200021d5784840186015181850187015292850192620001fe565b828411156200022f5760008684830101525b8096505050505050509250929050565b600181811c908216806200025457607f821691505b602082108114156200027657634e487b7160e01b600052602260045260246000fd5b50919050565b634e487b7160e01b600052604160045260246000fd5b610b3f80620002a26000396000f3fe608060405234801561001057600080fd5b50600436106100575760003560e01c80633d46b8191461005c5780635678fac3146100825780638c4f1215146100a25780639cfc63ee146100c5578063dedec9f3146100d8575b600080fd5b61006f61006a36600461095b565b610103565b6040519081526020015b60405180910390f35b61009561009036600461095b565b610297565b6040516100799190610a3c565b6100b56100b03660046108ef565b610331565b6040519015158152602001610079565b6100956100d336600461095b565b610607565b6001546100eb906001600160a01b031681565b6040516001600160a01b039091168152602001610079565b6000818152602081905260408120805482919061011f90610ace565b80601f016020809104026020016040519081016040528092919081815260200182805461014b90610ace565b80156101985780601f1061016d57610100808354040283529160200191610198565b820191906000526020600020905b81548152906001019060200180831161017b57829003601f168201915b505050505090508051600014156101f65760405162461bcd60e51b815260206004820181905260248201527f5652465374726f6167653a20696e76616c696420626c6f636b206e756d62657260448201526064015b60405180910390fd5b6000816040516024016102099190610a3c565b60408051601f19818403018152918152602080830180516001600160e01b031663550f426f60e11b1790528151808301909252601f82527f5652465374726f6167653a206465636f64652070726f6f66206661696c6564009082015290915061027690606f9083906106ab565b905060008180602001905181019061028e91906108d6565b95945050505050565b600060208190529081526040902080546102b090610ace565b80601f01602080910402602001604051908101604052809291908181526020018280546102dc90610ace565b80156103295780601f106102fe57610100808354040283529160200191610329565b820191906000526020600020905b81548152906001019060200180831161030c57829003601f168201915b505050505081565b6000605182146103835760405162461bcd60e51b815260206004820181905260248201527f56524653746f726167653a20696e76616c69642070726f6f66206c656e67746860448201526064016101ed565b60006103928560018189610a4f565b6040516103a09291906109c9565b60405190819003902090506001600160a01b03811641146104035760405162461bcd60e51b815260206004820152601e60248201527f5652465374726f6167653a20696e76616c6964207075626c6963206b6579000060448201526064016101ed565b60008080610412600143610a79565b8152602001908152602001600020805461042b90610ace565b80601f016020809104026020016040519081016040528092919081815260200182805461045790610ace565b80156104a45780601f10610479576101008083540402835291602001916104a4565b820191906000526020600020905b81548152906001019060200180831161048757829003601f168201915b50505050509050600087878787856040516024016104c69594939291906109f5565b60408051601f19818403018152918152602080830180516001600160e01b031663de8f50a160e01b1790528151808301909252601f82527f5652465374726f6167653a207665726966792070726f6f66206661696c6564009082015290915061053390606f9083906106ab565b905060008180602001905181019061054b91906108ad565b90508061059a5760405162461bcd60e51b815260206004820152601f60248201527f5652465374726f6167653a207665726966792070726f6f66206661696c65640060448201526064016101ed565b4360009081526020819052604090206105b49088886107cb565b50604080514381526001600160a01b03861660208201527f3aafd3ea7e45a85bcec087fc4ed9e12561388209ce579ed5cb4838b642e7b39d910160405180910390a160019450505050505b949350505050565b60008181526020819052604081208054606092919061062590610ace565b80601f016020809104026020016040519081016040528092919081815260200182805461065190610ace565b801561069e5780601f106106735761010080835404028352916020019161069e565b820191906000526020600020905b81548152906001019060200180831161068157829003601f168201915b5093979650505050505050565b60606105ff848460008585600080866001600160a01b031685876040516106d291906109d9565b60006040518083038185875af1925050503d806000811461070f576040519150601f19603f3d011682016040523d82523d6000602084013e610714565b606091505b509150915061072587838387610730565b979650505050505050565b6060831561079c578251610795576001600160a01b0385163b6107955760405162461bcd60e51b815260206004820152601d60248201527f416464726573733a2063616c6c20746f206e6f6e2d636f6e747261637400000060448201526064016101ed565b50816105ff565b6105ff83838151156107b15781518083602001fd5b8060405162461bcd60e51b81526004016101ed9190610a3c565b8280546107d790610ace565b90600052602060002090601f0160209004810192826107f9576000855561083f565b82601f106108125782800160ff1982351617855561083f565b8280016001018555821561083f579182015b8281111561083f578235825591602001919060010190610824565b5061084b92915061084f565b5090565b5b8082111561084b5760008155600101610850565b60008083601f84011261087657600080fd5b50813567ffffffffffffffff81111561088e57600080fd5b6020830191508360208285010111156108a657600080fd5b9250929050565b6000602082840312156108bf57600080fd5b815180151581146108cf57600080fd5b9392505050565b6000602082840312156108e857600080fd5b5051919050565b6000806000806040858703121561090557600080fd5b843567ffffffffffffffff8082111561091d57600080fd5b61092988838901610864565b9096509450602087013591508082111561094257600080fd5b5061094f87828801610864565b95989497509550505050565b60006020828403121561096d57600080fd5b5035919050565b81835281816020850137506000828201602090810191909152601f909101601f19169091010190565b600081518084526109b5816020860160208601610a9e565b601f01601f19169290920160200192915050565b8183823760009101908152919050565b600082516109eb818460208701610a9e565b9190910192915050565b606081526000610a09606083018789610974565b8281036020840152610a1c818688610974565b90508281036040840152610a30818561099d565b98975050505050505050565b6020815260006108cf602083018461099d565b60008085851115610a5f57600080fd5b83861115610a6c57600080fd5b5050820193919092039150565b600082821015610a9957634e487b7160e01b600052601160045260246000fd5b500390565b60005b83811015610ab9578181015183820152602001610aa1565b83811115610ac8576000848401525b50505050565b600181811c90821680610ae257607f821691505b60208210811415610b0357634e487b7160e01b600052602260045260246000fd5b5091905056fea2646970667358221220470a5fa5a44c4297342d3b4e693964f05543501be40d6941298cd27ce5040edd64736f6c63430008070033"
+)
+
+type VRFStorageGenesisCaller struct {
+	evmFunc func(address common.Address) *vm.EVM
+	abi     *abi.ABI
+	to      common.Address
+	caller  common.Address
+}
+
+func NewVRFStorageGenesisCaller(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig) (*VRFStorageGenesisCaller, error) {
+	abi, err := abi.JSON(strings.NewReader(VRFStorageABI))
+	if err != nil {
+		return nil, err
+	}
+	return &VRFStorageGenesisCaller{
+		evmFunc: func(address common.Address) *vm.EVM {
+			return vm2.NewEVM(vm2.NewGenesisBlockContext(), address, db, chainConfig, nil)
+		},
+		abi: &abi,
+	}, nil
+}
+
+func (c *VRFStorageGenesisCaller) DeployVRFStorage(addr common.Address, nonceProof []byte) error {
+
+	var data []byte
+	var err error
+
+	data, err = c.abi.Constructor.Inputs.Pack(addr, nonceProof)
+	if err != nil {
+		return err
+	}
+
+	evm := c.evmFunc(c.caller)
+	_, _, _, err = evm.CreateAppContract(vm.AccountRef(c.caller), append(common.FromHex(VRFStorageCode), data...), c.to, math.MaxUint64, big.NewInt(0))
+	return err
+}
+
+func (c *VRFStorageGenesisCaller) PackGetNonceProof(blockNumber *big.Int) ([]byte, error) {
+	input, err := c.abi.Pack("getNonceProof", blockNumber)
+	if err != nil {
+		return nil, err
+	}
+	return input, nil
+}
+func (c *VRFStorageGenesisCaller) GetNonceProof(blockNumber *big.Int) ([]byte, error) {
+	evm := c.evmFunc(c.caller)
+
+	var err error
+	var input []byte
+	var output []byte
+	input, err = c.PackGetNonceProof(blockNumber)
+	if err != nil {
+		return *new([]byte), err
+	}
+	output, _, err = evm.Call(vm.AccountRef(c.caller), c.to, input, math.MaxUint64, big.NewInt(0))
+	if err != nil {
+		return *new([]byte), err
+	}
+
+	out, err := c.abi.Unpack("getNonceProof", output)
+	if err != nil {
+		return *new([]byte), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]byte)).(*[]byte)
+
+	return out0, err
+}
+
+func (c *VRFStorageGenesisCaller) PackNonceProofs(arg0 *big.Int) ([]byte, error) {
+	input, err := c.abi.Pack("nonceProofs", arg0)
+	if err != nil {
+		return nil, err
+	}
+	return input, nil
+}
+func (c *VRFStorageGenesisCaller) NonceProofs(arg0 *big.Int) ([]byte, error) {
+	evm := c.evmFunc(c.caller)
+
+	var err error
+	var input []byte
+	var output []byte
+	input, err = c.PackNonceProofs(arg0)
+	if err != nil {
+		return *new([]byte), err
+	}
+	output, _, err = evm.Call(vm.AccountRef(c.caller), c.to, input, math.MaxUint64, big.NewInt(0))
+	if err != nil {
+		return *new([]byte), err
+	}
+
+	out, err := c.abi.Unpack("nonceProofs", output)
+	if err != nil {
+		return *new([]byte), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]byte)).(*[]byte)
+
+	return out0, err
+}
+
+func (c *VRFStorageGenesisCaller) PackVrfAddr() ([]byte, error) {
+	input, err := c.abi.Pack("vrfAddr")
+	if err != nil {
+		return nil, err
+	}
+	return input, nil
+}
+func (c *VRFStorageGenesisCaller) VrfAddr() (common.Address, error) {
+	evm := c.evmFunc(c.caller)
+
+	var err error
+	var input []byte
+	var output []byte
+	input, err = c.PackVrfAddr()
+	if err != nil {
+		return *new(common.Address), err
+	}
+	output, _, err = evm.Call(vm.AccountRef(c.caller), c.to, input, math.MaxUint64, big.NewInt(0))
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out, err := c.abi.Unpack("vrfAddr", output)
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+
+	return out0, err
+}
+
+func (c *VRFStorageGenesisCaller) PackAddProve(pubKey []byte, nonceProof []byte) ([]byte, error) {
+	input, err := c.abi.Pack("addProve", pubKey, nonceProof)
+	if err != nil {
+		return nil, err
+	}
+	return input, nil
+}
+func (c *VRFStorageGenesisCaller) AddProve(pubKey []byte, nonceProof []byte) (bool, error) {
+	evm := c.evmFunc(c.caller)
+
+	var err error
+	var input []byte
+
+	input, err = c.PackAddProve(pubKey, nonceProof)
+	if err != nil {
+		return *new(bool), err
+	}
+
+	var output []byte
+	output, _, err = evm.Call(vm.AccountRef(c.caller), c.to, input, math.MaxUint64, big.NewInt(0))
+	if err != nil {
+		return *new(bool), err
+	}
+	out, err := c.abi.Unpack("addProve", output)
+	if err != nil {
+		return *new(bool), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
+
+	return out0, err
+}
+
+func (c *VRFStorageGenesisCaller) PackGetNonce(blockNumber *big.Int) ([]byte, error) {
+	input, err := c.abi.Pack("getNonce", blockNumber)
+	if err != nil {
+		return nil, err
+	}
+	return input, nil
+}
+func (c *VRFStorageGenesisCaller) GetNonce(blockNumber *big.Int) (common.Hash, error) {
+	evm := c.evmFunc(c.caller)
+
+	var err error
+	var input []byte
+
+	input, err = c.PackGetNonce(blockNumber)
+	if err != nil {
+		return *new(common.Hash), err
+	}
+
+	var output []byte
+	output, _, err = evm.Call(vm.AccountRef(c.caller), c.to, input, math.MaxUint64, big.NewInt(0))
+	if err != nil {
+		return *new(common.Hash), err
+	}
+	out, err := c.abi.Unpack("getNonce", output)
+	if err != nil {
+		return *new(common.Hash), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Hash)).(*common.Hash)
+
+	return out0, err
+}
+
+func (c *VRFStorageGenesisCaller) ABI() *abi.ABI {
+	return c.abi
+}
+func (c *VRFStorageGenesisCaller) WithCaller(caller common.Address) *VRFStorageGenesisCaller {
+	c.caller = caller
+	return c
+}
+
+func (c *VRFStorageGenesisCaller) WithTo(to common.Address) *VRFStorageGenesisCaller {
+	c.to = to
+	return c
+}
