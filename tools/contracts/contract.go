@@ -82,6 +82,25 @@ var (
 				CustomHelpTemplate: flags.CommandHelpTemplate,
 			},
 			{
+				Action:    utils.MigrateFlags(txBuilderContract),
+				Name:      "txbuilder",
+				Usage:     "Generate golang tx builder",
+				ArgsUsage: "<txbuilderPath>",
+				Flags: []cli.Flag{
+					abiFlag,
+					binFlag,
+					outputFlag,
+					typeFlag,
+					pkgFlag,
+					aliasFlag,
+					receiverNameFlag,
+					filePrefixFlag,
+				},
+				Category:           "BLOCKCHAIN COMMANDS",
+				Description:        `Output golang contract`,
+				CustomHelpTemplate: flags.CommandHelpTemplate,
+			},
+			{
 				Action:    utils.MigrateFlags(backendCallContract),
 				Name:      "backend",
 				Usage:     "Generate golang backend caller contract code",
@@ -103,7 +122,7 @@ var (
 		},
 		CustomHelpTemplate: flags.CommandHelpTemplate,
 	}
-	
+
 	abiFlag = cli.StringFlag{
 		Name:        "abi",
 		Usage:       "abi",
@@ -478,7 +497,60 @@ func backendCallContract(ctx *cli.Context) error {
 
 	return nil
 }
+func txBuilderContract(ctx *cli.Context) error {
+	if ctx.String(pkgFlag.Name) == "" {
+		fmt.Println("No destination package specified (--pkg)")
+		os.Exit(1)
+	}
+	abiFile := ctx.String(abiFlag.Name)
 
+	abiJson, err := os.ReadFile(abiFile)
+	if err != nil {
+		return err
+	}
+	binFile, err := os.ReadFile(ctx.String(binFlag.Name))
+	if err != nil {
+		return err
+	}
+	aliases := make(map[string]string)
+	// Extract all aliases from the flags
+	if ctx.IsSet(aliasFlag.Name) {
+		// We support multi-versions for aliasing
+		// e.g.
+		//      foo=bar,foo2=bar2
+		//      foo:bar,foo2:bar2
+		re := regexp.MustCompile(`(?:(\w+)[:=](\w+))`)
+		submatches := re.FindAllStringSubmatch(ctx.String(aliasFlag.Name), -1)
+		for _, match := range submatches {
+			aliases[match[1]] = match[2]
+		}
+	}
+	var types string
+	if ctx.IsSet(typeFlag.Name) {
+		types = ctx.String(typeFlag.Name)
+	} else {
+		types = ctx.String(pkgFlag.Name)
+	}
+
+	txBuilder, err := BindTxBuilder(string(abiJson), string(binFile), types, ctx.String(pkgFlag.Name), aliases, ctx.String(receiverNameFlag.Name))
+	if err != nil {
+		return err
+	}
+	if !ctx.IsSet(outputFlag.Name) {
+		fmt.Printf("%s\n", txBuilder)
+		return nil
+	}
+	filePrefix := strings.ToLower(types)
+	if ctx.IsSet(filePrefixFlag.Name) {
+		filePrefix = ctx.String(filePrefixFlag.Name)
+	}
+	if err := os.WriteFile(filepath.Join(ctx.String(outputFlag.Name), filePrefix+".go"), []byte(txBuilder), 0600); err != nil {
+		fmt.Printf("Failed to write ABI binding: %v", err)
+		os.Exit(1)
+	}
+
+	return nil
+}
 func Bind(abiJson string, types string, pkg string, aliases map[string]string, receiverName string) (string, string, string, error) {
 	funcs, data, err := BindData(abiJson, "", types, pkg, aliases)
 	if err != nil {
@@ -499,6 +571,7 @@ func Bind(abiJson string, types string, pkg string, aliases map[string]string, r
 	}
 	return frameCode, sourceCode, callerCode, nil
 }
+
 func BindGenesis(abiJson string, bin string, types string, pkg string, aliases map[string]string, receiverName string) (string, error) {
 	funcs, data, err := BindData(abiJson, bin, types, pkg, aliases)
 	if err != nil {
@@ -508,7 +581,15 @@ func BindGenesis(abiJson string, bin string, types string, pkg string, aliases m
 	genesisCode, err := GenerateCode(funcs, data, tmplGenesis)
 	return genesisCode, err
 }
-
+func BindTxBuilder(abiJson string, bin string, types string, pkg string, aliases map[string]string, receiverName string) (string, error) {
+	funcs, data, err := BindData(abiJson, bin, types, pkg, aliases)
+	if err != nil {
+		return "", err
+	}
+	data.ReceiverName = receiverName
+	genesisCode, err := GenerateCode(funcs, data, tmplTxBuilder)
+	return genesisCode, err
+}
 func BindBackendCall(abiJson string, bin string, types string, pkg string, aliases map[string]string, receiverName string) (string, error) {
 	funcs, data, err := BindData(abiJson, bin, types, pkg, aliases)
 	if err != nil {

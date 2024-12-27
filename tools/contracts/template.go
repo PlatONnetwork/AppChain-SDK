@@ -82,6 +82,7 @@ import (
 
 // Reference imports to suppress errors if they are not otherwise used.
 var (
+	_ = contracts.Context{}
     _ = vm.EVM{}
 	_ = errors.New
 	_ = big.NewInt
@@ -857,6 +858,16 @@ import (
 )
 
 {{$ReceiverName := .ReceiverName}}
+{{$structs := .Structs}}
+{{range $structs}}
+	// {{.Name}} is an auto generated low-level Go binding around an user-defined struct.
+	type {{.Name}} struct {
+	{{range $field := .Fields}}
+	{{$field.Name}} {{$field.Type}}{{end}}
+	}
+{{end}}
+
+{{$ReceiverName := .ReceiverName}}
 {{$contract := .Contract}}
 var (
     {{$contract.Type}}ABI = "{{$contract.InputABI}}"
@@ -888,19 +899,27 @@ func New{{$contract.Type}}GenesisCaller(ctx sdk.Context, db sdk.StateDB, chainCo
 func ({{$ReceiverName}} *{{$contract.Type}}GenesisCaller) Deploy{{$contract.Type}}({{range $i, $_ := $contract.Constructor.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) error {
     {{ $length := len $contract.Constructor.Inputs }}
 	var data []byte
+	var err error
     {{if ne $length 0 }}
-    data, err := method.Inputs.Pack({{range $i, $_ := $contract.Constructor.Inputs}}{{if ne $i 0}},{{end}}{{.Name}}{{end}})
+    data, err = {{$ReceiverName}}.abi.Constructor.Inputs.Pack({{range $i, $_ := $contract.Constructor.Inputs}}{{if ne $i 0}},{{end}}{{.Name}}{{end}})
     if err != nil {
-        return nil, err
+        return err
     }
     {{end}}
 
 	evm := {{$ReceiverName}}.evmFunc({{$ReceiverName}}.caller)
-	_, _, _, err := evm.CreateAppContract(vm.AccountRef({{$ReceiverName}}.caller), append(common.FromHex({{$contract.Type}}Code), data...), {{$ReceiverName}}.to, math.MaxUint64, big.NewInt(0))
+	_, _, _, err = evm.CreateAppContract(vm.AccountRef({{$ReceiverName}}.caller), append(common.FromHex({{$contract.Type}}Code), data...), {{$ReceiverName}}.to, math.MaxUint64, big.NewInt(0))
 	return err
 }
 
 {{range .Contract.Calls}}
+func ({{$ReceiverName}} *{{$contract.Type}}GenesisCaller) Pack{{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ([]byte,error) {
+    input, err := {{$ReceiverName}}.abi.Pack("{{.Original.Name}}",{{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}}{{end}})
+    if err != nil {
+		return nil, err
+	}
+	return input, nil
+}
 func ({{$ReceiverName}} *{{$contract.Type}}GenesisCaller) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
    	evm := c.evmFunc(c.caller)
     {{ $inputLen := len .Normalized.Inputs }}
@@ -908,7 +927,7 @@ func ({{$ReceiverName}} *{{$contract.Type}}GenesisCaller) {{.Normalized.Name}}({
     var err error
 	var input []byte
 	var output []byte
-    input, err = {{$ReceiverName}}.abi.Pack("{{.Original.Name}}",{{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}}{{end}})
+    input, err = {{$ReceiverName}}.Pack{{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}}{{end}})
     if err != nil {
         return {{range $i, $_ := .Normalized.Outputs}}*new({{bindtype .Type $structs}}), {{end}} err
     }
@@ -929,6 +948,13 @@ func ({{$ReceiverName}} *{{$contract.Type}}GenesisCaller) {{.Normalized.Name}}({
 {{end}}
 
 {{range .Contract.Transacts}}
+func ({{$ReceiverName}} *{{$contract.Type}}GenesisCaller) Pack{{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ([]byte,error) {
+    input, err := {{$ReceiverName}}.abi.Pack("{{.Original.Name}}",{{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}}{{end}})
+    if err != nil {
+		return nil, err
+	}
+	return input, nil
+}
 func ({{$ReceiverName}} *{{$contract.Type}}GenesisCaller) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error) {
    	evm := c.evmFunc(c.caller)
     {{ $inputLen := len .Normalized.Inputs }}
@@ -936,7 +962,7 @@ func ({{$ReceiverName}} *{{$contract.Type}}GenesisCaller) {{.Normalized.Name}}({
     var err error
 	var input []byte
 	
-    input, err = {{$ReceiverName}}.abi.Pack("{{.Original.Name}}",{{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}}{{end}})
+    input, err = {{$ReceiverName}}.Pack{{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}}{{end}})
     if err != nil {
         return {{range $i, $_ := .Normalized.Outputs}}*new({{bindtype .Type $structs}}), {{end}} err
     }
@@ -972,4 +998,154 @@ func ({{$ReceiverName}} *{{$contract.Type}}GenesisCaller) WithTo(to common.Addre
 	{{$ReceiverName}}.to = to
 	return {{$ReceiverName}}
 }
+`
+const tmplTxBuilder = `
+package {{.Package}}
+import (
+	"crypto/ecdsa"
+	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
+	"github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/core/types"
+	
+	"math/big"
+	"strings"
+)
+
+{{$ReceiverName := .ReceiverName}}
+{{$structs := .Structs}}
+{{range $structs}}
+	// {{.Name}} is an auto generated low-level Go binding around an user-defined struct.
+	type {{.Name}} struct {
+	{{range $field := .Fields}}
+	{{$field.Name}} {{$field.Type}}{{end}}
+	}
+{{end}}
+
+{{$ReceiverName := .ReceiverName}}
+{{$contract := .Contract}}
+var (
+    {{$contract.Type}}TxBuilderABI = "{{$contract.InputABI}}"
+)
+
+{{$contract := .Contract}}
+{{$structs := .Structs}}
+{{$ReceiverName := .ReceiverName}}
+type {{$contract.Type}}TxBuilder struct {
+	abi     *abi.ABI
+	sk *ecdsa.PrivateKey
+	nonce uint64
+	chainId *big.Int
+	signer types.Signer
+	gasLimit uint64
+	gasPrice *big.Int
+	to      common.Address
+	value *big.Int
+}
+func New{{$contract.Type}}TxBuilder(to common.Address, sk *ecdsa.PrivateKey, chainId *big.Int) (*{{$contract.Type}}TxBuilder, error) {
+	abi, err := abi.JSON(strings.NewReader({{$contract.Type}}TxBuilderABI))
+	if err != nil {
+		return nil, err
+	}
+   	return &{{$contract.Type}}TxBuilder{
+		abi: &abi,
+		sk: sk,
+		chainId: chainId,
+		signer: types.NewEIP155Signer(chainId),
+		gasLimit: 1000000,
+		gasPrice: big.NewInt(0),
+		to: to,
+	}, nil
+}
+
+
+func ({{$ReceiverName}} *{{$contract.Type}}TxBuilder) WithPrivateKey(sk *ecdsa.PrivateKey) *{{$contract.Type}}TxBuilder {
+	{{$ReceiverName}}.sk = sk
+	return {{$ReceiverName}}
+}
+func ({{$ReceiverName}} *{{$contract.Type}}TxBuilder) WithNonce(nonce uint64) *{{$contract.Type}}TxBuilder {
+	{{$ReceiverName}}.nonce = nonce
+	return {{$ReceiverName}}
+}
+func ({{$ReceiverName}} *{{$contract.Type}}TxBuilder) WithChainId(chainId *big.Int) *{{$contract.Type}}TxBuilder {
+	{{$ReceiverName}}.chainId = chainId
+	return {{$ReceiverName}}
+}
+
+func ({{$ReceiverName}} *{{$contract.Type}}TxBuilder) WithSigner(signer types.Signer) *{{$contract.Type}}TxBuilder {
+	{{$ReceiverName}}.signer = signer
+	return {{$ReceiverName}}
+}
+
+func ({{$ReceiverName}} *{{$contract.Type}}TxBuilder) WithGasLimit(gasLimit uint64) *{{$contract.Type}}TxBuilder {
+	{{$ReceiverName}}.gasLimit = gasLimit
+	return {{$ReceiverName}}
+}
+
+func({{$ReceiverName}} *{{$contract.Type}}TxBuilder) WithGasPrice(gasPrice *big.Int) *{{$contract.Type}}TxBuilder {
+	{{$ReceiverName}}.gasPrice = gasPrice
+	return {{$ReceiverName}}
+}
+
+func ({{$ReceiverName}} *{{$contract.Type}}TxBuilder) WithTo(to common.Address) *{{$contract.Type}}TxBuilder {
+	{{$ReceiverName}}.to = to
+	return {{$ReceiverName}}
+}
+
+{{range .Contract.Calls}}
+func ({{$ReceiverName}} *{{$contract.Type}}TxBuilder) Pack{{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ([]byte,error) {
+    input, err := {{$ReceiverName}}.abi.Pack("{{.Original.Name}}",{{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}}{{end}})
+    if err != nil {
+		return nil, err
+	}
+	return input, nil
+}
+func ({{$ReceiverName}} *{{$contract.Type}}TxBuilder) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) (*types.Transaction,error) {
+    {{ $inputLen := len .Normalized.Inputs }}
+    {{ $outputLen := len .Normalized.Outputs }}
+    var err error
+	var input []byte
+    input, err = {{$ReceiverName}}.Pack{{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}}{{end}})
+    if err != nil {
+        return nil, err
+    }
+	tx := types.NewTransaction({{$ReceiverName}}.nonce, {{$ReceiverName}}.to, {{$ReceiverName}}.value, {{$ReceiverName}}.gasLimit, {{$ReceiverName}}.gasPrice, input)
+	tx, err = types.SignTx(tx, {{$ReceiverName}}.signer, {{$ReceiverName}}.sk)
+	if err != nil {
+		return nil, err
+	}
+	
+	return tx, nil
+}
+{{end}}
+
+{{range .Contract.Transacts}}
+func ({{$ReceiverName}} *{{$contract.Type}}TxBuilder) Pack{{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ([]byte,error) {
+    input, err := {{$ReceiverName}}.abi.Pack("{{.Original.Name}}",{{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}}{{end}})
+    if err != nil {
+		return nil, err
+	}
+	return input, nil
+}
+func ({{$ReceiverName}} *{{$contract.Type}}TxBuilder) {{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) (*types.Transaction,error) {
+    {{ $inputLen := len .Normalized.Inputs }}
+    {{ $outputLen := len .Normalized.Outputs }}
+    var err error
+	var input []byte
+    input, err = {{$ReceiverName}}.Pack{{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}}{{end}})
+    if err != nil {
+        return nil, err
+    }
+	tx := types.NewTransaction({{$ReceiverName}}.nonce, {{$ReceiverName}}.to, {{$ReceiverName}}.value, {{$ReceiverName}}.gasLimit, {{$ReceiverName}}.gasPrice, input)
+	tx, err = types.SignTx(tx, {{$ReceiverName}}.signer, {{$ReceiverName}}.sk)
+	if err != nil {
+		return nil, err
+	}
+	
+	return tx, nil
+}
+{{end}}
+func ({{$ReceiverName}} *{{$contract.Type}}TxBuilder) ABI() *abi.ABI {
+	return {{$ReceiverName}}.abi
+}
+
 `
