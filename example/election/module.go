@@ -5,10 +5,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/contracts/proxy"
 	"github.com/PlatONnetwork/AppChain-SDK/example/election/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/common/hexutil"
 	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
@@ -24,14 +26,45 @@ const ModuleName = "election"
 
 var ProxyAddress = common.BigToAddress(big.NewInt(101))
 var ElectionAddress = common.BigToAddress(big.NewInt(102))
-var CallerAddress = common.BigToAddress(big.NewInt(103))
+var CallerAddress = common.BigToAddress(big.NewInt(133))
+
+type Nodes []Node
+
+func (ns Nodes) toContractNode() []contracts.Node {
+	var res []contracts.Node
+	for _, n := range ns {
+		res = append(res, contracts.Node{
+			Name:        n.Name,
+			Owner:       n.Owner,
+			Desc:        n.Desc,
+			PublicKey:   n.PublicKey,
+			BlsPubKey:   n.BlsPubKey,
+			HostAddress: n.HostAddress,
+			RpcPort:     n.RpcPort,
+			P2pPort:     n.P2pPort,
+		})
+	}
+	return res
+}
+
+type Node struct {
+	Name        string
+	Owner       common.Address
+	Desc        string
+	PublicKey   hexutil.Bytes
+	BlsPubKey   hexutil.Bytes
+	HostAddress string
+	RpcPort     uint16
+	P2pPort     uint16
+}
 
 type GenesisConfig struct {
 	module.ModuleGenesisConfig
-	InitialNodes     []contracts.Node `json:"initialNodes"`
-	AdminAddress     common.Address   `json:"adminAddress"`
-	ElectionDistance uint64           `json:"electionDistance"`
+	InitialNodes     Nodes          `json:"initialNodes"`
+	AdminAddress     common.Address `json:"adminAddress"`
+	ElectionDistance uint64         `json:"electionDistance"`
 }
+
 type Module struct {
 	chainConfig    *params.ChainConfig
 	nodePrivateKey *ecdsa.PrivateKey
@@ -65,6 +98,9 @@ func (m *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *param
 	if err != nil {
 		return err
 	}
+	if err = proxyCaller.WithCaller(genesis.AdminAddress).WithTo(ProxyAddress).DeployInitializableTransparentUpgradeableProxy(); err != nil {
+		return err
+	}
 	electionCaller, err := contracts.NewElectionGenesisCaller(ctx, db, chainConfig)
 	if err != nil {
 		return err
@@ -72,13 +108,22 @@ func (m *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *param
 	if err = electionCaller.WithCaller(genesis.AdminAddress).WithTo(ElectionAddress).DeployElection(); err != nil {
 		return err
 	}
+	code := db.GetCode(ElectionAddress)
+	fmt.Println(code)
+	//rn, err := electionCaller.Initialize(genesis.InitialNodes.toContractNode(), chainConfig.Cbft.Period, uint64(chainConfig.Cbft.Amount), genesis.ElectionDistance)
+	//if err != nil {
+	//	panic(err)
+	//}
 
-	input, _ := electionCaller.PackInitialize(genesis.InitialNodes, chainConfig.Cbft.Period, uint64(chainConfig.Cbft.Amount), genesis.ElectionDistance)
-
-	if err = proxyCaller.Initialize(ElectionAddress, genesis.AdminAddress, input); err != nil {
+	input, _ := electionCaller.PackInitialize(genesis.InitialNodes.toContractNode(), chainConfig.Cbft.Period, uint64(chainConfig.Cbft.Amount), genesis.ElectionDistance)
+	if err = proxyCaller.WithCaller(genesis.AdminAddress).WithTo(ProxyAddress).Initialize(ElectionAddress, genesis.AdminAddress, input); err != nil {
 		return err
 	}
-
+	//test
+	rn, err := electionCaller.WithCaller(common.BigToAddress(big.NewInt(1111))).WithTo(ProxyAddress).GetCurrentRoundValidator()
+	fmt.Println(rn, err)
+	rn2, err := electionCaller.WithCaller(common.BigToAddress(big.NewInt(1111))).WithTo(ProxyAddress).GetLastRoundValidator()
+	fmt.Println(rn2, err)
 	return nil
 }
 
@@ -103,6 +148,7 @@ func (m *Module) NewHeader(ctx sdk.ConsensusContext, header *types.Header) error
 	}
 	return nil
 }
+
 func (m *Module) GetLastNumber(ctx sdk.ConsensusContext, blockNumber uint64) uint64 {
 	caller, _ := contracts.NewElectionGenesisCaller(ctx, types.NewStateDBWrapper(ctx.ParentStateDB()), m.chainConfig)
 	period, _ := caller.WithCaller(CallerAddress).WithTo(ProxyAddress).Period()
@@ -119,6 +165,7 @@ func (m *Module) GetLastNumber(ctx sdk.ConsensusContext, blockNumber uint64) uin
 	}
 	return blockNumber + (epochOfBlocks - n)
 }
+
 func (m *Module) GetValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error) {
 	caller, _ := contracts.NewElectionGenesisCaller(ctx, types.NewStateDBWrapper(ctx.ParentStateDB()), m.chainConfig)
 	caller = caller.WithCaller(CallerAddress).WithTo(ProxyAddress)
@@ -129,17 +176,12 @@ func (m *Module) GetValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cb
 	vnm := make(cbfttypes.ValidateNodeMap, len(rvn.Nodes))
 	for i, name := range rvn.Nodes {
 		vd, _ := caller.GetByName(name)
-		pubKeyBytes, err := hex.DecodeString(vd.PublicKey)
-		if err != nil {
-			return nil, err
-		}
-
 		var blsKey bls.PublicKey
-		pubKey, err := crypto.UnmarshalPubkey(pubKeyBytes)
+		pubKey, err := crypto.UnmarshalPubkey(vd.PublicKey)
 		if err != nil {
 			return nil, err
 		}
-		err = blsKey.UnmarshalText([]byte(vd.BlsPubKey))
+		err = blsKey.Deserialize(vd.BlsPubKey)
 		if err != nil {
 			return nil, err
 		}
@@ -161,6 +203,7 @@ func (m *Module) GetValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cb
 	}
 	return cvd, nil
 }
+
 func (m *Module) IsCandidateNode(ctx sdk.ConsensusContext, nodeID enode.IDv0) bool {
 	return false
 }
