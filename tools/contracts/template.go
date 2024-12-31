@@ -54,6 +54,7 @@ type tmplUpgradeData struct {
 // tmplData is the data structure required to fill the binding template.
 type tmplData struct {
 	ReceiverName string
+	NoStruct     bool
 	Package      string                 // Name of the package to place the generated file in
 	Contract     *tmplContract          // List of contracts to generate into this file
 	Structs      map[string]*tmplStruct // Contract struct type definitions
@@ -97,6 +98,7 @@ var (
 	versionKey = []byte("__version")
 	createBlockKey = []byte("__createBlock")
 )
+{{if eq .NoStruct false }}
 {{$ReceiverName := .ReceiverName}}
 {{$structs := .Structs}}
 {{range $structs}}
@@ -106,7 +108,7 @@ var (
 	{{$field.Name}} {{$field.Type}}{{end}}
 	}
 {{end}}
-
+{{end}}
 {{$contract := .Contract}}
 var (
     ABI = "{{$contract.InputABI}}"
@@ -857,20 +859,23 @@ import (
 	"strings"
 )
 
-{{$ReceiverName := .ReceiverName}}
-{{$structs := .Structs}}
-{{range $structs}}
-	// {{.Name}} is an auto generated low-level Go binding around an user-defined struct.
-	type {{.Name}} struct {
-	{{range $field := .Fields}}
-	{{$field.Name}} {{$field.Type}}{{end}}
-	}
+{{if eq .NoStruct false }}
+	{{$ReceiverName := .ReceiverName}}
+	{{$structs := .Structs}}
+	{{range $structs}}
+		
+		// {{.Name}} is an auto generated low-level Go binding around an user-defined struct.
+		type {{.Name}} struct {
+		{{range $field := .Fields}}
+		{{$field.Name}} {{$field.Type}}{{end}}
+		}
+	{{end}}
 {{end}}
 
 {{$ReceiverName := .ReceiverName}}
 {{$contract := .Contract}}
 var (
-    {{$contract.Type}}ABI = "{{$contract.InputABI}}"
+    {{$contract.Type}}GenesisABI = "{{$contract.InputABI}}"
 	{{$contract.Type}}Code = "{{$contract.InputBin}}"
 )
 
@@ -884,7 +889,7 @@ type {{$contract.Type}}GenesisCaller struct {
 	caller  common.Address
 }
 func New{{$contract.Type}}GenesisCaller(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig) (*{{$contract.Type}}GenesisCaller, error) {
-	abi, err := abi.JSON(strings.NewReader({{$contract.Type}}ABI))
+	abi, err := abi.JSON(strings.NewReader({{$contract.Type}}GenesisABI))
 	if err != nil {
 		return nil, err
 	}
@@ -926,23 +931,27 @@ func ({{$ReceiverName}} *{{$contract.Type}}GenesisCaller) {{.Normalized.Name}}({
     {{ $outputLen := len .Normalized.Outputs }}
     var err error
 	var input []byte
-	var output []byte
     input, err = {{$ReceiverName}}.Pack{{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}}{{end}})
     if err != nil {
         return {{range $i, $_ := .Normalized.Outputs}}*new({{bindtype .Type $structs}}), {{end}} err
     }
+	{{ $length := len .Normalized.Outputs }}
+    {{if ne $length 0 }}
+	var output []byte
 	output, _, err = evm.Call(vm.AccountRef(c.caller), c.to, input, math.MaxUint64, big.NewInt(0))
     if err != nil {
         return {{range $i, $_ := .Normalized.Outputs}}*new({{bindtype .Type $structs}}), {{end}} err
     }
-
 	out, err := c.abi.Unpack("{{.Original.Name}}", output)
     if err != nil {
         return {{range $i, $_ := .Normalized.Outputs}}*new({{bindtype .Type $structs}}), {{end}} err
     }
+	
 	{{range $i, $t := .Normalized.Outputs}}
 	out{{$i}} := *abi.ConvertType(out[{{$i}}], new({{bindtype .Type $structs}})).(*{{bindtype .Type $structs}}){{end}}
-	
+	{{else}}
+	_, _, err = evm.Call(vm.AccountRef(c.caller), c.to, input, math.MaxUint64, big.NewInt(0))
+	{{end}}
 	return {{range $i, $t := .Normalized.Outputs}}out{{$i}}, {{end}} err
 }
 {{end}}
@@ -1011,6 +1020,7 @@ import (
 	"strings"
 )
 
+{{if eq .NoStruct false }}
 {{$ReceiverName := .ReceiverName}}
 {{$structs := .Structs}}
 {{range $structs}}
@@ -1020,7 +1030,7 @@ import (
 	{{$field.Name}} {{$field.Type}}{{end}}
 	}
 {{end}}
-
+{{end}}
 {{$ReceiverName := .ReceiverName}}
 {{$contract := .Contract}}
 var (

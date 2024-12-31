@@ -9,7 +9,6 @@ import (
 	"go/format"
 	"gopkg.in/urfave/cli.v1"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"text/template"
@@ -19,8 +18,13 @@ import (
 var (
 	ContractCommand = cli.Command{
 		Name: "contract",
-
 		Subcommands: []cli.Command{
+			{
+				Name: "print",
+				Action: func(c *cli.Context) {
+					fmt.Println("struct:", c.Bool(noStructsFlag.Name))
+				},
+			},
 			{
 				Action:    utils.MigrateFlags(contractCreate),
 				Name:      "new",
@@ -34,6 +38,7 @@ var (
 					aliasFlag,
 					receiverNameFlag,
 					filePrefixFlag,
+					noStructsFlag,
 				},
 				Category:           "BLOCKCHAIN COMMANDS",
 				Description:        `Output golang contract`,
@@ -57,6 +62,7 @@ var (
 					newMethodsFlag,
 					newStructsFlag,
 					newEventsFlag,
+					noStructsFlag,
 				},
 				Category:           "BLOCKCHAIN COMMANDS",
 				Description:        `Output golang contract`,
@@ -76,6 +82,7 @@ var (
 					aliasFlag,
 					receiverNameFlag,
 					filePrefixFlag,
+					noStructsFlag,
 				},
 				Category:           "BLOCKCHAIN COMMANDS",
 				Description:        `Output golang contract`,
@@ -95,6 +102,7 @@ var (
 					aliasFlag,
 					receiverNameFlag,
 					filePrefixFlag,
+					noStructsFlag,
 				},
 				Category:           "BLOCKCHAIN COMMANDS",
 				Description:        `Output golang contract`,
@@ -114,6 +122,7 @@ var (
 					aliasFlag,
 					receiverNameFlag,
 					filePrefixFlag,
+					noStructsFlag,
 				},
 				Category:           "BLOCKCHAIN COMMANDS",
 				Description:        `Output golang contract`,
@@ -188,25 +197,32 @@ var (
 		Name:  "new-event",
 		Usage: "New event,comma separated events, e.g. event1,event2",
 	}
+	noStructsFlag = cli.BoolFlag{
+		Name:  "nostruct",
+		Usage: "true:export structures, false: not exported structures",
+	}
 )
 
-func contractUpgrade(ctx *cli.Context) error {
+func initArg(ctx *cli.Context) (abiJson []byte, binFile []byte, aliases map[string]string, types string, filePrefix string, err error) {
 	if ctx.String(pkgFlag.Name) == "" {
 		fmt.Println("No destination package specified (--pkg)")
 		os.Exit(1)
 	}
 	abiFile := ctx.String(abiFlag.Name)
-
-	abiJson, err := os.ReadFile(abiFile)
-	if err != nil {
-		return err
+	if len(abiFile) != 0 {
+		abiJson, err = os.ReadFile(abiFile)
+		if err != nil {
+			return
+		}
 	}
-	version := ctx.Uint64(versionFlag.Name)
-	aliases := make(map[string]string)
-	upgradeMethods := make(map[string]struct{})
-	newMethods := make(map[string]struct{})
-	newEvents := make(map[string]struct{})
-	newStructs := make(map[string]struct{})
+	if len(ctx.String(binFlag.Name)) != 0 {
+		binFile, err = os.ReadFile(ctx.String(binFlag.Name))
+		if err != nil {
+			return
+		}
+	}
+	fmt.Println("binFile:", len(binFile))
+	aliases = make(map[string]string)
 	// Extract all aliases from the flags
 	if ctx.IsSet(aliasFlag.Name) {
 		// We support multi-versions for aliasing
@@ -217,9 +233,49 @@ func contractUpgrade(ctx *cli.Context) error {
 		submatches := re.FindAllStringSubmatch(ctx.String(aliasFlag.Name), -1)
 		for _, match := range submatches {
 			aliases[match[1]] = match[2]
-
 		}
 	}
+	if ctx.IsSet(typeFlag.Name) {
+		types = ctx.String(typeFlag.Name)
+	} else {
+		types = ctx.String(pkgFlag.Name)
+	}
+	filePrefix = strings.ToLower(types)
+	if ctx.IsSet(filePrefixFlag.Name) {
+		filePrefix = ctx.String(filePrefixFlag.Name)
+	}
+	return
+}
+
+func outputFile(outFlag string, files map[string]string) error {
+	if len(outFlag) == 0 {
+		for _, data := range files {
+			fmt.Printf("%s\n", data)
+			fmt.Printf("%s\n", data)
+			fmt.Printf("%s\n", data)
+		}
+	} else {
+		for path, data := range files {
+			if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+				fmt.Printf("Failed to write ABI binding: %v", err)
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func contractUpgrade(ctx *cli.Context) error {
+	abiJson, _, aliases, types, filePrefix, err := initArg(ctx)
+	if ctx.String(pkgFlag.Name) == "" {
+		fmt.Println("No destination package specified (--pkg)")
+		os.Exit(1)
+	}
+	version := ctx.Uint64(versionFlag.Name)
+	upgradeMethods := make(map[string]struct{})
+	newMethods := make(map[string]struct{})
+	newEvents := make(map[string]struct{})
+	newStructs := make(map[string]struct{})
 
 	if ctx.IsSet(upgradeMethodsFlag.Name) {
 		methods := strings.Split(ctx.String(upgradeMethodsFlag.Name), ",")
@@ -251,13 +307,6 @@ func contractUpgrade(ctx *cli.Context) error {
 		}
 	}
 	receiverName := ctx.String(receiverNameFlag.Name)
-
-	var types string
-	if ctx.IsSet(typeFlag.Name) {
-		types = ctx.String(typeFlag.Name)
-	} else {
-		types = ctx.String(pkgFlag.Name)
-	}
 
 	funcs, bindData, err := BindData(string(abiJson), "", types, ctx.String(pkgFlag.Name), aliases)
 	if err != nil {
@@ -311,228 +360,69 @@ func contractUpgrade(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	if !ctx.IsSet(outputFlag.Name) {
-		fmt.Printf("%s\n", upgradeCode)
-		return nil
-	}
-	filePrefix := strings.ToLower(types)
-	if ctx.IsSet(filePrefixFlag.Name) {
-		filePrefix = ctx.String(filePrefixFlag.Name)
-	}
-	if err := os.WriteFile(filepath.Join(ctx.String(outputFlag.Name), filePrefix+fmt.Sprintf("_v%d.go", version)), []byte(upgradeCode), 0600); err != nil {
-		fmt.Printf("Failed to write ABI binding: %v", err)
-		os.Exit(1)
+
+	if err = outputFile(ctx.String(outputFlag.Name), map[string]string{
+		filePrefix + fmt.Sprintf("_v%d.go", version): upgradeCode,
+	}); err != nil {
+		return err
 	}
 	return nil
 }
 
 func contractCreate(ctx *cli.Context) error {
-	if ctx.String(pkgFlag.Name) == "" {
-		fmt.Println("No destination package specified (--pkg)")
-		os.Exit(1)
-	}
-	abiFile := ctx.String(abiFlag.Name)
+	abiJson, _, aliases, types, filePrefix, err := initArg(ctx)
 
-	abiJson, err := os.ReadFile(abiFile)
+	frame, impl, caller, err := Bind(string(abiJson), types, ctx.String(pkgFlag.Name), aliases, ctx.String(receiverNameFlag.Name), ctx.Bool(noStructsFlag.Name))
 	if err != nil {
 		return err
 	}
-	aliases := make(map[string]string)
-	// Extract all aliases from the flags
-	if ctx.IsSet(aliasFlag.Name) {
-		// We support multi-versions for aliasing
-		// e.g.
-		//      foo=bar,foo2=bar2
-		//      foo:bar,foo2:bar2
-		re := regexp.MustCompile(`(?:(\w+)[:=](\w+))`)
-		submatches := re.FindAllStringSubmatch(ctx.String(aliasFlag.Name), -1)
-		for _, match := range submatches {
-			aliases[match[1]] = match[2]
-		}
-	}
-	var types string
-	if ctx.IsSet(typeFlag.Name) {
-		types = ctx.String(typeFlag.Name)
-	} else {
-		types = ctx.String(pkgFlag.Name)
-	}
 
-	frame, impl, caller, err := Bind(string(abiJson), types, ctx.String(pkgFlag.Name), aliases, ctx.String(receiverNameFlag.Name))
-	if err != nil {
+	if err = outputFile(ctx.String(outputFlag.Name), map[string]string{
+		filePrefix + ".go":        frame,
+		filePrefix + "_impl.go":   impl,
+		filePrefix + "_caller.go": caller,
+	}); err != nil {
 		return err
-	}
-	if !ctx.IsSet(outputFlag.Name) {
-		fmt.Printf("%s\n", frame)
-		fmt.Printf("%s\n", impl)
-		fmt.Printf("%s\n", caller)
-		return nil
-	}
-	filePrefix := strings.ToLower(types)
-	if ctx.IsSet(filePrefixFlag.Name) {
-		filePrefix = ctx.String(filePrefixFlag.Name)
-	}
-	if err := os.WriteFile(filepath.Join(ctx.String(outputFlag.Name), filePrefix+".go"), []byte(frame), 0600); err != nil {
-		fmt.Printf("Failed to write ABI binding: %v", err)
-		os.Exit(1)
-	}
-
-	if err := os.WriteFile(filepath.Join(ctx.String(outputFlag.Name), filePrefix+"_impl.go"), []byte(impl), 0600); err != nil {
-		fmt.Printf("Failed to write ABI binding: %v", err)
-		os.Exit(1)
-	}
-
-	if err := os.WriteFile(filepath.Join(ctx.String(outputFlag.Name), filePrefix+"_caller.go"), []byte(caller), 0600); err != nil {
-		fmt.Printf("Failed to write ABI binding: %v", err)
-		os.Exit(1)
 	}
 	return nil
+
 }
 
 func genesisContract(ctx *cli.Context) error {
-	if ctx.String(pkgFlag.Name) == "" {
-		fmt.Println("No destination package specified (--pkg)")
-		os.Exit(1)
-	}
-	abiFile := ctx.String(abiFlag.Name)
+	abiJson, binFile, aliases, types, filePrefix, err := initArg(ctx)
 
-	abiJson, err := os.ReadFile(abiFile)
+	genesis, err := BindGenesis(string(abiJson), string(binFile), types, ctx.String(pkgFlag.Name), aliases, ctx.String(receiverNameFlag.Name), ctx.Bool(noStructsFlag.Name))
 	if err != nil {
 		return err
 	}
-	binFile, err := os.ReadFile(ctx.String(binFlag.Name))
-	if err != nil {
+
+	if err = outputFile(ctx.String(outputFlag.Name), map[string]string{
+		filePrefix + ".go": genesis,
+	}); err != nil {
 		return err
 	}
-	aliases := make(map[string]string)
-	// Extract all aliases from the flags
-	if ctx.IsSet(aliasFlag.Name) {
-		// We support multi-versions for aliasing
-		// e.g.
-		//      foo=bar,foo2=bar2
-		//      foo:bar,foo2:bar2
-		re := regexp.MustCompile(`(?:(\w+)[:=](\w+))`)
-		submatches := re.FindAllStringSubmatch(ctx.String(aliasFlag.Name), -1)
-		for _, match := range submatches {
-			aliases[match[1]] = match[2]
-		}
-	}
-	var types string
-	if ctx.IsSet(typeFlag.Name) {
-		types = ctx.String(typeFlag.Name)
-	} else {
-		types = ctx.String(pkgFlag.Name)
-	}
-
-	genesis, err := BindGenesis(string(abiJson), string(binFile), types, ctx.String(pkgFlag.Name), aliases, ctx.String(receiverNameFlag.Name))
-	if err != nil {
-		return err
-	}
-	if !ctx.IsSet(outputFlag.Name) {
-		fmt.Printf("%s\n", genesis)
-		return nil
-	}
-	filePrefix := strings.ToLower(types)
-	if ctx.IsSet(filePrefixFlag.Name) {
-		filePrefix = ctx.String(filePrefixFlag.Name)
-	}
-	if err := os.WriteFile(filepath.Join(ctx.String(outputFlag.Name), filePrefix+".go"), []byte(genesis), 0600); err != nil {
-		fmt.Printf("Failed to write ABI binding: %v", err)
-		os.Exit(1)
-	}
-
 	return nil
 }
 
 func backendCallContract(ctx *cli.Context) error {
-	if ctx.String(pkgFlag.Name) == "" {
-		fmt.Println("No destination package specified (--pkg)")
-		os.Exit(1)
-	}
-	abiFile := ctx.String(abiFlag.Name)
-
-	abiJson, err := os.ReadFile(abiFile)
+	abiJson, binFile, aliases, types, filePrefix, err := initArg(ctx)
+	genesis, err := BindBackendCall(string(abiJson), string(binFile), types, ctx.String(pkgFlag.Name), aliases, ctx.String(receiverNameFlag.Name), ctx.Bool(noStructsFlag.Name))
 	if err != nil {
 		return err
 	}
-	binFile, err := os.ReadFile(ctx.String(binFlag.Name))
-	if err != nil {
+	if err = outputFile(ctx.String(outputFlag.Name), map[string]string{
+		filePrefix + ".go": genesis,
+	}); err != nil {
 		return err
-	}
-	aliases := make(map[string]string)
-	// Extract all aliases from the flags
-	if ctx.IsSet(aliasFlag.Name) {
-		// We support multi-versions for aliasing
-		// e.g.
-		//      foo=bar,foo2=bar2
-		//      foo:bar,foo2:bar2
-		re := regexp.MustCompile(`(?:(\w+)[:=](\w+))`)
-		submatches := re.FindAllStringSubmatch(ctx.String(aliasFlag.Name), -1)
-		for _, match := range submatches {
-			aliases[match[1]] = match[2]
-		}
-	}
-	var types string
-	if ctx.IsSet(typeFlag.Name) {
-		types = ctx.String(typeFlag.Name)
-	} else {
-		types = ctx.String(pkgFlag.Name)
-	}
-
-	genesis, err := BindBackendCall(string(abiJson), string(binFile), types, ctx.String(pkgFlag.Name), aliases, ctx.String(receiverNameFlag.Name))
-	if err != nil {
-		return err
-	}
-	if !ctx.IsSet(outputFlag.Name) {
-		fmt.Printf("%s\n", genesis)
-		return nil
-	}
-	filePrefix := strings.ToLower(types)
-	if ctx.IsSet(filePrefixFlag.Name) {
-		filePrefix = ctx.String(filePrefixFlag.Name)
-	}
-	if err := os.WriteFile(filepath.Join(ctx.String(outputFlag.Name), filePrefix+".go"), []byte(genesis), 0600); err != nil {
-		fmt.Printf("Failed to write ABI binding: %v", err)
-		os.Exit(1)
 	}
 
 	return nil
 }
 func txBuilderContract(ctx *cli.Context) error {
-	if ctx.String(pkgFlag.Name) == "" {
-		fmt.Println("No destination package specified (--pkg)")
-		os.Exit(1)
-	}
-	abiFile := ctx.String(abiFlag.Name)
 
-	abiJson, err := os.ReadFile(abiFile)
-	if err != nil {
-		return err
-	}
-	binFile, err := os.ReadFile(ctx.String(binFlag.Name))
-	if err != nil {
-		return err
-	}
-	aliases := make(map[string]string)
-	// Extract all aliases from the flags
-	if ctx.IsSet(aliasFlag.Name) {
-		// We support multi-versions for aliasing
-		// e.g.
-		//      foo=bar,foo2=bar2
-		//      foo:bar,foo2:bar2
-		re := regexp.MustCompile(`(?:(\w+)[:=](\w+))`)
-		submatches := re.FindAllStringSubmatch(ctx.String(aliasFlag.Name), -1)
-		for _, match := range submatches {
-			aliases[match[1]] = match[2]
-		}
-	}
-	var types string
-	if ctx.IsSet(typeFlag.Name) {
-		types = ctx.String(typeFlag.Name)
-	} else {
-		types = ctx.String(pkgFlag.Name)
-	}
+	abiJson, binFile, aliases, types, filePrefix, err := initArg(ctx)
 
-	txBuilder, err := BindTxBuilder(string(abiJson), string(binFile), types, ctx.String(pkgFlag.Name), aliases, ctx.String(receiverNameFlag.Name))
+	txBuilder, err := BindTxBuilder(string(abiJson), string(binFile), types, ctx.String(pkgFlag.Name), aliases, ctx.String(receiverNameFlag.Name), ctx.Bool(noStructsFlag.Name))
 	if err != nil {
 		return err
 	}
@@ -540,23 +430,29 @@ func txBuilderContract(ctx *cli.Context) error {
 		fmt.Printf("%s\n", txBuilder)
 		return nil
 	}
-	filePrefix := strings.ToLower(types)
-	if ctx.IsSet(filePrefixFlag.Name) {
-		filePrefix = ctx.String(filePrefixFlag.Name)
-	}
-	if err := os.WriteFile(filepath.Join(ctx.String(outputFlag.Name), filePrefix+".go"), []byte(txBuilder), 0600); err != nil {
-		fmt.Printf("Failed to write ABI binding: %v", err)
-		os.Exit(1)
+	if err = outputFile(ctx.String(outputFlag.Name), map[string]string{
+		filePrefix + ".go": txBuilder,
+	}); err != nil {
+		return err
 	}
 
 	return nil
 }
-func Bind(abiJson string, types string, pkg string, aliases map[string]string, receiverName string) (string, string, string, error) {
-	funcs, data, err := BindData(abiJson, "", types, pkg, aliases)
+func BindArg(abiJson string, bin string, types string, pkg string, aliases map[string]string, receiverName string, nostructs bool) (map[string]interface{}, *tmplData, error) {
+	funcs, data, err := BindData(abiJson, bin, types, pkg, aliases)
+	if err != nil {
+		return nil, nil, err
+	}
+	data.ReceiverName = receiverName
+	data.NoStruct = nostructs
+
+	return funcs, data, nil
+}
+func Bind(abiJson string, types string, pkg string, aliases map[string]string, receiverName string, nostructs bool) (string, string, string, error) {
+	funcs, data, err := BindArg(abiJson, "", types, pkg, aliases, receiverName, nostructs)
 	if err != nil {
 		return "", "", "", err
 	}
-	data.ReceiverName = receiverName
 	frameCode, err := GenerateCode(funcs, data, tmplFrameSource)
 	if err != nil {
 		return "", "", "", err
@@ -572,17 +468,17 @@ func Bind(abiJson string, types string, pkg string, aliases map[string]string, r
 	return frameCode, sourceCode, callerCode, nil
 }
 
-func BindGenesis(abiJson string, bin string, types string, pkg string, aliases map[string]string, receiverName string) (string, error) {
-	funcs, data, err := BindData(abiJson, bin, types, pkg, aliases)
+func BindGenesis(abiJson string, bin string, types string, pkg string, aliases map[string]string, receiverName string, nostructs bool) (string, error) {
+	funcs, data, err := BindArg(abiJson, bin, types, pkg, aliases, receiverName, nostructs)
 	if err != nil {
 		return "", err
 	}
-	data.ReceiverName = receiverName
 	genesisCode, err := GenerateCode(funcs, data, tmplGenesis)
 	return genesisCode, err
 }
-func BindTxBuilder(abiJson string, bin string, types string, pkg string, aliases map[string]string, receiverName string) (string, error) {
-	funcs, data, err := BindData(abiJson, bin, types, pkg, aliases)
+
+func BindTxBuilder(abiJson string, bin string, types string, pkg string, aliases map[string]string, receiverName string, nostructs bool) (string, error) {
+	funcs, data, err := BindArg(abiJson, bin, types, pkg, aliases, receiverName, nostructs)
 	if err != nil {
 		return "", err
 	}
@@ -590,12 +486,11 @@ func BindTxBuilder(abiJson string, bin string, types string, pkg string, aliases
 	genesisCode, err := GenerateCode(funcs, data, tmplTxBuilder)
 	return genesisCode, err
 }
-func BindBackendCall(abiJson string, bin string, types string, pkg string, aliases map[string]string, receiverName string) (string, error) {
-	funcs, data, err := BindData(abiJson, bin, types, pkg, aliases)
+func BindBackendCall(abiJson string, bin string, types string, pkg string, aliases map[string]string, receiverName string, nostructs bool) (string, error) {
+	funcs, data, err := BindArg(abiJson, bin, types, pkg, aliases, receiverName, nostructs)
 	if err != nil {
 		return "", err
 	}
-	data.ReceiverName = receiverName
 	genesisCode, err := GenerateCode(funcs, data, tmplBackendCaller)
 	return genesisCode, err
 }
