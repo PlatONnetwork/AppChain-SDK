@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"crypto/ecdsa"
 	"encoding/hex"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
@@ -13,6 +14,7 @@ import (
 
 type Validator struct {
 	validator *cbfttypes.Validators
+	coinbase  *ecdsa.PrivateKey
 }
 
 func NewValidator(accounts []*Account) (*Validator, error) {
@@ -41,7 +43,9 @@ func NewValidator(accounts []*Account) (*Validator, error) {
 	validators.ValidBlockNumber = 10000000
 	return &Validator{validator: validators}, nil
 }
-
+func (v *Validator) SetCoinbase(coinbase *ecdsa.PrivateKey) {
+	v.coinbase = coinbase
+}
 func (v Validator) Name() string {
 	return "validator"
 }
@@ -51,6 +55,9 @@ func (v Validator) Version() uint64 {
 }
 
 func (v Validator) NewHeader(ctx sdk.ConsensusContext, header *types.Header) error {
+	if v.coinbase != nil {
+		header.Coinbase = crypto.PubkeyToAddress(v.coinbase.PublicKey)
+	}
 	return nil
 }
 

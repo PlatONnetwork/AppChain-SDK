@@ -115,7 +115,7 @@ var DefaultGenesisTemplate = core.Genesis{
 		HubbleBlock:     big.NewInt(0),
 		PauliBlock:      big.NewInt(0),
 		Cbft: &params.CbftConfig{
-			Period:        400,
+			Period:        10000,
 			Amount:        10,
 			InitialNodes:  nil,
 			ValidatorMode: "",
@@ -134,7 +134,7 @@ var DefaultGenesisTemplate = core.Genesis{
 	ParentHash: common.Hash{},
 }
 
-func GenerateGenesis(accounts []*Account, modules map[string]json.RawMessage) ([]byte, error) {
+func GenerateGenesis(accounts []*Account, modules map[string]json.RawMessage, users []common.Address) ([]byte, error) {
 	conf := DefaultGenesisTemplate
 	//init cbft node
 	var cbftNode []params.CbftNode
@@ -167,6 +167,13 @@ func GenerateGenesis(accounts []*Account, modules map[string]json.RawMessage) ([
 		nodeAddr := crypto.PubkeyToAddress(nodePrivate.PublicKey)
 		balance, _ := new(big.Int).SetString("2000000000000000000000000000000000000", 16)
 		alloc[nodeAddr] = core.GenesisAccount{
+			Balance: balance,
+			Nonce:   0,
+		}
+	}
+	for _, ac := range users {
+		balance, _ := new(big.Int).SetString("2000000000000000000000000000000000000", 16)
+		alloc[ac] = core.GenesisAccount{
 			Balance: balance,
 			Nonce:   0,
 		}

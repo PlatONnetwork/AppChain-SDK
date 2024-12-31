@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/PlatONnetwork/PlatON-Go/cmd/utils"
+	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/types"
 	"github.com/PlatONnetwork/PlatON-Go/core"
 	"github.com/PlatONnetwork/PlatON-Go/eth"
@@ -18,10 +19,10 @@ import (
 	"time"
 )
 
-func CreateCluster(accounts []*Account, apps []sdk.App, genesisModule map[string]json.RawMessage) ([]*node.Node, []*eth.Ethereum, error) {
+func CreateCluster(accounts []*Account, apps []sdk.App, genesisModule map[string]json.RawMessage, allocs []common.Address) ([]*node.Node, []*eth.Ethereum, error) {
 	var nodes []*node.Node
 	var backends []*eth.Ethereum
-	genesisJson, _ := GenerateGenesis(accounts, genesisModule)
+	genesisJson, _ := GenerateGenesis(accounts, genesisModule, allocs)
 	for i, acc := range accounts {
 		n, b, err := NewMemoryNode(acc, string(genesisJson), apps[i])
 		if err != nil {
@@ -92,7 +93,7 @@ func getEthConfig(acc *Account) *ethconfig.Config {
 			MaxPingLatency:    0,
 			MaxQueuesLimit:    0,
 			BlacklistDeadline: 0,
-			Period:            40,
+			Period:            400,
 			Amount:            10,
 		},
 		DatabaseCache:           768,
