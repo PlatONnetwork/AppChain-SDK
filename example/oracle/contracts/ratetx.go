@@ -36,7 +36,7 @@ func NewRateTxBuilder(to common.Address, sk *ecdsa.PrivateKey, chainId *big.Int)
 		sk:       sk,
 		chainId:  chainId,
 		signer:   types.NewEIP155Signer(chainId),
-		gasLimit: 1000000,
+		gasLimit: 5000000,
 		gasPrice: big.NewInt(0),
 		to:       to,
 	}, nil
