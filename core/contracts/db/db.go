@@ -43,9 +43,12 @@ func SetState(store *Store, key any, value any) error {
 	if err != nil {
 		return nil
 	}
-	valBuf, err := store.ValueEncoder.EncodeValue(value)
-	if err != nil {
-		return err
+	var valBuf []byte
+	if !reflect.ValueOf(value).IsNil() {
+		valBuf, err = store.ValueEncoder.EncodeValue(value)
+		if err != nil {
+			return err
+		}
 	}
 	store.StateDB.SetState(store.Address, keyBuf, valBuf)
 	return nil
