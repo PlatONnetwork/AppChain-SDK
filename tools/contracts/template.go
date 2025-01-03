@@ -98,9 +98,10 @@ var (
 	versionKey = []byte("__version")
 	createBlockKey = []byte("__createBlock")
 )
-{{if eq .NoStruct false }}
+
 {{$ReceiverName := .ReceiverName}}
 {{$structs := .Structs}}
+{{if eq .NoStruct false }}
 {{range $structs}}
 	// {{.Name}} is an auto generated low-level Go binding around an user-defined struct.
 	type {{.Name}} struct {
@@ -179,6 +180,12 @@ func ({{$ReceiverName}} *{{$contract.Type}}) loadMethodABI() error {
 	{{$ReceiverName}}.abi = abi
 	return nil
 }
+
+func ({{$ReceiverName}} *{{$contract.Type}}) InitGenesis(blockNumber uint64) {
+	{{$ReceiverName}}.stateDb.SetNonce({{$ReceiverName}}.contract.Address(), 1)
+	{{$ReceiverName}}.SetCreateBlock(blockNumber)
+}
+
 func ({{$ReceiverName}} *{{$contract.Type}}) SetCreateBlock(blockNumber uint64) {
 	var data [8]byte
 	binary.BigEndian.PutUint64(data[:], blockNumber)
@@ -576,6 +583,8 @@ import (
 
 // Reference imports to suppress errors if they are not otherwise used.
 var (
+	_ = hex.ErrLength
+	_ = contracts.Context{}
     _ = vm.EVM{}
 	_ = errors.New
 	_ = big.NewInt
@@ -590,7 +599,7 @@ var (
 {{$contract := .Contract}}
 var (
     ABIV{{.Version}} = "{{$contract.InputABI}}"
-    AbiV{{.Version}}, _ = abi.JSON(strings.NewReader(ABI{{.Version}}))
+    AbiV{{.Version}}, _ = abi.JSON(strings.NewReader(ABIV{{.Version}}))
 )
 
 {{$structs := .Structs}}
@@ -692,7 +701,7 @@ func ({{$ReceiverName}} *{{$contract.Type}}) {{.Normalized.Name}}({{range $i, $_
 {{end}}
 {{range .Contract.Events}}
     {{ $length := len .Normalized.Inputs }}
-        func ({{$ReceiverName}} *{{$contract.Type}})Emit{{.Normalized.Name}}Event({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}} {{bindtype .Type $structs}}{{end}}) (*types.Log, error){
+        func ({{$ReceiverName}} *{{$contract.Type}}){{.Normalized.Name}}Event({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}} {{bindtype .Type $structs}}{{end}}) (*types.Log, error){
         event := {{$ReceiverName}}.abi.Events["{{.Normalized.Name}}"]
         hashes, err := contracts.PackEventTopics(event.ID, event.Inputs {{range $i, $_ := .Normalized.Inputs}},{{.Name}}{{end}})
         if err != nil {
@@ -709,6 +718,11 @@ func ({{$ReceiverName}} *{{$contract.Type}}) {{.Normalized.Name}}({{range $i, $_
             BlockNumber: {{$ReceiverName}}.evm.Context.BlockNumber.Uint64(),
         }, nil
         }
+		func ({{$ReceiverName}} *{{$contract.Type}})Emit{{.Normalized.Name}}Event({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}} {{bindtype .Type $structs}}{{end}}){
+			log, err := {{$ReceiverName}}.{{.Normalized.Name}}Event({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}}{{.Name}}{{end}})
+			contracts.Require(err == nil, "{{$contract.Type}}: emit {{.Normalized.Name}} event failed")
+			{{$ReceiverName}}.stateDb.AddLog(log)
+		}
 {{end}}
 `
 
@@ -1005,6 +1019,10 @@ func ({{$ReceiverName}} *{{$contract.Type}}GenesisCaller) WithCaller(caller comm
 
 func ({{$ReceiverName}} *{{$contract.Type}}GenesisCaller) WithTo(to common.Address) *{{$contract.Type}}GenesisCaller {
 	{{$ReceiverName}}.to = to
+	return {{$ReceiverName}}
+}
+func ({{$ReceiverName}} *{{$contract.Type}}GenesisCaller) WithEvmFunc(evmFunc func(address common.Address) *vm.EVM) *{{$contract.Type}}GenesisCaller {
+	{{$ReceiverName}}.evmFunc = evmFunc
 	return {{$ReceiverName}}
 }
 `

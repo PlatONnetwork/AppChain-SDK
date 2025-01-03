@@ -221,7 +221,6 @@ func initArg(ctx *cli.Context) (abiJson []byte, binFile []byte, aliases map[stri
 			return
 		}
 	}
-	fmt.Println("binFile:", len(binFile))
 	aliases = make(map[string]string)
 	// Extract all aliases from the flags
 	if ctx.IsSet(aliasFlag.Name) {
@@ -267,6 +266,10 @@ func outputFile(outFlag string, files map[string]string) error {
 
 func contractUpgrade(ctx *cli.Context) error {
 	abiJson, _, aliases, types, filePrefix, err := initArg(ctx)
+	if err != nil {
+		fmt.Println("init arg failed:", err.Error())
+		return err
+	}
 	if ctx.String(pkgFlag.Name) == "" {
 		fmt.Println("No destination package specified (--pkg)")
 		os.Exit(1)
@@ -371,7 +374,10 @@ func contractUpgrade(ctx *cli.Context) error {
 
 func contractCreate(ctx *cli.Context) error {
 	abiJson, _, aliases, types, filePrefix, err := initArg(ctx)
-
+	if err != nil {
+		fmt.Println("init arg failed:", err.Error())
+		return err
+	}
 	frame, impl, caller, err := Bind(string(abiJson), types, ctx.String(pkgFlag.Name), aliases, ctx.String(receiverNameFlag.Name), ctx.Bool(noStructsFlag.Name))
 	if err != nil {
 		return err
@@ -390,7 +396,10 @@ func contractCreate(ctx *cli.Context) error {
 
 func genesisContract(ctx *cli.Context) error {
 	abiJson, binFile, aliases, types, filePrefix, err := initArg(ctx)
-
+	if err != nil {
+		fmt.Println("init arg failed:", err.Error())
+		return err
+	}
 	genesis, err := BindGenesis(string(abiJson), string(binFile), types, ctx.String(pkgFlag.Name), aliases, ctx.String(receiverNameFlag.Name), ctx.Bool(noStructsFlag.Name))
 	if err != nil {
 		return err
@@ -406,6 +415,10 @@ func genesisContract(ctx *cli.Context) error {
 
 func backendCallContract(ctx *cli.Context) error {
 	abiJson, binFile, aliases, types, filePrefix, err := initArg(ctx)
+	if err != nil {
+		fmt.Println("init arg failed:", err.Error())
+		return err
+	}
 	genesis, err := BindBackendCall(string(abiJson), string(binFile), types, ctx.String(pkgFlag.Name), aliases, ctx.String(receiverNameFlag.Name), ctx.Bool(noStructsFlag.Name))
 	if err != nil {
 		return err
@@ -421,7 +434,10 @@ func backendCallContract(ctx *cli.Context) error {
 func txBuilderContract(ctx *cli.Context) error {
 
 	abiJson, binFile, aliases, types, filePrefix, err := initArg(ctx)
-
+	if err != nil {
+		fmt.Println("init arg failed:", err.Error())
+		return err
+	}
 	txBuilder, err := BindTxBuilder(string(abiJson), string(binFile), types, ctx.String(pkgFlag.Name), aliases, ctx.String(receiverNameFlag.Name), ctx.Bool(noStructsFlag.Name))
 	if err != nil {
 		return err
