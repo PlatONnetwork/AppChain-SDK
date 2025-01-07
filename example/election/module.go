@@ -62,6 +62,7 @@ type GenesisConfig struct {
 	module.ModuleGenesisConfig
 	InitialNodes     Nodes          `json:"initialNodes"`
 	AdminAddress     common.Address `json:"adminAddress"`
+	EpochSize        uint64         `json:"epochSize"`
 	ElectionDistance uint64         `json:"electionDistance"`
 }
 
@@ -115,7 +116,7 @@ func (m *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *param
 	//	panic(err)
 	//}
 
-	input, _ := electionCaller.PackInitialize(genesis.InitialNodes.toContractNode(), chainConfig.Cbft.Period, uint64(chainConfig.Cbft.Amount), genesis.ElectionDistance)
+	input, _ := electionCaller.PackInitialize(genesis.InitialNodes.toContractNode(), genesis.EpochSize, genesis.ElectionDistance)
 	if err = proxyCaller.WithCaller(genesis.AdminAddress).WithTo(ProxyAddress).Initialize(ElectionAddress, genesis.AdminAddress, input); err != nil {
 		return err
 	}
@@ -151,9 +152,7 @@ func (m *Module) NewHeader(ctx sdk.ConsensusContext, header *types.Header) error
 
 func (m *Module) GetLastNumber(ctx sdk.ConsensusContext, blockNumber uint64) uint64 {
 	caller, _ := contracts.NewElectionGenesisCaller(ctx, types.NewStateDBWrapper(ctx.ParentStateDB()), m.chainConfig)
-	period, _ := caller.WithCaller(CallerAddress).WithTo(ProxyAddress).Period()
-	amount, _ := caller.WithCaller(CallerAddress).WithTo(ProxyAddress).Amount()
-	epochOfBlocks := amount * period
+	epochOfBlocks, _ := caller.WithCaller(CallerAddress).WithTo(ProxyAddress).EpochSize()
 
 	if blockNumber == 0 {
 		return epochOfBlocks

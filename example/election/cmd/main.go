@@ -57,6 +57,7 @@ func Server(ctx *cli.Context) error {
 			},
 		},
 		AdminAddress:     common2.UserAddrs[0],
+		EpochSize:        250,
 		ElectionDistance: 20,
 	}
 	s, _ := json.Marshal(config)

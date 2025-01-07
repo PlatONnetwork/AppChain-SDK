@@ -103,6 +103,13 @@ func (c *Node) loadMethodABI() error {
 	c.abi = abi
 	return nil
 }
+
+func (c *Node) InitGenesis(blockNumber uint64) {
+	c.stateDb.SetNonce(c.contract.Address(), 1)
+	c.SetCreateBlock(blockNumber)
+	c.stateDb.SetCode(c.contract.Address(), []byte("code"))
+}
+
 func (c *Node) SetCreateBlock(blockNumber uint64) {
 	var data [8]byte
 	binary.BigEndian.PutUint64(data[:], blockNumber)

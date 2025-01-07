@@ -103,6 +103,11 @@ func (c *BlsVerify) loadMethodABI() error {
 	c.abi = abi
 	return nil
 }
+func (c *BlsVerify) InitGenesis(blockNumber uint64) {
+	c.stateDb.SetNonce(c.contract.Address(), 1)
+	c.SetCreateBlock(blockNumber)
+}
+
 func (c *BlsVerify) SetCreateBlock(blockNumber uint64) {
 	var data [8]byte
 	binary.BigEndian.PutUint64(data[:], blockNumber)

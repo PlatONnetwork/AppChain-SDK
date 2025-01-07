@@ -1,6 +1,7 @@
 package contracts
 
 import (
+	"fmt"
 	vm2 "github.com/PlatONnetwork/AppChain-SDK/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi"
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -287,8 +288,11 @@ func (c *RateGenesisCaller) Update(newRate *big.Int, qc QuorumCert, bitmap []byt
 		return err
 	}
 
-	_, _, err = evm.Call(vm.AccountRef(c.caller), c.to, input, math.MaxUint64, big.NewInt(0))
-
+	out, _, err := evm.Call(vm.AccountRef(c.caller), c.to, input, math.MaxUint64, big.NewInt(0))
+	if err != nil {
+		res := string(out)
+		fmt.Println(res)
+	}
 	return err
 }
 
@@ -303,4 +307,8 @@ func (c *RateGenesisCaller) WithCaller(caller common.Address) *RateGenesisCaller
 func (c *RateGenesisCaller) WithTo(to common.Address) *RateGenesisCaller {
 	c.to = to
 	return c
+}
+
+func (c *RateGenesisCaller) WithEvmFunc(evmFunc func(address common.Address) *vm.EVM) {
+	c.evmFunc = evmFunc
 }

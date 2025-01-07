@@ -28,7 +28,7 @@ func (m *Module) SetExtraVote(extraVote *extravote.ExtraVote) {
 }
 func (m *Module) RegistryUpgradeHandler(registrar module.UpgradeRegistrar) error {
 	registrar.RegisterUpgradeHandler(oracle.ModuleName, 0, func(ctx sdk.WorkerContext) error {
-		og, _ := json.Marshal(oracle.GenesisConfig{Decimals: 3})
+		og, _ := json.Marshal(oracle.GenesisConfig{Decimals: 3, BlockNumber: ctx.Header().Number.Uint64()})
 
 		if err := m.InitGenesis(ctx, ctx.StateDB(), ctx.Backend().ChainConfig(), og); err != nil {
 			return err

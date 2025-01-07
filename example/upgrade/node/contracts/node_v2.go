@@ -32,7 +32,7 @@ var (
 )
 
 var (
-	ABIV2    = "[{\"type\":\"function\",\"name\":\"addNode\",\"inputs\":[{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"host\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"port\",\"type\":\"uint16\",\"internalType\":\"uint16\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"getNode\",\"inputs\":[{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structNodeInfo\",\"components\":[{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"host\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"port\",\"type\":\"uint16\",\"internalType\":\"uint16\"}]}],\"stateMutability\":\"nonpayable\"}]"
+	ABIV2    = "[{\"type\":\"function\",\"name\":\"addNode\",\"inputs\":[{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"host\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"port\",\"type\":\"uint16\",\"internalType\":\"uint16\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"getNode\",\"inputs\":[{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structNodeInfo\",\"components\":[{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"host\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"port\",\"type\":\"uint16\",\"internalType\":\"uint16\"}]}],\"stateMutability\":\"view\"}]"
 	AbiV2, _ = abi.JSON(strings.NewReader(ABIV2))
 )
 
@@ -86,14 +86,13 @@ func (c *Node) GetNodeEntry(input []byte) ([]byte, error) {
 	return output, err
 }
 func (c *Node) GetNode(name string) (NodeInfo, error) {
-	var res NodeInfo
-	info := c.storage.Nodes.MustGet(name)
-	if info != nil {
-		res = NodeInfo{
+	var nodeInfo NodeInfo
+	if node := c.storage.Nodes.MustGet(name); node != nil {
+		nodeInfo = NodeInfo{
 			Name: name,
-			Host: info.Host,
-			Port: info.port,
+			Host: node.Host,
+			Port: node.port,
 		}
 	}
-	return res, nil
+	return nodeInfo, nil
 }

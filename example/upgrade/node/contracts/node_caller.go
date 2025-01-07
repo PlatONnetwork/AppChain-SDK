@@ -17,6 +17,7 @@ import (
 
 // Reference imports to suppress errors if they are not otherwise used.
 var (
+	_ = abi.ABI{}
 	_ = typesdk.RevertError{}
 	_ = vm.EVM{}
 	_ = errors.New

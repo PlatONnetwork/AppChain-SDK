@@ -3,7 +3,7 @@ package node
 import (
 	"encoding/json"
 	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
-	contracts "github.com/PlatONnetwork/AppChain-SDK/example/upgrade/node/contracts"
+	"github.com/PlatONnetwork/AppChain-SDK/example/upgrade/node/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -40,7 +40,6 @@ func (m *Module) Version() uint64 {
 	return ModuleVersion
 }
 func (m *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
-	db.SetNonce(NodeAddress, 1)
 	return nil
 }
 
@@ -64,7 +63,7 @@ func (m *Module) RegistryUpgradeHandler(registrar module.UpgradeRegistrar) error
 		}
 
 		c, _ := contracts.NewNode(sdkcontracts.NewEVM(ctx.StateDB(), ctx.Header().Number), sdkcontracts.NewContract(m, m), false)
-		c.SetCreateBlock(ctx.Header().Number.Uint64())
+		c.InitGenesis(ctx.Header().Number.Uint64())
 		m.logger.Info("Run upgrade handler success")
 		return nil
 	})

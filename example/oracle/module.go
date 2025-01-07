@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/example/election"
 	contracts2 "github.com/PlatONnetwork/AppChain-SDK/example/election/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/example/oracle/contracts"
@@ -19,6 +20,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
+	"math"
 	"math/big"
 	"sync"
 )
@@ -33,7 +35,8 @@ var (
 )
 
 type GenesisConfig struct {
-	Decimals uint8 `json:"decimals,omitempty"`
+	Decimals    uint8  `json:"decimals,omitempty"`
+	BlockNumber uint64 `json:"blockNumber,omitempty"`
 }
 
 type Module struct {
@@ -65,6 +68,7 @@ func (m *Module) Name() string {
 func (m *Module) Version() uint64 {
 	return ModuleVersion
 }
+
 func (m *Module) Address() common.Address {
 	return BlsVerifyAddr
 }
@@ -74,8 +78,10 @@ func (m *Module) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly 
 	return verify.Run(input)
 }
 func (m *Module) ContractCreateBlockNumber(statedb vm.StateDBReader) uint64 {
-	return 0
+	c, _ := contracts.NewBlsVerify(sdkcontracts.NewEVM(types.NewStateDBWrapper(statedb), big.NewInt(0)), sdkcontracts.NewContract(m, m), false)
+	return c.GetCreateBlock()
 }
+
 func (m *Module) Init(ctx sdk.InitContext) error {
 	m.chainConfig = ctx.Backend().ChainConfig()
 	var err error
@@ -96,20 +102,15 @@ func (m *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *param
 		return err
 	}
 	caller2, _ := contracts.NewRateGenesisCaller(ctx, db, chainConfig)
-	fmt.Println(BlsVerifyAddr.Hex())
 	err := caller2.WithCaller(CallerAddress).WithTo(RateAddr).DeployRate(BlsVerifyAddr, genesis.Decimals)
 	if err != nil {
 		return err
 	}
-	fmt.Println("election:", election.ProxyAddress.Hex())
-	decimal, _ := caller2.Decimals()
-	fmt.Println("decimal:", decimal)
-	xx, err := caller2.GetLastRoundValidator()
-	fmt.Println("xx:", xx)
-	rns, _ := caller2.GetCurrentRoundValidator()
-	fmt.Println("rns:", rns.Nodes)
-	names, _ := caller2.FindNodes(big.NewInt(0))
-	fmt.Println("names:", names)
+	evm := vm.NewEVM(vm.BlockContext{GasLimit: math.MaxUint64, BlockNumber: big.NewInt(0)}, vm.TxContext{}, db, chainConfig, vm.Config{}, nil)
+
+	gov, _ := contracts.NewBlsVerify(evm, sdkcontracts.NewContract(m, m), false)
+
+	gov.InitGenesis(genesis.BlockNumber)
 
 	return nil
 }

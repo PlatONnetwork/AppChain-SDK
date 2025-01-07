@@ -73,7 +73,13 @@ func NewNode(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*Node, error) {
 		Nodes: container.NewMap[*Info](nodeKey, contract.Address(), s.stateDb),
 	}
 	s.initABI()
+	s.initABIV1()
+	s.initABIV2()
+	s.initABIV3()
 	s.initMethodEntry()
+	s.initMethodV1Entry()
+	s.initMethodV2Entry()
+	s.initMethodV3Entry()
 	s.loadMethodABI()
 	return s, nil
 }
