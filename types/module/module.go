@@ -158,8 +158,7 @@ type RegistryModule interface {
 }
 
 type Manager struct {
-	Modules map[string]Module
-
+	Modules             map[string]Module
 	ConsensusExtend     string
 	Election            string
 	Worker              string
@@ -174,6 +173,7 @@ type Manager struct {
 
 	moduleValidChecker ModuleValidChecker
 	initValidNumberMap ValidNumberMap
+	checkForgotten     bool
 }
 
 func NewManager(modules ...Module) *Manager {
@@ -613,7 +613,14 @@ func (m *Manager) IsContractModule(moduleName string) bool {
 	return yesOrNo
 }
 
+func (m *Manager) SetCheckForgotten(check bool) {
+	m.checkForgotten = check
+}
+
 func (m *Manager) assertNoForgottenModules(setOrderFnName string, moduleNames []string, pass func(moduleName string) bool) {
+	if !m.checkForgotten {
+		return
+	}
 	ms := make(map[string]bool)
 	for _, m := range moduleNames {
 		ms[m] = true
