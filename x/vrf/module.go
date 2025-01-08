@@ -87,12 +87,11 @@ func (v *VRFModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *pa
 	} else {
 		configParams = &conf
 	}
-	// init vrf manager  account nonce
-	initAccountNonce(db, v.Address())
+
 	initGenesisVRFNonce(db, v.Address(), chainConfig, configParams)
 
 	vrf, _ := contracts.NewVRFManager(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(v, v), false)
-	vrf.SetCreateBlock(conf.CreateBlock)
+	vrf.InitGenesis(conf.CreateBlock)
 
 	log.Info("Succeed init genesis", "module", v.Name(), "createBlock", configParams.CreateBlock, "VRFNetworkParams", configParams.String())
 	return nil

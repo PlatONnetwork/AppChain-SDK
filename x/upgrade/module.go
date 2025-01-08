@@ -78,7 +78,6 @@ func (m *Module) Version() uint64 {
 }
 
 func (m *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
-	db.SetNonce(m.Address(), 1)
 
 	var config types.GenesisConfig
 	raw, err := data.MarshalJSON()
@@ -92,17 +91,18 @@ func (m *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *param
 	}
 	upgrade, _ := contracts.NewUpgrade(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(m, m), false)
 	upgrade.SetOwner(config.Owner)
-	upgrade.SetCreateBlock(config.CreateBlock)
+	upgrade.InitGenesis(config.CreateBlock)
 	m.logger.Info("Init genesis", "owner", config.Owner, "createBlock", config.CreateBlock)
 
-	vm, err := module.GetVersionMapFromGenesis(chainConfig.Modules)
-	if err != nil {
-		m.logger.Error("Failed to get version map from genesis config", "err", err)
-		return err
-	}
+	vn, vm := m.GetModuleInitValidNumberMap(chainConfig, db)
+
 	buf, _ := json.Marshal(&vm)
 	m.logger.Info("Set version map to local storage", "vm", string(buf))
-	return m.kv.SetVersionMap(vm)
+	m.kv.SetVersionMap(vm)
+	if err := upgrade.SetModuleValidNumberMap(vn); err != nil {
+		return err
+	}
+	return upgrade.SetModuleVersionMap(vm)
 }
 
 func (m *Module) Address() common.Address {
@@ -255,4 +255,20 @@ func (m *Module) IsModuleValid(db sdk.StateDBReader, moduleName string, blockNum
 		return blockNumber >= validNumber
 	}
 	return false
+}
+
+func (m *Module) GetModuleInitValidNumberMap(chainConfig *params.ChainConfig, db sdk.StateDBReader) (module.ValidNumberMap, module.VersionMap) {
+	vn := make(module.ValidNumberMap)
+	vm := make(module.VersionMap)
+	for name, data := range chainConfig.Modules {
+
+		vn[name] = 0
+		var gen types.GenesisConfig
+		json.Unmarshal(data, &gen)
+		if m.isContractModule(name) {
+			vn[name] = gen.CreateBlock
+		}
+		vm[name] = gen.Version
+	}
+	return vn, vm
 }

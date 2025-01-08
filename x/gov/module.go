@@ -96,7 +96,7 @@ func (g *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *param
 
 	gov, _ := contracts2.NewGovernance(evm, sdkcontracts.NewContract(g, g), false)
 	gov.Init(params.Name, params.Version, params.VoteDelay, params.VotePeriod, params.QuorumNumerator, params.ProposalThreshold, params.Owner, params.VoteToken)
-	gov.SetCreateBlock(params.CreateBlock)
+	gov.InitGenesis(params.CreateBlock)
 	return nil
 }
 

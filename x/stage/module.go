@@ -3,6 +3,9 @@ package stage
 import (
 	"encoding/json"
 	"fmt"
+	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
+	contracts2 "github.com/PlatONnetwork/AppChain-SDK/x/stage/contracts"
+	"math/big"
 
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
@@ -58,8 +61,8 @@ func (s *StageModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *
 		configParams = &conf
 	}
 
-	// init stage manager account nonce
-	initAccountNonce(db, s.Address())
+	stage, _ := contracts2.NewStageManager(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(s, s), false)
+	stage.InitGenesis(0)
 	// set config params
 	initConfigParams(db, s.Address(), configParams)
 

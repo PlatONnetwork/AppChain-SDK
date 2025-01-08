@@ -43,9 +43,6 @@ func (s *StateSenderModule) Version() uint64 {
 }
 
 func (s *StateSenderModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
-	// init l2 state sender  account nonce
-	initAccountNonce(db, s.Address())
-
 	raw, err := data.MarshalJSON()
 	if err != nil {
 		return err
@@ -56,7 +53,7 @@ func (s *StateSenderModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainCo
 	}
 
 	stateSender, _ := contracts.NewL2StateSender(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(s, s), false)
-	stateSender.SetCreateBlock(config.CreateBlock)
+	stateSender.InitGenesis(config.CreateBlock)
 
 	return nil
 }

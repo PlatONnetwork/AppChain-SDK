@@ -13,10 +13,6 @@ import (
 	"math/big"
 )
 
-func initAccountNonce(statedb sdk.StateDB, addr common.Address) {
-	statedb.SetNonce(addr, 1)
-}
-
 func initStakeConfigParams(statedb sdk.StateDB, addr common.Address, configParams *config.StakeNetworkParams) {
 
 	statedb.SetState(addr, stakingdb.EncodeStakeWithdrawalWaitPeriodKey(), common.Uint64ToBytes(configParams.StakeWithdrawalWaitPeriod))

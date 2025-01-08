@@ -2,6 +2,7 @@ package extravote
 
 import (
 	"errors"
+	"sync"
 
 	"github.com/PlatONnetwork/AppChain-SDK/merkle"
 	"github.com/PlatONnetwork/AppChain-SDK/store"
@@ -28,13 +29,15 @@ type ExtraVerifier interface {
 
 // TODO 处理扩展投票，对每个子模块进行扩展，生成投票 Merkle 证明
 type ExtraVote struct {
+	sync.Mutex
 	modules []ExtraVerifier
+	enables map[string]struct{}
 	db      *ExtraVoteDB
 }
 
 func NewExtraVote(store store.Store, ms []ExtraVerifier) *ExtraVote {
 	db := NewExtraVoteDB(store)
-	return &ExtraVote{modules: ms, db: db}
+	return &ExtraVote{modules: ms, db: db, enables: make(map[string]struct{})}
 }
 
 func (e *ExtraVote) Name() string {
@@ -45,17 +48,31 @@ func (e *ExtraVote) Version() uint64 {
 	return ModuleVersion
 }
 
+func (e *ExtraVote) AddEnableVerifiers(names ...string) {
+	e.Lock()
+	defer e.Unlock()
+	for _, n := range names {
+		e.enables[n] = struct{}{}
+	}
+}
+
 func (e *ExtraVote) ExtendData(ctx sdk.ConsensusContext) []byte {
+	e.Lock()
+	defer e.Unlock()
 	data := make([][]byte, len(e.modules))
 	for i, m := range e.modules {
-		data[i] = m.ExtendData(ctx)
-		log.Info("Extend data for module", "module", m.Name(), "data", len(data[i]))
+		if _, ok := e.enables[m.Name()]; ok {
+			data[i] = m.ExtendData(ctx)
+			log.Info("Extend data for module", "module", m.Name(), "data", len(data[i]))
+		}
 	}
 	extraData, _ := rlp.EncodeToBytes(data)
 	return extraData
 }
 
 func (e *ExtraVote) VerifyExtendData(ctx sdk.ConsensusContext, data []byte) (common.Hash, error) {
+	e.Lock()
+	defer e.Unlock()
 	cc := ctx.(sdk.ConsensusContext)
 
 	var extraData [][]byte
@@ -67,10 +84,12 @@ func (e *ExtraVote) VerifyExtendData(ctx sdk.ConsensusContext, data []byte) (com
 		return common.Hash{}, errors.New("invalid extra data length")
 	}
 	for i, m := range e.modules {
-		err := m.VerifyExtendData(ctx, extraData[i])
-		if err != nil {
-			log.Error("Failed to verify extend data", "i", i, "module", m.Name(), "err", err)
-			return common.Hash{}, err
+		if _, ok := e.enables[m.Name()]; ok {
+			err := m.VerifyExtendData(ctx, extraData[i])
+			if err != nil {
+				log.Error("Failed to verify extend data", "i", i, "module", m.Name(), "err", err)
+				return common.Hash{}, err
+			}
 		}
 	}
 	trie, err := merkle.NewMerkleTree(extraData)

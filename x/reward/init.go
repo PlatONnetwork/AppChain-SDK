@@ -8,10 +8,6 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 )
 
-func initAccountNonce(statedb sdk.StateDB, addr common.Address) {
-	statedb.SetNonce(addr, 1)
-}
-
 func initConfigParams(statedb sdk.StateDB, addr common.Address, params *config.RewardNetworkParams) {
 	statedb.SetState(addr, rewarddb.EncodeRewardPerBlock(), params.RewardPerBlock.Bytes())
 	statedb.SetState(addr, rewarddb.EncodeRewardPerEpoch(), params.RewardPerEpoch.Bytes())

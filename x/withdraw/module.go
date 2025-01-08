@@ -43,9 +43,6 @@ func (w *WithdrawModule) Version() uint64 {
 }
 
 func (w *WithdrawModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
-	// init withdraw manager  account nonce
-	initAccountNonce(db, w.Address())
-
 	raw, err := data.MarshalJSON()
 	if err != nil {
 		return err
@@ -56,7 +53,7 @@ func (w *WithdrawModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfi
 	}
 
 	withdraw, _ := contracts.NewWithdrawManager(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(w, w), false)
-	withdraw.SetCreateBlock(config.CreateBlock)
+	withdraw.InitGenesis(config.CreateBlock)
 
 	return nil
 }

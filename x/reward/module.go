@@ -77,13 +77,11 @@ func (r *RewardModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig 
 	} else {
 		configParams = &conf
 	}
-	// init reward manager account nonce
-	initAccountNonce(db, r.Address())
 	// set config params
 	initConfigParams(db, r.Address(), configParams)
 
 	rewardContrct, _ := contracts.NewRewardManager(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(r, r), false)
-	rewardContrct.SetCreateBlock(conf.CreateBlock)
+	rewardContrct.InitGenesis(conf.CreateBlock)
 	log.Info("Succeed init genesis", "module", r.Name(), "RewardNetworkParams", configParams.String())
 	return nil
 }
@@ -228,9 +226,9 @@ func (r *RewardModule) handleEpochReward(stateDB sdk.StateDB, blockNumber uint64
 				r.stakeModule.GetValidatorStakeEpoch(stateDB, validatorAddr), currentEpoch,
 				realDelegateEpochReward, perShareDelegatorEpochReward); nil != err {
 
-					r.logger.Error("Set epoch  delegation reward for per share", "currentEpoch", currentEpoch, "error", err)
-					return err
-				}
+				r.logger.Error("Set epoch  delegation reward for per share", "currentEpoch", currentEpoch, "error", err)
+				return err
+			}
 		}
 		realValidatorEpochReward = new(big.Int).Sub(perValidatorEpochReward, realDelegateEpochReward)
 

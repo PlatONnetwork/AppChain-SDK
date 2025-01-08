@@ -61,7 +61,6 @@ func (m *Module) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly 
 }
 
 func (g *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, raw json.RawMessage) error {
-	db.SetNonce(constants.VoteTokenAddress, 1)
 	var params GenesisParams
 	if err := json.Unmarshal(raw, &params); nil != err {
 		log.Error("Failed UnmarshalJSON params", "error", err)
@@ -70,6 +69,6 @@ func (g *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *param
 	evm := vm.NewEVM(vm.BlockContext{GasLimit: math.MaxUint64, BlockNumber: big.NewInt(0)}, vm.TxContext{}, db, chainConfig, vm.Config{}, nil)
 	vote, _ := erc20vote.NewERC20Vote(evm, sdkcontracts.NewContract(g, g), false)
 	vote.Init(params.Name, params.Symbol, params.Version, params.Owner)
-	vote.SetCreateBlock(params.CreateBlock)
+	vote.InitGenesis(params.CreateBlock)
 	return nil
 }

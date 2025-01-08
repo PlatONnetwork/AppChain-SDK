@@ -95,8 +95,6 @@ func (s *StakeModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *
 		configParams = &conf
 	}
 
-	// init staking handler account nonce
-	initAccountNonce(db, s.Address())
 	// store configParms
 	initStakeConfigParams(db, s.Address(), configParams)
 
@@ -106,7 +104,7 @@ func (s *StakeModule) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *
 	}
 
 	stakingContract, _ := contracts.NewStakeHandler(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(s, s), false)
-	stakingContract.SetCreateBlock(conf.CreateBlock)
+	stakingContract.InitGenesis(conf.CreateBlock)
 	log.Info("Succeed init genesis", "module", s.Name(), "StakeNetworkParams", configParams.String())
 	return nil
 }

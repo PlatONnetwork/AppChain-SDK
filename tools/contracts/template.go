@@ -182,8 +182,9 @@ func ({{$ReceiverName}} *{{$contract.Type}}) loadMethodABI() error {
 }
 
 func ({{$ReceiverName}} *{{$contract.Type}}) InitGenesis(blockNumber uint64) {
-	{{$ReceiverName}}.stateDb.SetNonce({{$ReceiverName}}.contract.Address(), 1)
 	{{$ReceiverName}}.SetCreateBlock(blockNumber)
+	//1. It will not be deleted when Finalise is performed on StateDB.
+	//2. The RPC call will not return an exception.
 	{{$ReceiverName}}.stateDb.SetCode({{$ReceiverName}}.contract.Address(), []byte("code"))
 }
 

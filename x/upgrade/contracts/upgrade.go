@@ -121,6 +121,10 @@ func (c *Upgrade) loadMethodABI() error {
 	c.abi = abi
 	return nil
 }
+func (c *Upgrade) InitGenesis(blockNumber uint64) {
+	c.SetCreateBlock(blockNumber)
+	c.stateDb.SetCode(c.contract.Address(), []byte("code"))
+}
 func (c *Upgrade) SetCreateBlock(blockNumber uint64) {
 	var data [8]byte
 	binary.BigEndian.PutUint64(data[:], blockNumber)

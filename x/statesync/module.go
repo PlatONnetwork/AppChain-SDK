@@ -89,9 +89,6 @@ func NewModule(ctx *cli.Context, l1Module *l1.L1Module, validator ElectionValida
 }
 
 func (s *StateSync) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
-	db.SetNonce(constants.StateSyncAddress, 1)
-	s.logger.Info("Set StateSync Nonce", "nonce", 1)
-
 	raw, err := data.MarshalJSON()
 	if err != nil {
 		return err
@@ -102,7 +99,7 @@ func (s *StateSync) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *pa
 	}
 
 	stateSync, _ := contracts.NewStateReceiver(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(s, s), false)
-	stateSync.SetCreateBlock(config.CreateBlock)
+	stateSync.InitGenesis(config.CreateBlock)
 
 	return nil
 }
