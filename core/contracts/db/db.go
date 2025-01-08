@@ -44,7 +44,7 @@ func SetState(store *Store, key any, value any) error {
 		return nil
 	}
 	var valBuf []byte
-	if !reflect.ValueOf(value).IsNil() {
+	if !IsEmpty(value) {
 		valBuf, err = store.ValueEncoder.EncodeValue(value)
 		if err != nil {
 			return err
@@ -52,6 +52,21 @@ func SetState(store *Store, key any, value any) error {
 	}
 	store.StateDB.SetState(store.Address, keyBuf, valBuf)
 	return nil
+}
+func IsEmpty(value any) bool {
+	if value == nil {
+		return true
+	}
+	kind := reflect.TypeOf(value).Kind()
+	switch kind {
+	case reflect.Ptr:
+		return reflect.ValueOf(value).IsNil()
+	case reflect.Array:
+		return reflect.ValueOf(value).Type().Len() == 0
+	case reflect.Slice:
+		return reflect.ValueOf(value).Len() == 0
+	}
+	return false
 }
 func initValue[T any]() T {
 	var t T
@@ -69,7 +84,6 @@ func GetState[T any](store *Store, key any) (T, error) {
 	if err != nil {
 		return v, err
 	}
-
 	val := store.StateDB.GetState(store.Address, keyBuf)
 	if len(val) == 0 {
 		return v, nil

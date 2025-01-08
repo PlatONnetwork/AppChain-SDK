@@ -23,7 +23,7 @@ func TestMap(t *testing.T) {
 	}
 	actual, err := n.Get("xx")
 	require.Nil(t, err)
-	require.Nil(t, "", actual)
+	require.Equal(t, "", actual)
 }
 
 func TestMapContainer(t *testing.T) {
@@ -56,4 +56,33 @@ func TestMapContainer(t *testing.T) {
 			require.Equal(t, value[i], v)
 		}
 	}
+	//n2.Set(uint32(0), nil)
+	a, err := n2.Get(uint32(10))
+	require.Equal(t, uint32(0), a.Length())
+}
+
+func TestNil(t *testing.T) {
+	statedb, err := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
+	require.Nil(t, err)
+	n := NewMap[*string]([]byte("abc"), common.Address{}, statedb)
+	b := "b"
+	err = n.Set("a", &b)
+	require.Nil(t, err)
+	bb, err := n.Get("a")
+	require.Nil(t, err)
+	err = n.Set("a", nil)
+	require.Nil(t, err)
+	bb, err = n.Get("a")
+	require.Nil(t, err)
+	require.Equal(t, "", *bb)
+
+	var val *string
+	n.Set("a", &b)
+	bb, err = n.Get("a")
+	require.Nil(t, err)
+	require.Equal(t, b, *bb)
+	n.Set("a", val)
+	bb, err = n.Get("a")
+	require.Nil(t, err)
+	require.Equal(t, "", *bb)
 }

@@ -1,6 +1,7 @@
 package container
 
 import (
+	"errors"
 	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/core/contracts/db"
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -57,6 +58,9 @@ func (a *Array[T]) MustPush(elem T) {
 }
 
 func (a *Array[T]) set(i uint32, elem T) error {
+	if i >= a.Length() {
+		return errors.New("Array: out of range")
+	}
 	v := reflect.ValueOf(elem)
 	ty := v.Type()
 	if ty.Implements(initContainerType) {
@@ -95,8 +99,11 @@ func (a *Array[T]) get(i uint32) (T, error) {
 	ty := v.Type()
 	if ty.Implements(initContainerType) {
 		prefix, err := db.GetState[[]byte](a.Store, i)
-		if err != nil || len(prefix) == 0 {
+		if err != nil {
 			return t, err
+		}
+		if len(prefix) == 0 {
+			prefix = a.CreatePrefix(i)
 		}
 		m, _ := v.Interface().(Container)
 

@@ -65,6 +65,14 @@ func (a *Map[T]) MustGet(key any) T {
 	return t
 }
 
+func (a *Map[T]) Del(key any) error {
+	var elem T
+	v := reflect.ValueOf(elem)
+	ty := v.Type()
+	contracts.Require(ty.Implements(initContainerType), "Map: cannot delete container")
+	return db.SetState(a.Store, key, nil)
+}
+
 func (a *Map[T]) CreatePrefix(key any) []byte {
 	keyBuf, _ := a.Store.KeyEncoder.EncodeKey(a.Store.Prefix, key)
 	return keyBuf

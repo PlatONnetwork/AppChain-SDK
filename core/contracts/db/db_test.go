@@ -41,7 +41,7 @@ func TestDBKey(t *testing.T) {
 	statedb, err := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 	require.Nil(t, err)
 	store := NewStore([]byte{}, common.Address{}, statedb)
-	require.Nil(t, SetState(store, nil, nil))
+	require.Nil(t, SetState(store, "", nil))
 }
 
 func TestInit(t *testing.T) {
@@ -54,4 +54,14 @@ func TestInit(t *testing.T) {
 	v3 := initValue[*uint64]()
 	t.Log(*v3)
 	t.Log(new(uint64))
+}
+
+func TestEmpty(t *testing.T) {
+	var s *string
+	require.True(t, IsEmpty(s))
+	require.True(t, IsEmpty(nil))
+	require.True(t, IsEmpty([]byte{}))
+	require.True(t, IsEmpty([0]byte{}))
+	require.False(t, IsEmpty([1]byte{}))
+	require.False(t, IsEmpty(""))
 }
