@@ -184,6 +184,7 @@ func ({{$ReceiverName}} *{{$contract.Type}}) loadMethodABI() error {
 func ({{$ReceiverName}} *{{$contract.Type}}) InitGenesis(blockNumber uint64) {
 	{{$ReceiverName}}.stateDb.SetNonce({{$ReceiverName}}.contract.Address(), 1)
 	{{$ReceiverName}}.SetCreateBlock(blockNumber)
+	{{$ReceiverName}}.stateDb.SetCode({{$ReceiverName}}.contract.Address(), []byte("code"))
 }
 
 func ({{$ReceiverName}} *{{$contract.Type}}) SetCreateBlock(blockNumber uint64) {
@@ -409,6 +410,7 @@ import (
 
 // Reference imports to suppress errors if they are not otherwise used.
 var (
+	_ = abi.ABI{}
 	_ = typesdk.RevertError{}
     _ = vm.EVM{}
 	_ = errors.New
