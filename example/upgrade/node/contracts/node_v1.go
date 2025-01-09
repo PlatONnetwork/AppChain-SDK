@@ -73,6 +73,8 @@ func (c *Node) AddNodeV1Entry(input []byte) ([]byte, error) {
 	return output, err
 }
 func (c *Node) AddNodeV1(name string, host string, port uint16) error {
+	contracts.Require(len(host) != 0, "Node: invalid host")
+	contracts.Require(port != 0, "Node: invalid port")
 	c.AddNode(name, host, port)
 	if c.GetVersion() > 0 {
 		c.EmitAddNodeEvent(name, host, port)

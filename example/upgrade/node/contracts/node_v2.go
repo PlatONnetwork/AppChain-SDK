@@ -87,7 +87,7 @@ func (c *Node) GetNodeEntry(input []byte) ([]byte, error) {
 }
 func (c *Node) GetNode(name string) (NodeInfo, error) {
 	var nodeInfo NodeInfo
-	if node := c.storage.Nodes.MustGet(name); node != nil {
+	if node := c.storage.Nodes.MustGet(name); node.port != 0 {
 		nodeInfo = NodeInfo{
 			Name: name,
 			Host: node.Host,

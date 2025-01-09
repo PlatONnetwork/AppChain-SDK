@@ -107,7 +107,6 @@ func (m *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *param
 		return err
 	}
 	evm := vm.NewEVM(vm.BlockContext{GasLimit: math.MaxUint64, BlockNumber: big.NewInt(0)}, vm.TxContext{}, db, chainConfig, vm.Config{}, nil)
-
 	gov, _ := contracts.NewBlsVerify(evm, sdkcontracts.NewContract(m, m), false)
 
 	gov.InitGenesis(genesis.BlockNumber)

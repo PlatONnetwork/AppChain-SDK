@@ -85,6 +85,8 @@ func NewNode(evm *vm.EVM, contract *vm.Contract, readOnly bool) (*Node, error) {
 }
 
 func (c *Node) AddNode(name string, host string, port uint16) error {
+	contracts.Require(len(host) != 0, "Node: invalid host")
+	contracts.Require(port != 0, "Node: invalid port")
 	c.storage.Nodes.MustSet(name, &Info{
 		Host: host,
 		port: port,

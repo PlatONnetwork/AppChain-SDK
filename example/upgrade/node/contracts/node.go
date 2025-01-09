@@ -105,7 +105,6 @@ func (c *Node) loadMethodABI() error {
 }
 
 func (c *Node) InitGenesis(blockNumber uint64) {
-	c.stateDb.SetNonce(c.contract.Address(), 1)
 	c.SetCreateBlock(blockNumber)
 	c.stateDb.SetCode(c.contract.Address(), []byte("code"))
 }
