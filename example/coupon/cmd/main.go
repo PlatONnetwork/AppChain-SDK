@@ -69,8 +69,8 @@ func Server(ctx *cli.Context) error {
 	manager.SetWorker(couponModule.Name())
 	app := testutil.NewApp(manager)
 	config := coupon.GenesisConfig{
-		Name:   "Token",
-		Symbol: "USDC",
+		Name:   "Coupon",
+		Symbol: "CPN",
 	}
 	s, _ := json.Marshal(config)
 	var stack []*node.Node
@@ -107,7 +107,9 @@ func Client(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("addrs:", len(addrs))
+	for i, addr := range addrs {
+		fmt.Printf("No.%d %s\n", i, addr.Hex())
+	}
 
 	coupon, err := contracts.NewContracts(coupon.CouponAddress, cli)
 	var nonces []uint64

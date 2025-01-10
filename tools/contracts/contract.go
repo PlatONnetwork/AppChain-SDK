@@ -9,6 +9,7 @@ import (
 	"go/format"
 	"gopkg.in/urfave/cli.v1"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"text/template"
@@ -255,7 +256,7 @@ func outputFile(outFlag string, files map[string]string) error {
 		}
 	} else {
 		for path, data := range files {
-			if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+			if err := os.WriteFile(filepath.Join(outFlag, path), []byte(data), 0600); err != nil {
 				fmt.Printf("Failed to write ABI binding: %v", err)
 				return err
 			}

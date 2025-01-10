@@ -2,7 +2,6 @@ package coupon
 
 import (
 	"encoding/json"
-	"fmt"
 	contracts2 "github.com/PlatONnetwork/AppChain-SDK/example/coupon/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -38,19 +37,19 @@ func (m *Module) Name() string {
 func (m *Module) Version() uint64 {
 	return ModuleVersion
 }
+
 func (m *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
 	var genesis GenesisConfig
 	if err := json.Unmarshal(data, &genesis); err != nil {
 		return err
 	}
-	caller, err := contracts2.NewCouponGenesisCaller(ctx, db, chainConfig)
+	coupon, err := contracts2.NewCouponGenesisCaller(ctx, db, chainConfig)
 	if err != nil {
 		return err
 	}
-	caller.WithCaller(CallerAddress).WithTo(CouponAddress).DeployCoupon(genesis.Name, genesis.Symbol)
-
-	return nil
+	return coupon.WithCaller(CallerAddress).WithTo(CouponAddress).DeployCoupon(genesis.Name, genesis.Symbol)
 }
+
 func (m *Module) SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions, remote map[common.Address]types.Transactions) (types.Transactions, error) {
 	target := make([]types.Transactions, len(m.priority), len(m.priority))
 	other := make(map[common.Address]types.Transactions)
@@ -74,9 +73,6 @@ func (m *Module) SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.T
 	}
 	for _, v := range other {
 		txs = append(txs, v...)
-	}
-	for _, tx := range txs {
-		fmt.Println(tx.Hash().Hex())
 	}
 	return txs, nil
 }
