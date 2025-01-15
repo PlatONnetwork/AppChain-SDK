@@ -76,7 +76,7 @@ func Server(ctx *cli.Context) error {
 	var stack []*node.Node
 	var backend []*eth.Ethereum
 	var err error
-	if stack, backend, err = testutil.CreateCluster(testutil.DefaultAccount[0:1], []sdk.App{app}, map[string]json.RawMessage{
+	if stack, backend, err = testutil.CreateCluster(testutil.DefaultAccount[0:1], testutil.DefaultAccount[0:1], []sdk.App{app}, map[string]json.RawMessage{
 		couponModule.Name(): s,
 	}, common2.UserAddrs); err != nil {
 		return err
@@ -160,6 +160,7 @@ func Client(ctx *cli.Context) error {
 	}
 	return nil
 }
+
 func decodeAddr(ctx *cli.Context) []common.Address {
 	var addrs []common.Address
 	as := strings.Split(ctx.String(priorityFlag.Name), ",")

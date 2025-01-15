@@ -36,7 +36,7 @@ func TestCoupon(t *testing.T) {
 		Symbol: "USDC",
 	}
 	s, _ := json.Marshal(config)
-	stack, backend, err := testutil.CreateCluster(testutil.DefaultAccount[0:1], []sdk.App{app}, map[string]json.RawMessage{
+	stack, backend, err := testutil.CreateCluster(testutil.DefaultAccount[0:1], testutil.DefaultAccount[0:1], []sdk.App{app}, map[string]json.RawMessage{
 		couponModule.Name(): json.RawMessage(s),
 	}, []common.Address{common.BigToAddress(big.NewInt(1)), common.BigToAddress(big.NewInt(2))})
 	require.Nil(t, err)

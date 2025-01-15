@@ -69,7 +69,7 @@ func Server(ctx *cli.Context) error {
 	var stack []*node.Node
 	var backend []*eth.Ethereum
 	var err error
-	if stack, backend, err = testutil.CreateCluster(testutil.DefaultAccount[0:1], []sdk.App{app}, map[string]json.RawMessage{
+	if stack, backend, err = testutil.CreateCluster(testutil.DefaultAccount[0:1], testutil.DefaultAccount[0:1], []sdk.App{app}, map[string]json.RawMessage{
 		lotteryModule.Name(): s,
 	}, common2.UserAddrs); err != nil {
 		return err

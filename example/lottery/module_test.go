@@ -53,7 +53,7 @@ func TestLottery(t *testing.T) {
 		Nonce:  "0x03f3b376f00863de14440eff826835d16ffa3c8b0fc7ad1402beee7ccf076aa9282f795c3e92d2f61e45e85abe5fcfef134ae6700a50b0885942a92d92b9c88a280450a416880be13a23e449f41ef12f43",
 	}
 	s, _ := json.Marshal(config)
-	stack, backend, err := testutil.CreateCluster(testutil.DefaultAccount[0:1], []sdk.App{app}, map[string]json.RawMessage{
+	stack, backend, err := testutil.CreateCluster(testutil.DefaultAccount[0:1], testutil.DefaultAccount[0:1], []sdk.App{app}, map[string]json.RawMessage{
 		lotteryModule.Name(): s,
 	}, []common.Address{common.BigToAddress(big.NewInt(1)), common.BigToAddress(big.NewInt(2))})
 	require.Nil(t, err)
@@ -135,4 +135,10 @@ func TestA(t *testing.T) {
 		addr := common.HexToAddress(s)
 		fmt.Println(s, "==>", addr.String())
 	}
+}
+
+func TestX(t *testing.T) {
+	fmt.Println(VRFSystemAddr.Hex())
+	fmt.Println(VRFStorageAddr.Hex())
+	fmt.Println(LotteryAddr.Hex())
 }

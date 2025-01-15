@@ -103,6 +103,14 @@ func (c *VRF) loadMethodABI() error {
 	c.abi = abi
 	return nil
 }
+
+func (c *VRF) InitGenesis(blockNumber uint64) {
+	c.SetCreateBlock(blockNumber)
+	//1. It will not be deleted when Finalise is performed on StateDB.
+	//2. The RPC call will not return an exception.
+	c.stateDb.SetCode(c.contract.Address(), []byte("code"))
+}
+
 func (c *VRF) SetCreateBlock(blockNumber uint64) {
 	var data [8]byte
 	binary.BigEndian.PutUint64(data[:], blockNumber)

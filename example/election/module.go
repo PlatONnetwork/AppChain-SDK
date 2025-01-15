@@ -109,22 +109,11 @@ func (m *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *param
 	if err = electionCaller.WithCaller(genesis.AdminAddress).WithTo(ElectionAddress).DeployElection(); err != nil {
 		return err
 	}
-	code := db.GetCode(ElectionAddress)
-	fmt.Println(code)
-	//rn, err := electionCaller.Initialize(genesis.InitialNodes.toContractNode(), chainConfig.Cbft.Period, uint64(chainConfig.Cbft.Amount), genesis.ElectionDistance)
-	//if err != nil {
-	//	panic(err)
-	//}
 
 	input, _ := electionCaller.PackInitialize(genesis.InitialNodes.toContractNode(), genesis.EpochSize, genesis.ElectionDistance)
 	if err = proxyCaller.WithCaller(genesis.AdminAddress).WithTo(ProxyAddress).Initialize(ElectionAddress, genesis.AdminAddress, input); err != nil {
 		return err
 	}
-	//test
-	rn, err := electionCaller.WithCaller(common.BigToAddress(big.NewInt(1111))).WithTo(ProxyAddress).GetCurrentRoundValidator()
-	fmt.Println(rn, err)
-	rn2, err := electionCaller.WithCaller(common.BigToAddress(big.NewInt(1111))).WithTo(ProxyAddress).GetLastRoundValidator()
-	fmt.Println(rn2, err)
 	return nil
 }
 
@@ -134,7 +123,6 @@ func (m *Module) EndBlock(ctx sdk.WorkerContext) error {
 		return err
 	}
 	return caller.WithCaller(CallerAddress).ChangeEpoch(ctx)
-
 }
 
 func (m *Module) NewHeader(ctx sdk.ConsensusContext, header *types.Header) error {
@@ -153,16 +141,7 @@ func (m *Module) NewHeader(ctx sdk.ConsensusContext, header *types.Header) error
 func (m *Module) GetLastNumber(ctx sdk.ConsensusContext, blockNumber uint64) uint64 {
 	caller, _ := contracts.NewElectionGenesisCaller(ctx, types.NewStateDBWrapper(ctx.ParentStateDB()), m.chainConfig)
 	epochOfBlocks, _ := caller.WithCaller(CallerAddress).WithTo(ProxyAddress).EpochSize()
-
-	if blockNumber == 0 {
-		return epochOfBlocks
-	}
-
-	n := blockNumber % epochOfBlocks
-	if n == 0 {
-		return blockNumber
-	}
-	return blockNumber + (epochOfBlocks - n)
+	return (blockNumber + epochOfBlocks - 1) / epochOfBlocks * epochOfBlocks
 }
 
 func (m *Module) GetValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error) {

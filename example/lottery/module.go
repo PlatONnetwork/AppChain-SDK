@@ -4,10 +4,9 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"encoding/json"
-	"fmt"
 	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
-	contracts2 "github.com/PlatONnetwork/AppChain-SDK/example/coupon/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/example/lottery/contracts"
+	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/common/hexutil"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
@@ -32,10 +31,12 @@ var (
 )
 
 type GenesisConfig struct {
+	module.ModuleGenesisConfig
 	Name   string `json:"name"`
 	Symbol string `json:"symbol"`
 	Nonce  string `json:"nonce"` //0x03f3b376f00863de14440eff826835d16ffa3c8b0fc7ad1402beee7ccf076aa9282f795c3e92d2f61e45e85abe5fcfef134ae6700a50b0885942a92d92b9c88a280450a416880be13a23e449f41ef12f43
 }
+
 type Module struct {
 	sync.Mutex
 	chainConfig         *params.ChainConfig
@@ -80,24 +81,19 @@ func (m *Module) Init(ctx sdk.InitContext) error {
 }
 
 func (m *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data json.RawMessage) error {
-	db.SetNonce(VRFSystemAddr, 1)
+	vrf, _ := contracts.NewVRF(sdkcontracts.NewEVM(db, big.NewInt(0)), sdkcontracts.NewContract(m, m), false)
+	vrf.InitGenesis(0)
 	var genesis GenesisConfig
 	if err := json.Unmarshal(data, &genesis); err != nil {
 		return err
 	}
-
-	caller2, err := contracts2.NewCouponGenesisCaller(ctx, db, chainConfig)
-	if err != nil {
-		return err
-	}
-	caller2.WithCaller(CallerAddress).WithTo(common.BigToAddress(big.NewInt(1212))).DeployCoupon(genesis.Name, genesis.Symbol)
 
 	caller, err := contracts.NewVRFStorageGenesisCaller(ctx, db, chainConfig)
 	if err != nil {
 		return err
 	}
 	nonceProof := hexutil.MustDecode(genesis.Nonce)
-	caller.WithCaller(CallerAddress).WithTo(VRFStorageAddr).DeployVRFStorage(VRFSystemAddr, nonceProof)
+	caller.WithCaller(CallerAddress).WithTo(VRFStorageAddr).DeployVRFStorage(nonceProof)
 	lottery, err := contracts.NewLotteryGenesisCaller(ctx, db, chainConfig)
 	if err != nil {
 		return err
@@ -106,8 +102,6 @@ func (m *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *param
 	if !bytes.Equal(nonceProof, proof) {
 		panic(err)
 	}
-	addr, _ := caller.VrfAddr()
-	fmt.Println(addr.Hex())
 	lottery.WithCaller(CallerAddress).WithTo(LotteryAddr).DeployLottery(VRFStorageAddr, genesis.Name, genesis.Symbol)
 
 	return nil
@@ -160,7 +154,6 @@ func (m *Module) Run(evm *vm.EVM, contract *vm.Contract, input []byte, readOnly 
 }
 
 func (m *Module) ContractCreateBlockNumber(statedb sdk.StateDBReader) uint64 {
-	return 0
 	vrf, _ := contracts.NewVRF(sdkcontracts.NewEVM(types.NewStateDBWrapper(statedb), big.NewInt(0)), sdkcontracts.NewContract(m, m), false)
 	return vrf.GetCreateBlock()
 }
