@@ -46,10 +46,36 @@ func (c *Node) initMethodV3Entry() {
 
 		"11c90305": c.DelNodeEntry,
 		"9428522a": c.GetNodeEntry,
-		"d63df6a2": c.AddNodeEntry,
+		"d63df6a2": c.AddNodeV3Entry,
 	}
 	V3 := uint64(3)
 	c.methodEntries[V3] = methodEntry
+}
+
+func (c *Node) AddNodeV3Entry(input []byte) ([]byte, error) {
+
+	method := c.abi.Methods["addNode"]
+
+	var err error
+
+	args, err := method.Inputs.Unpack(input)
+	if err != nil {
+		return nil, err
+	}
+
+	err = c.AddNodeV3(*abi.ConvertType(args[0], new(string)).(*string), *abi.ConvertType(args[1], new(string)).(*string), *abi.ConvertType(args[2], new(uint16)).(*uint16))
+	if err != nil {
+		if r, ok := err.(*typesdk.RevertError); ok {
+			return r.ReturnData, vm.ErrExecutionReverted
+		}
+		return nil, err
+	}
+	var output []byte
+
+	return output, err
+}
+func (c *Node) AddNodeV3(name string, host string, port uint16) error {
+	return c.AddNodeV1(name, host, port)
 }
 
 func (c *Node) DelNodeEntry(input []byte) ([]byte, error) {

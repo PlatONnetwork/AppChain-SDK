@@ -502,3 +502,17 @@ make oracle
 ```shell
 ./oracle client
 ```
+输出
+```
+blockNumber: 5 rate: 1
+blockNumber: 13 rate: 3
+blockNumber: 21 rate: 5
+blockNumber: 29 rate: 7
+blockNumber: 38 rate: 9
+blockNumber: 46 rate: 11
+blockNumber: 54 rate: 13
+blockNumber: 63 rate: 15
+blockNumber: 71 rate: 17
+blockNumber: 79 rate: 19
+
+```

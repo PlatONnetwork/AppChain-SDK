@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/contracts/proxy"
 	"github.com/PlatONnetwork/AppChain-SDK/example/election/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"

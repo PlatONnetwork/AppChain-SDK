@@ -33,12 +33,14 @@ func TestM(t *testing.T) {
 	vals := election.NewModule()
 	upgradeModule := upgrade.NewModule(store)
 	upgradeOracleModule := NewModule()
-	manager := module.NewManager(oracleModule, vals, extraVote, upgradeModule, upgradeOracleModule)
+	manager := module.NewManager(vals, extraVote, upgradeModule, upgradeOracleModule)
 	manager.SetElection(vals.Name())
 	manager.SetOrderGenesis(vals.Name(), extraVote.Name(), upgradeModule.Name(), upgradeOracleModule.Name())
 	manager.SetConsensusExtend(extraVote.Name())
 	manager.RegisterUpgradeHandler(upgradeModule)
 	manager.SetModuleValidChecker(upgradeModule.IsModuleValid)
+	upgradeModule.SetIsContractModule(manager.IsContractModule)
+	oracleModule.RegistryUpgradeHandler(upgradeModule)
 	app := testutil.NewApp(manager)
 
 	config := election.GenesisConfig{
@@ -55,6 +57,7 @@ func TestM(t *testing.T) {
 			},
 		},
 		AdminAddress:     common2.UserAddrs[0],
+		EpochSize:        250,
 		ElectionDistance: 20,
 	}
 	s, _ := json.Marshal(config)
@@ -65,7 +68,7 @@ func TestM(t *testing.T) {
 	var stack []*node.Node
 	var backend []*eth.Ethereum
 	var err error
-	if stack, backend, err = testutil.CreateCluster(testutil.DefaultAccount[0:1], []sdk.App{app}, map[string]json.RawMessage{
+	if stack, backend, err = testutil.CreateCluster(testutil.DefaultAccount[0:1], testutil.DefaultAccount[0:1], []sdk.App{app}, map[string]json.RawMessage{
 		vals.Name():          s,
 		upgradeModule.Name(): upgradeConfig,
 	}, common2.UserAddrs); err != nil {

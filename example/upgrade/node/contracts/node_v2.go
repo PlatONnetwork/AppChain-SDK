@@ -32,7 +32,7 @@ var (
 )
 
 var (
-	ABIV2    = "[{\"type\":\"function\",\"name\":\"addNode\",\"inputs\":[{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"host\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"port\",\"type\":\"uint16\",\"internalType\":\"uint16\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"getNode\",\"inputs\":[{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structNodeInfo\",\"components\":[{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"host\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"port\",\"type\":\"uint16\",\"internalType\":\"uint16\"}]}],\"stateMutability\":\"view\"}]"
+	ABIV2    = "[{\"type\":\"function\",\"name\":\"addNode\",\"inputs\":[{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"host\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"port\",\"type\":\"uint16\",\"internalType\":\"uint16\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"getNode\",\"inputs\":[{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structNodeInfo\",\"components\":[{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"host\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"port\",\"type\":\"uint16\",\"internalType\":\"uint16\"}]}],\"stateMutability\":\"view\"},{\"type\":\"event\",\"name\":\"AddNode\",\"inputs\":[{\"name\":\"name\",\"type\":\"string\",\"indexed\":false,\"internalType\":\"string\"},{\"name\":\"host\",\"type\":\"string\",\"indexed\":false,\"internalType\":\"string\"},{\"name\":\"port\",\"type\":\"uint16\",\"indexed\":false,\"internalType\":\"uint16\"}],\"anonymous\":false}]"
 	AbiV2, _ = abi.JSON(strings.NewReader(ABIV2))
 )
 
@@ -52,7 +52,7 @@ func (c *Node) initMethodV2Entry() {
 	methodEntry := map[string]func([]byte) ([]byte, error){
 
 		"9428522a": c.GetNodeEntry,
-		"d63df6a2": c.AddNodeEntry,
+		"d63df6a2": c.AddNodeV2Entry,
 	}
 	V2 := uint64(2)
 	c.methodEntries[V2] = methodEntry
@@ -95,4 +95,30 @@ func (c *Node) GetNode(name string) (NodeInfo, error) {
 		}
 	}
 	return nodeInfo, nil
+}
+
+func (c *Node) AddNodeV2Entry(input []byte) ([]byte, error) {
+
+	method := c.abi.Methods["addNode"]
+
+	var err error
+
+	args, err := method.Inputs.Unpack(input)
+	if err != nil {
+		return nil, err
+	}
+
+	err = c.AddNodeV2(*abi.ConvertType(args[0], new(string)).(*string), *abi.ConvertType(args[1], new(string)).(*string), *abi.ConvertType(args[2], new(uint16)).(*uint16))
+	if err != nil {
+		if r, ok := err.(*typesdk.RevertError); ok {
+			return r.ReturnData, vm.ErrExecutionReverted
+		}
+		return nil, err
+	}
+	var output []byte
+
+	return output, err
+}
+func (c *Node) AddNodeV2(name string, host string, port uint16) error {
+	return c.AddNodeV1(name, host, port)
 }

@@ -17,7 +17,7 @@ type Module struct {
 	logger    log.Logger
 }
 
-func NewModule(store store.Store, key *ecdsa.PrivateKey, rateClient oracle.RateClient) *Module {
+func NewModule(store store.Store, key *ecdsa.PrivateKey, rateClient oracle.RateMarketClient) *Module {
 	return &Module{
 		Module: oracle.NewModule(store, key, rateClient),
 		logger: log.New("module", oracle.ModuleName),
