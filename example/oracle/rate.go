@@ -2,15 +2,21 @@ package oracle
 
 import "time"
 
-type RateClient interface {
-	Rate() (uint64, error)
+type CurrencyPair int
+
+var (
+	USDCNY = CurrencyPair(0)
+)
+
+type RateMarketClient interface {
+	Rate(CurrencyPair) (uint64, error)
 }
 
 type FixedRate struct {
 	Value uint64
 }
 
-func (f FixedRate) Rate() (uint64, error) {
+func (f FixedRate) Rate(CurrencyPair) (uint64, error) {
 	return f.Value, nil
 }
 
@@ -29,7 +35,7 @@ func NewTimerRate(interval time.Duration) *TimerRate {
 
 }
 
-func (f *TimerRate) Rate() (uint64, error) {
+func (f *TimerRate) Rate(CurrencyPair) (uint64, error) {
 	now := time.Now()
 	if now.Sub(f.start) > f.interval {
 		f.Value++

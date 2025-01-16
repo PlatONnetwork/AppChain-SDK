@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	RateTxBuilderABI = "[{\"type\":\"constructor\",\"inputs\":[{\"name\":\"_electionAddr\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_decimals\",\"type\":\"uint8\",\"internalType\":\"uint8\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"blockNumber\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"decimals\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint8\",\"internalType\":\"uint8\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"rate\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"update\",\"inputs\":[{\"name\":\"newRate\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"qc\",\"type\":\"tuple\",\"internalType\":\"structQuorumCert\",\"components\":[{\"name\":\"epoch\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"viewNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"blockHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"blockNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"blockIndex\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"extendHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"name\":\"bitmap\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"signature\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"leafIndex\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"proof\",\"type\":\"bytes32[]\",\"internalType\":\"bytes32[]\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"event\",\"name\":\"UpdateRate\",\"inputs\":[{\"name\":\"blockNumber\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"rate\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false}]"
+	RateTxBuilderABI = "[{\"type\":\"constructor\",\"inputs\":[{\"name\":\"_decimals\",\"type\":\"uint8\",\"internalType\":\"uint8\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"blockNumber\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"decimals\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint8\",\"internalType\":\"uint8\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"findNodes\",\"inputs\":[{\"name\":\"number\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"string[]\",\"internalType\":\"string[]\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"getCurrentRoundValidator\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structRoundNodeList\",\"components\":[{\"name\":\"nodes\",\"type\":\"string[]\",\"internalType\":\"string[]\"},{\"name\":\"epoch\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"start\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"end\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"getLastRoundValidator\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structRoundNodeList\",\"components\":[{\"name\":\"nodes\",\"type\":\"string[]\",\"internalType\":\"string[]\"},{\"name\":\"epoch\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"start\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"end\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"rate\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"update\",\"inputs\":[{\"name\":\"newRate\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"qc\",\"type\":\"tuple\",\"internalType\":\"structQuorumCert\",\"components\":[{\"name\":\"epoch\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"viewNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"blockHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"blockNumber\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"blockIndex\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"extendHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"name\":\"bitmap\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"signature\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"leafIndex\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"proof\",\"type\":\"bytes32[]\",\"internalType\":\"bytes32[]\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"event\",\"name\":\"UpdateRate\",\"inputs\":[{\"name\":\"blockNumber\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"rate\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false}]"
 )
 
 type RateTxBuilder struct {
@@ -36,7 +36,7 @@ func NewRateTxBuilder(to common.Address, sk *ecdsa.PrivateKey, chainId *big.Int)
 		sk:       sk,
 		chainId:  chainId,
 		signer:   types.NewEIP155Signer(chainId),
-		gasLimit: 5000000,
+		gasLimit: 1000000,
 		gasPrice: big.NewInt(0),
 		to:       to,
 	}, nil
@@ -135,6 +135,78 @@ func (c *RateTxBuilder) Rate() (*types.Transaction, error) {
 	var err error
 	var input []byte
 	input, err = c.PackRate()
+	if err != nil {
+		return nil, err
+	}
+	tx := types.NewTransaction(c.nonce, c.to, c.value, c.gasLimit, c.gasPrice, input)
+	tx, err = types.SignTx(tx, c.signer, c.sk)
+	if err != nil {
+		return nil, err
+	}
+
+	return tx, nil
+}
+
+func (c *RateTxBuilder) PackFindNodes(number *big.Int) ([]byte, error) {
+	input, err := c.abi.Pack("findNodes", number)
+	if err != nil {
+		return nil, err
+	}
+	return input, nil
+}
+func (c *RateTxBuilder) FindNodes(number *big.Int) (*types.Transaction, error) {
+
+	var err error
+	var input []byte
+	input, err = c.PackFindNodes(number)
+	if err != nil {
+		return nil, err
+	}
+	tx := types.NewTransaction(c.nonce, c.to, c.value, c.gasLimit, c.gasPrice, input)
+	tx, err = types.SignTx(tx, c.signer, c.sk)
+	if err != nil {
+		return nil, err
+	}
+
+	return tx, nil
+}
+
+func (c *RateTxBuilder) PackGetCurrentRoundValidator() ([]byte, error) {
+	input, err := c.abi.Pack("getCurrentRoundValidator")
+	if err != nil {
+		return nil, err
+	}
+	return input, nil
+}
+func (c *RateTxBuilder) GetCurrentRoundValidator() (*types.Transaction, error) {
+
+	var err error
+	var input []byte
+	input, err = c.PackGetCurrentRoundValidator()
+	if err != nil {
+		return nil, err
+	}
+	tx := types.NewTransaction(c.nonce, c.to, c.value, c.gasLimit, c.gasPrice, input)
+	tx, err = types.SignTx(tx, c.signer, c.sk)
+	if err != nil {
+		return nil, err
+	}
+
+	return tx, nil
+}
+
+func (c *RateTxBuilder) PackGetLastRoundValidator() ([]byte, error) {
+	input, err := c.abi.Pack("getLastRoundValidator")
+	if err != nil {
+		return nil, err
+	}
+	return input, nil
+}
+func (c *RateTxBuilder) GetLastRoundValidator() (*types.Transaction, error) {
+
+	var err error
+	var input []byte
+	input, err = c.PackGetLastRoundValidator()
 	if err != nil {
 		return nil, err
 	}

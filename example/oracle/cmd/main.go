@@ -51,6 +51,7 @@ func Server(ctx *cli.Context) error {
 	store := memorydb.New()
 	oracleModule := oracle.NewModule(store, testutil.DefaultAccount[0].NodePrivateKey(), oracle.NewTimerRate(time.Second*2))
 	extraVote := extravote.NewExtraVote(store, []extravote.ExtraVerifier{oracleModule})
+	extraVote.AddEnableVerifiers(oracleModule.Name())
 	vals := election.NewModule()
 	manager := module.NewManager(oracleModule, vals, extraVote)
 	manager.SetElection(vals.Name())
@@ -76,11 +77,11 @@ func Server(ctx *cli.Context) error {
 		ElectionDistance: 20,
 	}
 	s, _ := json.Marshal(config)
-	og, _ := json.Marshal(oracle.GenesisConfig{Decimals: 3})
+	og, _ := json.Marshal(oracle.GenesisConfig{Decimals: 3, BlockNumber: 0})
 	var stack []*node.Node
 	var backend []*eth.Ethereum
 	var err error
-	if stack, backend, err = testutil.CreateCluster(testutil.DefaultAccount[0:1], []sdk.App{app}, map[string]json.RawMessage{
+	if stack, backend, err = testutil.CreateCluster(testutil.DefaultAccount[0:1], testutil.DefaultAccount[0:1], []sdk.App{app}, map[string]json.RawMessage{
 		vals.Name():         s,
 		oracleModule.Name(): og,
 	}, common2.UserAddrs); err != nil {

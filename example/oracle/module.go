@@ -6,10 +6,9 @@ import (
 	"errors"
 	"fmt"
 	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
-	"github.com/PlatONnetwork/AppChain-SDK/example/election"
-	contracts2 "github.com/PlatONnetwork/AppChain-SDK/example/election/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/example/oracle/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/store"
+	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/x/extravote"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/protocols"
@@ -35,6 +34,7 @@ var (
 )
 
 type GenesisConfig struct {
+	module.ModuleGenesisConfig
 	Decimals    uint8  `json:"decimals,omitempty"`
 	BlockNumber uint64 `json:"blockNumber,omitempty"`
 }
@@ -48,10 +48,10 @@ type Module struct {
 	db            *QCRateDB
 	rateTxBuilder *contracts.RateTxBuilder
 	extraVoteDb   *extravote.ExtraVoteDB
-	rateClient    RateClient
+	rateClient    RateMarketClient
 }
 
-func NewModule(store store.Store, key *ecdsa.PrivateKey, rateClient RateClient) *Module {
+func NewModule(store store.Store, key *ecdsa.PrivateKey, rateClient RateMarketClient) *Module {
 	return &Module{
 		key:         key,
 		address:     crypto.PubkeyToAddress(key.PublicKey),
@@ -101,21 +101,21 @@ func (m *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *param
 	if err := json.Unmarshal(data, &genesis); err != nil {
 		return err
 	}
-	caller2, _ := contracts.NewRateGenesisCaller(ctx, db, chainConfig)
-	err := caller2.WithCaller(CallerAddress).WithTo(RateAddr).DeployRate(BlsVerifyAddr, genesis.Decimals)
+	rateCaller, _ := contracts.NewRateGenesisCaller(ctx, db, chainConfig)
+	err := rateCaller.WithCaller(CallerAddress).WithTo(RateAddr).DeployRate(genesis.Decimals)
 	if err != nil {
 		return err
 	}
 	evm := vm.NewEVM(vm.BlockContext{GasLimit: math.MaxUint64, BlockNumber: big.NewInt(0)}, vm.TxContext{}, db, chainConfig, vm.Config{}, nil)
-	gov, _ := contracts.NewBlsVerify(evm, sdkcontracts.NewContract(m, m), false)
+	bls, _ := contracts.NewBlsVerify(evm, sdkcontracts.NewContract(m, m), false)
 
-	gov.InitGenesis(genesis.BlockNumber)
+	bls.InitGenesis(genesis.BlockNumber)
 
 	return nil
 }
 
 func (m *Module) ExtendData(ctx sdk.ConsensusContext) []byte {
-	rate, err := m.rateClient.Rate()
+	rate, err := m.rateClient.Rate(USDCNY)
 	if err != nil {
 		return nil
 	}
@@ -127,7 +127,7 @@ func (m *Module) VerifyExtendData(ctx sdk.ConsensusContext, data []byte) error {
 	if len(data) == 0 {
 		return nil
 	}
-	expectRate, err := m.rateClient.Rate()
+	expectRate, err := m.rateClient.Rate(USDCNY)
 	if err != nil {
 		return errors.New("request rate failed")
 	}
@@ -143,9 +143,9 @@ func (m *Module) PrepareQC(ctx sdk.ConsensusContext, block *protocols.PrepareBlo
 
 }
 
-func (m *Module) EndBlock(ctx sdk.WorkerContext) error {
-	return nil
-}
+//func (m *Module) EndBlock(ctx sdk.WorkerContext) error {
+//	return nil
+//}
 
 func (m *Module) OnCommit(ctx sdk.ConsensusContext, block *types.Block) error {
 	m.db.InsertQCRate(block.Hash())
@@ -171,17 +171,17 @@ func (m *Module) AddTxs(ctx sdk.WorkerContext, local map[common.Address]types.Tr
 	if err != nil {
 		return nil, err
 	}
-	caller, _ := contracts.NewRateGenesisCaller(ctx, ctx.StateDB(), m.chainConfig)
-	num, _ := caller.WithCaller(CallerAddress).WithTo(RateAddr).BlockNumber()
-	rns, err := caller.GetCurrentRoundValidator()
-	fmt.Println(rns)
-	rns2, err := caller.GetLastRoundValidator()
-	fmt.Println(rns2)
-	elec, _ := contracts2.NewElectionGenesisCaller(ctx, ctx.StateDB(), m.chainConfig)
-	rnss, _ := elec.WithCaller(CallerAddress).WithTo(election.ProxyAddress).GetCurrentRoundValidator()
-	fmt.Println(rnss)
-	rnss2, _ := elec.WithCaller(CallerAddress).WithTo(election.ProxyAddress).GetLastRoundValidator()
-	fmt.Println(rnss2)
+	//caller, _ := contracts.NewRateGenesisCaller(ctx, ctx.StateDB(), m.chainConfig)
+	//num, _ := caller.WithCaller(CallerAddress).WithTo(RateAddr).BlockNumber()
+	//rns, err := caller.GetCurrentRoundValidator()
+	//fmt.Println(rns)
+	//rns2, err := caller.GetLastRoundValidator()
+	//fmt.Println(rns2)
+	//elec, _ := contracts2.NewElectionGenesisCaller(ctx, ctx.StateDB(), m.chainConfig)
+	//rnss, _ := elec.WithCaller(CallerAddress).WithTo(election.ProxyAddress).GetCurrentRoundValidator()
+	//fmt.Println(rnss)
+	//rnss2, _ := elec.WithCaller(CallerAddress).WithTo(election.ProxyAddress).GetLastRoundValidator()
+	//fmt.Println(rnss2)
 	//if err := caller.WithCaller(CallerAddress).WithTo(RateAddr).Update(big.NewInt(int64(rate)), contracts.QuorumCert{
 	//	Epoch:       qc.Epoch,
 	//	ViewNumber:  qc.ViewNumber,
@@ -201,7 +201,6 @@ func (m *Module) AddTxs(ctx sdk.WorkerContext, local map[common.Address]types.Tr
 		BlockIndex:  qc.BlockIndex,
 		ExtendHash:  qc.ExtendHash,
 	}, qc.ValidatorSet.Bytes(), qc.Signature.Bytes(), big.NewInt(int64(index)), proof)
-	fmt.Println("---tx:", tx.Hash().Hex(), "num:", num)
 	return map[common.Address]types.Transactions{
 		m.address: {tx},
 	}, nil
