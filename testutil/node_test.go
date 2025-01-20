@@ -18,7 +18,7 @@ func TestRunNode(t *testing.T) {
 	manager.SetElection(vals.Name())
 	app := NewApp(manager)
 	require.Nil(t, err)
-	stack, backend, err := CreateCluster(DefaultAccount[0:1], []sdk.App{app}, nil)
+	stack, backend, err := CreateCluster(DefaultAccount[0:1], DefaultAccount[0:1], []sdk.App{app}, nil, nil)
 	require.Nil(t, err)
 	require.Nil(t, stack[0].Start())
 	require.Nil(t, backend[0].Start())

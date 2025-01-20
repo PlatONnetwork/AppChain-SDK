@@ -110,7 +110,7 @@ type ConsensusExtendModule interface {
 	PrepareQC(ctx sdk.ConsensusContext, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote)
 }
 
-type BlockCommitter interface {
+type BlockCommitterModule interface {
 	Module
 	OnCommit(ctx sdk.ConsensusContext, block *types.Block) error
 }
@@ -242,7 +242,7 @@ func (m *Manager) SetWorker(moduleName string) {
 func (m *Manager) SetOrderBlockCommitter(moduleNames ...string) {
 	m.assertNoForgottenModules("SetOrderBlockCommitter", moduleNames, func(moduleName string) bool {
 		module := m.Modules[moduleName]
-		_, has := module.(BlockCommitter)
+		_, has := module.(BlockCommitterModule)
 		return !has
 	})
 	m.OrderBlockCommitter = moduleNames
@@ -483,7 +483,7 @@ func (m *Manager) OnCommit(ctx sdk.ConsensusContext, block *types.Block) error {
 		}
 
 		mod := m.Modules[moduleName]
-		if module, ok := mod.(BlockCommitter); ok {
+		if module, ok := mod.(BlockCommitterModule); ok {
 			log.Debug("Notify block commit for module", "module", moduleName)
 			if err := module.OnCommit(ctx, block); err != nil {
 				return err
