@@ -458,3 +458,219 @@ func (m *Module) IsCandidateNode(ctx sdk.ConsensusContext, nodeID enode.IDv0) bo
 }
 
 ```
+
+
+## 构建测试程序
+
+
+* Server
+
+```go
+func Server(ctx *cli.Context) error {
+	vals := election.NewModule()
+	manager := module.NewManager(vals)
+	manager.SetElection(vals.Name())
+	manager.SetOrderGenesis(vals.Name())
+	app := testutil.NewApp(manager)
+	nodeNumber := ctx.Int(nodeFlag.Name) - 1
+	testutil.InitLog(log.LvlDebug)
+    //初始Election创世节点配置
+	config := election.GenesisConfig{
+		InitialNodes: election.Nodes{
+			election.Node{
+				Name:        "node1",
+				Owner:       testutil.DefaultAccount[0].NodeAddress(),
+				Desc:        "node1",
+				PublicKey:   crypto.FromECDSAPub(&testutil.DefaultAccount[0].NodePrivateKey().PublicKey),
+				BlsPubKey:   testutil.DefaultAccount[0].BlsSecretKey().GetPublicKey().Serialize(),
+				HostAddress: "127.0.0.1",
+				RpcPort:     uint16(testutil.DefaultAccount[0].HTTP),
+				P2pPort:     uint16(testutil.DefaultAccount[0].P2PPort),
+			},
+		},
+		AdminAddress:     common.HexToAddress(ctx.String(adminFlag.Name)),
+		OwnerAddress:     common.HexToAddress(ctx.String(ownerFlag.Name)),
+		EpochSize:        10,
+		ElectionDistance: 5,
+	}
+	s, _ := json.Marshal(config)
+	var stack []*node.Node
+	var err error
+    //根据节点编号，设置启动节点
+	if stack, _, err = testutil.CreateCluster([]*testutil.Account{testutil.DefaultAccount[nodeNumber]}, testutil.DefaultAccount[0:1], []sdk.App{app}, map[string]json.RawMessage{
+		vals.Name(): s,
+	}, common2.UserAddrs); err != nil {
+		return err
+	}
+
+	stack[0].Start()
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM)
+	<-sigc
+	return nil
+}
+
+```
+
+* Client
+
+```go
+func Client(ctx *cli.Context) error {
+	nodeNumber := ctx.Int(nodeFlag.Name) - 1
+	if nodeNumber < 1 || nodeNumber > 2 {
+		return errors.New("wrong node number")
+	}
+	adminKey, err := crypto.HexToECDSA(ctx.String(adminKeyFlag.Name))
+	if err != nil {
+		return err
+	}
+	cli, err := ethclient.Dial("http://127.0.0.1:8801")
+	if err != nil {
+		return err
+	}
+	election, err := contracts.NewElection(election.ProxyAddress, cli)
+	if err != nil {
+		return err
+	}
+    
+	opts := &bind.TransactOpts{
+		From: crypto.PubkeyToAddress(adminKey.PublicKey),
+		Signer: func(address common.Address, tx *types.Transaction) (*types.Transaction, error) {
+			signer := types.NewLondonSigner(big.NewInt(123083))
+			signature, err := crypto.Sign(signer.Hash(tx, nil).Bytes(), adminKey)
+			if err != nil {
+				return nil, err
+			}
+			return tx.WithSignature(signer, signature)
+		},
+	}
+	name := fmt.Sprintf("node%d", ctx.Int(nodeFlag.Name))
+    //发送添加节点交易
+	tx, err := election.AddNode(opts, contracts.Node{
+		Name:        name,
+		Owner:       testutil.DefaultAccount[nodeNumber].NodeAddress(),
+		Desc:        fmt.Sprintf("node%d", nodeNumber),
+		PublicKey:   crypto.FromECDSAPub(&testutil.DefaultAccount[nodeNumber].NodePrivateKey().PublicKey),
+		BlsPubKey:   testutil.DefaultAccount[nodeNumber].BlsSecretKey().GetPublicKey().Serialize(),
+		HostAddress: "127.0.0.1",
+		RpcPort:     uint16(testutil.DefaultAccount[nodeNumber].HTTP),
+		P2pPort:     uint16(testutil.DefaultAccount[nodeNumber].HTTP),
+	})
+	if err != nil {
+		return err
+	}
+	fmt.Println("addNode tx:", tx.Hash().Hex())
+	if err = common2.WaitTx(cli, tx); err != nil {
+		return err
+	}
+    //发送审计通过交易
+	tx, err = election.Audit(opts, name, 0, "pass")
+	if err != nil {
+		return err
+	}
+	fmt.Println("audit tx:", tx.Hash().Hex())
+	if err = common2.WaitTx(cli, tx); err != nil {
+		return err
+	}
+    //更新节点类型为共识节点
+	tx, err = election.UpdateType(opts, name, 0)
+	if err != nil {
+		return err
+	}
+	fmt.Println("updateType tx:", tx.Hash().Hex())
+	if err = common2.WaitTx(cli, tx); err != nil {
+		return err
+	}
+	info, err := election.GetByName(nil, name)
+	if err != nil {
+		return err
+	}
+	fmt.Println("name:", name, "type", info.NodeType, "status:", info.Status)
+	return nil
+}
+
+```
+
+* 启动创世节点
+
+```shell
+./election server --node 1
+```
+查询节点共识状态
+```shell
+./election attach http://127.0.0.1:8801
+> debug.consensusStatus().validator
+true
+
+```
+
+* 节点 2 为共识节点
+
+```shell
+./election server --node 2
+```
+
+查询节点共识状态
+```shell
+./election attach http://127.0.0.1:8802
+> debug.consensusStatus().validator
+false
+
+```
+
+P2P 连接到创世节点
+
+```shell
+> admin.addPeer("enode://5c79bf8b836bdc85fe513a64a558291e96ac2405b6b95d5ca05bb20db9c0a1a00e12d11dd540d8685267015ce71cef43781a75157ec6f266cc88a8fb8b5c6c17@127.0.0.1:18001")
+true
+```
+
+添加节点2 为共识节点
+
+```shell
+./election client --node 2
+addNode tx: 0x7f167076d754373650c8a2ebbbe3013fd327c5e6cf75ec49fd2049eaf4e44692
+audit tx: 0x66f0d1f5ec495f771dfc93288535665385b5556ca1b9b564656cb29f0daf578b
+updateType tx: 0x8c836475cc24fd46568e505c3016509a2a930c354a63d95248a3912abb24c503
+name: node2 type 0 status: 1
+```
+```shell
+> debug.consensusStatus().validator
+true
+```
+
+* 节点3 为共识节点
+
+```shell
+./election server --node 3
+```
+
+查询节点共识状态
+```shell
+./election attach http://127.0.0.1:8803
+> debug.consensusStatus().validator
+false
+
+```
+
+P2P 连接到创世节点
+
+```shell
+> admin.addPeer("enode://5c79bf8b836bdc85fe513a64a558291e96ac2405b6b95d5ca05bb20db9c0a1a00e12d11dd540d8685267015ce71cef43781a75157ec6f266cc88a8fb8b5c6c17@127.0.0.1:18001")
+true
+```
+
+添加节点3 为共识节点
+
+```shell
+./election client --node 3
+addNode tx: 0xfb81e2b1c7b64b36559a15c38a23c5c003b816b5fdaca196021741c4de247f87
+audit tx: 0x7fb187c90453af83e4524d64c0bf5ecabaab5b21bfcbe798fc71793023501524
+updateType tx: 0x2f1d20a849940cacf7c0716802d2fe1060ca8e6f835f022d5f37915c12c7eada
+name: node3 type 0 status: 1
+
+```
+```shell
+> debug.consensusStatus().validator
+true
+```

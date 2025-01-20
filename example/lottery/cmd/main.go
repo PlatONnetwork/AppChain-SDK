@@ -14,7 +14,6 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
-	"github.com/PlatONnetwork/PlatON-Go/eth"
 	"github.com/PlatONnetwork/PlatON-Go/ethclient"
 	"github.com/PlatONnetwork/PlatON-Go/node"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
@@ -67,16 +66,14 @@ func Server(ctx *cli.Context) error {
 	}
 	s, _ := json.Marshal(config)
 	var stack []*node.Node
-	var backend []*eth.Ethereum
 	var err error
-	if stack, backend, err = testutil.CreateCluster(testutil.DefaultAccount[0:1], testutil.DefaultAccount[0:1], []sdk.App{app}, map[string]json.RawMessage{
+	if stack, _, err = testutil.CreateCluster(testutil.DefaultAccount[0:1], testutil.DefaultAccount[0:1], []sdk.App{app}, map[string]json.RawMessage{
 		lotteryModule.Name(): s,
 	}, common2.UserAddrs); err != nil {
 		return err
 	}
 
 	stack[0].Start()
-	backend[0].Start()
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM)
 	<-sigc

@@ -96,7 +96,6 @@ var (
 				ArgsUsage: "<txbuilderPath>",
 				Flags: []cli.Flag{
 					abiFlag,
-					binFlag,
 					outputFlag,
 					typeFlag,
 					pkgFlag,

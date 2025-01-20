@@ -8,7 +8,9 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/types"
 	"github.com/PlatONnetwork/PlatON-Go/core"
 	"github.com/PlatONnetwork/PlatON-Go/eth"
+	"github.com/PlatONnetwork/PlatON-Go/eth/downloader"
 	"github.com/PlatONnetwork/PlatON-Go/eth/ethconfig"
+	"github.com/PlatONnetwork/PlatON-Go/eth/tracers"
 	"github.com/PlatONnetwork/PlatON-Go/ethdb"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/miner"
@@ -16,13 +18,28 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"math/big"
+	"net/http"
+	_ "net/http/pprof"
+	"os"
 	"time"
 )
 
-func CreateCluster(accounts []*Account, apps []sdk.App, genesisModule map[string]json.RawMessage, allocs []common.Address) ([]*node.Node, []*eth.Ethereum, error) {
+func StartPProf(address string) {
+	log.Info("Starting pprof server", "addr", fmt.Sprintf("http://%s/debug/pprof", address))
+	if err := http.ListenAndServe(address, nil); err != nil {
+		log.Error("Failure in running pprof server", "err", err)
+	}
+}
+func InitLog(level log.Lvl) {
+	glogger := log.NewGlogHandler(log.StreamHandler(os.Stdout, log.TerminalFormat(false)))
+	glogger.Verbosity(level)
+	log.Root().SetHandler(glogger)
+	log.PrintOrigins(true)
+}
+func CreateCluster(accounts []*Account, genesisAccount []*Account, apps []sdk.App, genesisModule map[string]json.RawMessage, allocs []common.Address) ([]*node.Node, []*eth.Ethereum, error) {
 	var nodes []*node.Node
 	var backends []*eth.Ethereum
-	genesisJson, _ := GenerateGenesis(accounts, genesisModule, allocs)
+	genesisJson, _ := GenerateGenesis(genesisAccount, genesisModule, allocs)
 	for i, acc := range accounts {
 		n, b, err := NewMemoryNode(acc, string(genesisJson), apps[i])
 		if err != nil {
@@ -37,9 +54,10 @@ func CreateCluster(accounts []*Account, apps []sdk.App, genesisModule map[string
 func NewMemoryNode(account *Account, genesisJson string, app sdk.App) (*node.Node, *eth.Ethereum, error) {
 	nodePriKey, blsPriKey := account.NodePrivateKey(), account.BlsSecretKey()
 	p2pConfig := node.DefaultConfig.P2P
+	p2pConfig.ListenAddr = fmt.Sprintf("%s:%d", account.Host, account.P2PPort)
 	p2pConfig.PrivateKey = nodePriKey
 	p2pConfig.BlsPublicKey = *blsPriKey.GetPublicKey()
-	stack, err := node.New(&node.Config{Name: "root", DataDir: "", P2P: p2pConfig, HTTPHost: "0.0.0.0", HTTPPort: account.HTTP, HTTPModules: []string{"platon"}})
+	stack, err := node.New(&node.Config{Name: "root", DataDir: "", P2P: p2pConfig, HTTPHost: "0.0.0.0", HTTPPort: account.HTTP, HTTPModules: []string{"platon", "debug", "personal", "admin", "net", "web3", "txpool"}})
 	chaindbs, err := InitGenesis(stack, genesisJson, app)
 	if err != nil {
 		return nil, nil, err
@@ -52,6 +70,7 @@ func NewMemoryNode(account *Account, genesisJson string, app sdk.App) (*node.Nod
 	if err != nil {
 		return nil, nil, err
 	}
+	stack.RegisterAPIs(tracers.APIs(backend.APIBackend))
 	return stack, backend, nil
 }
 
@@ -88,23 +107,24 @@ func getEthConfig(acc *Account) *ethconfig.Config {
 			Node:              nod,
 			BlsPriKey:         blsPriKey,
 			WalMode:           false,
-			PeerMsgQueueSize:  0,
+			PeerMsgQueueSize:  1024,
 			EvidenceDir:       "",
-			MaxPingLatency:    0,
-			MaxQueuesLimit:    0,
-			BlacklistDeadline: 0,
+			MaxPingLatency:    5000,
+			MaxQueuesLimit:    4096,
+			BlacklistDeadline: 60,
 			Period:            400,
 			Amount:            10,
 		},
+		SyncMode:                downloader.FullSync,
 		DatabaseCache:           768,
 		TrieCache:               32,
 		TrieTimeout:             60 * time.Minute,
 		SnapshotCache:           256,
 		TrieDBCache:             512,
-		DBDisabledGC:            false,
+		DBDisabledGC:            true,
 		DBGCInterval:            86400,
 		DBGCTimeout:             time.Minute,
-		DBGCMpt:                 true,
+		DBGCMpt:                 false,
 		DBGCBlock:               256,
 		VMWasmType:              "wagon",
 		VmTimeoutDuration:       0, // default 0 ms for vm exec timeout

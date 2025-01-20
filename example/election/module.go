@@ -61,6 +61,7 @@ type GenesisConfig struct {
 	module.ModuleGenesisConfig
 	InitialNodes     Nodes          `json:"initialNodes"`
 	AdminAddress     common.Address `json:"adminAddress"`
+	OwnerAddress     common.Address `json:"ownerAddress"`
 	EpochSize        uint64         `json:"epochSize"`
 	ElectionDistance uint64         `json:"electionDistance"`
 }
@@ -109,7 +110,7 @@ func (m *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *param
 		return err
 	}
 
-	input, _ := electionCaller.PackInitialize(genesis.InitialNodes.toContractNode(), genesis.EpochSize, genesis.ElectionDistance)
+	input, _ := electionCaller.PackInitialize(genesis.OwnerAddress, genesis.InitialNodes.toContractNode(), genesis.EpochSize, genesis.ElectionDistance)
 	if err = proxyCaller.WithCaller(genesis.AdminAddress).WithTo(ProxyAddress).Initialize(ElectionAddress, genesis.AdminAddress, input); err != nil {
 		return err
 	}

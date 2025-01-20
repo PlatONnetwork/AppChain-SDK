@@ -196,11 +196,10 @@ func (c *ElectionBackendBackendCaller) Owner(ctx vmsdk.BackendCallerContext) (co
 func (c *ElectionBackendBackendCaller) ChangeEpoch(ctx vmsdk.BackendCallerContext) error {
 	con := vm.NewContract(vm.AccountRef(c.caller), vm.AccountRef(c.proxy), big.NewInt(0), math.MaxUint64)
 	con.SetCallCode(&c.proxy, common.Hash{}, ElectionBackendDeployedCode)
-	evm, _, err := ctx.Backend().GetEVM(vmsdk.NewOnlyCallMessage(c.caller), ctx.Header())
+	evm, err := ctx.Backend().GetEVMWithState(vmsdk.NewOnlyCallMessage(c.caller), ctx.Header(), ctx.StateDB())
 	if err != nil {
 		return err
 	}
-	evm.StateDB = ctx.StateDB()
 
 	var input []byte
 
