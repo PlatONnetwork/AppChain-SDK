@@ -1,6 +1,6 @@
 GOBIN = $(shell pwd)/build/bin
 ROOT=$(shell pwd)
-.PHONY:tools simapp example
+.PHONY:tools simapp example clean
 all:tools simapp example
 
 tools:tools.bin
@@ -15,3 +15,5 @@ example:
 	go build -o $(GOBIN)/$* $(ROOT)/$*/cmd
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/$(*)\" to launch $(*)."
+clean:
+	rm -rf $(ROOT)/build
