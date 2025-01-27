@@ -26,6 +26,8 @@ var (
 			flags.AddressFlags,
 			flags.MethodFlags,
 			flags.TypeFlags,
+			flags.StartFlags,
+			flags.EndFlags,
 		},
 		Category:           "CAST COMMANDS",
 		Description:        ``,

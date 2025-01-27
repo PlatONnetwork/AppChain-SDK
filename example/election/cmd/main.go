@@ -92,7 +92,7 @@ func main() {
 		return testutil.NewApp(module.NewManager())
 	}, func(ctx *cli.Context) string {
 		return ""
-	}, nil)
+	}, nil, nil)
 	app.Commands = append(app.Commands, []cli.Command{
 		ServerCommand,
 		ClientCommand,

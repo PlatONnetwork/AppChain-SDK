@@ -25,7 +25,7 @@ func main() {
 			panic(fmt.Sprintf("Create simple app error: %v", err))
 		}
 		return simApp
-	}, nil, nil)
+	}, nil, nil, nil)
 
 	if err := cliApp.Run(os.Args); err != nil {
 		fmt.Fprintln(os.Stderr, err)

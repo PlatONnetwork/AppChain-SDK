@@ -2,7 +2,6 @@ package cast
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/flags"
@@ -17,6 +16,7 @@ import (
 	"gopkg.in/urfave/cli.v1"
 	"math/big"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -99,9 +99,9 @@ func GetAbi(ctx *cli.Context) (*ethabi.ABI, error) {
 func FilterLog(abi *ethabi.ABI, method string, inputs []string, to common.Address, cli *ethclient.Client, opt *bind.FilterOpts) ([]map[string]interface{}, error) {
 	event, ok := abi.Events[method]
 	if !ok {
-		return nil, fmt.Errorf("event not found")
+		return nil, fmt.Errorf("event not found:%s", method)
 	}
-	topics, err := MakeTopics(event.Inputs, inputs)
+	topics, err := MakeTopics(event, inputs)
 	if err != nil {
 		return nil, err
 	}
@@ -126,6 +126,7 @@ func FilterLog(abi *ethabi.ABI, method string, inputs []string, to common.Addres
 			topics[i] = ethgo.BytesToHash(h.Bytes())
 		}
 		r, err := ethabi.ParseLog(event.Inputs, &ethgo.Log{
+			Topics:           topics,
 			Removed:          log.Removed,
 			LogIndex:         uint64(log.Index),
 			TransactionIndex: uint64(log.Index),
@@ -143,104 +144,49 @@ func FilterLog(abi *ethabi.ABI, method string, inputs []string, to common.Addres
 	}
 	return res, nil
 }
-func MakeTopics(t *ethabi.Type, inputs []string) ([][]common.Hash, error) {
-	var res [][]common.Hash
-	for i, elem := range t.TupleElems() {
+func MakeTopics(event *ethabi.Event, inputs []string) ([][]common.Hash, error) {
+	name := []common.Hash{common.BytesToHash(event.ID().Bytes())}
+	res := [][]common.Hash{name}
+	for i, elem := range event.Inputs.TupleElems() {
 		if elem.Indexed {
 			if len(inputs) <= i {
-				return res, nil
+				break
 			}
 			r, err := makeTopic(elem.Elem, inputs[i])
 			if err != nil {
 				return nil, err
 			}
-			res = append(res, r)
+			res = append(res, []common.Hash{r})
 		}
 	}
 	return res, nil
 }
 
-func makeTopic(t *ethabi.Type, input string) ([]common.Hash, error) {
-	var res []common.Hash
+func makeTopic(t *ethabi.Type, input string) (common.Hash, error) {
+	var hash ethgo.Hash
+	var err error
 	switch t.Kind() {
 	case ethabi.KindBool:
-		var array []bool
-		err := json.Unmarshal([]byte(input), &array)
-		if err != nil {
-			var value bool
-			err := json.Unmarshal([]byte(input), &value)
-			if err != nil {
-				return nil, err
-			}
-			hash, err := ethabi.EncodeTopic(t, value)
-			if err != nil {
-				return nil, err
-			}
-			res = append(res, common.BytesToHash(hash.Bytes()))
+		if strings.ToLower(input) == "true" {
+			hash, err = ethabi.EncodeTopic(t, true)
 		} else {
-			for _, a := range array {
-				hash, err := ethabi.EncodeTopic(t, a)
-				if err != nil {
-					return nil, err
-				}
-				res = append(res, common.BytesToHash(hash.Bytes()))
-			}
+			hash, err = ethabi.EncodeTopic(t, false)
 		}
 
-	case ethabi.KindUInt, ethabi.KindInt:
-		var array []*big.Int
-		err := json.Unmarshal([]byte(input), &array)
-		if err != nil {
-			var value []*big.Int
-			err := json.Unmarshal([]byte(input), &value)
-			if err != nil {
-				return nil, err
-			}
-			hash, err := ethabi.EncodeTopic(t, value)
-			if err != nil {
-				return nil, err
-			}
-			res = append(res, common.BytesToHash(hash.Bytes()))
-		} else {
-			for _, a := range array {
-				hash, err := ethabi.EncodeTopic(t, a)
-				if err != nil {
-					return nil, err
-				}
-				res = append(res, common.BytesToHash(hash.Bytes()))
-			}
-		}
-
-	case ethabi.KindAddress:
-		var array []string
-		err := json.Unmarshal([]byte(input), &array)
-		if err != nil {
-			var value []string
-			err := json.Unmarshal([]byte(input), &value)
-			if err != nil {
-				return nil, err
-			}
-			hash, err := ethabi.EncodeTopic(t, value)
-			if err != nil {
-				return nil, err
-			}
-			res = append(res, common.BytesToHash(hash.Bytes()))
-		} else {
-			for _, a := range array {
-				hash, err := ethabi.EncodeTopic(t, a)
-				if err != nil {
-					return nil, err
-				}
-				res = append(res, common.BytesToHash(hash.Bytes()))
-			}
-		}
-
+	default:
+		hash, err = ethabi.EncodeTopic(t, input)
 	}
-	return res, nil
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return common.BytesToHash(hash.Bytes()), nil
 }
 
 func Send(abi *ethabi.ABI, methodName string, inputs []string, to common.Address, cli *ethclient.Client, opt *bind.TransactOpts) (*types.Transaction, error) {
 	method := abi.GetMethod(methodName)
+	if method == nil {
+		return nil, fmt.Errorf("method not found:%s", methodName)
+	}
 	input, err := method.Encode(inputs)
 	if err != nil {
 		return nil, fmt.Errorf("encode input failed:%s", err.Error())
@@ -259,17 +205,24 @@ func Send(abi *ethabi.ABI, methodName string, inputs []string, to common.Address
 	}
 	return signedTx, nil
 }
-func Call(abi *ethabi.ABI, methodName string, inputs []string, to common.Address, cli *ethclient.Client, opt *bind.CallOpts) ([]byte, error) {
+func Call(abi *ethabi.ABI, methodName string, inputs []string, to common.Address, cli *ethclient.Client, opt *bind.CallOpts) (string, error) {
 	method := abi.GetMethod(methodName)
+	if method == nil {
+		return "", fmt.Errorf("method not found:%s", methodName)
+	}
 	input, err := method.Encode(inputs)
 	if err != nil {
-		return nil, fmt.Errorf("encode input failed:%s", err.Error())
+		return "", fmt.Errorf("encode input failed:%s", err.Error())
 	}
-	return cli.CallContract(context.Background(), platon.CallMsg{
+	result, err := cli.CallContract(context.Background(), platon.CallMsg{
 		From: opt.From,
 		To:   &to,
 		Data: input,
 	}, nil)
+	if err != nil {
+		return "", err
+	}
+	return formatReturn(result, method.Outputs)
 }
 func createLegacyTx(opts *bind.TransactOpts, cli *ethclient.Client, contract *common.Address, input []byte) (*types.Transaction, error) {
 	if opts.GasFeeCap != nil || opts.GasTipCap != nil {
@@ -349,4 +302,23 @@ func WaitTx(client *ethclient.Client, hash common.Hash) (*types.Receipt, error) 
 		time.Sleep(time.Second)
 	}
 	return nil, fmt.Errorf("wait tx time out")
+}
+
+func formatReturn(input []byte, p *ethabi.Type) (string, error) {
+	output, err := p.Decode(input)
+	if err != nil {
+		return "", err
+	}
+	var result string
+	if val, ok := output.(map[string]interface{}); ok {
+		var args []string
+		for _, v := range val {
+			args = append(args, fmt.Sprintf("%v", v))
+		}
+		result = strings.Join(args, ",")
+	} else {
+		result = fmt.Sprintf("%v", output)
+	}
+
+	return result, nil
 }
