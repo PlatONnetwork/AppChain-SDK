@@ -1,0 +1,25 @@
+---
+- name: Execute script on remote servers
+  hosts: all
+  gather_facts: no
+  vars_files: "vars/env.yml"
+
+  tasks:
+    - name: Ensure script exists on remote
+      stat:
+        path: /opt/node/{{ cmd }}.sh
+      register: script_stat
+
+    - name: Execute command remote server
+      when: inventory_hostname == item.local
+      loop: "{{ node_folders }}"
+      vars:
+        current_item: "{{ item }}"
+      command: "/bin/bash ./{{ cmd }}.sh"
+      args:
+        chdir: "/opt/node"
+      register: script_output
+
+    - name: ddd
+      debug:
+        msg: "{{ script_output.results.0.stdout }}"

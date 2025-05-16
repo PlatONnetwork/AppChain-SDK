@@ -4,6 +4,7 @@ go 1.21
 
 require (
 	github.com/PlatONnetwork/PlatON-Go v1.5.0
+	github.com/go-echarts/go-echarts/v2 v2.5.4
 	github.com/google/uuid v1.1.5
 	github.com/holiman/uint256 v1.2.0
 	github.com/status-im/keycard-go v0.0.0-20190316090335-8537d3370df4
@@ -13,6 +14,7 @@ require (
 	github.com/umbracle/ethgo v0.1.3
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
 	gopkg.in/urfave/cli.v1 v1.20.0
+	gopkg.in/yaml.v3 v3.0.1
 	gotest.tools v2.2.0+incompatible
 )
 
@@ -84,7 +86,6 @@ require (
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
 	gopkg.in/olebedev/go-duktape.v3 v3.0.0-20200619000410-60c24ae608a6 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 replace github.com/PlatONnetwork/PlatON-Go => ../AppChain-Base

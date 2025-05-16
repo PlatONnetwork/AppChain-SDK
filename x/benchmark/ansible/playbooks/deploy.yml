@@ -1,0 +1,74 @@
+---
+- name: Deploy node folders to remote servers
+  hosts: all
+  gather_facts: no
+  vars_files: "vars/env.yml"
+
+  tasks:
+    - name: Create local archives (run locally)
+      delegate_to: localhost
+      run_once: yes
+      loop: "{{ node_folders }}"
+      vars:
+        current_item: "{{ item }}"
+      command: "tar -czf {{ playbook_dir }}/files/{{ current_item.archive }} -C {{ playbook_dir }}/files {{ current_item.local }}"
+      changed_when: false
+
+    - name: Ensure /opt directory exists on remote
+      file:
+        path: /opt
+        state: directory
+        mode: '0755'
+
+    - name: Copy archive to remote server
+      when: inventory_hostname == item.local
+      loop: "{{ node_folders }}"
+      vars:
+        current_item: "{{ item }}"
+      copy:
+        src: "{{ playbook_dir }}/files/{{ current_item.archive }}"
+        dest: "/opt/{{ current_item.archive }}"
+        mode: '0644'
+
+    - name: Clean up remote dir
+      when: inventory_hostname == item.local
+      loop: "{{ node_folders }}"
+      vars:
+        current_item: "{{ item }}"
+      file:
+        path: "/opt/node"
+        state: absent
+
+    - name: Extract archive on remote server
+      when: inventory_hostname == item.local
+      loop: "{{ node_folders }}"
+      vars:
+        current_item: "{{ item }}"
+      command: "tar -xzf /opt/{{ current_item.archive }} -C /opt"
+
+
+    - name: Rename dir on remote server
+      when: inventory_hostname == item.local
+      loop: "{{ node_folders }}"
+      vars:
+        current_item: "{{ item }}"
+      command: "mv /opt/{{ current_item.local }} /opt/node"
+
+    - name: Clean up remote archives
+      when: inventory_hostname == item.local
+      loop: "{{ node_folders }}"
+      vars:
+        current_item: "{{ item }}"
+      file:
+        path: "/opt/{{ current_item.archive }}"
+        state: absent
+
+    - name: Clean up local archives (run locally)
+      delegate_to: localhost
+      run_once: yes
+      loop: "{{ node_folders }}"
+      vars:
+        current_item: "{{ item }}"
+      file:
+        path: "{{ current_item.archive }}"
+        state: absent
