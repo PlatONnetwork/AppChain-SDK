@@ -276,6 +276,10 @@ func (s *SimApp) PrepareQC(ctx sdk.ConsensusContext, block *protocols.PrepareBlo
 	s.manager.PrepareQC(ctx, block, votes)
 }
 
+func (s *SimApp) ViewChange(ctx sdk.ConsensusContext, validators []*cbfttypes.ValidateNode) {
+	s.manager.ViewChange(ctx, validators)
+}
+
 func (s *SimApp) NewHeader(ctx sdk.ConsensusContext, header *types.Header) error {
 	return s.manager.NewHeader(ctx, header)
 }

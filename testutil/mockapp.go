@@ -3,6 +3,7 @@ package testutil
 import (
 	"encoding/hex"
 	"encoding/json"
+
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/protocols"
 	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
@@ -105,6 +106,10 @@ func (m *MockApp) VerifyExtendData(ctx sdk.ConsensusContext, data []byte) (commo
 }
 
 func (m *MockApp) PrepareQC(ctx sdk.ConsensusContext, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote) {
+
+}
+
+func (m *MockApp) ViewChange(ctx sdk.ConsensusContext, validators []*cbfttypes.ValidateNode) {
 
 }
 
