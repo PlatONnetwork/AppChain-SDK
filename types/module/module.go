@@ -415,6 +415,10 @@ func (m *Manager) PrepareQC(ctx sdk.ConsensusContext, block *protocols.PrepareBl
 	return
 }
 
+func (m *Manager) ViewChange(ctx sdk.ConsensusContext, validators []*cbfttypes.ValidateNode) {
+
+}
+
 func (m *Manager) NewHeader(ctx sdk.ConsensusContext, header *types.Header) error {
 	log.Info("New header for election app", "blockNumber", header.Number.Uint64())
 	if m.Modules[m.Election] == nil {

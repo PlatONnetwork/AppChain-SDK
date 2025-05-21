@@ -3,6 +3,10 @@ package testutil
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
+	"os"
+	"path/filepath"
+
 	"github.com/PlatONnetwork/AppChain-SDK/baseapp"
 	"github.com/PlatONnetwork/AppChain-SDK/store/storage"
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -14,9 +18,6 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/rpc"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
-	"math/rand"
-	"os"
-	"path/filepath"
 
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 )
@@ -103,6 +104,10 @@ func (s *SimApp) VerifyExtendData(ctx sdk.ConsensusContext, data []byte) (common
 
 func (s *SimApp) PrepareQC(ctx sdk.ConsensusContext, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote) {
 	s.manager.PrepareQC(ctx, block, votes)
+}
+
+func (s *SimApp) ViewChange(ctx sdk.ConsensusContext, validators []*cbfttypes.ValidateNode) {
+	s.manager.ViewChange(ctx, validators)
 }
 
 func (s *SimApp) NewHeader(ctx sdk.ConsensusContext, header *types.Header) error {
