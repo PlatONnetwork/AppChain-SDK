@@ -2,8 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/PlatONnetwork/AppChain-SDK/x/gov"
-	"github.com/PlatONnetwork/AppChain-SDK/x/votetoken"
 	"path/filepath"
 
 	"github.com/PlatONnetwork/AppChain-SDK/baseapp"
@@ -13,7 +11,9 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint"
 	"github.com/PlatONnetwork/AppChain-SDK/x/deposit"
 	"github.com/PlatONnetwork/AppChain-SDK/x/extravote"
+	"github.com/PlatONnetwork/AppChain-SDK/x/gov"
 	"github.com/PlatONnetwork/AppChain-SDK/x/l1"
+	"github.com/PlatONnetwork/AppChain-SDK/x/pevm"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward"
 	"github.com/PlatONnetwork/AppChain-SDK/x/stage"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking"
@@ -24,6 +24,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/upgrade"
 	"github.com/PlatONnetwork/AppChain-SDK/x/upgrade/testcontract"
 	"github.com/PlatONnetwork/AppChain-SDK/x/upgrade/testmod"
+	"github.com/PlatONnetwork/AppChain-SDK/x/votetoken"
 	"github.com/PlatONnetwork/AppChain-SDK/x/vrf"
 	"github.com/PlatONnetwork/PlatON-Go/cmd/utils"
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -58,6 +59,7 @@ type SimApp struct {
 	upgrade            *upgrade.Module
 	voteToken          *votetoken.Module
 	gov                *gov.Module
+	pevm               *pevm.Module
 	manager            *module.Manager
 }
 
@@ -124,6 +126,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 
 	app.voteToken, _ = votetoken.NewModule()
 	app.gov, _ = gov.NewModule(ctx)
+	app.pevm, _ = pevm.NewModule(ctx)
 	tm := testmod.NewModule()
 	tc := testcontract.NewModule()
 
@@ -142,6 +145,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		app.l2StateSender,
 		app.upgrade,
 		app.gov,
+		app.pevm,
 		app.voteToken,
 		tm, tc)
 	manager.SetElection(app.staking.Name())
@@ -178,6 +182,9 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		tc.Name(),
 	)
 
+	manager.SetTxFiller(app.pevm.Name())
+	manager.SetTxExecutor(app.pevm.Name())
+
 	manager.SetModuleValidChecker(app.upgrade.IsModuleValid)
 
 	manager.RegisterUpgradeHandler(app.upgrade)
@@ -211,6 +218,8 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 	app.SetEndBlocker(app.EndBlock)
 	app.SetAddTxser(app.AddTxs)
 	app.SetSortTxser(app.SortTxs)
+	app.SetTxFiller(app.FillTransactions)
+	app.SetTxExecutor(app.ExecuteTxs)
 
 	return app, nil
 }
@@ -237,6 +246,14 @@ func (s *SimApp) CheckTx(ctx sdk.Context, tx *types.Transaction) error {
 
 func (s *SimApp) FilterPendingTxs(ctx sdk.Context, txs map[common.Address]types.Transactions) map[common.Address]types.Transactions {
 	return s.manager.FilterPendingTxs(ctx, txs)
+}
+
+func (s *SimApp) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackApp) (types.Transactions, types.Receipts, error) {
+	return s.manager.FillTransactions(ctx, cb)
+}
+
+func (s *SimApp) ExecuteTxs(ctx sdk.WorkerContext, cApp sdk.ContractsApp, txs types.Transactions) (types.Receipts, uint64, error) {
+	return s.manager.ExecuteTxs(ctx, cApp, txs)
 }
 
 func (s *SimApp) APIs() []rpc.API {

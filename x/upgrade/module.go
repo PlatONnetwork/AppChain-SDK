@@ -261,7 +261,6 @@ func (m *Module) GetModuleInitValidNumberMap(chainConfig *params.ChainConfig, db
 	vn := make(module.ValidNumberMap)
 	vm := make(module.VersionMap)
 	for name, data := range chainConfig.Modules {
-
 		vn[name] = 0
 		var gen types.GenesisConfig
 		json.Unmarshal(data, &gen)

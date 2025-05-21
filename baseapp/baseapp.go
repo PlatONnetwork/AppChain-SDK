@@ -51,6 +51,8 @@ type BaseApp struct {
 	endBlocker         sdktypes.EndBlocker
 	addTxser           sdktypes.AddTxser
 	sortTxser          sdktypes.SortTxser
+	txFiller           sdktypes.TxFiller
+	txExecutor         sdktypes.TxExecutor
 }
 
 func NewBaseApp(name string, store store.Store, manager *module.Manager) (*BaseApp, error) {
@@ -155,6 +157,14 @@ func (app *BaseApp) SetAddTxser(addTxser sdktypes.AddTxser) {
 
 func (app *BaseApp) SetSortTxser(sortTxser sdktypes.SortTxser) {
 	app.sortTxser = sortTxser
+}
+
+func (app *BaseApp) SetTxFiller(txFiller sdktypes.TxFiller) {
+	app.txFiller = txFiller
+}
+
+func (app *BaseApp) SetTxExecutor(txExecutor sdktypes.TxExecutor) {
+	app.txExecutor = txExecutor
 }
 
 func (app *BaseApp) Start() error {
@@ -305,4 +315,18 @@ func (app *BaseApp) SortTxs(ctx sdk.WorkerContext, local, remote map[common.Addr
 		return app.sortTxser(ctx, local, remote)
 	}
 	return app.manager.SortTxs(ctx, local, remote)
+}
+
+func (app *BaseApp) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackApp) (types.Transactions, types.Receipts, error) {
+	if app.txFiller != nil {
+		return app.txFiller(ctx, cb)
+	}
+	return nil, nil, nil
+}
+
+func (app *BaseApp) ExecuteTxs(ctx sdk.WorkerContext, cApp sdk.ContractsApp, txs types.Transactions) (types.Receipts, uint64, error) {
+	if app.txExecutor != nil {
+		return app.txExecutor(ctx, cApp, txs)
+	}
+	return nil, 0, nil
 }

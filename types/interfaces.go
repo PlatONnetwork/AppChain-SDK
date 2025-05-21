@@ -45,3 +45,6 @@ type EndBlocker func(ctx sdk.WorkerContext) error
 
 type AddTxser func(ctx sdk.WorkerContext) (types.Transactions, error)
 type SortTxser func(ctx sdk.WorkerContext, local, remote map[common.Address]types.Transactions) (types.Transactions, error)
+type TxFiller func(sdk.WorkerContext, sdk.TxApplyCallbackApp) (types.Transactions, types.Receipts, error)
+
+type TxExecutor func(sdk.WorkerContext, sdk.ContractsApp, types.Transactions) (types.Receipts, uint64, error)

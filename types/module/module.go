@@ -148,6 +148,16 @@ type TransactionModule interface {
 	AddTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions) (map[common.Address]types.Transactions, error)
 }
 
+type FillTransationModule interface {
+	Module
+	FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackApp) (types.Transactions, types.Receipts, error)
+}
+
+type TxExecutorModule interface {
+	Module
+	ExecuteTxs(ctx sdk.WorkerContext, cApp sdk.ContractsApp, txs types.Transactions) (types.Receipts, uint64, error)
+}
+
 type UpgradeRegistrar interface {
 	RegisterUpgradeHandler(module string, version uint64, handler UpgradeHandler) error
 }
@@ -162,6 +172,8 @@ type Manager struct {
 	ConsensusExtend     string
 	Election            string
 	Worker              string
+	TxFiller            string
+	TxExecutor          string
 	OrderInit           []string
 	OrderTxPool         []string
 	OrderBlockCommitter []string
@@ -237,6 +249,22 @@ func (m *Manager) SetWorker(moduleName string) {
 		panic(fmt.Sprintf("WorkerModule %s missing", moduleName))
 	}
 	m.Worker = moduleName
+}
+
+func (m *Manager) SetTxFiller(moduleName string) {
+	mod := m.Modules[moduleName]
+	if _, has := mod.(FillTransationModule); !has {
+		panic(fmt.Sprintf("FillTransactionModule %s missing", moduleName))
+	}
+	m.TxFiller = moduleName
+}
+
+func (m *Manager) SetTxExecutor(moduleName string) {
+	mod := m.Modules[moduleName]
+	if _, has := mod.(TxExecutorModule); !has {
+		panic(fmt.Sprintf("TxExecutorModule %s missing", moduleName))
+	}
+	m.TxExecutor = moduleName
 }
 
 func (m *Manager) SetOrderBlockCommitter(moduleNames ...string) {
@@ -576,6 +604,22 @@ func (m *Manager) SortTxs(ctx sdk.WorkerContext, local, remote map[common.Addres
 		allTxs = append(allTxs, txs...)
 	}
 	return allTxs, nil
+}
+
+func (m *Manager) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackApp) (types.Transactions, types.Receipts, error) {
+	isValid := m.isModuleValid(ctx.StateDB(), m.TxFiller, ctx.Header().Number.Uint64())
+	if module, ok := m.Modules[m.TxFiller].(FillTransationModule); ok && isValid {
+		return module.FillTransactions(ctx, cb)
+	}
+	return nil, nil, nil
+}
+
+func (m *Manager) ExecuteTxs(ctx sdk.WorkerContext, cApp sdk.ContractsApp, txs types.Transactions) (types.Receipts, uint64, error) {
+	isValid := m.isModuleValid(ctx.StateDB(), m.TxExecutor, ctx.Header().Number.Uint64())
+	if module, ok := m.Modules[m.TxExecutor].(TxExecutorModule); ok && isValid {
+		return module.ExecuteTxs(ctx, cApp, txs)
+	}
+	return nil, 0, nil
 }
 
 func (m *Manager) RegisterUpgradeHandler(registrar UpgradeRegistrar) error {
