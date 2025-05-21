@@ -2,9 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"path/filepath"
+
 	"github.com/PlatONnetwork/AppChain-SDK/x/gov"
 	"github.com/PlatONnetwork/AppChain-SDK/x/votetoken"
-	"path/filepath"
+
+	"gopkg.in/urfave/cli.v1"
 
 	"github.com/PlatONnetwork/AppChain-SDK/baseapp"
 	"github.com/PlatONnetwork/AppChain-SDK/store/storage"
@@ -37,7 +40,6 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/rpc"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
-	"gopkg.in/urfave/cli.v1"
 )
 
 type SimApp struct {
@@ -257,6 +259,10 @@ func (s *SimApp) VerifyExtendData(ctx sdk.ConsensusContext, data []byte) (common
 
 func (s *SimApp) PrepareQC(ctx sdk.ConsensusContext, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote) {
 	s.manager.PrepareQC(ctx, block, votes)
+}
+
+func (s *SimApp) ViewChange(ctx sdk.ConsensusContext, validators []*cbfttypes.ValidateNode) {
+	s.manager.ViewChange(ctx, validators)
 }
 
 func (s *SimApp) NewHeader(ctx sdk.ConsensusContext, header *types.Header) error {

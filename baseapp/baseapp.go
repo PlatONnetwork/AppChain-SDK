@@ -236,6 +236,10 @@ func (app *BaseApp) PrepareQC(ctx sdk.ConsensusContext, block *protocols.Prepare
 	}
 }
 
+func (app *BaseApp) ViewChange(ctx sdk.ConsensusContext, validators []*cbfttypes.ValidateNode) {
+
+}
+
 func (app *BaseApp) NewHeader(ctx sdk.ConsensusContext, header *types.Header) error {
 	if app.newHeaderer != nil {
 		return app.newHeaderer(ctx, header)
