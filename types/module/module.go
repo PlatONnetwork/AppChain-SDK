@@ -110,6 +110,11 @@ type ConsensusExtendModule interface {
 	PrepareQC(ctx sdk.ConsensusContext, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote)
 }
 
+type ViewChangeModule interface {
+	Module
+	ViewChange(ctx sdk.ConsensusContext, validators []*cbfttypes.ValidateNode)
+}
+
 type BlockCommitterModule interface {
 	Module
 	OnCommit(ctx sdk.ConsensusContext, block *types.Block) error
@@ -416,7 +421,15 @@ func (m *Manager) PrepareQC(ctx sdk.ConsensusContext, block *protocols.PrepareBl
 }
 
 func (m *Manager) ViewChange(ctx sdk.ConsensusContext, validators []*cbfttypes.ValidateNode) {
+	log.Info("Notify viewchange")
 
+	for name, mod := range m.Modules {
+		if module, ok := mod.(ViewChangeModule); ok {
+			log.Debug("Notify viewchange for module", "module", name)
+			module.ViewChange(ctx, validators)
+		}
+	}
+	return
 }
 
 func (m *Manager) NewHeader(ctx sdk.ConsensusContext, header *types.Header) error {
