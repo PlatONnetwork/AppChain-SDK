@@ -298,6 +298,7 @@ func (s *StakeModule) GetRoundValidator(ctx sdk.ConsensusContext, blockNumber ui
 			PubKey:    pubkey,
 			NodeID:    enode.PubkeyToIDV4(pubkey),
 			BlsPubKey: &blsKey,
+			Shares:    big.NewInt(1),
 		}
 		valMap[validator.NodeID] = validator
 	}

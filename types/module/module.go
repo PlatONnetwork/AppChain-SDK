@@ -600,12 +600,15 @@ func (m *Manager) SortTxs(ctx sdk.WorkerContext, local, remote map[common.Addres
 		return module.SortTxs(ctx, local, remote)
 	}
 
+	signer := types.MakeSigner(ctx.ChainConfig(), ctx.Header().Number)
 	allTxs := make(types.Transactions, 0)
-	for _, txs := range local {
-		allTxs = append(allTxs, txs...)
+	if len(local) > 0 {
+		peeker := types.NewTransactionsByPriceAndNonce(signer, local, ctx.Header().BaseFee)
+		allTxs = append(allTxs, peeker.PeekAll()...)
 	}
-	for _, txs := range remote {
-		allTxs = append(allTxs, txs...)
+	if len(remote) > 0 {
+		peeker := types.NewTransactionsByPriceAndNonce(signer, remote, ctx.Header().BaseFee)
+		allTxs = append(allTxs, peeker.PeekAll()...)
 	}
 	return allTxs, nil
 }
