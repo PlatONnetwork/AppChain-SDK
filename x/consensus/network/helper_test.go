@@ -322,3 +322,7 @@ func (s *mockCbft) OnPong(nodeID string, netLatency int64) error {
 func (s *mockCbft) BlockExists(blockNumber uint64, blockHash common.Hash) error {
 	return nil
 }
+
+func (s *mockCbft) ContainsBlacklist(peerID string) bool {
+	return false
+}

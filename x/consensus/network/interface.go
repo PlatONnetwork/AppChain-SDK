@@ -2,16 +2,11 @@ package network
 
 import (
 	"github.com/PlatONnetwork/PlatON-Go/common"
-	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/protocols"
 	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/types"
 	"github.com/PlatONnetwork/PlatON-Go/p2p/enode"
 )
 
 type ConsensusNetworkEngine interface {
-
-	// Returns the ID value of the current node.
-	Node() *enode.Node
-
 	// Return a list of all consensus nodes.
 	ConsensusNodes() ([]enode.ID, error)
 
@@ -35,18 +30,8 @@ type ConsensusNetworkEngine interface {
 	// Return the highest commit block number of the current node.
 	HighestCommitBlockBn() (uint64, common.Hash)
 
-	// Returns the node ID of the missing vote.
-	MissingViewChangeNodes() (*protocols.GetViewChange, error)
-
-	// Returns the missing vote.
-	MissingPrepareVote() (*protocols.GetPrepareVote, error)
-
-	// Returns latest status.
-	LatestStatus() *protocols.GetLatestStatus
-
-	// OnPong records net delay time.
-	OnPong(nodeID string, netLatency int64) error
-
 	// BlockExists determines if a block exists.
 	BlockExists(blockNumber uint64, blockHash common.Hash) error
+
+	ContainsBlacklist(peerID string) bool
 }

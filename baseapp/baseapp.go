@@ -3,12 +3,12 @@ package baseapp
 import (
 	"encoding/json"
 	"math/big"
+	"time"
 
 	"github.com/PlatONnetwork/AppChain-SDK/store"
 	sdktypes "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/PlatON-Go/common"
-	"github.com/PlatONnetwork/PlatON-Go/consensus"
 	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/protocols"
 	ctypes "github.com/PlatONnetwork/PlatON-Go/consensus/cbft/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
@@ -316,22 +316,8 @@ func (app *BaseApp) SortTxs(ctx sdk.WorkerContext, local, remote map[common.Addr
 func (app *BaseApp) StartNetworkEngine() {
 	// TODO
 }
-func (app *BaseApp) MarkHistoryMessageHash(hash common.Hash) {
-	// TODO
-}
-func (app *BaseApp) ContainsHistoryMessageHash(hash common.Hash) bool {
-	// TODO
-	return false
-}
 func (app *BaseApp) RemoveMessageHash(id string, msgHash common.Hash) {
 	// TODO
-}
-func (app *BaseApp) MarkBlacklist(peerID string) {
-	// TODO
-}
-func (app *BaseApp) ContainsBlacklist(peerID string) bool {
-	// TODO
-	return false
 }
 func (app *BaseApp) Broadcast(msg ctypes.Message) {
 	// TODO
@@ -346,28 +332,15 @@ func (app *BaseApp) Forwarding(nodeID string, msg ctypes.Message) error {
 func (app *BaseApp) Send(peerID string, msg ctypes.Message) {
 	// TODO
 }
-func (app *BaseApp) AliveConsensusNodeIDs() ([]string, error) {
+
+func (app *BaseApp) AvgLatency() time.Duration {
 	// TODO
-	return nil, nil
+	return time.Second
 }
 func (app *BaseApp) PeerSetting(peerID string, bType uint64, blockNumber uint64) error {
 	// TODO
 	return nil
 }
 func (app *BaseApp) RemovePeer(id string) {
-	// TODO
-}
-func (app *BaseApp) RegisterPeer(peer consensus.NetworkPeer) error {
-	// TODO
-	return nil
-}
-func (app *BaseApp) NewPeer(pv int, p *basep2p.Peer, rw basep2p.MsgReadWriter) consensus.NetworkPeer {
-	// TODO
-	return nil
-}
-func (app *BaseApp) SetSendQueueHook(f func(msg *ctypes.MsgPackage)) {
-	// TODO
-}
-func (app *BaseApp) Testing() {
 	// TODO
 }

@@ -2,15 +2,17 @@ package main
 
 import (
 	"fmt"
+	"os"
+
 	"github.com/PlatONnetwork/AppChain-SDK/utils"
 	"github.com/PlatONnetwork/AppChain-SDK/x/statesync"
-	"os"
+
+	"gopkg.in/urfave/cli.v1"
 
 	"github.com/PlatONnetwork/AppChain-SDK/x"
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"github.com/PlatONnetwork/PlatON-Go/sdk/app"
-	"gopkg.in/urfave/cli.v1"
 )
 
 func main() {

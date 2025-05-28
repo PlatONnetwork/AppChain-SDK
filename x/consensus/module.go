@@ -38,9 +38,8 @@ func (s *ConsensusNetworkModule) Init(ctx sdk.InitContext) error {
 	return nil
 }
 
-func (s *ConsensusNetworkModule) ViewChange(ctx sdk.ConsensusContext, validators []*cbfttypes.ValidateNode) error {
+func (s *ConsensusNetworkModule) ViewChange(ctx sdk.ConsensusContext, validators []*cbfttypes.ValidateNode) {
 	// TODO
-	return nil
 }
 
 func (s *ConsensusNetworkModule) Name() string {

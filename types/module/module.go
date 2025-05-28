@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/PlatONnetwork/PlatON-Go/common"
-	"github.com/PlatONnetwork/PlatON-Go/consensus"
 	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/protocols"
 	ctypes "github.com/PlatONnetwork/PlatON-Go/consensus/cbft/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
@@ -121,13 +121,7 @@ type ConsensusNetworkModule interface {
 	Module
 	StartNetworkEngine()
 	// message
-	MarkHistoryMessageHash(hash common.Hash)
-	ContainsHistoryMessageHash(hash common.Hash) bool
 	RemoveMessageHash(id string, msgHash common.Hash)
-
-	// blacklist
-	MarkBlacklist(peerID string)
-	ContainsBlacklist(peerID string) bool
 
 	// send
 	Broadcast(msg ctypes.Message)
@@ -135,15 +129,11 @@ type ConsensusNetworkModule interface {
 	Forwarding(nodeID string, msg ctypes.Message) error
 	Send(peerID string, msg ctypes.Message)
 
+	AvgLatency() time.Duration
+
 	// peer
-	AliveConsensusNodeIDs() ([]string, error)
 	PeerSetting(peerID string, bType uint64, blockNumber uint64) error
 	RemovePeer(id string)
-	RegisterPeer(peer consensus.NetworkPeer) error
-	NewPeer(pv int, p *p2p.Peer, rw p2p.MsgReadWriter) consensus.NetworkPeer
-
-	SetSendQueueHook(f func(*ctypes.MsgPackage))
-	Testing()
 }
 
 type BlockCommitterModule interface {
@@ -701,22 +691,8 @@ func (m *Manager) isModuleValid(db sdk.StateDBReader, name string, blockNumber u
 func (m *Manager) StartNetworkEngine() {
 	// TODO
 }
-func (m *Manager) MarkHistoryMessageHash(hash common.Hash) {
-	// TODO
-}
-func (m *Manager) ContainsHistoryMessageHash(hash common.Hash) bool {
-	// TODO
-	return false
-}
 func (m *Manager) RemoveMessageHash(id string, msgHash common.Hash) {
 	// TODO
-}
-func (m *Manager) MarkBlacklist(peerID string) {
-	// TODO
-}
-func (m *Manager) ContainsBlacklist(peerID string) bool {
-	// TODO
-	return false
 }
 func (m *Manager) Broadcast(msg ctypes.Message) {
 	// TODO
@@ -731,28 +707,14 @@ func (m *Manager) Forwarding(nodeID string, msg ctypes.Message) error {
 func (m *Manager) Send(peerID string, msg ctypes.Message) {
 	// TODO
 }
-func (m *Manager) AliveConsensusNodeIDs() ([]string, error) {
+func (m *Manager) AvgLatency() time.Duration {
 	// TODO
-	return nil, nil
+	return time.Second
 }
 func (m *Manager) PeerSetting(peerID string, bType uint64, blockNumber uint64) error {
 	// TODO
 	return nil
 }
 func (m *Manager) RemovePeer(id string) {
-	// TODO
-}
-func (m *Manager) RegisterPeer(peer consensus.NetworkPeer) error {
-	// TODO
-	return nil
-}
-func (m *Manager) NewPeer(pv int, p *p2p.Peer, rw p2p.MsgReadWriter) consensus.NetworkPeer {
-	// TODO
-	return nil
-}
-func (m *Manager) SetSendQueueHook(f func(msg *ctypes.MsgPackage)) {
-	// TODO
-}
-func (m *Manager) Testing() {
 	// TODO
 }

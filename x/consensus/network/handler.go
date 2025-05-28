@@ -17,16 +17,17 @@
 package network
 
 import (
+	"container/list"
 	"fmt"
 	"math/big"
-	"math/rand"
 	"reflect"
+	"sort"
 	"strconv"
+	"sync"
 	"time"
 
+	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/utils"
 	"github.com/PlatONnetwork/PlatON-Go/p2p/enode"
-
-	lru "github.com/hashicorp/golang-lru"
 
 	"github.com/PlatONnetwork/PlatON-Go/common"
 
@@ -50,18 +51,6 @@ const (
 	// sendQueueSize is maximum threshold for the queue of messages waiting to be sent.
 	sendQueueSize = 10240
 
-	// QCBnMonitorInterval is Qc block synchronization detection interval.
-	QCBnMonitorInterval = 1
-
-	// SyncViewChangeInterval is ViewChange synchronization detection interval.
-	SyncViewChangeInterval = 1
-
-	// SyncPrepareVoteInterval is PrepareVote synchronization detection interval.
-	SyncPrepareVoteInterval = 1
-
-	// removeBlacklistInterval is remove blacklist detection interval.
-	removeBlacklistInterval = 20
-
 	// TypeForQCBn is the type for QC sync.
 	TypeForQCBn = 1
 
@@ -70,42 +59,31 @@ const (
 
 	// TypeForCommitBn is the type for Commit sync.
 	TypeForCommitBn = 3
-
-	// The maximum number of queues for message packets
-	// that are communicated by peers.
-	maxHistoryMessageHash = 5000
-
-	// If the number of blacklists reaches the threshold,
-	// the oldest blacklisted node will be re-trusted.
-	maxBlacklist = 300
 )
 
 // EngineManager responsibles for processing the messages in the network.
 type EngineManager struct {
-	engine             ConsensusNetworkEngine
-	router             *router
-	peers              *PeerSet
-	sendQueue          chan *types.MsgPackage
-	quitSend           chan struct{}
-	sendQueueHook      func(*types.MsgPackage)
-	historyMessageHash *lru.ARCCache // Consensus message record that has been processed successfully.
-	blacklist          *lru.Cache    // Save node blacklist.
+	engine        ConsensusNetworkEngine
+	router        *router
+	peers         *PeerSet
+	sendQueue     chan *types.MsgPackage
+	quitSend      chan struct{}
+	sendQueueHook func(*types.MsgPackage)
+
+	// Delay time of each node
+	netLatencyMap  map[string]*list.List
+	netLatencyLock sync.RWMutex
 }
 
 // NewEngineManger returns a new handler and do some initialization.
 func NewEngineManger() *EngineManager {
-	cache, err := lru.NewARC(maxHistoryMessageHash)
-	if err != nil {
-		return nil
-	}
 	handler := &EngineManager{
 		//engine:             engine,
-		peers:              NewPeerSet(),
-		sendQueue:          make(chan *types.MsgPackage, sendQueueSize),
-		quitSend:           make(chan struct{}),
-		historyMessageHash: cache,
+		peers:         NewPeerSet(),
+		sendQueue:     make(chan *types.MsgPackage, sendQueueSize),
+		netLatencyMap: make(map[string]*list.List),
+		quitSend:      make(chan struct{}),
 	}
-	handler.blacklist, _ = lru.New(maxBlacklist)
 	// init router
 	handler.router = newRouter(handler.Unregister, handler.getPeer, handler.ConsensusNodes, handler.peerList)
 	return handler
@@ -119,7 +97,6 @@ func (h *EngineManager) SetEngine(engine ConsensusNetworkEngine) {
 func (h *EngineManager) Start() {
 	// Launch goroutine loop release separately.
 	go h.sendLoop()
-	go h.synchronize()
 }
 
 // Close turns off the handler for sending messages.
@@ -391,7 +368,7 @@ func (h *EngineManager) handler(p *p2p.Peer, rw p2p.MsgReadWriter) error {
 		}
 
 		// Blacklist check.
-		if h.ContainsBlacklist(peer.PeerID()) {
+		if h.engine.ContainsBlacklist(peer.PeerID()) {
 			p.Log().Error("CBFT handshake, peer that are forbidden to connect")
 			return fmt.Errorf("illegal node: {%s}", peer.PeerID())
 		}
@@ -605,7 +582,7 @@ func (h *EngineManager) handleMsg(p *peer) error {
 					latency := (curTime - tInt64) / 2 / 1000000
 					// Record the latency in metrics and output it. unit: second.
 					log.Trace("Latency", "time", latency)
-					h.engine.OnPong(p.id, latency)
+					h.OnPong(p.id, latency)
 					propPeerLatencyMeter.Mark(latency)
 					break
 				}
@@ -630,28 +607,85 @@ func (h *EngineManager) handleMsg(p *peer) error {
 	}
 }
 
-// MarkHistoryMessageHash is used to record the hash value of each message from the peer node.
-// If the queue is full, remove the bottom element and add a new one.
-func (h *EngineManager) MarkHistoryMessageHash(hash common.Hash) {
-	h.historyMessageHash.Add(hash, struct{}{})
+// OnPong is used to receive the average delay time.
+func (h *EngineManager) OnPong(nodeID string, netLatency int64) error {
+	log.Trace("OnPong", "nodeID", nodeID, "netLatency", netLatency)
+	h.netLatencyLock.Lock()
+	defer h.netLatencyLock.Unlock()
+
+	latencyList, exist := h.netLatencyMap[nodeID]
+	if !exist {
+		h.netLatencyMap[nodeID] = list.New()
+		h.netLatencyMap[nodeID].PushBack(netLatency)
+	} else {
+		if latencyList.Len() > 5 {
+			e := latencyList.Front()
+			h.netLatencyMap[nodeID].Remove(e)
+		}
+		h.netLatencyMap[nodeID].PushBack(netLatency)
+	}
+	return nil
 }
 
-// ContainsMessageHash returns whether the specified hash exists.
-func (h *EngineManager) ContainsHistoryMessageHash(hash common.Hash) bool {
-	return h.historyMessageHash.Contains(hash)
+// AvgLatency returns the average delay time of the specified node.
+//
+// The average is the average delay between the current
+// node and all consensus nodes.
+// Return value unit: milliseconds.
+func (h *EngineManager) AvgLatency() time.Duration {
+	h.netLatencyLock.Lock()
+	defer h.netLatencyLock.Unlock()
+
+	// The intersection of peerSets and consensusNodes.
+	target, err := h.AliveConsensusNodeIDs()
+	if err != nil {
+		return time.Duration(0)
+	}
+	var (
+		avgSum     int64
+		result     int64
+		validCount int64
+	)
+	// Take 2/3 nodes from the target.
+	var pair utils.KeyValuePairList
+	for _, v := range target {
+		if latencyList, exist := h.netLatencyMap[v]; exist {
+			avg := calAverage(latencyList)
+			pair.Push(utils.KeyValuePair{Key: v, Value: avg})
+		}
+	}
+	sort.Sort(pair)
+	if pair.Len() == 0 {
+		return time.Duration(0)
+	}
+	validCount = int64(pair.Len() * 2 / 3)
+	if validCount == 0 {
+		validCount = 1
+	}
+	for _, v := range pair[:validCount] {
+		avgSum += v.Value
+	}
+
+	result = avgSum / validCount
+	log.Debug("Get avg latency", "avg", result)
+	return time.Duration(result) * time.Millisecond
 }
 
-// MarkBlacklist marks the specified node as a blacklist.
-// If the number of recorded blacklists reaches the threshold,
-// the node that was first set to blacklist will be removed from the blacklist.
-func (h *EngineManager) MarkBlacklist(peerID string) {
-	deadline := time.Duration(h.engine.Config().Option.BlacklistDeadline) * time.Minute
-	h.blacklist.Add(peerID, time.Now().Add(deadline))
-}
-
-// ContainsBlacklist returns whether the specified node is blacklisted.
-func (h *EngineManager) ContainsBlacklist(peerID string) bool {
-	return h.blacklist.Contains(peerID)
+func calAverage(latencyList *list.List) int64 {
+	var (
+		sum    int64
+		counts int64
+	)
+	for e := latencyList.Front(); e != nil; e = e.Next() {
+		if latency, ok := e.Value.(int64); ok {
+			counts++
+			sum += latency
+		}
+	}
+	if counts > 0 {
+		return sum / counts
+	}
+	return 0
 }
 
 // RemoveMessageHash removes the specified hash from the peer.
@@ -684,92 +718,6 @@ func (h *EngineManager) RemovePeer(id string) {
 	}
 }
 
-func (h *EngineManager) Register(p *peer) error {
-	return h.peers.Register(p)
-}
-
-// Select a node with a height higher than the local node block from
-// the neighbor node list, and then synchronize the block data of
-// the height difference to the node.
-//
-// Note:
-// 1. Synchronous blocks with inconsistent QC height.
-// 2. Synchronous blocks with inconsistent locking block height.
-// 3. Synchronous blocks with inconsistent commit block height.
-func (h *EngineManager) synchronize() {
-	log.Debug("~ Start synchronize in the handler")
-	blockNumberTimer := time.NewTimer(QCBnMonitorInterval * time.Second)
-	viewTicker := time.NewTicker(SyncViewChangeInterval * time.Second)
-	pureBlacklistTicker := time.NewTicker(removeBlacklistInterval * time.Second)
-	voteTicker := time.NewTicker(SyncPrepareVoteInterval * time.Second)
-
-	// Logic used to synchronize QC.
-	syncQCBnFunc := func() {
-		latestStatus := h.engine.LatestStatus()
-		log.Debug("Synchronize for qc block send message", "latestStatus", latestStatus.String())
-		latestStatus.LogicType = TypeForQCBn
-		h.PartBroadcast(latestStatus)
-	}
-
-	for {
-		select {
-		case <-voteTicker.C:
-			msg, err := h.engine.MissingPrepareVote()
-			if err != nil {
-				log.Debug("Request missing prepareVote failed", "err", err)
-				break
-			}
-			log.Debug("Had new prepareVote sync request", "msg", msg.String())
-			// Only broadcasts without forwarding.
-			h.PartBroadcast(msg)
-
-		case <-blockNumberTimer.C:
-			// Sent at random.
-			syncQCBnFunc()
-			rd := rand.Intn(5)
-			if rd == 0 || rd < QCBnMonitorInterval/2 {
-				rd = (rd + 1) * 2
-			}
-			resetTime := time.Duration(rd) * time.Second
-			blockNumberTimer.Reset(resetTime)
-
-		case <-viewTicker.C:
-			// If the local viewChange has insufficient votes,
-			// the GetViewChange message is sent from the missing node.
-			msg, err := h.engine.MissingViewChangeNodes()
-			if err != nil {
-				log.Debug("Request missing viewchange failed", "err", err)
-				break
-			}
-			log.Debug("Had new viewchange sync request", "msg", msg.String())
-			// Only broadcasts without forwarding.
-			h.PartBroadcast(msg)
-
-		case <-pureBlacklistTicker.C:
-			// Iterate over the blacklist and remove
-			// the nodes that have expired.
-			keys := h.blacklist.Keys()
-			log.Debug("Blacklist pure start", "len", len(keys))
-			for _, k := range keys {
-				v, exists := h.blacklist.Get(k)
-				if !exists {
-					continue
-				}
-				if t, ok := v.(time.Time); ok {
-					if t.Before(time.Now()) {
-						h.blacklist.Remove(k)
-						log.Debug("Remove blacklist success", "peerID", k)
-					}
-				}
-			}
-
-		case <-h.quitSend:
-			log.Warn("Synchronize quit")
-			return
-		}
-	}
-}
-
 // Select a node from the list of nodes that is larger than the specified value.
 //
 // bType: 1 -> qcBlock, 2 -> lockedBlock, 3 -> CommitBlock
@@ -799,20 +747,4 @@ func largerPeer(bType uint64, peers []*peer, number uint64) (*peer, uint64) {
 		return peers[largerIndex], largerNum
 	}
 	return nil, 0
-}
-
-// Testing is only used for unit testing.
-func (h *EngineManager) Testing() {
-	peers, _ := h.peerList()
-	for _, v := range peers {
-		v.Run()
-		go func(p *peer) {
-			for {
-				if err := h.handleMsg(p); err != nil {
-					p.Log().Error("In the testing, CBFT message handling failed", "err", err)
-					break
-				}
-			}
-		}(v)
-	}
 }

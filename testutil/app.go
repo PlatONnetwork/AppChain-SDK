@@ -6,11 +6,11 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/PlatONnetwork/AppChain-SDK/baseapp"
 	"github.com/PlatONnetwork/AppChain-SDK/store/storage"
 	"github.com/PlatONnetwork/PlatON-Go/common"
-	"github.com/PlatONnetwork/PlatON-Go/consensus"
 	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/protocols"
 	ctypes "github.com/PlatONnetwork/PlatON-Go/consensus/cbft/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
@@ -167,22 +167,8 @@ func (s *SimApp) ExecuteTxs(ctx sdk.WorkerContext, cApp vm.ContractsApp, txs typ
 func (s *SimApp) StartNetworkEngine() {
 	// TODO
 }
-func (s *SimApp) MarkHistoryMessageHash(hash common.Hash) {
-	// TODO
-}
-func (s *SimApp) ContainsHistoryMessageHash(hash common.Hash) bool {
-	// TODO
-	return false
-}
 func (s *SimApp) RemoveMessageHash(id string, msgHash common.Hash) {
 	// TODO
-}
-func (s *SimApp) MarkBlacklist(peerID string) {
-	// TODO
-}
-func (s *SimApp) ContainsBlacklist(peerID string) bool {
-	// TODO
-	return false
 }
 func (s *SimApp) Broadcast(msg ctypes.Message) {
 	// TODO
@@ -197,28 +183,14 @@ func (s *SimApp) Forwarding(nodeID string, msg ctypes.Message) error {
 func (s *SimApp) Send(peerID string, msg ctypes.Message) {
 	// TODO
 }
-func (s *SimApp) AliveConsensusNodeIDs() ([]string, error) {
+func (s *SimApp) AvgLatency() time.Duration {
 	// TODO
-	return nil, nil
+	return time.Second
 }
 func (s *SimApp) PeerSetting(peerID string, bType uint64, blockNumber uint64) error {
 	// TODO
 	return nil
 }
 func (s *SimApp) RemovePeer(id string) {
-	// TODO
-}
-func (s *SimApp) RegisterPeer(peer consensus.NetworkPeer) error {
-	// TODO
-	return nil
-}
-func (s *SimApp) NewPeer(pv int, p *p2p.Peer, rw p2p.MsgReadWriter) consensus.NetworkPeer {
-	// TODO
-	return nil
-}
-func (s *SimApp) SetSendQueueHook(f func(msg *ctypes.MsgPackage)) {
-	// TODO
-}
-func (s *SimApp) Testing() {
 	// TODO
 }
