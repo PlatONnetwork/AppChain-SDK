@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 
 	"github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/consensus"
 	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/protocols"
+	ctypes "github.com/PlatONnetwork/PlatON-Go/consensus/cbft/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
@@ -136,4 +138,63 @@ func (m *MockApp) SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.
 func (m *MockApp) InitChain(ctx sdk.InitContext) error {
 
 	return nil
+}
+
+func (m *MockApp) StartNetworkEngine() {
+	// TODO
+}
+func (m *MockApp) MarkHistoryMessageHash(hash common.Hash) {
+	// TODO
+}
+func (m *MockApp) ContainsHistoryMessageHash(hash common.Hash) bool {
+	// TODO
+	return false
+}
+func (m *MockApp) RemoveMessageHash(id string, msgHash common.Hash) {
+	// TODO
+}
+func (m *MockApp) MarkBlacklist(peerID string) {
+	// TODO
+}
+func (m *MockApp) ContainsBlacklist(peerID string) bool {
+	// TODO
+	return false
+}
+func (m *MockApp) Broadcast(msg ctypes.Message) {
+	// TODO
+}
+func (m *MockApp) PartBroadcast(msg ctypes.Message) {
+	// TODO
+}
+func (m *MockApp) Forwarding(nodeID string, msg ctypes.Message) error {
+	// TODO
+	return nil
+}
+func (m *MockApp) Send(peerID string, msg ctypes.Message) {
+	// TODO
+}
+func (m *MockApp) AliveConsensusNodeIDs() ([]string, error) {
+	// TODO
+	return nil, nil
+}
+func (m *MockApp) PeerSetting(peerID string, bType uint64, blockNumber uint64) error {
+	// TODO
+	return nil
+}
+func (m *MockApp) RemovePeer(id string) {
+	// TODO
+}
+func (m *MockApp) RegisterPeer(peer consensus.NetworkPeer) error {
+	// TODO
+	return nil
+}
+func (m *MockApp) NewPeer(pv int, p *p2p.Peer, rw p2p.MsgReadWriter) consensus.NetworkPeer {
+	// TODO
+	return nil
+}
+func (m *MockApp) SetSendQueueHook(f func(msg *ctypes.MsgPackage)) {
+	// TODO
+}
+func (m *MockApp) Testing() {
+	// TODO
 }
