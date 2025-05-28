@@ -298,6 +298,7 @@ func (s *StakeModule) GetRoundValidator(ctx sdk.ConsensusContext, blockNumber ui
 			PubKey:    pubkey,
 			NodeID:    enode.PubkeyToIDV4(pubkey),
 			BlsPubKey: &blsKey,
+			Shares:    v.StakeAmount,
 		}
 		valMap[validator.NodeID] = validator
 	}
@@ -340,6 +341,7 @@ func (s *StakeModule) GetEpochValidator(ctx sdk.ConsensusContext, blockNumber ui
 			PubKey:    pubkey,
 			NodeID:    enode.PubkeyToIDV4(pubkey),
 			BlsPubKey: &blsKey,
+			Shares:    v.StakeAmount,
 		}
 		valMap[validator.NodeID] = validator
 	}
