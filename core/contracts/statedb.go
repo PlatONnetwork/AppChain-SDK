@@ -1,6 +1,8 @@
 package contracts
 
 import (
+	"math/big"
+
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
@@ -115,4 +117,8 @@ func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
 
 func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 	s.evm.StateDB.Finalise(deleteEmptyObjects)
+}
+
+func (s *StateDB) SetBalance(addr common.Address, balance *big.Int) {
+	s.evm.StateDB.SetBalance(addr, balance)
 }

@@ -1,15 +1,15 @@
 package types
 
 import (
+	"bytes"
 	"math/big"
 
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
 )
 
-var (
-	suicidedSuffix = []byte("suicided")
-)
+var emptyCodeHash = crypto.Keccak256(nil)
+var ripemd = common.HexToAddress("0000000000000000000000000000000000000003")
 
 type IncarnationStatus uint8
 
@@ -57,10 +57,9 @@ type TxVersion struct {
 }
 
 func BasicLoc(addr common.Address) MemoryLocationHash { return crypto.Keccak256Hash(addr[:]) }
-func SuicideLoc(addr common.Address) MemoryLocationHash {
-	return crypto.Keccak256Hash(addr[:], suicidedSuffix)
+func CodeHashLoc(addr common.Address) MemoryLocationHash {
+	return crypto.Keccak256Hash(addr[:], []byte("code_hash"))
 }
-func CodeHashLoc(addr common.Address) MemoryLocationHash { return crypto.Keccak256Hash(addr[:]) }
 func StateLoc(addr common.Address, key []byte) MemoryLocationHash {
 	return crypto.Keccak256Hash(addr[:], key)
 }
@@ -112,7 +111,28 @@ type AccountBase struct {
 	Nonce    uint64
 	Balance  *big.Int
 	CodeHash common.Hash
+	CodeSize int
 	Code     []byte
+	Suicided bool
+	NewCode  bool
+}
+
+func NewEmptyAccountBase(addr common.Address) *AccountBase {
+	return &AccountBase{
+		Addr:     addr,
+		Balance:  common.Big0,
+		CodeHash: common.Hash(emptyCodeHash),
+	}
+}
+
+func (ab *AccountBase) Empty() bool {
+	return ab.Nonce == 0 &&
+		ab.Balance.Sign() == 0 &&
+		bytes.Equal(ab.CodeHash[:], emptyCodeHash)
+}
+
+func (ab *AccountBase) Touch() bool {
+	return ab.Addr == ripemd
 }
 
 type Basic struct {
@@ -223,8 +243,48 @@ var storageInstance = &Storage{}
 
 func NewStorage() ReadOrigin { return storageInstance }
 
-type ReadOrigins = []ReadOrigin
-type ReadSet = map[MemoryLocationHash]ReadOrigins
+type ReadOrigins struct {
+	origins []ReadOrigin
+}
+
+func NewReadOrigins() *ReadOrigins {
+	return &ReadOrigins{
+		origins: make([]ReadOrigin, 0),
+	}
+}
+
+func (ro *ReadOrigins) Len() int {
+	return len(ro.origins)
+}
+
+func (ro *ReadOrigins) Get(idx int) ReadOrigin {
+	if ro.Len() >= 0 && idx <= (ro.Len()-1) {
+		return ro.origins[idx]
+	}
+	return nil
+}
+
+func (ro *ReadOrigins) Push(origin ReadOrigin) {
+	ro.origins = append(ro.origins, origin)
+}
+
+func (ro *ReadOrigins) Last() ReadOrigin {
+	last := len(ro.origins) - 1
+	if last >= 0 {
+		return ro.origins[last]
+	}
+	return nil
+}
+
+func (ro *ReadOrigins) Range(f func(ReadOrigin) bool) {
+	for _, origin := range ro.origins {
+		if !f(origin) {
+			break
+		}
+	}
+}
+
+type ReadSet = map[MemoryLocationHash]*ReadOrigins
 
 type WriteEntry struct {
 	Hash  MemoryLocationHash

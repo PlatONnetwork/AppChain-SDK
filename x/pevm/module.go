@@ -56,10 +56,10 @@ func (m *Module) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackA
 	}
 	if len(sysTxs) > 0 {
 		m.logger.Debug("add system transactions", "sysTxs", len(sysTxs))
-		committedTxs, receipts, gasUsed, _, _ := pevm.Run(sysTxs, true)
-		allTxs = append(allTxs, committedTxs...)
-		allReceipts = append(allReceipts, receipts...)
-		usedGas += gasUsed
+		result, _ := pevm.Run(sysTxs, true)
+		allTxs = append(allTxs, result.Transactions...)
+		allReceipts = append(allReceipts, result.Receipts...)
+		usedGas += result.GasUsed
 	}
 
 	txpool := ctx.Backend().TxPool()
@@ -77,26 +77,26 @@ func (m *Module) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackA
 		return nil, nil, err
 	}
 	if len(sortedTxs) > 0 {
-		committedTxs, receipts, gasUsed, _, _ := pevm.Run(sortedTxs, false)
-		allTxs = append(allTxs, committedTxs...)
-		allReceipts = append(allReceipts, receipts...)
-		usedGas += gasUsed
+		result, _ := pevm.Run(sortedTxs, false)
+		allTxs = append(allTxs, result.Transactions...)
+		allReceipts = append(allReceipts, result.Receipts...)
+		usedGas += result.GasUsed
 	} else {
 		localtimeout := false
 		if len(localTxs) > 0 {
 			txs := types.NewTransactionsByPriceAndNonce(signer, localTxs, ctx.Header().BaseFee)
-			committedTxs, receipts, gasUsed, timeout, _ := pevm.Run(txs.PeekAll(), false)
-			allTxs = append(allTxs, committedTxs...)
-			allReceipts = append(allReceipts, receipts...)
-			localtimeout = timeout
-			usedGas += gasUsed
+			result, _ := pevm.Run(txs.PeekAll(), false)
+			allTxs = append(allTxs, result.Transactions...)
+			allReceipts = append(allReceipts, result.Receipts...)
+			localtimeout = result.Timeout
+			usedGas += result.GasUsed
 		}
 		if !localtimeout && len(remoteTxs) > 0 {
 			txs := types.NewTransactionsByPriceAndNonce(signer, remoteTxs, ctx.Header().BaseFee)
-			committedTxs, receipts, gasUsed, _, _ := pevm.Run(txs.PeekAll(), false)
-			allTxs = append(allTxs, committedTxs...)
-			allReceipts = append(allReceipts, receipts...)
-			usedGas += gasUsed
+			result, _ := pevm.Run(txs.PeekAll(), false)
+			allTxs = append(allTxs, result.Transactions...)
+			allReceipts = append(allReceipts, result.Receipts...)
+			usedGas += result.GasUsed
 		}
 	}
 	// NOTE: need set gas used to header
@@ -116,11 +116,11 @@ func (m *Module) ExecuteTxs(ctx sdk.WorkerContext, cApp sdk.ContractsApp, txs ty
 		pevm   = NewPEVM(m.logger, ctx, cApp)
 	)
 
-	_, receipts, usedGas, _, err := pevm.Run(txs, false)
+	result, err := pevm.Run(txs, false)
 	m.logger.Info("Execute transactions finished",
 		"blockNumber", header.Number,
 		"blockHash", header.Hash(),
 		"count", len(txs),
 		"elapsed", time.Since(now))
-	return receipts, usedGas, err
+	return result.Receipts, result.GasUsed, err
 }

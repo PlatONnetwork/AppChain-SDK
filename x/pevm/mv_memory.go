@@ -23,7 +23,7 @@ func (l *LastLocations) SetRead(rs types.ReadSet) {
 	l.read = rs
 }
 
-func (l *LastLocations) RangeRead(f func(types.MemoryLocationHash, types.ReadOrigins)) {
+func (l *LastLocations) RangeRead(f func(types.MemoryLocationHash, *types.ReadOrigins)) {
 	l.RLock()
 	defer l.RUnlock()
 
@@ -271,35 +271,36 @@ func (m *MvMemory) Record(txVersion *types.TxVersion, readSet types.ReadSet, wri
 func (m *MvMemory) ValidateReadLocations(txIdx uint32) bool {
 	validated := true
 	lastLocation := m.lastLocations[txIdx]
-	lastLocation.RangeRead(func(location types.MemoryLocationHash, priorOrigins types.ReadOrigins) {
+	lastLocation.RangeRead(func(location types.MemoryLocationHash, priorOrigins *types.ReadOrigins) {
 		if writtenTxs, found := m.data.Get(location); found {
 			it := writtenTxs.AscendRange(&DataEntry{TxIdx: txIdx})
 
-			for _, priorOrign := range priorOrigins {
-				switch priorOrign.(type) {
+			priorOrigins.Range(func(priorOrigin types.ReadOrigin) bool {
+				switch priorOrigin.(type) {
 				case *types.MvMemory:
-					priordVer := priorOrign.(*types.MvMemory)
+					priordVer := priorOrigin.(*types.MvMemory)
 					entry := it.NextBack().(*DataEntry)
 					dataEntry, isData := entry.Entry.(*types.DataEntry)
 					if !isData {
 						validated = false
-						break
+						return false
 					}
 					if priordVer.Version.TxIdx != entry.TxIdx ||
 						dataEntry.TxIncarnation != priordVer.Version.TxIncarnation {
 						validated = false
-						break
+						return false
 					}
 				case *types.Storage:
 					if it.NextBack() != nil {
 						validated = false
-						break
+						return false
 					}
 				}
-			}
+				return true
+			})
 		} else {
-			_, ok := priorOrigins[len(priorOrigins)-1].(*types.Storage)
-			if len(priorOrigins) != 1 || !ok {
+			_, ok := priorOrigins.Last().(*types.Storage)
+			if priorOrigins.Len() != 1 || !ok {
 				validated = false
 			}
 		}
