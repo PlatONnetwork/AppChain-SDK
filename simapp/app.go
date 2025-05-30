@@ -327,9 +327,6 @@ func (s *SimApp) SortTxs(ctx sdk.WorkerContext, local, remote map[common.Address
 func (s *SimApp) StartNetworkEngine() {
 	// TODO
 }
-func (s *SimApp) RemoveMessageHash(id string, msgHash common.Hash) {
-	// TODO
-}
 func (s *SimApp) Broadcast(msg ctypes.Message) {
 	// TODO
 }

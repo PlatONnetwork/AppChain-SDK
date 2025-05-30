@@ -316,9 +316,6 @@ func (app *BaseApp) SortTxs(ctx sdk.WorkerContext, local, remote map[common.Addr
 func (app *BaseApp) StartNetworkEngine() {
 	// TODO
 }
-func (app *BaseApp) RemoveMessageHash(id string, msgHash common.Hash) {
-	// TODO
-}
 func (app *BaseApp) Broadcast(msg ctypes.Message) {
 	// TODO
 }

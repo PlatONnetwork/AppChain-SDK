@@ -167,9 +167,6 @@ func (s *SimApp) ExecuteTxs(ctx sdk.WorkerContext, cApp vm.ContractsApp, txs typ
 func (s *SimApp) StartNetworkEngine() {
 	// TODO
 }
-func (s *SimApp) RemoveMessageHash(id string, msgHash common.Hash) {
-	// TODO
-}
 func (s *SimApp) Broadcast(msg ctypes.Message) {
 	// TODO
 }

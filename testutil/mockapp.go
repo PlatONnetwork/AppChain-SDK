@@ -143,9 +143,6 @@ func (m *MockApp) InitChain(ctx sdk.InitContext) error {
 func (m *MockApp) StartNetworkEngine() {
 	// TODO
 }
-func (m *MockApp) RemoveMessageHash(id string, msgHash common.Hash) {
-	// TODO
-}
 func (m *MockApp) Broadcast(msg ctypes.Message) {
 	// TODO
 }

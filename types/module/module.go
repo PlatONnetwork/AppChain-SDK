@@ -120,8 +120,6 @@ type ViewChangeModule interface {
 type ConsensusNetworkModule interface {
 	Module
 	StartNetworkEngine()
-	// message
-	RemoveMessageHash(id string, msgHash common.Hash)
 
 	// send
 	Broadcast(msg ctypes.Message)
@@ -689,9 +687,6 @@ func (m *Manager) isModuleValid(db sdk.StateDBReader, name string, blockNumber u
 }
 
 func (m *Manager) StartNetworkEngine() {
-	// TODO
-}
-func (m *Manager) RemoveMessageHash(id string, msgHash common.Hash) {
 	// TODO
 }
 func (m *Manager) Broadcast(msg ctypes.Message) {
