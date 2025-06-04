@@ -3,7 +3,6 @@ package pevm
 import (
 	"errors"
 	"fmt"
-	"runtime"
 	"sync"
 	"time"
 
@@ -19,8 +18,6 @@ import (
 	"github.com/google/btree"
 	"golang.org/x/sync/errgroup"
 )
-
-const ParallelExecuteTxnBatch = 64 // TODO: use flag
 
 type AbortReason struct {
 	mu     sync.RWMutex
@@ -86,6 +83,10 @@ type PEVMResult struct {
 }
 
 type PEVM struct {
+	forceSequential  bool
+	concurrencyLevel int
+	txsBatch         int
+
 	logger log.Logger
 	ctx    sdk.WorkerContext
 	cApp   sdk.ContractsApp
@@ -103,20 +104,26 @@ type PEVM struct {
 }
 
 func NewPEVM(
+	forceSequential bool,
+	concurrencyLevel int,
+	txsBatch int,
 	logger log.Logger,
 	ctx sdk.WorkerContext,
 	cApp sdk.ContractsApp) *PEVM {
 	return &PEVM{
-		logger: logger,
-		ctx:    ctx,
-		cApp:   cApp,
+		forceSequential:  forceSequential,
+		concurrencyLevel: concurrencyLevel,
+		txsBatch:         txsBatch,
+		logger:           logger,
+		ctx:              ctx,
+		cApp:             cApp,
 
 		gp: new(core.GasPool).AddGas(ctx.Header().GasLimit),
 	}
 }
 
 func (e *PEVM) Run(txs coretypes.Transactions, isSysTxs bool) (*PEVMResult, error) {
-	if len(txs) < runtime.NumCPU() {
+	if e.forceSequential || len(txs) < e.concurrencyLevel {
 		return e.serialExecute(txs, isSysTxs)
 	}
 	return e.parallelExecute(txs, isSysTxs)
@@ -285,7 +292,7 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 		var (
 			timestamp        int64 = int64(e.ctx.Header().Time)
 			blockDeadline          = e.ctx.BlockDeadline()
-			batch                  = ParallelExecuteTxnBatch // FIXME: use flag
+			batch                  = e.txsBatch
 			startIndex       int
 			endIndex         int
 			executionResults *ExecutionResults
@@ -393,7 +400,7 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions) (*ExecutionResul
 	vm := NewVm(e.ctx, e.cApp, e.ctx.StateDB(), mvMemory, txs)
 
 	g := new(errgroup.Group)
-	for j := 0; j < runtime.NumCPU(); j++ {
+	for j := 0; j < e.concurrencyLevel; j++ {
 		g.Go(func() error {
 			task := scheduler.NextTask()
 			for task != nil {

@@ -24,12 +24,18 @@ var (
 )
 
 type Module struct {
-	logger log.Logger
+	logger           log.Logger
+	concurrencyLevel int
+	forceSequential  bool
+	txsBatch         int
 }
 
 func NewModule(cliCtx *cli.Context) (*Module, error) {
 	return &Module{
-		logger: log.New("module", ModuleName),
+		logger:           log.New("module", ModuleName),
+		concurrencyLevel: cliCtx.GlobalInt(ConcurrencyLevelFlag.Name),
+		forceSequential:  cliCtx.GlobalBool(ForceSequentialFlag.Name),
+		txsBatch:         cliCtx.GlobalInt(TxsBatchFlag.Name),
 	}, nil
 }
 
@@ -43,7 +49,7 @@ func (m *Module) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackA
 		usedGas     uint64
 		signer      = types.MakeSigner(ctx.ChainConfig(), ctx.Header().Number)
 		begin       = time.Now()
-		pevm        = NewPEVM(m.logger, ctx, cb)
+		pevm        = NewPEVM(m.forceSequential, m.concurrencyLevel, m.txsBatch, m.logger, ctx, cb)
 	)
 
 	sysTxs, err := cb.AddTxs(ctx)
@@ -141,7 +147,7 @@ func (m *Module) ExecuteTxs(ctx sdk.WorkerContext, cApp sdk.ContractsApp, txs ty
 	var (
 		header = ctx.Header()
 		now    = time.Now()
-		pevm   = NewPEVM(m.logger, ctx, cApp)
+		pevm   = NewPEVM(m.forceSequential, m.concurrencyLevel, m.txsBatch, m.logger, ctx, cApp)
 	)
 
 	result, err := pevm.Run(txs, false)
