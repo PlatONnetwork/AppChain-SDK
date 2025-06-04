@@ -123,7 +123,7 @@ func (m *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *param
 	//}
 
 	for i := 0; i < AccountLimit; i++ {
-		db.AddBalance(m.keys[i].addr, big.NewInt(1000000000000000000))
+		db.AddBalance(m.keys[i].addr, new(big.Int).Mul(big.NewInt(1000000000000000000), big.NewInt(10000000)))
 		caller, err := contracts.NewBenchTokenGenesisCaller(ctx, db, chainConfig)
 		if err != nil {
 			return err
@@ -151,12 +151,14 @@ func (m *Module) APIs() []rpc.API {
 
 func (m *Module) createTransactions(amount uint64) error {
 	rawStartIndex := m.startIndex
-	rawEndIndex := (m.endIndex - m.startIndex) * m.rawTxPercent / (m.rawTxPercent + m.contractTxPercent)
-	contractStartIndex := rawEndIndex + 1
-	contractEndIndex := m.endIndex
+	rawEndIndex := m.startIndex + (m.endIndex-m.startIndex)*m.rawTxPercent/(m.rawTxPercent+m.contractTxPercent)
+	contractStartIndex := rawEndIndex
+	contractEndIndex := m.endIndex + 1
 	sum := uint64(0)
+	m.logger.Debug("create tx", "rawStartIndex", rawStartIndex, "rawEndIndex", rawEndIndex, "contractStartIndex", contractStartIndex, "contractEndIndex", contractEndIndex, "amount", amount)
 	for amount > sum {
-		for i := rawStartIndex; i <= rawEndIndex && amount > sum; i, sum = i+1, sum+1 {
+		for i := rawStartIndex; i < rawEndIndex && amount > sum; i, sum = i+1, sum+1 {
+			m.Lock()
 			k := m.keys[i]
 			txs := m.txCache[k.addr]
 			nonce := uint64(0)
@@ -167,13 +169,16 @@ func (m *Module) createTransactions(amount uint64) error {
 			}
 			tx, err := createRawTransfer(m.signer, k.key, GenRecipient(uint64(i)), nonce)
 			if err != nil {
+				m.Unlock()
 				return err
 			}
 			txs = append(txs, tx)
 			m.txCache[k.addr] = txs
+			m.Unlock()
 		}
 
-		for i := contractStartIndex; i <= contractEndIndex && amount > sum; i, sum = i+1, sum+1 {
+		for i := contractStartIndex; i < contractEndIndex && amount > sum; i, sum = i+1, sum+1 {
+			m.Lock()
 			k := m.keys[i]
 			txs := m.txCache[k.addr]
 			nonce := uint64(0)
@@ -184,10 +189,12 @@ func (m *Module) createTransactions(amount uint64) error {
 			}
 			tx, err := createTokenTransfer(m.signer, k.key, GenContract(uint64(i)), GenRecipient(uint64(i)), nonce)
 			if err != nil {
+				m.Unlock()
 				return err
 			}
 			txs = append(txs, tx)
 			m.txCache[k.addr] = txs
+			m.Unlock()
 		}
 	}
 	return nil
@@ -253,6 +260,7 @@ func (m *Module) sendLoop(amount uint64) {
 	for {
 		select {
 		case <-tick.C:
+			m.Lock()
 			sum := uint64(0)
 			for sum < amount {
 				pos := index%total + m.startIndex
@@ -260,17 +268,21 @@ func (m *Module) sendLoop(amount uint64) {
 				if len(txs) > 0 {
 					err := m.txPool.AddLocal(txs[0])
 					if err != nil {
-						m.logger.Warn("Add local tx failed", "error", err)
+						m.logger.Warn("Add local tx failed", "error", err, m.keys[pos].addr.Hex())
 						continue
 					} else {
 						m.sent.Store(txs[0].Hash(), uint64(time.Now().UnixMilli()))
 						m.txCache[m.keys[pos].addr] = txs[1:]
 						m.send.Add(1)
 					}
+				} else {
+					delete(m.txCache, m.keys[pos].addr)
+					m.logger.Warn("txs is empty", "addr", m.keys[pos].addr.Hex(), "pos", pos, "total", total, "index", index, "startIndex", m.startIndex)
 				}
 				sum++
 				index++
 			}
+			m.Unlock()
 		case <-m.stopC:
 			m.starting.Store(false)
 			m.Statistics.send.Store(0)

@@ -1,19 +1,13 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/csv"
 	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/x/benchmark"
-	"github.com/go-echarts/go-echarts/v2/charts"
-	"github.com/go-echarts/go-echarts/v2/opts"
-	"github.com/go-echarts/go-echarts/v2/types"
 	"gopkg.in/urfave/cli.v1"
 	"math/big"
-	"net/http"
 	"os"
-	"strconv"
 	"time"
 )
 
@@ -23,7 +17,6 @@ var (
 		Usage:  "output tps report",
 		EnvVar: "BENCHMARK_OUTPUT",
 	}
-	serverFlag = cli.StringFlag{Name: "web", EnvVar: "BENCHMARK_SERVER", Usage: "web server address"}
 )
 
 func Report(ctx *cli.Context) error {
@@ -45,14 +38,6 @@ func Report(ctx *cli.Context) error {
 			return err
 		}
 	}
-	addr := ctx.String(serverFlag.Name)
-	if len(addr) != 0 {
-		server := &Server{
-			clis: clis,
-			addr: addr,
-		}
-		server.start()
-	}
 	return nil
 }
 
@@ -62,6 +47,7 @@ func generateReport(clis []*Connection, start, end uint64) ([][]string, error) {
 	txTotal := int64(0)
 	lastTxLength := 0
 	for i := start; i <= end; i++ {
+		beginTime := time.Now()
 		block, err := clis[0].BlockByNumber(context.Background(), new(big.Int).SetUint64(i))
 		if err != nil {
 			return nil, err
@@ -81,6 +67,7 @@ func generateReport(clis []*Connection, start, end uint64) ([][]string, error) {
 			info.TimeUse += f.TimeUse
 			info.TxLength += f.TxLength
 		}
+		fmt.Println("get block finish", info.Number, "cost", time.Since(beginTime))
 
 		if i != start {
 			tps := float64(txTotal) / (float64(block.Time()-startTime) / float64(1000))
@@ -102,94 +89,4 @@ func generateReport(clis []*Connection, start, end uint64) ([][]string, error) {
 
 	}
 	return report, nil
-}
-
-type Server struct {
-	clis []*Connection
-	addr string
-}
-
-func (s *Server) start() {
-	fmt.Println("Start server:", s.addr)
-	s.route()
-	http.ListenAndServe(s.addr, nil)
-}
-func (s *Server) route() {
-	http.HandleFunc("/line", func(w http.ResponseWriter, r *http.Request) {
-		query := r.URL.Query()
-		start, err := strconv.Atoi(query.Get("start"))
-		if err != nil {
-			w.Write([]byte(err.Error()))
-			return
-		}
-		end, err := strconv.Atoi(query.Get("end"))
-		if err != nil {
-			w.Write([]byte(err.Error()))
-			return
-		}
-		report, err := generateReport(s.clis, uint64(start), uint64(end))
-		if err != nil {
-			w.Write([]byte(err.Error()))
-			return
-		}
-		var data [4][]string
-		for _, r := range report {
-			data[0] = append(data[0], r[0])
-			data[1] = append(data[1], r[1])
-			data[2] = append(data[2], r[2])
-			data[3] = append(data[3], r[3])
-		}
-		b, err := GeneratePhotoBytes(data[0], data[1], data[2], data[3])
-		if err != nil {
-			w.Write([]byte(err.Error()))
-			return
-		}
-		w.Write(b)
-	})
-}
-func GeneratePhotoBytes(timestamp []string, txs []string, tps []string, latency []string) ([]byte, error) {
-	// create a new line instance
-	line := charts.NewLine()
-
-	line.SetGlobalOptions(
-		charts.WithInitializationOpts(opts.Initialization{
-			Theme: types.ThemeInfographic,
-		}),
-		charts.WithTitleOpts(opts.Title{
-			Title:    "Line chart in Go",
-			Subtitle: "",
-		}),
-		charts.WithGridOpts(opts.Grid{Width: "800", Height: "400"}),
-		charts.WithYAxisOpts(opts.YAxis{
-			SplitLine: &opts.SplitLine{
-				Show: opts.Bool(true),
-			},
-		}),
-	)
-	// Put data into instance
-	line.SetXAxis(timestamp)
-	makeLindeData := func(v []string) []opts.LineData {
-		var items []opts.LineData
-		for _, i := range v {
-			items = append(items, opts.LineData{Value: i})
-		}
-		return items
-	}
-	line.AddSeries("transactions", makeLindeData(txs), charts.WithLabelOpts(
-		opts.Label{Show: opts.Bool(true)},
-	))
-
-	line.AddSeries("tps", makeLindeData(tps), charts.WithLabelOpts(
-		opts.Label{Show: opts.Bool(true)},
-	))
-
-	line.AddSeries("latency", makeLindeData(latency), charts.WithLabelOpts(
-		opts.Label{Show: opts.Bool(true)},
-	))
-
-	buffer := bytes.NewBuffer([]byte{})
-	if err := line.Render(buffer); err != nil {
-		return nil, err
-	}
-	return buffer.Bytes(), nil
 }

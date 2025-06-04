@@ -24,6 +24,8 @@ var (
 	userFlag       = cli.StringFlag{Name: "user", EnvVar: "BENCHMARK_USERNAME"}
 	passwordFlag   = cli.StringFlag{Name: "password", EnvVar: "BENCHMARK_PASSWORD"}
 	binFlag        = cli.StringFlag{Name: "bin", EnvVar: "BENCHMARK_BIN"}
+	verbosityFlag  = cli.IntFlag{Name: "verbosity", EnvVar: "BENCHMARK_VERBOSITY", Value: 1}
+	txCountFlag    = cli.IntFlag{Name: "txcount", EnvVar: "BENCHMARK_TXCOUNT", Value: 5000}
 )
 
 type HostConfig struct {
@@ -107,7 +109,7 @@ func Generate(ctx *cli.Context) error {
 		if err = os.WriteFile(filepath.Join(nodeDir, "genesis.json"), genesisJson, 0755); err != nil {
 			return err
 		}
-		if err = outputScript(nodeDir, accounts[i]); err != nil {
+		if err = outputScript(ctx, nodeDir, accounts[i]); err != nil {
 			return err
 		}
 	}
@@ -202,8 +204,10 @@ func generateEcdsa() (string, string) {
 	return hex.EncodeToString(crypto.FromECDSA(privateKey)), hex.EncodeToString(crypto.FromECDSAPub(&privateKey.PublicKey)[1:])
 }
 
-func outputScript(path string, acc *testutil.Account) error {
-	if err := os.WriteFile(filepath.Join(path, "start.sh"), []byte(generateStart(acc.P2PPort, acc.Pprof, acc.HTTP)), 0755); err != nil {
+func outputScript(ctx *cli.Context, path string, acc *testutil.Account) error {
+	verbosity := ctx.Int(verbosityFlag.Name)
+	txcount := ctx.Int(txCountFlag.Name)
+	if err := os.WriteFile(filepath.Join(path, "start.sh"), []byte(generateStart(acc.P2PPort, acc.Pprof, acc.HTTP, verbosity, txcount)), 0755); err != nil {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(path, "stop.sh"), []byte(generateStop(acc.P2PPort)), 0755); err != nil {
@@ -219,9 +223,9 @@ func outputScript(path string, acc *testutil.Account) error {
 	return nil
 }
 
-func generateStart(tcp int, pprof, http int) string {
-	format := "#!/bin/bash\nnohup ./benchmark --identity platon --datadir ./data --nodekey ./nodekey --cbft.blskey ./blskey --port %d --verbosity 1 --pprof --pprof.addr 0.0.0.0 --pprof.port %d  --http --http.ethcompatible --http.addr 0.0.0.0 --http.port %d --http.api platon,debug,personal,admin,net,web3,txpool,benchmark --http.vhosts \"*\" --cache 256 --metrics --ipcdisable  --maxpeers 100 --maxconsensuspeers 75 --txpool.globaltxcount 1000 --nodiscover  --networkid 102 --allow-insecure-unlock > ./platon.log 2>&1 &"
-	return fmt.Sprintf(format, tcp, pprof, http)
+func generateStart(tcp int, pprof, http, verbosity, txcount int) string {
+	format := "#!/bin/bash\nnohup ./benchmark --identity platon --datadir ./data --nodekey ./nodekey --cbft.blskey ./blskey --port %d --verbosity %d --pprof --pprof.addr 0.0.0.0 --pprof.port %d  --http --http.ethcompatible --http.addr 0.0.0.0 --http.port %d --http.api platon,debug,personal,admin,net,web3,txpool,benchmark --http.vhosts \"*\" --cache 256 --metrics --ipcdisable  --maxpeers 100 --maxconsensuspeers 75 --txpool.globalslots 1000000 --txpool.accountslots 1000000  --txpool.globalqueue 1000000 --txpool.accountqueue 1000000 --txpool.cacheSize 1000000 --txpool.globaltxcount %d  --nodiscover  --networkid 102 --allow-insecure-unlock > ./platon.log 2>&1 &"
+	return fmt.Sprintf(format, tcp, verbosity, pprof, http, txcount)
 }
 func generateStop(tcp int) string {
 	format := "#!/bin/bash\nps aux | grep benchmark | grep %d | grep -v grep | awk '{print $2}' | xargs kill -9"

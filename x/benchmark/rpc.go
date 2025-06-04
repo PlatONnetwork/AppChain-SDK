@@ -2,6 +2,8 @@ package benchmark
 
 import (
 	"context"
+	"errors"
+	"sync/atomic"
 
 	"github.com/PlatONnetwork/PlatON-Go/ethclient"
 	"github.com/PlatONnetwork/PlatON-Go/rpc"
@@ -22,7 +24,8 @@ type BlockInfo struct {
 	TimeUse     uint64 `json:"time_use"`
 }
 type RPC struct {
-	m *Module
+	generating atomic.Bool
+	m          *Module
 }
 
 func NewRPC(m *Module) *RPC {
@@ -30,13 +33,18 @@ func NewRPC(m *Module) *RPC {
 }
 
 func (r *RPC) GenTxs(accountBeginIndex, accountEndIndex, rawTxPercent, contractTxPercent int, totalTx uint64) error {
-	r.m.Lock()
-	defer r.m.Unlock()
-	r.m.startIndex = accountBeginIndex
-	r.m.endIndex = accountEndIndex
-	r.m.rawTxPercent = rawTxPercent
-	r.m.contractTxPercent = contractTxPercent
-	return r.m.createTransactions(totalTx)
+	if !r.generating.CompareAndSwap(false, true) {
+		return errors.New("There is a task in progress")
+	}
+	go func() {
+		r.m.startIndex = accountBeginIndex
+		r.m.endIndex = accountEndIndex
+		r.m.rawTxPercent = rawTxPercent
+		r.m.contractTxPercent = contractTxPercent
+		r.m.createTransactions(totalTx)
+		r.generating.CompareAndSwap(true, false)
+	}()
+	return nil
 }
 func (r *RPC) Start(tps uint64, sendTxPool bool) error {
 	return r.m.start(tps, sendTxPool)

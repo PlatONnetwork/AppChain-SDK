@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	gasPrice    = big.NewInt(100000000)
+	gasPrice    = big.NewInt(300000000)
 	tokenAbi, _ = contracts.BenchTokenMetaData.GetAbi()
 )
 
