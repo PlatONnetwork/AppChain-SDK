@@ -56,7 +56,14 @@ func (m *Module) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackA
 	}
 	if len(sysTxs) > 0 {
 		m.logger.Debug("add system transactions", "sysTxs", len(sysTxs))
-		result, _ := pevm.Run(sysTxs, true)
+		result, err := pevm.Run(sysTxs, true)
+		if err != nil {
+			m.logger.Error("Failed to execute system transactions",
+				"blockNumber", ctx.Header().Number,
+				"parentHash", ctx.Header().ParentHash,
+				"err", err)
+			return allTxs, allReceipts, err
+		}
 		allTxs = append(allTxs, result.Transactions...)
 		allReceipts = append(allReceipts, result.Receipts...)
 		usedGas += result.GasUsed
@@ -77,7 +84,14 @@ func (m *Module) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackA
 		return nil, nil, err
 	}
 	if len(sortedTxs) > 0 {
-		result, _ := pevm.Run(sortedTxs, false)
+		result, err := pevm.Run(sortedTxs, false)
+		if err != nil {
+			m.logger.Error("Failed to execute sorted transactions",
+				"blockNumber", ctx.Header().Number,
+				"parentHash", ctx.Header().ParentHash,
+				"err", err)
+			return allTxs, allReceipts, err
+		}
 		allTxs = append(allTxs, result.Transactions...)
 		allReceipts = append(allReceipts, result.Receipts...)
 		usedGas += result.GasUsed
@@ -85,7 +99,14 @@ func (m *Module) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackA
 		localtimeout := false
 		if len(localTxs) > 0 {
 			txs := types.NewTransactionsByPriceAndNonce(signer, localTxs, ctx.Header().BaseFee)
-			result, _ := pevm.Run(txs.PeekAll(), false)
+			result, err := pevm.Run(txs.PeekAll(), false)
+			if err != nil {
+				m.logger.Error("Failed to execute local transactions",
+					"blockNumber", ctx.Header().Number,
+					"parentHash", ctx.Header().ParentHash,
+					"err", err)
+				return allTxs, allReceipts, err
+			}
 			allTxs = append(allTxs, result.Transactions...)
 			allReceipts = append(allReceipts, result.Receipts...)
 			localtimeout = result.Timeout
@@ -93,7 +114,14 @@ func (m *Module) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackA
 		}
 		if !localtimeout && len(remoteTxs) > 0 {
 			txs := types.NewTransactionsByPriceAndNonce(signer, remoteTxs, ctx.Header().BaseFee)
-			result, _ := pevm.Run(txs.PeekAll(), false)
+			result, err := pevm.Run(txs.PeekAll(), false)
+			if err != nil {
+				m.logger.Error("Failed to execute remote transactions",
+					"blockNumber", ctx.Header().Number,
+					"parentHash", ctx.Header().ParentHash,
+					"err", err)
+				return allTxs, allReceipts, err
+			}
 			allTxs = append(allTxs, result.Transactions...)
 			allReceipts = append(allReceipts, result.Receipts...)
 			usedGas += result.GasUsed
@@ -121,6 +149,7 @@ func (m *Module) ExecuteTxs(ctx sdk.WorkerContext, cApp sdk.ContractsApp, txs ty
 		"blockNumber", header.Number,
 		"blockHash", header.Hash(),
 		"count", len(txs),
+		"err", err,
 		"elapsed", time.Since(now))
 	return result.Receipts, result.GasUsed, err
 }

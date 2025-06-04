@@ -20,7 +20,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const ParallelExecuteTxnBatch = 64
+const ParallelExecuteTxnBatch = 64 // TODO: use flag
 
 type AbortReason struct {
 	mu     sync.RWMutex
@@ -47,6 +47,37 @@ func (r *AbortReason) InsertIfNotSet(err error) {
 	}
 }
 
+type ExecutionResult struct {
+	tx      *coretypes.Transaction
+	receipt *coretypes.Receipt
+	gasUsed uint64
+}
+
+type ExecutionResults struct {
+	mu      sync.Mutex
+	results []*ExecutionResult
+}
+
+func NewExecutionResults(blockSize uint32) *ExecutionResults {
+	return &ExecutionResults{
+		results: make([]*ExecutionResult, blockSize),
+	}
+}
+
+func (e *ExecutionResults) Set(index uint32, result *ExecutionResult) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.results[index] = result
+}
+
+func (e *ExecutionResults) Range(f func(*ExecutionResult)) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, result := range e.results {
+		f(result)
+	}
+}
+
 type PEVMResult struct {
 	Transactions coretypes.Transactions
 	Receipts     coretypes.Receipts
@@ -65,9 +96,10 @@ type PEVM struct {
 	txCount int
 
 	// Use in paralle execution
-	mu               sync.Mutex
-	executionResults []*PEVMResult
-	abortReason      AbortReason
+	mu                sync.Mutex
+	executionResults  []*PEVMResult
+	cumulativeGasUsed uint64
+	abortReason       AbortReason
 }
 
 func NewPEVM(
@@ -248,10 +280,107 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 		return &PEVMResult{}, nil
 	}
 
-	// TODO: batch parallel in minging
+	var pevmResult PEVMResult
+	if e.ctx.IsWorker() {
+		var (
+			timestamp        int64 = int64(e.ctx.Header().Time)
+			blockDeadline          = e.ctx.BlockDeadline()
+			batch                  = ParallelExecuteTxnBatch // FIXME: use flag
+			startIndex       int
+			endIndex         int
+			executionResults *ExecutionResults
+			err              error
+		)
+		if len(txs) <= batch {
+			executionResults, err = e.parallelExecuteBatch(txs)
+			if err != nil {
+				return &pevmResult, err
+			}
+			executionResults.Range(func(result *ExecutionResult) {
+				receipt := result.receipt
+				e.cumulativeGasUsed += receipt.CumulativeGasUsed
+				receipt.CumulativeGasUsed = e.cumulativeGasUsed
+				receipt.TransactionIndex += uint(e.txCount)
+				pevmResult.Receipts = append(pevmResult.Receipts, receipt)
+			})
+			pevmResult.Transactions = append(pevmResult.Transactions, txs...)
+			pevmResult.GasUsed = e.cumulativeGasUsed
+			e.txCount = len(txs)
+		} else {
+			count := len(txs)
+			endIndex = startIndex + batch
+			for endIndex < count {
+				execTxs := txs[startIndex:endIndex]
+				executionResults, err = e.parallelExecuteBatch(execTxs)
+				if err != nil {
+					return &pevmResult, err
+				}
+				executionResults.Range(func(result *ExecutionResult) {
+					receipt := result.receipt
+					e.cumulativeGasUsed += receipt.CumulativeGasUsed
+					receipt.CumulativeGasUsed = e.cumulativeGasUsed
+					receipt.TransactionIndex += uint(e.txCount)
+					pevmResult.Receipts = append(pevmResult.Receipts, receipt)
+				})
+				pevmResult.Transactions = append(pevmResult.Transactions, execTxs...)
+				pevmResult.GasUsed = e.cumulativeGasUsed
+				e.txCount = len(execTxs)
+
+				now := time.Now()
+				if blockDeadline.Before(time.Now()) && !isSysTxs {
+					e.logger.Warn("interrupt current ex-executing",
+						"blockNumber", e.ctx.Header().Number,
+						"parentHash", e.ctx.Header().ParentHash,
+						"now", now.UnixMilli(),
+						"timestamp", timestamp,
+						"deadlineDuration", blockDeadline.Sub(time.UnixMilli(timestamp)))
+					pevmResult.Timeout = true
+					break
+				}
+
+				startIndex = endIndex
+				if startIndex == count-1 {
+					break
+				}
+				endIndex = startIndex + batch
+				if endIndex >= count {
+					endIndex = count - 1
+				}
+			}
+		}
+	} else {
+		executionResults, err := e.parallelExecuteBatch(txs)
+		if err != nil {
+			e.logger.Error("parallel execute failed",
+				"number", e.ctx.Header().Number,
+				"hash", e.ctx.Header().Hash(),
+				"err", err)
+			return &pevmResult, err
+		}
+		var cumulativeGasUsed uint64
+		executionResults.Range(func(result *ExecutionResult) {
+			receipt := result.receipt
+			cumulativeGasUsed += receipt.CumulativeGasUsed
+			receipt.CumulativeGasUsed = cumulativeGasUsed
+			pevmResult.Receipts = append(pevmResult.Receipts, receipt)
+		})
+		pevmResult.Transactions = append(pevmResult.Transactions, txs...)
+		pevmResult.GasUsed = cumulativeGasUsed
+		e.logger.Info("parallel execute success",
+			"number", e.ctx.Header().Number,
+			"hash", e.ctx.Header().Hash())
+	}
+
+	return &pevmResult, nil
+}
+
+func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions) (*ExecutionResults, error) {
+	if len(txs) == 0 {
+		return &ExecutionResults{}, nil
+	}
 
 	blockSize := uint32(len(txs))
-	e.executionResults = make([]*PEVMResult, blockSize)
+	executionResults := NewExecutionResults(blockSize)
 	scheduler := NewScheduler(blockSize)
 	txIdxs := make([]uint32, blockSize)
 	i := uint32(0)
@@ -270,7 +399,7 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 			for task != nil {
 				switch task.(type) {
 				case *types.Execution:
-					task = e.tryExecute(vm, scheduler, task.Version())
+					task = e.tryExecute(vm, scheduler, executionResults, task.Version())
 				case *types.Validation:
 					task = e.tryValidate(mvMemory, scheduler, task.Version())
 				}
@@ -290,18 +419,6 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 
 	if reason := e.abortReason.Get(); reason != nil {
 		return nil, reason
-	}
-
-	var (
-		cumulativeGasUsed uint64
-		receipts          coretypes.Receipts
-	)
-	for i := 0; i < int(blockSize); i++ {
-		receipt := e.executionResults[i].Receipts[0]
-		cumulativeGasUsed += receipt.CumulativeGasUsed
-		receipt.CumulativeGasUsed = cumulativeGasUsed
-		receipt.TransactionIndex = uint(e.txCount) + receipt.TransactionIndex
-		receipts = append(receipts, e.executionResults[i].Receipts...)
 	}
 
 	statedb := e.ctx.StateDB()
@@ -335,17 +452,10 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 			return true
 		})
 	}
-
-	e.txCount = len(txs)
-
-	return &PEVMResult{
-		Transactions: txs,
-		Receipts:     receipts,
-		GasUsed:      cumulativeGasUsed,
-	}, nil
+	return executionResults, nil
 }
 
-func (e *PEVM) tryExecute(vm *Vm, scheduler *Scheduler, txVersion types.TxVersion) types.Task {
+func (e *PEVM) tryExecute(vm *Vm, scheduler *Scheduler, executionResults *ExecutionResults, txVersion types.TxVersion) types.Task {
 	for {
 		result, err := vm.Execute(&txVersion)
 		if err != nil {
@@ -359,13 +469,10 @@ func (e *PEVM) tryExecute(vm *Vm, scheduler *Scheduler, txVersion types.TxVersio
 			e.abortReason.InsertIfNotSet(err)
 			return nil
 		}
-		e.mu.Lock()
-		e.executionResults[txVersion.TxIdx] = &PEVMResult{
-			Receipts: coretypes.Receipts{result.executionResult.receipt},
-			GasUsed:  result.executionResult.gasUsed,
-			Timeout:  false,
-		}
-		e.mu.Unlock()
+		executionResults.Set(txVersion.TxIdx, &ExecutionResult{
+			receipt: result.executionResult.receipt,
+			gasUsed: result.executionResult.gasUsed,
+		})
 		return scheduler.FinishExecution(txVersion, result.flags)
 	}
 
