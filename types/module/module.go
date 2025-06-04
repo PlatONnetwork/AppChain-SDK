@@ -448,7 +448,6 @@ func (m *Manager) ViewChange(ctx sdk.ConsensusContext, validators []*cbfttypes.V
 			module.ViewChange(ctx, validators)
 		}
 	}
-	return
 }
 
 func (m *Manager) NewHeader(ctx sdk.ConsensusContext, header *types.Header) error {
@@ -687,29 +686,64 @@ func (m *Manager) isModuleValid(db sdk.StateDBReader, name string, blockNumber u
 }
 
 func (m *Manager) StartNetworkEngine() {
-	// TODO
+	log.Debug("StartNetworkEngine on manager")
+
+	for name, mod := range m.Modules {
+		if module, ok := mod.(ConsensusNetworkModule); ok {
+			log.Debug("StartNetworkEngine on module", "module", name)
+			module.StartNetworkEngine()
+		}
+	}
 }
 func (m *Manager) Broadcast(msg ctypes.Message) {
-	// TODO
+	for _, mod := range m.Modules {
+		if module, ok := mod.(ConsensusNetworkModule); ok {
+			module.Broadcast(msg)
+		}
+	}
 }
 func (m *Manager) PartBroadcast(msg ctypes.Message) {
-	// TODO
+	for _, mod := range m.Modules {
+		if module, ok := mod.(ConsensusNetworkModule); ok {
+			module.PartBroadcast(msg)
+		}
+	}
 }
 func (m *Manager) Forwarding(nodeID string, msg ctypes.Message) error {
-	// TODO
+	for _, mod := range m.Modules {
+		if module, ok := mod.(ConsensusNetworkModule); ok {
+			return module.Forwarding(nodeID, msg)
+		}
+	}
 	return nil
 }
 func (m *Manager) Send(peerID string, msg ctypes.Message) {
-	// TODO
+	for _, mod := range m.Modules {
+		if module, ok := mod.(ConsensusNetworkModule); ok {
+			module.Send(peerID, msg)
+		}
+	}
 }
 func (m *Manager) AvgLatency() time.Duration {
-	// TODO
+	for _, mod := range m.Modules {
+		if module, ok := mod.(ConsensusNetworkModule); ok {
+			return module.AvgLatency()
+		}
+	}
 	return time.Second
 }
 func (m *Manager) PeerSetting(peerID string, bType uint64, blockNumber uint64) error {
-	// TODO
+	for _, mod := range m.Modules {
+		if module, ok := mod.(ConsensusNetworkModule); ok {
+			return module.PeerSetting(peerID, bType, blockNumber)
+		}
+	}
 	return nil
 }
 func (m *Manager) RemovePeer(id string) {
-	// TODO
+	for _, mod := range m.Modules {
+		if module, ok := mod.(ConsensusNetworkModule); ok {
+			module.RemovePeer(id)
+		}
+	}
 }

@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"math"
 	"reflect"
-	"sync"
 
 	"github.com/PlatONnetwork/PlatON-Go/p2p/enode"
 
@@ -49,7 +48,6 @@ type peersFunc func() ([]*peer, error)             // Get a list of all neighbor
 // 3.Duplicate verification of messages.
 type router struct {
 	filter func(*peer, common.Hash) bool // Used for filtering node
-	lock   sync.RWMutex
 
 	// Customized functions belonging to the router.
 	unregister     unregisterFunc     // Used for deregistration.
@@ -135,27 +133,15 @@ func (r *router) SendMessage(m *types.MsgPackage) {
 }
 
 // filteredPeers selects the appropriate peers that satisfies the condition based on the message type.
-//
 // rules:
 // 1.Some message types return all consensus nodes.
-// 2.Some message types return random consensus nodes.
-// The following types return all consensus nodes:
-//
-//	PrepareVoteMsg/PrepareBlockMsg/ViewChangeMsg/BlockQuorumCertMsg
-//
-// The following types return a consensus node with non-consensus:
-//
-//	PrepareBlockHashMsg
+// 2.Some message types return all consensus nodes and random non-consensus nodes.
 func (r *router) filteredPeers(msgType uint64, condition common.Hash) ([]*peer, error) {
-	r.lock.RLock()
-	defer r.lock.RUnlock()
-
-	// Test the anchor point, please pay attention to let go.
-	//return r.peers()
 	switch msgType {
-	case protocols.PrepareBlockMsg, protocols.PrepareVoteMsg,
-		protocols.ViewChangeMsg, protocols.BlockQuorumCertMsg:
+	case protocols.PrepareBlockMsg, protocols.PrepareVoteMsg, protocols.BlockQuorumCertMsg, protocols.ViewChangeQuorumCertMsg:
 		return r.kMixingRandomNodes(condition, r.filter)
+	case protocols.ViewChangeMsg:
+		return r.kConsensusRandomNodes(false, condition) // ViewChangeMsg 只发给所有共识节点，只在共识节点间扩散
 	case protocols.PrepareBlockHashMsg, protocols.GetLatestStatusMsg,
 		protocols.GetViewChangeMsg, protocols.GetPrepareVoteMsg,
 		protocols.GetPrepareBlockMsg:

@@ -314,30 +314,26 @@ func (app *BaseApp) SortTxs(ctx sdk.WorkerContext, local, remote map[common.Addr
 }
 
 func (app *BaseApp) StartNetworkEngine() {
-	// TODO
+	app.manager.StartNetworkEngine()
 }
 func (app *BaseApp) Broadcast(msg ctypes.Message) {
-	// TODO
+	app.manager.Broadcast(msg)
 }
 func (app *BaseApp) PartBroadcast(msg ctypes.Message) {
-	// TODO
+	app.manager.PartBroadcast(msg)
 }
 func (app *BaseApp) Forwarding(nodeID string, msg ctypes.Message) error {
-	// TODO
-	return nil
+	return app.manager.Forwarding(nodeID, msg)
 }
 func (app *BaseApp) Send(peerID string, msg ctypes.Message) {
-	// TODO
+	app.manager.Send(peerID, msg)
 }
-
 func (app *BaseApp) AvgLatency() time.Duration {
-	// TODO
-	return time.Second
+	return app.manager.AvgLatency()
 }
 func (app *BaseApp) PeerSetting(peerID string, bType uint64, blockNumber uint64) error {
-	// TODO
-	return nil
+	return app.manager.PeerSetting(peerID, bType, blockNumber)
 }
 func (app *BaseApp) RemovePeer(id string) {
-	// TODO
+	app.manager.RemovePeer(id)
 }

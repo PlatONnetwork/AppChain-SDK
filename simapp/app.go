@@ -325,31 +325,28 @@ func (s *SimApp) SortTxs(ctx sdk.WorkerContext, local, remote map[common.Address
 }
 
 func (s *SimApp) StartNetworkEngine() {
-	// TODO
+	s.manager.StartNetworkEngine()
 }
 func (s *SimApp) Broadcast(msg ctypes.Message) {
-	// TODO
+	s.manager.Broadcast(msg)
 }
 func (s *SimApp) PartBroadcast(msg ctypes.Message) {
-	// TODO
+	s.manager.PartBroadcast(msg)
 }
 func (s *SimApp) Forwarding(nodeID string, msg ctypes.Message) error {
-	// TODO
-	return nil
+	return s.manager.Forwarding(nodeID, msg)
 }
 func (s *SimApp) Send(peerID string, msg ctypes.Message) {
-	// TODO
+	s.manager.Send(peerID, msg)
 }
 func (s *SimApp) AvgLatency() time.Duration {
-	// TODO
-	return time.Second
+	return s.manager.AvgLatency()
 }
 func (s *SimApp) PeerSetting(peerID string, bType uint64, blockNumber uint64) error {
-	// TODO
-	return nil
+	return s.manager.PeerSetting(peerID, bType, blockNumber)
 }
 func (s *SimApp) RemovePeer(id string) {
-	// TODO
+	s.RemovePeer(id)
 }
 
 func (s *SimApp) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackApp) (types.Transactions, types.Receipts, error) {

@@ -141,29 +141,21 @@ func (m *MockApp) InitChain(ctx sdk.InitContext) error {
 }
 
 func (m *MockApp) StartNetworkEngine() {
-	// TODO
 }
 func (m *MockApp) Broadcast(msg ctypes.Message) {
-	// TODO
 }
 func (m *MockApp) PartBroadcast(msg ctypes.Message) {
-	// TODO
 }
 func (m *MockApp) Forwarding(nodeID string, msg ctypes.Message) error {
-	// TODO
 	return nil
 }
 func (m *MockApp) Send(peerID string, msg ctypes.Message) {
-	// TODO
 }
 func (m *MockApp) AvgLatency() time.Duration {
-	// TODO
 	return time.Second
 }
 func (m *MockApp) PeerSetting(peerID string, bType uint64, blockNumber uint64) error {
-	// TODO
 	return nil
 }
 func (m *MockApp) RemovePeer(id string) {
-	// TODO
 }
