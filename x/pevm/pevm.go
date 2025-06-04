@@ -298,7 +298,7 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 			executionResults *ExecutionResults
 			err              error
 		)
-		if len(txs) <= batch {
+		if isSysTxs || len(txs) <= batch {
 			executionResults, err = e.parallelExecuteBatch(txs)
 			if err != nil {
 				return &pevmResult, err
@@ -334,7 +334,7 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 				e.txCount = len(execTxs)
 
 				now := time.Now()
-				if blockDeadline.Before(time.Now()) && !isSysTxs {
+				if blockDeadline.Before(time.Now()) {
 					e.logger.Warn("interrupt current ex-executing",
 						"blockNumber", e.ctx.Header().Number,
 						"parentHash", e.ctx.Header().ParentHash,
