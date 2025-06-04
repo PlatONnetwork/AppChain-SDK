@@ -13,7 +13,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/extravote"
 	"github.com/PlatONnetwork/AppChain-SDK/x/gov"
 	"github.com/PlatONnetwork/AppChain-SDK/x/l1"
-	"github.com/PlatONnetwork/AppChain-SDK/x/pevm"
+	"github.com/PlatONnetwork/AppChain-SDK/x/miner"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward"
 	"github.com/PlatONnetwork/AppChain-SDK/x/stage"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking"
@@ -59,7 +59,7 @@ type SimApp struct {
 	upgrade            *upgrade.Module
 	voteToken          *votetoken.Module
 	gov                *gov.Module
-	pevm               *pevm.Module
+	miner              *miner.Module
 	manager            *module.Manager
 }
 
@@ -126,7 +126,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 
 	app.voteToken, _ = votetoken.NewModule()
 	app.gov, _ = gov.NewModule(ctx)
-	app.pevm, _ = pevm.NewModule(ctx)
+	app.miner, _ = miner.NewModule(ctx)
 	tm := testmod.NewModule()
 	tc := testcontract.NewModule()
 
@@ -145,7 +145,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		app.l2StateSender,
 		app.upgrade,
 		app.gov,
-		app.pevm,
+		app.miner,
 		app.voteToken,
 		tm, tc)
 	manager.SetElection(app.staking.Name())
@@ -182,8 +182,8 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		tc.Name(),
 	)
 
-	manager.SetTxFiller(app.pevm.Name())
-	manager.SetTxExecutor(app.pevm.Name())
+	manager.SetTxFiller(app.miner.Name())
+	manager.SetTxExecutor(app.miner.Name())
 
 	manager.SetModuleValidChecker(app.upgrade.IsModuleValid)
 

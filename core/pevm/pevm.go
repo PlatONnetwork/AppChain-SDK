@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/PlatONnetwork/AppChain-SDK/x/pevm/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core"
+	coresdk "github.com/PlatONnetwork/PlatON-Go/core/sdk"
 	coretypes "github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/log"
@@ -82,25 +82,33 @@ type PEVMResult struct {
 	Timeout      bool
 }
 
+type Env struct {
+	Header        *coretypes.Header
+	StateDB       sdk.StateDB
+	ChainConfig   *params.ChainConfig
+	VMConfig      vm.Config
+	ChainContext  coresdk.ChainContext
+	IsWorker      bool
+	BlockDeadline time.Time
+}
+
 type PEVM struct {
 	forceSequential  bool
 	concurrencyLevel int
 	txsBatch         int
 
 	logger log.Logger
-	ctx    sdk.WorkerContext
+	env    *Env
 	cApp   sdk.ContractsApp
 
 	// Use in serial execution
-	gp      *core.GasPool
-	usedGas uint64
-	txCount int
+	gp *core.GasPool
+
+	cumulativeGasUsed uint64
+	txCount           int
 
 	// Use in paralle execution
-	mu                sync.Mutex
-	executionResults  []*PEVMResult
-	cumulativeGasUsed uint64
-	abortReason       AbortReason
+	abortReason AbortReason
 }
 
 func NewPEVM(
@@ -108,17 +116,17 @@ func NewPEVM(
 	concurrencyLevel int,
 	txsBatch int,
 	logger log.Logger,
-	ctx sdk.WorkerContext,
+	env *Env,
 	cApp sdk.ContractsApp) *PEVM {
 	return &PEVM{
 		forceSequential:  forceSequential,
 		concurrencyLevel: concurrencyLevel,
 		txsBatch:         txsBatch,
 		logger:           logger,
-		ctx:              ctx,
+		env:              env,
 		cApp:             cApp,
 
-		gp: new(core.GasPool).AddGas(ctx.Header().GasLimit),
+		gp: new(core.GasPool).AddGas(env.Header.GasLimit),
 	}
 }
 
@@ -134,7 +142,7 @@ func (e *PEVM) serialExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVMRe
 		result *PEVMResult
 		err    error
 	)
-	if e.ctx.IsWorker() {
+	if e.env.IsWorker {
 		result = e.commitTransactions(txs, isSysTxs)
 	} else {
 		result, err = e.applyTransactions(txs)
@@ -144,13 +152,13 @@ func (e *PEVM) serialExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVMRe
 
 func (e *PEVM) applyTransaction(tx *coretypes.Transaction) (*coretypes.Receipt, error) {
 	var (
-		chainCtx = e.ctx.Backend().ChainContext()
-		chainCfg = e.ctx.ChainConfig()
-		vmCfg    = *e.ctx.VMConfig()
-		header   = e.ctx.Header()
-		statedb  = e.ctx.StateDB()
+		chainCtx = e.env.ChainContext
+		chainCfg = e.env.ChainConfig
+		vmCfg    = e.env.VMConfig
+		header   = e.env.Header
+		statedb  = e.env.StateDB
 	)
-	receipt, err := core.ApplyTransaction(chainCfg, chainCtx, e.gp, statedb, header, tx, &e.usedGas, vmCfg, e.cApp)
+	receipt, err := core.ApplyTransaction(chainCfg, chainCtx, e.gp, statedb, header, tx, &e.cumulativeGasUsed, vmCfg, e.cApp)
 	if err != nil {
 		e.logger.Error("Failed to apply transaction",
 			"blockNumber", header.Number,
@@ -163,13 +171,13 @@ func (e *PEVM) applyTransaction(tx *coretypes.Transaction) (*coretypes.Receipt, 
 
 func (e *PEVM) commitTransactions(txs coretypes.Transactions, isSysTxs bool) *PEVMResult {
 	var (
-		bd           = e.ctx.BlockDeadline()
-		header       = e.ctx.Header()
+		bd           = e.env.BlockDeadline
+		header       = e.env.Header
 		blockNumber  = header.Number
 		parentHash   = header.ParentHash
 		timestamp    = int64(header.Time)
-		statedb      = e.ctx.StateDB()
-		signer       = coretypes.MakeSigner(e.ctx.ChainConfig(), header.Number)
+		statedb      = e.env.StateDB
+		signer       = coretypes.MakeSigner(e.env.ChainConfig, header.Number)
 		committedTxs = make(coretypes.Transactions, 0)
 		receipts     = make(coretypes.Receipts, 0)
 		timeout      bool
@@ -254,15 +262,15 @@ func (e *PEVM) commitTransactions(txs coretypes.Transactions, isSysTxs bool) *PE
 		Transactions: committedTxs,
 		Receipts:     receipts,
 		Timeout:      timeout,
-		GasUsed:      e.usedGas,
+		GasUsed:      e.cumulativeGasUsed,
 	}
 }
 
 func (e *PEVM) applyTransactions(txs coretypes.Transactions) (*PEVMResult, error) {
 	var (
 		receipts = make(coretypes.Receipts, 0)
-		header   = e.ctx.Header()
-		statedb  = e.ctx.StateDB()
+		header   = e.env.Header
+		statedb  = e.env.StateDB
 		begin    = time.Now()
 	)
 
@@ -279,7 +287,7 @@ func (e *PEVM) applyTransactions(txs coretypes.Transactions) (*PEVMResult, error
 		"blockHash", header.Hash(),
 		"txs", len(txs),
 		"elapsed", time.Since(begin))
-	return &PEVMResult{Receipts: receipts, GasUsed: e.usedGas}, nil
+	return &PEVMResult{Receipts: receipts, GasUsed: e.cumulativeGasUsed}, nil
 }
 
 func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVMResult, error) {
@@ -288,10 +296,10 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 	}
 
 	var pevmResult PEVMResult
-	if e.ctx.IsWorker() {
+	if e.env.IsWorker {
 		var (
-			timestamp        int64 = int64(e.ctx.Header().Time)
-			blockDeadline          = e.ctx.BlockDeadline()
+			timestamp        int64 = int64(e.env.Header.Time)
+			blockDeadline          = e.env.BlockDeadline
 			batch                  = e.txsBatch
 			startIndex       int
 			endIndex         int
@@ -312,7 +320,7 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 			})
 			pevmResult.Transactions = append(pevmResult.Transactions, txs...)
 			pevmResult.GasUsed = e.cumulativeGasUsed
-			e.txCount = len(txs)
+			e.txCount += len(txs)
 		} else {
 			count := len(txs)
 			endIndex = startIndex + batch
@@ -336,8 +344,8 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 				now := time.Now()
 				if blockDeadline.Before(time.Now()) {
 					e.logger.Warn("interrupt current ex-executing",
-						"blockNumber", e.ctx.Header().Number,
-						"parentHash", e.ctx.Header().ParentHash,
+						"blockNumber", e.env.Header.Number,
+						"parentHash", e.env.Header.ParentHash,
 						"now", now.UnixMilli(),
 						"timestamp", timestamp,
 						"deadlineDuration", blockDeadline.Sub(time.UnixMilli(timestamp)))
@@ -359,8 +367,8 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 		executionResults, err := e.parallelExecuteBatch(txs)
 		if err != nil {
 			e.logger.Error("parallel execute failed",
-				"number", e.ctx.Header().Number,
-				"hash", e.ctx.Header().Hash(),
+				"number", e.env.Header.Number,
+				"hash", e.env.Header.Hash(),
 				"err", err)
 			return &pevmResult, err
 		}
@@ -374,8 +382,8 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 		pevmResult.Transactions = append(pevmResult.Transactions, txs...)
 		pevmResult.GasUsed = cumulativeGasUsed
 		e.logger.Info("parallel execute success",
-			"number", e.ctx.Header().Number,
-			"hash", e.ctx.Header().Hash())
+			"number", e.env.Header.Number,
+			"hash", e.env.Header.Hash())
 	}
 
 	return &pevmResult, nil
@@ -394,10 +402,10 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions) (*ExecutionResul
 	for ; i < blockSize; i++ {
 		txIdxs[i] = i
 	}
-	mvMemory := NewMvMemory(int(blockSize), map[types.MemoryLocationHash][]uint32{
-		types.BasicLoc(e.ctx.Header().Coinbase): txIdxs,
-	}, []common.Address{e.ctx.Header().Coinbase})
-	vm := NewVm(e.ctx, e.cApp, e.ctx.StateDB(), mvMemory, txs)
+	mvMemory := NewMvMemory(int(blockSize), map[MemoryLocationHash][]uint32{
+		BasicLoc(e.env.Header.Coinbase): txIdxs,
+	}, []common.Address{e.env.Header.Coinbase})
+	vm := NewVm(e.env, e.cApp, e.env.StateDB, mvMemory, txs)
 
 	g := new(errgroup.Group)
 	for j := 0; j < e.concurrencyLevel; j++ {
@@ -405,9 +413,9 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions) (*ExecutionResul
 			task := scheduler.NextTask()
 			for task != nil {
 				switch task.(type) {
-				case *types.Execution:
+				case *Execution:
 					task = e.tryExecute(vm, scheduler, executionResults, task.Version())
-				case *types.Validation:
+				case *Validation:
 					task = e.tryValidate(mvMemory, scheduler, task.Version())
 				}
 
@@ -428,29 +436,29 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions) (*ExecutionResul
 		return nil, reason
 	}
 
-	statedb := e.ctx.StateDB()
+	statedb := e.env.StateDB
 	for _, writeHistory := range mvMemory.data.Items() {
-		writeHistory.Ascend(func(item btree.Item) bool {
-			d := item.(*DataEntry)
+		writeHistory.Ascend(func(itm btree.Item) bool {
+			d := itm.(*item)
 			switch d.Entry.(type) {
-			case *types.DataEntry:
-				entry := d.Entry.(*types.DataEntry)
+			case *DataEntry:
+				entry := d.Entry.(*DataEntry)
 				switch entry.Value.(type) {
-				case *types.Basic:
-					basic := entry.Value.(*types.Basic)
+				case *Basic:
+					basic := entry.Value.(*Basic)
 					account := basic.Account
 					if !account.Suicided {
 						statedb.SetNonce(account.Addr, account.Nonce)
 						statedb.SetBalance(account.Addr, account.Balance)
 					}
-				case *types.SelfDestructed:
-					des := entry.Value.(*types.SelfDestructed)
+				case *SelfDestructed:
+					des := entry.Value.(*SelfDestructed)
 					statedb.Suicide(des.Addr)
-				case *types.State:
-					state := entry.Value.(*types.State)
+				case *State:
+					state := entry.Value.(*State)
 					statedb.SetState(state.Addr, state.Key, state.Value)
-				case *types.CodeHash:
-					codeHash := entry.Value.(*types.CodeHash)
+				case *CodeHash:
+					codeHash := entry.Value.(*CodeHash)
 					if code, ok := mvMemory.newByteCodes.Get(codeHash.CodeHash); ok {
 						statedb.SetCode(codeHash.Addr, code)
 					}
@@ -462,7 +470,7 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions) (*ExecutionResul
 	return executionResults, nil
 }
 
-func (e *PEVM) tryExecute(vm *Vm, scheduler *Scheduler, executionResults *ExecutionResults, txVersion types.TxVersion) types.Task {
+func (e *PEVM) tryExecute(vm *Vm, scheduler *Scheduler, executionResults *ExecutionResults, txVersion TxVersion) Task {
 	for {
 		result, err := vm.Execute(&txVersion)
 		if err != nil {
@@ -485,7 +493,7 @@ func (e *PEVM) tryExecute(vm *Vm, scheduler *Scheduler, executionResults *Execut
 
 }
 
-func (e *PEVM) tryValidate(mvMemory *MvMemory, scheduler *Scheduler, txVersion types.TxVersion) types.Task {
+func (e *PEVM) tryValidate(mvMemory *MvMemory, scheduler *Scheduler, txVersion TxVersion) Task {
 	readSetValid := mvMemory.ValidateReadLocations(txVersion.TxIdx)
 	aborted := !readSetValid && scheduler.TryValidationAbort(txVersion)
 	if aborted {

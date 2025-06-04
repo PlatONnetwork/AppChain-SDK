@@ -1,4 +1,4 @@
-package types
+package pevm
 
 import (
 	"bytes"
@@ -227,13 +227,13 @@ type readOrigin struct{}
 
 func (readOrigin) isReadOrigin() {}
 
-type MvMemory struct {
+type Memory struct {
 	readOrigin
 
 	Version TxVersion
 }
 
-func NewMvMemory(ver TxVersion) ReadOrigin { return &MvMemory{Version: ver} }
+func NewMemory(ver TxVersion) ReadOrigin { return &Memory{Version: ver} }
 
 type Storage struct {
 	readOrigin

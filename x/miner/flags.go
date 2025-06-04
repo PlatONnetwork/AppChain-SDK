@@ -1,4 +1,4 @@
-package pevm
+package miner
 
 import "gopkg.in/urfave/cli.v1"
 

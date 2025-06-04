@@ -1,8 +1,9 @@
-package pevm
+package miner
 
 import (
 	"time"
 
+	"github.com/PlatONnetwork/AppChain-SDK/core/pevm"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
@@ -13,7 +14,7 @@ import (
 )
 
 const (
-	ModuleName           = "pevm"
+	ModuleName           = "miner"
 	ModuleVersion uint64 = 0
 )
 
@@ -49,7 +50,20 @@ func (m *Module) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackA
 		usedGas     uint64
 		signer      = types.MakeSigner(ctx.ChainConfig(), ctx.Header().Number)
 		begin       = time.Now()
-		pevm        = NewPEVM(m.forceSequential, m.concurrencyLevel, m.txsBatch, m.logger, ctx, cb)
+		pevm        = pevm.NewPEVM(
+			m.forceSequential,
+			m.concurrencyLevel,
+			m.txsBatch,
+			m.logger,
+			&pevm.Env{
+				Header:        ctx.Header(),
+				StateDB:       ctx.StateDB(),
+				ChainConfig:   ctx.ChainConfig(),
+				ChainContext:  ctx.Backend().ChainContext(),
+				VMConfig:      *ctx.VMConfig(),
+				IsWorker:      ctx.IsWorker(),
+				BlockDeadline: ctx.BlockDeadline(),
+			}, cb)
 	)
 
 	sysTxs, err := cb.AddTxs(ctx)
@@ -147,7 +161,20 @@ func (m *Module) ExecuteTxs(ctx sdk.WorkerContext, cApp sdk.ContractsApp, txs ty
 	var (
 		header = ctx.Header()
 		now    = time.Now()
-		pevm   = NewPEVM(m.forceSequential, m.concurrencyLevel, m.txsBatch, m.logger, ctx, cApp)
+		pevm   = pevm.NewPEVM(
+			m.forceSequential,
+			m.concurrencyLevel,
+			m.txsBatch,
+			m.logger,
+			&pevm.Env{
+				Header:        ctx.Header(),
+				StateDB:       ctx.StateDB(),
+				ChainConfig:   ctx.ChainConfig(),
+				ChainContext:  ctx.Backend().ChainContext(),
+				VMConfig:      *ctx.VMConfig(),
+				IsWorker:      ctx.IsWorker(),
+				BlockDeadline: ctx.BlockDeadline(),
+			}, cApp)
 	)
 
 	result, err := pevm.Run(txs, false)

@@ -4,22 +4,20 @@ import (
 	"math"
 	"sync"
 	"sync/atomic"
-
-	"github.com/PlatONnetwork/AppChain-SDK/x/pevm/types"
 )
 
 type LockedTxStatus struct {
 	sync.RWMutex
-	*types.TxStatus
+	*TxStatus
 }
 
 func initializeLockedTxStatus(blockSize uint32) []*LockedTxStatus {
 	ts := make([]*LockedTxStatus, blockSize)
 	for i := range ts {
 		ts[i] = &LockedTxStatus{
-			TxStatus: &types.TxStatus{
+			TxStatus: &TxStatus{
 				Incarnation: 0,
-				Status:      types.ReadyToExecute,
+				Status:      ReadyToExecute,
 			},
 		}
 	}
@@ -70,7 +68,7 @@ func (s *Scheduler) Abort() {
 	s.aborted.Store(true)
 }
 
-func (s *Scheduler) NextTask() types.Task {
+func (s *Scheduler) NextTask() Task {
 	for !s.aborted.Load() {
 		var (
 			executionIdx  = s.executionIdx.Load()
@@ -90,19 +88,19 @@ func (s *Scheduler) NextTask() types.Task {
 				tx := s.txsStatus[txIdx]
 				tx.Lock()
 
-				if tx.Status == types.ReadyToExecute {
-					tx.Status = types.Executing
+				if tx.Status == ReadyToExecute {
+					tx.Status = Executing
 					tx.Unlock()
-					return types.NewExection(types.TxVersion{
+					return NewExection(TxVersion{
 						TxIdx:         txIdx,
 						TxIncarnation: tx.Incarnation,
 					})
 				}
 
 				// Start a typical validation task
-				if tx.Status == types.Executed || tx.Status == types.Validated {
+				if tx.Status == Executed || tx.Status == Validated {
 					tx.Unlock()
-					return types.NewValidation(types.TxVersion{
+					return NewValidation(TxVersion{
 						TxIdx:         txIdx,
 						TxIncarnation: tx.Incarnation,
 					})
@@ -111,7 +109,7 @@ func (s *Scheduler) NextTask() types.Task {
 				// Validation index is still catching up so continue a
 				// new loop iteration to refetch the latest indices
 				// before deciding again.
-				if tx.Status == types.Aborting {
+				if tx.Status == Aborting {
 					tx.Unlock()
 					continue
 				}
@@ -121,18 +119,18 @@ func (s *Scheduler) NextTask() types.Task {
 
 		// Prioritize execution task
 		if txVer := s.tryExecute(s.executionIdx.Add(1)); txVer != nil {
-			return types.NewExection(*txVer)
+			return NewExection(*txVer)
 		}
 	}
 	return nil
 }
 
-func (s *Scheduler) tryExecute(txIdx uint32) *types.TxVersion {
+func (s *Scheduler) tryExecute(txIdx uint32) *TxVersion {
 	if txIdx < s.blockSize {
 		tx := s.txsStatus[txIdx]
 		tx.Lock()
 		defer tx.Unlock()
-		return &types.TxVersion{
+		return &TxVersion{
 			TxIdx:         txIdx,
 			TxIncarnation: tx.Incarnation,
 		}
@@ -145,7 +143,7 @@ func (s *Scheduler) AddDependency(txIdx, blockingIdx uint32) bool {
 	// transaction completes re-execution before this dependency can be added.
 	blockingTx := s.txsStatus[blockingIdx]
 	blockingTx.RLock()
-	if blockingTx.Status == types.Executed || blockingTx.Status == types.Validated {
+	if blockingTx.Status == Executed || blockingTx.Status == Validated {
 		blockingTx.RUnlock()
 		return false
 	}
@@ -153,7 +151,7 @@ func (s *Scheduler) AddDependency(txIdx, blockingIdx uint32) bool {
 
 	tx := s.txsStatus[txIdx]
 	tx.Lock()
-	tx.Status = types.Aborting
+	tx.Status = Aborting
 	tx.Unlock()
 
 	blockingDeps := s.txsDependents[blockingIdx]
@@ -168,11 +166,11 @@ func (s *Scheduler) SetReadyStatus(txIdx uint32) {
 	tx := s.txsStatus[txIdx]
 	tx.Lock()
 	defer tx.Unlock()
-	tx.Status = types.ReadyToExecute
+	tx.Status = ReadyToExecute
 	tx.Incarnation += 1
 }
 
-func (s *Scheduler) FinishExecution(txVersion types.TxVersion, flags types.FinishExecFlags) types.Task {
+func (s *Scheduler) FinishExecution(txVersion TxVersion, flags FinishExecFlags) Task {
 	tx := s.txsStatus[txVersion.TxIdx]
 	tx.Lock()
 	defer tx.Unlock()
@@ -187,7 +185,7 @@ func (s *Scheduler) FinishExecution(txVersion types.TxVersion, flags types.Finis
 	deps.Unlock()
 
 	minValidationIdx := s.minValidationIdx.Load()
-	if flags.Has(types.NeedValidation) {
+	if flags.Has(NeedValidation) {
 		minValidationIdx = uint32(math.Min(float64(fetchMinU32(&s.minValidationIdx, txVersion.TxIdx)),
 			float64(txVersion.TxIdx)))
 	}
@@ -195,65 +193,65 @@ func (s *Scheduler) FinishExecution(txVersion types.TxVersion, flags types.Finis
 	if minValidationIdx < s.blockSize {
 		// Must re-validate from min as this transaction is lower
 		if txVersion.TxIdx < minValidationIdx {
-			if flags.Has(types.WroteNewLocation) {
+			if flags.Has(WroteNewLocation) {
 				fetchMinU32(&s.validationIdx, minValidationIdx)
 			}
 		} else if txVersion.TxIdx < s.validationIdx.Load() {
 			// Validate from this transaction as it's in between min and the current
 			// validation index.
-			if flags.Has(types.WroteNewLocation) {
+			if flags.Has(WroteNewLocation) {
 				fetchMinU32(&s.validationIdx, txVersion.TxIdx+1)
 			}
-			if flags.Has(types.NeedValidation) {
-				tx.Status = types.Executed
-				return types.NewExection(txVersion)
+			if flags.Has(NeedValidation) {
+				tx.Status = Executed
+				return NewExection(txVersion)
 			}
-			tx.Status = types.Validated
+			tx.Status = Validated
 			s.numValidated.Add(1)
 		}
 		// Don't need to validate anything if the current validation index is
 		// lower or equal -- it will catch up later.
 	}
 
-	if flags.Has(types.NeedValidation) {
-		tx.Status = types.Executed
+	if flags.Has(NeedValidation) {
+		tx.Status = Executed
 	} else {
-		tx.Status = types.Validated
+		tx.Status = Validated
 		s.numValidated.Add(1)
 	}
 
 	return nil
 }
 
-func (s *Scheduler) TryValidationAbort(txVersion types.TxVersion) bool {
+func (s *Scheduler) TryValidationAbort(txVersion TxVersion) bool {
 	tx := s.txsStatus[txVersion.TxIdx]
 	tx.Lock()
 	defer tx.Unlock()
 
-	if tx.Status == types.Validated {
+	if tx.Status == Validated {
 		s.numValidated.Add(1)
 	}
 
-	aborting := tx.Status == types.Executed || tx.Status == types.Validated
+	aborting := tx.Status == Executed || tx.Status == Validated
 	if aborting {
-		tx.Status = types.Aborting
+		tx.Status = Aborting
 	}
 	return aborting
 }
 
-func (s *Scheduler) FinishValidation(txVersion types.TxVersion, aborted bool) types.Task {
+func (s *Scheduler) FinishValidation(txVersion TxVersion, aborted bool) Task {
 	if aborted {
 		s.SetReadyStatus(txVersion.TxIdx)
 		fetchMinU32(&s.validationIdx, txVersion.TxIdx+1)
 		if s.executionIdx.Load() > txVersion.TxIdx {
-			return types.NewExection(*s.tryExecute(txVersion.TxIdx))
+			return NewExection(*s.tryExecute(txVersion.TxIdx))
 		}
 	} else {
 		tx := s.txsStatus[txVersion.TxIdx]
 		tx.Lock()
 		defer tx.Unlock()
-		if tx.Status == types.Executed {
-			tx.Status = types.Validated
+		if tx.Status == Executed {
+			tx.Status = Validated
 			s.numValidated.Add(1)
 		}
 	}
