@@ -48,7 +48,6 @@ func (m *Module) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackA
 		allReceipts = make(types.Receipts, 0)
 		allTxs      = make(types.Transactions, 0)
 		usedGas     uint64
-		signer      = types.MakeSigner(ctx.ChainConfig(), ctx.Header().Number)
 		begin       = time.Now()
 		pevm        = pevm.NewPEVM(
 			m.forceSequential,
@@ -115,37 +114,6 @@ func (m *Module) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackA
 		allTxs = append(allTxs, result.Transactions...)
 		allReceipts = append(allReceipts, result.Receipts...)
 		usedGas += result.GasUsed
-	} else {
-		localtimeout := false
-		if len(localTxs) > 0 {
-			txs := types.NewTransactionsByPriceAndNonce(signer, localTxs, ctx.Header().BaseFee)
-			result, err := pevm.Run(txs.PeekAll(), false)
-			if err != nil {
-				m.logger.Error("Failed to execute local transactions",
-					"blockNumber", ctx.Header().Number,
-					"parentHash", ctx.Header().ParentHash,
-					"err", err)
-				return allTxs, allReceipts, err
-			}
-			allTxs = append(allTxs, result.Transactions...)
-			allReceipts = append(allReceipts, result.Receipts...)
-			localtimeout = result.Timeout
-			usedGas += result.GasUsed
-		}
-		if !localtimeout && len(remoteTxs) > 0 {
-			txs := types.NewTransactionsByPriceAndNonce(signer, remoteTxs, ctx.Header().BaseFee)
-			result, err := pevm.Run(txs.PeekAll(), false)
-			if err != nil {
-				m.logger.Error("Failed to execute remote transactions",
-					"blockNumber", ctx.Header().Number,
-					"parentHash", ctx.Header().ParentHash,
-					"err", err)
-				return allTxs, allReceipts, err
-			}
-			allTxs = append(allTxs, result.Transactions...)
-			allReceipts = append(allReceipts, result.Receipts...)
-			usedGas += result.GasUsed
-		}
 	}
 	// NOTE: need set gas used to header
 	ctx.Header().GasUsed = usedGas
