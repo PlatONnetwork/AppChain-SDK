@@ -22,7 +22,8 @@ func main() {
 	statesync.AddModuleInitFlags(cliApp)
 	utils.AddModuleInitFlags(cliApp)
 	app.InitApp(cliApp, func(ctx *cli.Context) sdk.App {
-		simApp, err := NewSimApp(ctx)
+		//simApp, err := NewSimApp(ctx)
+		simApp, err := NewConsensusApp(ctx)
 		if err != nil {
 			panic(fmt.Sprintf("Create simple app error: %v", err))
 		}

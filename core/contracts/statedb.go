@@ -21,6 +21,10 @@ func NewStateDB(evm *vm.EVM, contract *vm.Contract) *StateDB {
 	}
 }
 
+func (s *StateDB) Prepare(txHash common.Hash, i int) {
+	s.evm.StateDB.Prepare(txHash, i)
+}
+
 func (s *StateDB) AddRefund(u uint64) {
 	s.evm.StateDB.AddRefund(u)
 }
@@ -101,10 +105,14 @@ func (s *StateDB) TxHash() common.Hash {
 	return s.evm.StateDB.TxHash()
 }
 
-func (s *StateDB) TxIdx() uint32 {
-	return s.evm.StateDB.TxIdx()
+func (s *StateDB) TxIndex() int {
+	return s.evm.StateDB.TxIndex()
 }
 
 func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
 	return s.evm.StateDB.IntermediateRoot(deleteEmptyObjects)
+}
+
+func (s *StateDB) Finalise(deleteEmptyObjects bool) {
+	s.evm.StateDB.Finalise(deleteEmptyObjects)
 }
