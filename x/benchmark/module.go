@@ -14,6 +14,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/rpc"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
+	"gopkg.in/urfave/cli.v1"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -23,12 +24,20 @@ import (
 const (
 	ModuleName    = "benchmark"
 	ModuleVersion = 0
-	AccountLimit  = 100000
+	AccountLimit  = 1000
 )
 
 var (
-	Deployer = common.BigToAddress(big.NewInt(1))
+	Deployer         = common.BigToAddress(big.NewInt(1))
+	PendingLimitFlag = cli.Uint64Flag{
+		Name:  "benchmark.pendinglimit",
+		Usage: "How many transactions are packaged after sending a transaction",
+	}
 )
+
+func AddBenchmarkFlags(app *cli.App) {
+	app.Flags = append(app.Flags, PendingLimitFlag)
+}
 
 type Account struct {
 	key  *ecdsa.PrivateKey
@@ -38,15 +47,6 @@ type Account struct {
 type TxPool interface {
 	Nonce(addr common.Address) uint64
 	AddLocal(tx *types.Transaction) error
-}
-type MockTxPool struct {
-}
-
-func (MockTxPool) Nonce(addr common.Address) uint64 {
-	return 0
-}
-func (MockTxPool) AddLocal(tx *types.Transaction) error {
-	return nil
 }
 
 type Params struct {
@@ -65,24 +65,26 @@ type Module struct {
 	Params
 	Statistics
 	sync.Mutex
-	logger  log.Logger
-	db      *DB
-	keys    []*Account
-	txCache map[common.Address][]*types.Transaction
-	sent    sync.Map //map[common.Hash]uint64
-	signer  types.Signer
+	pendingLimit uint64
+	logger       log.Logger
+	db           *DB
+	keys         []*Account
+	txCache      map[common.Address][]*types.Transaction
+	sent         sync.Map //map[common.Hash]uint64
+	signer       types.Signer
 
 	txPool   TxPool
 	starting atomic.Bool
 	stopC    chan struct{}
 }
 
-func NewModule(store store.Store) *Module {
+func NewModule(ctx *cli.Context, store store.Store) *Module {
 	m := &Module{
-		logger:  log.New("module", ModuleName),
-		db:      NewDB(store),
-		txCache: make(map[common.Address][]*types.Transaction),
-		stopC:   make(chan struct{}),
+		logger:       log.New("module", ModuleName),
+		db:           NewDB(store),
+		txCache:      make(map[common.Address][]*types.Transaction),
+		stopC:        make(chan struct{}),
+		pendingLimit: ctx.GlobalUint64(PendingLimitFlag.Name),
 	}
 	m.initAccount()
 	return m
@@ -220,7 +222,25 @@ func (m *Module) stop() error {
 	}
 	return nil
 }
+
+func (m *Module) SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions, remote map[common.Address]types.Transactions) (types.Transactions, error) {
+
+	if m.starting.Load() && m.send.Load() > m.pendingLimit {
+		allTxs := make(types.Transactions, 0)
+		for _, txs := range local {
+			allTxs = append(allTxs, txs...)
+		}
+		for _, txs := range remote {
+			allTxs = append(allTxs, txs...)
+		}
+		return allTxs, nil
+	} else {
+		return make(types.Transactions, 0), nil
+	}
+
+}
 func (m *Module) AddTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions) (map[common.Address]types.Transactions, error) {
+
 	if !m.sendTxPool {
 		//
 	}
@@ -262,7 +282,7 @@ func (m *Module) sendLoop(amount uint64) {
 		case <-tick.C:
 			m.Lock()
 			sum := uint64(0)
-			for sum < amount {
+			for sum < amount && len(m.txCache) != 0 {
 				pos := index%total + m.startIndex
 				txs := m.txCache[m.keys[pos].addr]
 				if len(txs) > 0 {

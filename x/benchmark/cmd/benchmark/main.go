@@ -19,6 +19,7 @@ import (
 
 func main() {
 	cliApp := cli.NewApp()
+	benchmark.AddBenchmarkFlags(cliApp)
 	app.InitApp(cliApp, func(ctx *cli.Context) sdk.App {
 		datadir := node.DefaultDataDir()
 		if ctx.GlobalIsSet(cmdutils.DataDirFlag.Name) {
@@ -39,9 +40,10 @@ func main() {
 		}
 
 		election := NewElection()
-		benchmarkModule := benchmark.NewModule(store)
+		benchmarkModule := benchmark.NewModule(ctx, store)
 		manager := module.NewManager(election, benchmarkModule)
 		manager.SetElection(election.Name())
+		manager.SetWorker(benchmarkModule.Name())
 		manager.SetOrderTxPool(benchmarkModule.Name())
 		app := testutil.NewApp(manager)
 		return app

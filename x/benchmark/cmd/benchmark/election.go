@@ -11,6 +11,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/p2p/enode"
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
+	"math/big"
 )
 
 var ElectionAddress = common.HexToAddress("0x1300000000000000000000000000000000000001")
@@ -79,6 +80,7 @@ func (e Election) GetValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*c
 			PubKey:    n.Node.Pubkey(),
 			NodeID:    n.Node.ID(),
 			BlsPubKey: &blsPubKey,
+			Shares:    big.NewInt(1),
 		}
 	}
 	validator.Nodes = nodeMap
