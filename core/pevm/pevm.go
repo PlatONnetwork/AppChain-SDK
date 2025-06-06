@@ -55,13 +55,13 @@ type ExecutionResults struct {
 	results []*ExecutionResult
 }
 
-func NewExecutionResults(blockSize uint32) *ExecutionResults {
+func NewExecutionResults(blockSize int32) *ExecutionResults {
 	return &ExecutionResults{
 		results: make([]*ExecutionResult, blockSize),
 	}
 }
 
-func (e *ExecutionResults) Set(index uint32, result *ExecutionResult) {
+func (e *ExecutionResults) Set(index int32, result *ExecutionResult) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.results[index] = result
@@ -295,6 +295,8 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 		return &PEVMResult{}, nil
 	}
 
+	begin := time.Now()
+
 	var pevmResult PEVMResult
 	if e.env.IsWorker {
 		var (
@@ -324,7 +326,7 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 		} else {
 			count := len(txs)
 			endIndex = startIndex + batch
-			for endIndex < count {
+			for endIndex <= count {
 				execTxs := txs[startIndex:endIndex]
 				executionResults, err = e.parallelExecuteBatch(execTxs)
 				if err != nil {
@@ -354,12 +356,12 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 				}
 
 				startIndex = endIndex
-				if startIndex == count-1 {
+				if startIndex >= count-1 {
 					break
 				}
 				endIndex = startIndex + batch
-				if endIndex >= count {
-					endIndex = count - 1
+				if endIndex > count {
+					endIndex = count
 				}
 			}
 		}
@@ -386,6 +388,13 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 			"hash", e.env.Header.Hash())
 	}
 
+	e.logger.Info("Parallel execute finish",
+		"number", e.env.Header.Number,
+		"parentHash", e.env.Header.ParentHash,
+		"txs", len(txs),
+		"committedTxs", len(pevmResult.Transactions),
+		"timeout", pevmResult.Timeout,
+		"elapsed", time.Since(begin))
 	return &pevmResult, nil
 }
 
@@ -394,15 +403,15 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions) (*ExecutionResul
 		return &ExecutionResults{}, nil
 	}
 
-	blockSize := uint32(len(txs))
+	blockSize := int32(len(txs))
 	executionResults := NewExecutionResults(blockSize)
 	scheduler := NewScheduler(blockSize)
-	txIdxs := make([]uint32, blockSize)
-	i := uint32(0)
+	txIdxs := make([]int32, blockSize)
+	i := int32(0)
 	for ; i < blockSize; i++ {
 		txIdxs[i] = i
 	}
-	mvMemory := NewMvMemory(int(blockSize), map[MemoryLocationHash][]uint32{
+	mvMemory := NewMvMemory(int(blockSize), map[MemoryLocationHash][]int32{
 		BasicLoc(e.env.Header.Coinbase): txIdxs,
 	}, []common.Address{e.env.Header.Coinbase})
 	vm := NewVm(e.env, e.cApp, e.env.StateDB, mvMemory, txs)
@@ -448,7 +457,9 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions) (*ExecutionResul
 					basic := entry.Value.(*Basic)
 					account := basic.Account
 					if !account.Suicided {
-						statedb.SetNonce(account.Addr, account.Nonce)
+						if account.Addr != e.env.Header.Coinbase { // FIXME: coinbase maybe a sender
+							statedb.SetNonce(account.Addr, account.Nonce)
+						}
 						statedb.SetBalance(account.Addr, account.Balance)
 					}
 				case *SelfDestructed:
@@ -474,7 +485,7 @@ func (e *PEVM) tryExecute(vm *Vm, scheduler *Scheduler, executionResults *Execut
 	for {
 		result, err := vm.Execute(&txVersion)
 		if err != nil {
-			if errors.Is(err, &ErrBlocking{}) {
+			if errors.Is(err, ErrBlocking{}) {
 				if !scheduler.AddDependency(txVersion.TxIdx, err.(ErrBlocking).TxIdx) &&
 					e.abortReason.Get() == nil {
 					continue

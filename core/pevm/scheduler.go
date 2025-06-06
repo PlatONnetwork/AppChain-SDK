@@ -11,7 +11,7 @@ type LockedTxStatus struct {
 	*TxStatus
 }
 
-func initializeLockedTxStatus(blockSize uint32) []*LockedTxStatus {
+func initializeLockedTxStatus(blockSize int32) []*LockedTxStatus {
 	ts := make([]*LockedTxStatus, blockSize)
 	for i := range ts {
 		ts[i] = &LockedTxStatus{
@@ -26,39 +26,39 @@ func initializeLockedTxStatus(blockSize uint32) []*LockedTxStatus {
 
 type LockedTxDependent struct {
 	sync.RWMutex
-	deps []uint32
+	deps []int32
 }
 
-func initializeTxDependents(blockSize uint32) []*LockedTxDependent {
+func initializeTxDependents(blockSize int32) []*LockedTxDependent {
 	td := make([]*LockedTxDependent, blockSize)
 	for i := range td {
 		td[i] = &LockedTxDependent{
-			deps: make([]uint32, 0),
+			deps: make([]int32, 0),
 		}
 	}
 	return td
 }
 
 type Scheduler struct {
-	blockSize        uint32
+	blockSize        int32
 	txsStatus        []*LockedTxStatus
 	txsDependents    []*LockedTxDependent
-	executionIdx     atomic.Uint32
-	validationIdx    atomic.Uint32
-	minValidationIdx atomic.Uint32
-	numValidated     atomic.Uint32
+	executionIdx     atomic.Int32
+	validationIdx    atomic.Int32
+	minValidationIdx atomic.Int32
+	numValidated     atomic.Int32
 	aborted          atomic.Bool
 }
 
-func NewScheduler(blockSize uint32) *Scheduler {
+func NewScheduler(blockSize int32) *Scheduler {
 	s := &Scheduler{
 		blockSize:     blockSize,
 		txsStatus:     initializeLockedTxStatus(blockSize),
 		txsDependents: initializeTxDependents(blockSize),
 	}
 	s.executionIdx.Store(0)
-	s.validationIdx.Store(blockSize)
-	s.minValidationIdx.Store(0)
+	s.validationIdx.Store(int32(blockSize))
+	s.minValidationIdx.Store(blockSize)
 	s.numValidated.Store(0)
 	s.aborted.Store(false)
 	return s
@@ -83,7 +83,7 @@ func (s *Scheduler) NextTask() Task {
 
 		// Prioritize a validation task to minimize re-execution
 		if validationIdx < executionIdx {
-			txIdx := s.validationIdx.Add(1)
+			txIdx := fetchAddI32(&s.validationIdx, 1)
 			if txIdx < s.blockSize {
 				tx := s.txsStatus[txIdx]
 				tx.Lock()
@@ -118,14 +118,14 @@ func (s *Scheduler) NextTask() Task {
 		}
 
 		// Prioritize execution task
-		if txVer := s.tryExecute(s.executionIdx.Add(1)); txVer != nil {
+		if txVer := s.tryExecute(fetchAddI32(&s.executionIdx, 1)); txVer != nil {
 			return NewExection(*txVer)
 		}
 	}
 	return nil
 }
 
-func (s *Scheduler) tryExecute(txIdx uint32) *TxVersion {
+func (s *Scheduler) tryExecute(txIdx int32) *TxVersion {
 	if txIdx < s.blockSize {
 		tx := s.txsStatus[txIdx]
 		tx.Lock()
@@ -138,7 +138,7 @@ func (s *Scheduler) tryExecute(txIdx uint32) *TxVersion {
 	return nil
 }
 
-func (s *Scheduler) AddDependency(txIdx, blockingIdx uint32) bool {
+func (s *Scheduler) AddDependency(txIdx, blockingIdx int32) bool {
 	// This is an important lock to prevent a race condition where the blocking
 	// transaction completes re-execution before this dependency can be added.
 	blockingTx := s.txsStatus[blockingIdx]
@@ -162,7 +162,7 @@ func (s *Scheduler) AddDependency(txIdx, blockingIdx uint32) bool {
 	return true
 }
 
-func (s *Scheduler) SetReadyStatus(txIdx uint32) {
+func (s *Scheduler) SetReadyStatus(txIdx int32) {
 	tx := s.txsStatus[txIdx]
 	tx.Lock()
 	defer tx.Unlock()
@@ -179,14 +179,14 @@ func (s *Scheduler) FinishExecution(txVersion TxVersion, flags FinishExecFlags) 
 	deps.Lock()
 	for _, txIdx := range deps.deps {
 		s.SetReadyStatus(txIdx)
-		fetchMinU32(&s.executionIdx, txIdx)
+		fetchMinI32(&s.executionIdx, txIdx)
 	}
 	deps.deps = deps.deps[:0]
 	deps.Unlock()
 
 	minValidationIdx := s.minValidationIdx.Load()
 	if flags.Has(NeedValidation) {
-		minValidationIdx = uint32(math.Min(float64(fetchMinU32(&s.minValidationIdx, txVersion.TxIdx)),
+		minValidationIdx = int32(math.Min(float64(fetchMinI32(&s.minValidationIdx, txVersion.TxIdx)),
 			float64(txVersion.TxIdx)))
 	}
 	// Have found a min validation index to even bother
@@ -194,17 +194,17 @@ func (s *Scheduler) FinishExecution(txVersion TxVersion, flags FinishExecFlags) 
 		// Must re-validate from min as this transaction is lower
 		if txVersion.TxIdx < minValidationIdx {
 			if flags.Has(WroteNewLocation) {
-				fetchMinU32(&s.validationIdx, minValidationIdx)
+				fetchMinI32(&s.validationIdx, minValidationIdx)
 			}
 		} else if txVersion.TxIdx < s.validationIdx.Load() {
 			// Validate from this transaction as it's in between min and the current
 			// validation index.
 			if flags.Has(WroteNewLocation) {
-				fetchMinU32(&s.validationIdx, txVersion.TxIdx+1)
+				fetchMinI32(&s.validationIdx, txVersion.TxIdx+1)
 			}
 			if flags.Has(NeedValidation) {
 				tx.Status = Executed
-				return NewExection(txVersion)
+				return NewValidation(txVersion)
 			}
 			tx.Status = Validated
 			s.numValidated.Add(1)
@@ -229,7 +229,7 @@ func (s *Scheduler) TryValidationAbort(txVersion TxVersion) bool {
 	defer tx.Unlock()
 
 	if tx.Status == Validated {
-		s.numValidated.Add(1)
+		s.numValidated.Add(-1)
 	}
 
 	aborting := tx.Status == Executed || tx.Status == Validated
@@ -242,9 +242,9 @@ func (s *Scheduler) TryValidationAbort(txVersion TxVersion) bool {
 func (s *Scheduler) FinishValidation(txVersion TxVersion, aborted bool) Task {
 	if aborted {
 		s.SetReadyStatus(txVersion.TxIdx)
-		fetchMinU32(&s.validationIdx, txVersion.TxIdx+1)
-		if s.executionIdx.Load() > txVersion.TxIdx {
-			return NewExection(*s.tryExecute(txVersion.TxIdx))
+		fetchMinI32(&s.validationIdx, txVersion.TxIdx+1)
+		if s.executionIdx.Load() > int32(txVersion.TxIdx) {
+			return NewExection(*s.tryExecute(int32(txVersion.TxIdx)))
 		}
 	} else {
 		tx := s.txsStatus[txVersion.TxIdx]
@@ -258,7 +258,7 @@ func (s *Scheduler) FinishValidation(txVersion TxVersion, aborted bool) Task {
 	return nil
 }
 
-func fetchMinU32(a *atomic.Uint32, newVal uint32) uint32 {
+func fetchMinI32(a *atomic.Int32, newVal int32) int32 {
 	current := a.Load()
 	for newVal < current {
 		if a.CompareAndSwap(current, newVal) {
@@ -267,4 +267,15 @@ func fetchMinU32(a *atomic.Uint32, newVal uint32) uint32 {
 		current = a.Load()
 	}
 	return current
+}
+
+func fetchAddI32(a *atomic.Int32, delta int32) int32 {
+	old := a.Load()
+	for {
+		newVal := old + delta
+		if a.CompareAndSwap(old, newVal) {
+			return old
+		}
+		old = a.Load()
+	}
 }

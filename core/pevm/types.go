@@ -47,13 +47,13 @@ func (f FinishExecFlags) Has(flags FinishExecFlags) bool {
 type MemoryLocationHash = common.Hash
 
 type TxStatus struct {
-	Incarnation uint32
+	Incarnation int32
 	Status      IncarnationStatus
 }
 
 type TxVersion struct {
-	TxIdx         uint32
-	TxIncarnation uint32
+	TxIdx         int32
+	TxIncarnation int32
 }
 
 func BasicLoc(addr common.Address) MemoryLocationHash { return crypto.Keccak256Hash(addr[:]) }
@@ -79,11 +79,11 @@ func (memoryEntry) isMemoryEntry() {}
 type DataEntry struct {
 	memoryEntry
 
-	TxIncarnation uint32
+	TxIncarnation int32
 	Value         MemoryValue
 }
 
-func NewDataEntry(i uint32, value MemoryValue) MemoryEntry {
+func NewDataEntry(i int32, value MemoryValue) MemoryEntry {
 	return &DataEntry{
 		TxIncarnation: i,
 		Value:         value,
@@ -133,6 +133,19 @@ func (ab *AccountBase) Empty() bool {
 
 func (ab *AccountBase) Touch() bool {
 	return ab.Addr == ripemd
+}
+
+func (ab *AccountBase) Clone() *AccountBase {
+	return &AccountBase{
+		Addr:     common.Address(bytes.Clone(ab.Addr[:])),
+		Nonce:    ab.Nonce,
+		Balance:  new(big.Int).Set(ab.Balance),
+		CodeHash: common.Hash(bytes.Clone(ab.CodeHash[:])),
+		CodeSize: ab.CodeSize,
+		Code:     bytes.Clone(ab.Code),
+		Suicided: ab.Suicided,
+		NewCode:  ab.NewCode,
+	}
 }
 
 type Basic struct {
@@ -284,7 +297,35 @@ func (ro *ReadOrigins) Range(f func(ReadOrigin) bool) {
 	}
 }
 
-type ReadSet = map[MemoryLocationHash]*ReadOrigins
+type ReadSet struct {
+	readOrigins map[MemoryLocationHash]*ReadOrigins
+}
+
+func NewReadSet() *ReadSet {
+	return &ReadSet{
+		readOrigins: make(map[MemoryLocationHash]*ReadOrigins),
+	}
+}
+
+func (rs *ReadSet) GetOrDefault(locationHash MemoryLocationHash) *ReadOrigins {
+	ro, exist := rs.readOrigins[locationHash]
+	if !exist || ro == nil {
+		ro = NewReadOrigins()
+		rs.readOrigins[locationHash] = ro
+	}
+
+	return ro
+}
+
+func (rs *ReadSet) Set(locationHash MemoryLocationHash, ro *ReadOrigins) {
+	rs.readOrigins[locationHash] = ro
+}
+
+func (rs *ReadSet) Range(f func(MemoryLocationHash, *ReadOrigins)) {
+	for h, ro := range rs.readOrigins {
+		f(h, ro)
+	}
+}
 
 type WriteEntry struct {
 	Hash  MemoryLocationHash
@@ -293,8 +334,8 @@ type WriteEntry struct {
 
 type WriteSet []WriteEntry
 
-func NewWriteSet(initialSize int) WriteSet {
-	return make(WriteSet, initialSize)
+func NewWriteSet() WriteSet {
+	return make(WriteSet, 0)
 }
 
 func (ws *WriteSet) Add(hash MemoryLocationHash, value MemoryValue) {

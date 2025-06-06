@@ -11,11 +11,11 @@ import (
 type LastLocations struct {
 	sync.RWMutex
 
-	read  ReadSet
+	read  *ReadSet
 	write []MemoryLocationHash
 }
 
-func (l *LastLocations) SetRead(rs ReadSet) {
+func (l *LastLocations) SetRead(rs *ReadSet) {
 	l.Lock()
 	defer l.Unlock()
 
@@ -26,9 +26,7 @@ func (l *LastLocations) RangeRead(f func(MemoryLocationHash, *ReadOrigins)) {
 	l.RLock()
 	defer l.RUnlock()
 
-	for h, ro := range l.read {
-		f(h, ro)
-	}
+	l.read.Range(f)
 }
 
 func (l *LastLocations) GetWrite(idx int) MemoryLocationHash {
@@ -78,7 +76,7 @@ func (l *LastLocations) AppendWrite(h MemoryLocationHash) {
 
 func newLastLocations() *LastLocations {
 	return &LastLocations{
-		read:  make(ReadSet, 0),
+		read:  NewReadSet(),
 		write: make([]MemoryLocationHash, 0),
 	}
 }
@@ -134,12 +132,12 @@ func (la *LazyAddresses) Range(f func(common.Address) bool) {
 }
 
 type item struct {
-	TxIdx uint32
+	TxIdx int32
 	Entry MemoryEntry
 }
 
 func (it item) Less(rh btree.Item) bool {
-	return it.TxIdx < rh.(item).TxIdx
+	return it.TxIdx < rh.(*item).TxIdx
 }
 
 type ConcurrencyBTree struct {
@@ -195,7 +193,7 @@ type MvMemory struct {
 
 func NewMvMemory(
 	blockSize int,
-	estimatedLoactions map[MemoryLocationHash][]uint32,
+	estimatedLoactions map[MemoryLocationHash][]int32,
 	lazyAddrs []common.Address) *MvMemory {
 	m := &MvMemory{
 		data:          cmap.NewWithCustomShardingFunction[MemoryLocationHash, *ConcurrencyBTree](memHashShard),
@@ -226,7 +224,7 @@ func (m *MvMemory) AddLazyAddresses(addrs []common.Address) {
 	}
 }
 
-func (m *MvMemory) Record(txVersion *TxVersion, readSet ReadSet, writeSet WriteSet) bool {
+func (m *MvMemory) Record(txVersion *TxVersion, readSet *ReadSet, writeSet WriteSet) bool {
 	lastLocation := m.lastLocations[txVersion.TxIdx]
 	lastLocation.SetRead(readSet)
 
@@ -267,7 +265,7 @@ func (m *MvMemory) Record(txVersion *TxVersion, readSet ReadSet, writeSet WriteS
 	return wroteNewLocation
 }
 
-func (m *MvMemory) ValidateReadLocations(txIdx uint32) bool {
+func (m *MvMemory) ValidateReadLocations(txIdx int32) bool {
 	validated := true
 	lastLocation := m.lastLocations[txIdx]
 	lastLocation.RangeRead(func(location MemoryLocationHash, priorOrigins *ReadOrigins) {
@@ -277,15 +275,15 @@ func (m *MvMemory) ValidateReadLocations(txIdx uint32) bool {
 			priorOrigins.Range(func(priorOrigin ReadOrigin) bool {
 				switch priorOrigin.(type) {
 				case *Memory:
-					priordVer := priorOrigin.(*Memory)
+					priorVer := priorOrigin.(*Memory)
 					entry := it.NextBack().(*item)
 					dataEntry, isData := entry.Entry.(*DataEntry)
 					if !isData {
 						validated = false
 						return false
 					}
-					if priordVer.Version.TxIdx != entry.TxIdx ||
-						dataEntry.TxIncarnation != priordVer.Version.TxIncarnation {
+					if priorVer.Version.TxIdx != entry.TxIdx ||
+						dataEntry.TxIncarnation != priorVer.Version.TxIncarnation {
 						validated = false
 						return false
 					}
@@ -307,7 +305,7 @@ func (m *MvMemory) ValidateReadLocations(txIdx uint32) bool {
 	return validated
 }
 
-func (m *MvMemory) ConvertWritesToEstimate(txIdx uint32) {
+func (m *MvMemory) ConvertWritesToEstimate(txIdx int32) {
 	lastLocation := m.lastLocations[txIdx]
 	lastLocation.RangeWrite(func(location MemoryLocationHash) {
 		if writtenTxs, ok := m.data.Get(location); ok {

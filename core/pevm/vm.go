@@ -72,7 +72,7 @@ func (vm *Vm) Execute(txVersion *TxVersion) (*VmExecutionResult, error) {
 		return nil, NewErrExecution(db.txIdx, err)
 	}
 
-	writeSet := NewWriteSet(3)
+	writeSet := NewWriteSet()
 	for addr, _ := range db.dirties {
 		locationHash := BasicLoc(addr)
 		account := db.readAccounts[locationHash]

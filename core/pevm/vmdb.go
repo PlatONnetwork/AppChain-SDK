@@ -17,13 +17,13 @@ var (
 
 type VmDB struct {
 	vm           *Vm
-	txIdx        uint32
+	txIdx        int32
 	tx           *coretypes.Transaction
 	fromHash     MemoryLocationHash
 	toHash       MemoryLocationHash
 	toCodeHash   common.Hash
 	isLazy       bool
-	readSet      ReadSet
+	readSet      *ReadSet
 	readAccounts map[MemoryLocationHash]*AccountBase
 	dirties      map[common.Address]struct{}
 	states       map[common.Address]map[string][]byte
@@ -36,7 +36,7 @@ type VmDB struct {
 
 func NewVmDB(
 	vm *Vm,
-	txIdx uint32,
+	txIdx int32,
 	tx *coretypes.Transaction,
 	fromHash, toHash MemoryLocationHash) *VmDB {
 	db := &VmDB{
@@ -45,7 +45,7 @@ func NewVmDB(
 		tx:           tx,
 		fromHash:     fromHash,
 		toHash:       toHash,
-		readSet:      make(ReadSet, 0),
+		readSet:      NewReadSet(),
 		readAccounts: make(map[MemoryLocationHash]*AccountBase, 0),
 		dirties:      make(map[common.Address]struct{}, 0),
 		states:       make(map[common.Address]map[string][]byte, 0),
@@ -84,7 +84,7 @@ func (db *VmDB) hashBasic(addr common.Address) MemoryLocationHash {
 func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 	var (
 		locationHash   = db.hashBasic(addr)
-		readOrigins    = db.readSet[locationHash]
+		readOrigins    = db.readSet.GetOrDefault(locationHash)
 		hasPrevOrigins = readOrigins.Len() > 0
 		newOrigins     = NewReadOrigins()
 		finalAccount   *AccountBase
@@ -99,30 +99,33 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 			it := writtenTxs.AscendRange(&item{TxIdx: db.txIdx})
 			// Now only deal with account basic, doing lazy calculate in the further.
 			// So if we have a `DataEntry`, it must be a `AccountBasic`.
-			entry := it.NextBack().(*item)
-			switch entry.Entry.(type) {
-			case *DataEntry:
-				de := entry.Entry.(*DataEntry)
-				origin := NewMemory(TxVersion{
-					TxIdx:         entry.TxIdx,
-					TxIncarnation: de.TxIncarnation,
-				})
-				if hasPrevOrigins {
-					if !reflect.DeepEqual(origin, readOrigins.Get(0)) {
-						return nil
+			entry := it.NextBack()
+			if entry != nil {
+				entry := entry.(*item)
+				switch entry.Entry.(type) {
+				case *DataEntry:
+					de := entry.Entry.(*DataEntry)
+					origin := NewMemory(TxVersion{
+						TxIdx:         entry.TxIdx,
+						TxIncarnation: de.TxIncarnation,
+					})
+					if hasPrevOrigins {
+						if !reflect.DeepEqual(origin, readOrigins.Get(0)) {
+							return nil
+						}
+					} else {
+						newOrigins.Push(origin)
 					}
-				} else {
-					newOrigins.Push(origin)
+					switch de.Value.(type) {
+					case *Basic:
+						basic := de.Value.(*Basic)
+						finalAccount = basic.Account
+						//default:
+						//return nil
+					}
+					//default:
+					//return nil
 				}
-				switch de.Value.(type) {
-				case *Basic:
-					basic := de.Value.(*Basic)
-					finalAccount = basic.Account
-				default:
-					return nil
-				}
-			default:
-				return nil
 			}
 		}
 	}
@@ -141,15 +144,16 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 			CodeHash: db.vm.statedb.GetCodeHash(addr),
 			CodeSize: db.vm.statedb.GetCodeSize(addr),
 			Code:     db.vm.statedb.GetCode(addr),
+			Suicided: db.vm.statedb.HasSuicided(addr),
 		}
 	}
 
 	if !hasPrevOrigins {
-		db.readSet[locationHash] = newOrigins
+		db.readSet.Set(locationHash, newOrigins)
 	}
 
-	db.readAccounts[locationHash] = finalAccount
-	return finalAccount
+	db.readAccounts[locationHash] = finalAccount.Clone()
+	return db.readAccounts[locationHash]
 }
 
 func (db *VmDB) GetBalance(addr common.Address) *big.Int {
@@ -167,27 +171,9 @@ func (db *VmDB) GetNonce(addr common.Address) uint64 {
 }
 
 func (db *VmDB) GetCodeHash(addr common.Address) common.Hash {
-	locationHash := CodeHashLoc(addr)
-	readOrigins := db.readSet[locationHash]
-
-	if writtenTxs, ok := db.vm.mvMemory.data.Get(locationHash); ok {
-		it := writtenTxs.AscendRange(&item{TxIdx: db.txIdx})
-		entry := it.NextBack().(*item)
-		if dataEntry, ok := entry.Entry.(*DataEntry); ok {
-			switch dataEntry.Value.(type) {
-			case *CodeHash:
-				ch := dataEntry.Value.(*CodeHash)
-				db.pushOrigin(readOrigins, NewMemory(TxVersion{
-					TxIdx:         entry.TxIdx,
-					TxIncarnation: dataEntry.TxIncarnation,
-				}))
-				return ch.CodeHash
-			case *SelfDestructed:
-				return common.ZeroHash
-			}
-		}
+	if acc := db.getAccountBasic(addr); acc != nil {
+		return acc.CodeHash
 	}
-	db.pushOrigin(readOrigins, NewStorage())
 	return db.vm.statedb.GetCodeHash(addr)
 }
 
@@ -213,23 +199,26 @@ func (db *VmDB) GetCommittedState(addr common.Address, key []byte) []byte {
 
 func (db *VmDB) GetState(addr common.Address, key []byte) []byte {
 	locationHash := StateLoc(addr, key)
-	readOrigins := db.readSet[locationHash]
+	readOrigins := db.readSet.GetOrDefault(locationHash)
 
 	// Try reading from multi-version data
 	if db.txIdx > 0 {
 		if writtenTxs, ok := db.vm.mvMemory.data.Get(locationHash); ok {
 			it := writtenTxs.AscendRange(&item{TxIdx: db.txIdx})
-			entry := it.NextBack().(*item)
-			switch entry.Entry.(type) {
-			case *DataEntry:
-				de := entry.Entry.(*DataEntry)
-				db.pushOrigin(readOrigins, NewMemory(TxVersion{
-					TxIdx:         entry.TxIdx,
-					TxIncarnation: de.TxIncarnation,
-				}))
-				return de.Value.(*State).Value
-			default:
-				return []byte{}
+			entry := it.NextBack()
+			if entry != nil {
+				entry := entry.(*item)
+				switch entry.Entry.(type) {
+				case *DataEntry:
+					de := entry.Entry.(*DataEntry)
+					db.pushOrigin(readOrigins, NewMemory(TxVersion{
+						TxIdx:         entry.TxIdx,
+						TxIncarnation: de.TxIncarnation,
+					}))
+					return de.Value.(*State).Value
+				default:
+					return []byte{}
+				}
 			}
 		}
 	}
@@ -240,28 +229,9 @@ func (db *VmDB) GetState(addr common.Address, key []byte) []byte {
 }
 
 func (db *VmDB) HasSuicided(addr common.Address) bool {
-	locationHash := CodeHashLoc(addr)
-	readOrigins := db.readSet[locationHash]
-
-	if db.txIdx > 0 {
-		if writtenTxs, ok := db.vm.mvMemory.data.Get(locationHash); ok {
-			it := writtenTxs.AscendRange(&item{TxIdx: db.txIdx})
-			entry := it.NextBack().(*item)
-			switch entry.Entry.(type) {
-			case *DataEntry:
-				de := entry.Entry.(*DataEntry)
-				if _, ok := de.Value.(*SelfDestructed); ok {
-					db.pushOrigin(readOrigins, NewMemory(TxVersion{
-						TxIdx:         entry.TxIdx,
-						TxIncarnation: de.TxIncarnation,
-					}))
-					return true
-				}
-			}
-		}
+	if acc := db.getAccountBasic(addr); acc != nil {
+		return acc.Suicided
 	}
-
-	db.pushOrigin(readOrigins, NewStorage())
 	return db.vm.statedb.HasSuicided(addr)
 }
 
@@ -274,38 +244,8 @@ func (db *VmDB) Exist(addr common.Address) bool {
 }
 
 func (db *VmDB) Empty(addr common.Address) bool {
-	var (
-		locationHash   = db.hashBasic(addr)
-		readOrigins    = db.readSet[locationHash]
-		hasPrevOrigins = readOrigins.Len() > 0
-		finalAccount   *AccountBase
-	)
-	if db.txIdx > 0 {
-		if writtenTxs, ok := db.vm.mvMemory.data.Get(locationHash); ok {
-			it := writtenTxs.AscendRange(&item{TxIdx: db.txIdx})
-			// Now only deal with account basic, doing lazy calculate in the further.
-			// So if we have a `types.DataEntry`, it must be a `types.AccountBasic`.
-			entry := it.NextBack().(*item)
-			switch entry.Entry.(type) {
-			case *DataEntry:
-				de := entry.Entry.(*DataEntry)
-				origin := NewMemory(TxVersion{
-					TxIdx:         entry.TxIdx,
-					TxIncarnation: de.TxIncarnation,
-				})
-				if !hasPrevOrigins {
-					db.pushOrigin(readOrigins, origin)
-				}
-				switch de.Value.(type) {
-				case *Basic:
-					basic := de.Value.(*Basic)
-					finalAccount = basic.Account
-				}
-			}
-		}
-	}
-	if finalAccount != nil {
-		return finalAccount.Empty()
+	if acc := db.getAccountBasic(addr); acc != nil {
+		return acc.Empty()
 	}
 	return db.vm.statedb.Empty(addr)
 }
@@ -344,6 +284,7 @@ func (db *VmDB) AddBalance(addr common.Address, amount *big.Int) {
 			}
 			return
 		}
+		db.dirties[addr] = struct{}{}
 		basic.Balance = new(big.Int).Add(basic.Balance, amount)
 	}
 }
@@ -392,6 +333,7 @@ func (db *VmDB) SetState(addr common.Address, key, val []byte) {
 
 func (db *VmDB) Suicide(addr common.Address) bool {
 	if basic := db.getAccountBasic(addr); basic != nil {
+		db.dirties[addr] = struct{}{}
 		basic.Suicided = true
 		basic.Balance = new(big.Int)
 		return true
@@ -451,5 +393,5 @@ func (db *VmDB) Prepare(common.Hash, int) {}
 func (db *VmDB) TxHash() common.Hash      { return db.tx.Hash() }
 func (db *VmDB) TxIndex() int             { return int(db.txIdx) }
 
-func (db *VmDB) Finalise(bool)                     { panic("not implement") }
-func (db *VmDB) IntermediateRoot(bool) common.Hash { panic("not implement") }
+func (db *VmDB) Finalise(bool)                     {}
+func (db *VmDB) IntermediateRoot(bool) common.Hash { return common.ZeroHash }
