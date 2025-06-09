@@ -3,6 +3,7 @@ package pevm
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -18,6 +19,30 @@ import (
 	"github.com/google/btree"
 	"golang.org/x/sync/errgroup"
 )
+
+var AbortFallback = AbortFallbackToSequential{}
+
+type AbortFallbackToSequential struct{}
+
+func (e AbortFallbackToSequential) Error() string {
+	return "abort to fallback to sequential"
+}
+
+func (e AbortFallbackToSequential) Is(rhl error) bool {
+	return reflect.TypeOf(e).Name() == reflect.TypeOf(rhl).Name()
+}
+
+type AbortExecutionError struct {
+	err error
+}
+
+func (e AbortExecutionError) Error() string {
+	return fmt.Sprintf("Abort: %v", e.err)
+}
+
+func (e AbortExecutionError) Is(rhl error) bool {
+	return reflect.TypeOf(e).Name() == reflect.TypeOf(rhl).Name()
+}
 
 type AbortReason struct {
 	mu     sync.RWMutex
@@ -309,7 +334,7 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 			err              error
 		)
 		if isSysTxs || len(txs) <= batch {
-			executionResults, err = e.parallelExecuteBatch(txs)
+			executionResults, err = e.parallelExecuteBatch(txs, isSysTxs)
 			if err != nil {
 				return &pevmResult, err
 			}
@@ -328,7 +353,7 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 			endIndex = startIndex + batch
 			for endIndex <= count {
 				execTxs := txs[startIndex:endIndex]
-				executionResults, err = e.parallelExecuteBatch(execTxs)
+				executionResults, err = e.parallelExecuteBatch(execTxs, isSysTxs)
 				if err != nil {
 					return &pevmResult, err
 				}
@@ -366,7 +391,7 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 			}
 		}
 	} else {
-		executionResults, err := e.parallelExecuteBatch(txs)
+		executionResults, err := e.parallelExecuteBatch(txs, isSysTxs)
 		if err != nil {
 			e.logger.Error("parallel execute failed",
 				"number", e.env.Header.Number,
@@ -398,7 +423,7 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 	return &pevmResult, nil
 }
 
-func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions) (*ExecutionResults, error) {
+func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (*ExecutionResults, error) {
 	if len(txs) == 0 {
 		return &ExecutionResults{}, nil
 	}
@@ -442,6 +467,21 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions) (*ExecutionResul
 	g.Wait()
 
 	if reason := e.abortReason.Get(); reason != nil {
+		// FIXME: all txs fallback to sequential
+		if errors.Is(reason, AbortFallback) {
+			pevmRes, err := e.serialExecute(txs, isSysTxs)
+			if err != nil {
+				return nil, err
+			}
+			for i, receipt := range pevmRes.Receipts {
+				r := receipt
+				executionResults.Set(int32(i), &ExecutionResult{
+					receipt: r,
+					gasUsed: r.GasUsed,
+				})
+			}
+			return executionResults, nil
+		}
 		return nil, reason
 	}
 
@@ -485,14 +525,22 @@ func (e *PEVM) tryExecute(vm *Vm, scheduler *Scheduler, executionResults *Execut
 	for {
 		result, err := vm.Execute(&txVersion)
 		if err != nil {
-			if errors.Is(err, ErrBlocking{}) {
-				if !scheduler.AddDependency(txVersion.TxIdx, err.(ErrBlocking).TxIdx) &&
+			if errors.Is(err, ErrRetry) {
+				if e.abortReason.Get() == nil {
+					continue
+				}
+			} else if errors.Is(err, ErrFallbackToSequential) {
+				scheduler.Abort()
+				e.abortReason.InsertIfNotSet(AbortFallback)
+			} else if errors.Is(err, ExecutionBlockingError{}) {
+				if !scheduler.AddDependency(txVersion.TxIdx, err.(ExecutionBlockingError).TxIdx) &&
 					e.abortReason.Get() == nil {
 					continue
 				}
+			} else {
+				scheduler.Abort()
+				e.abortReason.InsertIfNotSet(AbortExecutionError{err})
 			}
-			scheduler.Abort()
-			e.abortReason.InsertIfNotSet(err)
 			return nil
 		}
 		executionResults.Set(txVersion.TxIdx, &ExecutionResult{

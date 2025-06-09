@@ -1,46 +1,152 @@
 package pevm
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 )
 
-type ErrBlocking struct {
+var (
+	ErrInconsistentRead       = InconsistentReadError{}
+	ErrInvalidMemoryValueType = InvalidMemoryValueTypeError{}
+	ErrSelfDestructedAccount  = SelfDestructedAccountError{}
+
+	ErrRetry                = RetryError{}
+	ErrFallbackToSequential = FallbackToSequentialError{}
+)
+
+type StorageError struct {
+	Reason string
+}
+
+func (e StorageError) Error() string {
+	return fmt.Sprintf("Failed to reading memory from storage: %s", e.Reason)
+}
+
+func (e StorageError) Is(rhl error) bool {
+	return reflect.TypeOf(e).Name() == reflect.TypeOf(rhl).Name()
+}
+
+type BlockingError struct {
 	TxIdx int32
-	err   error
 }
 
-func NewErrBlocking(txIdx int32, err error) ErrBlocking {
-	return ErrBlocking{
-		TxIdx: txIdx,
-		err:   err,
-	}
+func (e BlockingError) Error() string {
+	return fmt.Sprintf("Read of memory location is blocked by tx #%d", e.TxIdx)
 }
 
-func (e ErrBlocking) Error() string {
-	return fmt.Sprintf("transaction %d blocking: %v", e.TxIdx, e.err)
+func (e BlockingError) Is(rhl error) bool {
+	return reflect.TypeOf(e).Name() == reflect.TypeOf(rhl).Name()
 }
 
-func (e ErrBlocking) Is(err error) bool {
-	return reflect.TypeOf(err).Name() == reflect.TypeOf(e).Name()
+type InconsistentReadError struct{}
+
+func (e InconsistentReadError) Error() string {
+	return "Inconsistent read"
 }
 
-type ErrExecution struct {
+func (e InconsistentReadError) Is(rhl error) bool {
+	return reflect.TypeOf(e).Name() == reflect.TypeOf(rhl).Name()
+}
+
+type InvalidNonceError struct {
 	TxIdx int32
-	err   error
 }
 
-func NewErrExecution(txIdx int32, err error) ErrExecution {
-	return ErrExecution{
-		TxIdx: txIdx,
-		err:   err,
+func (e InvalidNonceError) Error() string {
+	return fmt.Sprintf("Tx %d has invalid nonce", e.TxIdx)
+}
+
+func (e InvalidNonceError) Is(rhl error) bool {
+	return reflect.TypeOf(e).Name() == reflect.TypeOf(rhl).Name()
+}
+
+type SelfDestructedAccountError struct{}
+
+func (e SelfDestructedAccountError) Error() string {
+	return "Tried to read self-destructed account"
+}
+
+func (e SelfDestructedAccountError) Is(rhl error) bool {
+	return reflect.TypeOf(e).Name() == reflect.TypeOf(rhl).Name()
+}
+
+type InvalidBytecodeError struct {
+	Source error
+}
+
+func (e InvalidBytecodeError) Error() string {
+	return fmt.Sprintf("Invalid bytecode: %v", e.Source)
+}
+
+func (e InvalidBytecodeError) Is(rhl error) bool {
+	return reflect.TypeOf(e).Name() == reflect.TypeOf(rhl).Name()
+}
+
+type InvalidMemoryValueTypeError struct{}
+
+func (e InvalidMemoryValueTypeError) Error() string {
+	return "Invalid type of stored memory value"
+}
+
+func (e InvalidMemoryValueTypeError) Is(rhl error) bool {
+	return reflect.TypeOf(e).Name() == reflect.TypeOf(rhl).Name()
+}
+
+type RetryError struct{}
+
+func (e RetryError) Error() string {
+	return "Retry"
+}
+
+func (e RetryError) Is(rhl error) bool {
+	return reflect.TypeOf(e).Name() == reflect.TypeOf(rhl).Name()
+}
+
+type FallbackToSequentialError struct{}
+
+func (e FallbackToSequentialError) Error() string {
+	return "Fallback to sequential"
+}
+
+func (e FallbackToSequentialError) Is(rhl error) bool {
+	return reflect.TypeOf(e).Name() == reflect.TypeOf(rhl).Name()
+}
+
+type ExecutionBlockingError struct {
+	TxIdx int32
+}
+
+func (e ExecutionBlockingError) Error() string {
+	return fmt.Sprintf("Tx #%d blocked", e.TxIdx)
+}
+
+func (e ExecutionBlockingError) Is(rhl error) bool {
+	return reflect.TypeOf(e).Name() == reflect.TypeOf(rhl).Name()
+}
+
+type ExecutionError struct {
+	err error
+}
+
+func (e ExecutionError) Error() string {
+	return fmt.Sprintf("Execution error: %v", e.err)
+}
+
+func (e ExecutionError) Is(rhl error) bool {
+	return reflect.TypeOf(e).Name() == reflect.TypeOf(rhl).Name()
+}
+
+func ToVmExecutionError(err error) error {
+	switch {
+	case errors.Is(err, ErrInconsistentRead):
+		return ErrRetry
+	case errors.Is(err, ErrSelfDestructedAccount):
+		return ErrFallbackToSequential
+	case errors.Is(err, BlockingError{}):
+		blockingErr := err.(BlockingError)
+		return ExecutionBlockingError{blockingErr.TxIdx}
+	default:
+		return ExecutionError{err}
 	}
-}
-
-func (e ErrExecution) Error() string {
-	return fmt.Sprintf("transaction %d execution error: %v", e.TxIdx, e.err)
-}
-
-func (e ErrExecution) Is(err error) bool {
-	return reflect.TypeOf(err).Name() == reflect.TypeOf(e).Name()
 }

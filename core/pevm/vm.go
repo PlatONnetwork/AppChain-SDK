@@ -6,6 +6,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core"
 	coretypes "github.com/PlatONnetwork/PlatON-Go/core/types"
+	corevm "github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 )
 
@@ -46,7 +47,14 @@ func NewVm(
 	}
 }
 
-func (vm *Vm) Execute(txVersion *TxVersion) (*VmExecutionResult, error) {
+func (vm *Vm) Execute(txVersion *TxVersion) (result *VmExecutionResult, err error) {
+	defer func() {
+		if catchErr := recover(); catchErr != nil {
+			if realErr, ok := catchErr.(error); ok {
+				err = ToVmExecutionError(realErr)
+			}
+		}
+	}()
 	var (
 		tx       = vm.txs[txVersion.TxIdx]
 		fromHash = BasicLoc(tx.FromAddr(coretypes.NewEIP155Signer(vm.env.ChainConfig.ChainID)))
@@ -65,55 +73,61 @@ func (vm *Vm) Execute(txVersion *TxVersion) (*VmExecutionResult, error) {
 	usedGas := new(uint64)
 
 	receipt, err := core.ApplyTransaction(chainCfg, chainCtx, gasPool, db, header, tx, usedGas, vmCfg, vm.cApp)
-	if err != nil {
+	switch err {
+	case nil:
+		writeSet := NewWriteSet()
+		for addr, _ := range db.dirties {
+			locationHash := BasicLoc(addr)
+			account := db.readAccounts[locationHash]
+			if account.Suicided {
+				writeSet.Add(CodeHashLoc(addr), NewSelfDestructed(addr))
+				continue
+			}
+
+			writeSet.Add(locationHash, NewBasic(addr, account))
+			if account.NewCode {
+				writeSet.Add(CodeHashLoc(addr), NewCodeHash(addr, account.CodeHash))
+				db.vm.mvMemory.newByteCodes.Set(account.CodeHash, account.Code)
+			}
+		}
+
+		for addr, states := range db.states {
+			for key, val := range states {
+				cloneKey := bytes.Clone([]byte(key))
+				cloneVal := bytes.Clone(val)
+				writeSet.Add(StateLoc(addr, cloneKey), NewState(addr, cloneKey, cloneVal))
+			}
+		}
+
+		//if db.isLazy {
+		//		db.vm.mvMemory.AddLazyAddresses([]common.Address{tx.FromAddr(coretypes.NewEIP155Signer(db.vm.ctx.ChainConfig().ChainID)), *tx.To()})
+		//}
+
+		var flags FinishExecFlags
 		if db.txIdx > 0 {
-			return nil, NewErrBlocking(db.txIdx, err)
-		}
-		return nil, NewErrExecution(db.txIdx, err)
-	}
-
-	writeSet := NewWriteSet()
-	for addr, _ := range db.dirties {
-		locationHash := BasicLoc(addr)
-		account := db.readAccounts[locationHash]
-		if account.Suicided {
-			writeSet.Add(CodeHashLoc(addr), NewSelfDestructed(addr))
-			continue
+			flags.Set(NeedValidation)
 		}
 
-		writeSet.Add(locationHash, NewBasic(addr, account))
-		if account.NewCode {
-			writeSet.Add(CodeHashLoc(addr), NewCodeHash(addr, account.CodeHash))
-			db.vm.mvMemory.newByteCodes.Set(account.CodeHash, account.Code)
+		if db.vm.mvMemory.Record(txVersion, db.readSet, writeSet) {
+			flags.Set(WroteNewLocation)
 		}
-	}
 
-	for addr, states := range db.states {
-		for key, val := range states {
-			cloneKey := bytes.Clone([]byte(key))
-			cloneVal := bytes.Clone(val)
-			writeSet.Add(StateLoc(addr, cloneKey), NewState(addr, cloneKey, cloneVal))
+		return &VmExecutionResult{
+			executionResult: &PevmTxExecutionResult{
+				receipt: receipt,
+				gasUsed: *usedGas,
+			},
+			flags: flags,
+		}, nil
+
+	case core.ErrNonceTooLow, core.ErrNonceTooHigh:
+		if db.txIdx > 0 {
+			return nil, ExecutionBlockingError{TxIdx: db.txIdx}
+		} else {
+			return nil, ExecutionError{err}
 		}
+	case core.ErrGasLimitReached, corevm.ErrAbort:
+		return nil, ErrFallbackToSequential
 	}
-
-	//if db.isLazy {
-	//		db.vm.mvMemory.AddLazyAddresses([]common.Address{tx.FromAddr(coretypes.NewEIP155Signer(db.vm.ctx.ChainConfig().ChainID)), *tx.To()})
-	//}
-
-	var flags FinishExecFlags
-	if db.txIdx > 0 {
-		flags.Set(NeedValidation)
-	}
-
-	if db.vm.mvMemory.Record(txVersion, db.readSet, writeSet) {
-		flags.Set(WroteNewLocation)
-	}
-
-	return &VmExecutionResult{
-		executionResult: &PevmTxExecutionResult{
-			receipt: receipt,
-			gasUsed: *usedGas,
-		},
-		flags: flags,
-	}, nil
+	return nil, ExecutionError{err}
 }

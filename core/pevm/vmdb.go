@@ -65,7 +65,7 @@ func (db *VmDB) pushOrigin(readOrigins *ReadOrigins, readOrigin ReadOrigin) {
 	if readOrigins.Len() > 0 {
 		last := readOrigins.Last()
 		if !reflect.DeepEqual(last, readOrigin) {
-			panic("inconsistent read")
+			panic(ErrInconsistentRead)
 		}
 	}
 	readOrigins.Push(readOrigin)
@@ -111,7 +111,7 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 					})
 					if hasPrevOrigins {
 						if !reflect.DeepEqual(origin, readOrigins.Get(0)) {
-							return nil
+							panic(ErrInconsistentRead)
 						}
 					} else {
 						newOrigins.Push(origin)
@@ -120,11 +120,11 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 					case *Basic:
 						basic := de.Value.(*Basic)
 						finalAccount = basic.Account
-						//default:
-						//return nil
+					default:
+						panic(ErrInvalidMemoryValueType)
 					}
-					//default:
-					//return nil
+				case *EstimateMarker:
+					panic(BlockingError{entry.TxIdx})
 				}
 			}
 		}
@@ -135,7 +135,7 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 			newOrigins.Push(NewStorage())
 		} else if readOrigins.Len() != newOrigins.Len()+1 ||
 			!reflect.DeepEqual(readOrigins.Last(), NewStorage()) {
-			return nil
+			panic(ErrInconsistentRead)
 		}
 		finalAccount = &AccountBase{
 			Addr:     addr,
@@ -216,8 +216,10 @@ func (db *VmDB) GetState(addr common.Address, key []byte) []byte {
 						TxIncarnation: de.TxIncarnation,
 					}))
 					return de.Value.(*State).Value
+				case *EstimateMarker:
+					panic(&BlockingError{entry.TxIdx})
 				default:
-					return []byte{}
+					panic(ErrInvalidMemoryValueType)
 				}
 			}
 		}

@@ -16,6 +16,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
+	"github.com/PlatONnetwork/PlatON-Go/trie"
 	"github.com/stretchr/testify/require"
 )
 
@@ -104,8 +105,8 @@ func prepareTransactions(n int, accounts []*account, amount *big.Int) types.Tran
 }
 
 func TestPEVM(t *testing.T) {
-	accounts := prepareAccounts(10)
-	txs := prepareTransactions(10, accounts, big.NewInt(100))
+	accounts := prepareAccounts(100)
+	txs := prepareTransactions(100, accounts, big.NewInt(100))
 	env1 := &Env{
 		Header:        prepareHeader(10),
 		StateDB:       prepareStateDB(accounts, big.NewInt(10000000000)),
@@ -115,7 +116,7 @@ func TestPEVM(t *testing.T) {
 		IsWorker:      true,
 		BlockDeadline: time.Now().Add(time.Minute),
 	}
-	pevm1 := NewPEVM(false, 4, 4, log.New("module", "test"), env1, newMockContractsApp())
+	pevm1 := NewPEVM(false, 4, 32, log.New("module", "test"), env1, newMockContractsApp())
 	result1, err1 := pevm1.Run(txs, false)
 	require.Nil(t, err1)
 	require.NotNil(t, result1)
@@ -129,9 +130,15 @@ func TestPEVM(t *testing.T) {
 		IsWorker:      true,
 		BlockDeadline: time.Now().Add(1 * time.Minute),
 	}
-	pevm2 := NewPEVM(true, 2, 2, log.New("module", "test"), env2, newMockContractsApp())
+	pevm2 := NewPEVM(true, 4, 32, log.New("module", "test"), env2, newMockContractsApp())
 	result2, err2 := pevm2.Run(txs, false)
 	require.Nil(t, err2)
 	require.NotNil(t, result2)
+	require.True(t, result1.GasUsed == result2.GasUsed)
+
+	res1Root := types.DeriveSha(result1.Receipts, trie.NewStackTrie(nil))
+	res2Root := types.DeriveSha(result2.Receipts, trie.NewStackTrie(nil))
+	require.Equal(t, res1Root, res2Root)
+
 	require.True(t, env2.StateDB.(*mock.MockStateDB).Equal(env1.StateDB.(*mock.MockStateDB)))
 }
