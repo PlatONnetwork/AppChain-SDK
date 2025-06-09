@@ -224,8 +224,8 @@ func (m *Module) stop() error {
 }
 
 func (m *Module) SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions, remote map[common.Address]types.Transactions) (types.Transactions, error) {
-
-	if m.starting.Load() && m.send.Load() > m.pendingLimit {
+	m.logger.Warn("benchmark sort txs", "local", len(local), "remote", len(remote))
+	if m.send.Load() >= m.pendingLimit {
 		allTxs := make(types.Transactions, 0)
 		for _, txs := range local {
 			allTxs = append(allTxs, txs...)

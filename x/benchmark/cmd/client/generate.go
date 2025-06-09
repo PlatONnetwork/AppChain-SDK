@@ -26,6 +26,7 @@ var (
 	binFlag        = cli.StringFlag{Name: "bin", EnvVar: "BENCHMARK_BIN"}
 	verbosityFlag  = cli.IntFlag{Name: "verbosity", EnvVar: "BENCHMARK_VERBOSITY", Value: 1}
 	txCountFlag    = cli.IntFlag{Name: "txcount", EnvVar: "BENCHMARK_TXCOUNT", Value: 5000}
+	extraArgsFlag  = cli.StringFlag{Name: "extra_args", EnvVar: "BENCHMARK_EXTRA_ARGS"}
 )
 
 type HostConfig struct {
@@ -207,7 +208,8 @@ func generateEcdsa() (string, string) {
 func outputScript(ctx *cli.Context, path string, acc *testutil.Account) error {
 	verbosity := ctx.Int(verbosityFlag.Name)
 	txcount := ctx.Int(txCountFlag.Name)
-	if err := os.WriteFile(filepath.Join(path, "start.sh"), []byte(generateStart(acc.P2PPort, acc.Pprof, acc.HTTP, verbosity, txcount)), 0755); err != nil {
+	extraArgs := ctx.String(extraArgsFlag.Name)
+	if err := os.WriteFile(filepath.Join(path, "start.sh"), []byte(generateStart(acc.P2PPort, acc.Pprof, acc.HTTP, verbosity, txcount, extraArgs)), 0755); err != nil {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(path, "stop.sh"), []byte(generateStop(acc.P2PPort)), 0755); err != nil {
@@ -223,9 +225,9 @@ func outputScript(ctx *cli.Context, path string, acc *testutil.Account) error {
 	return nil
 }
 
-func generateStart(tcp int, pprof, http, verbosity, txcount int) string {
-	format := "#!/bin/bash\nnohup ./benchmark --identity platon --datadir ./data --nodekey ./nodekey --cbft.blskey ./blskey --port %d --verbosity %d --pprof --pprof.addr 0.0.0.0 --pprof.port %d  --http --http.ethcompatible --http.addr 0.0.0.0 --http.port %d --http.api platon,debug,personal,admin,net,web3,txpool,benchmark --http.vhosts \"*\" --cache 256 --metrics --ipcdisable  --maxpeers 100 --maxconsensuspeers 75 --txpool.globalslots 1000000 --txpool.accountslots 1000000  --txpool.globalqueue 1000000 --txpool.accountqueue 1000000 --txpool.cacheSize 1000000 --txpool.globaltxcount %d  --nodiscover  --networkid 102 --allow-insecure-unlock > ./platon.log 2>&1 &"
-	return fmt.Sprintf(format, tcp, verbosity, pprof, http, txcount)
+func generateStart(tcp int, pprof, http, verbosity, txcount int, args string) string {
+	format := "#!/bin/bash\nnohup ./benchmark --identity platon --datadir ./data --nodekey ./nodekey --cbft.blskey ./blskey --port %d --verbosity %d --pprof --pprof.addr 0.0.0.0 --pprof.port %d  --http --http.ethcompatible --http.addr 0.0.0.0 --http.port %d --http.api platon,debug,personal,admin,net,web3,txpool,benchmark --http.vhosts \"*\" --cache 256 --metrics --ipcdisable  --maxpeers 100 --maxconsensuspeers 75 --txpool.globalslots 1000000 --txpool.accountslots 1000000  --txpool.globalqueue 1000000 --txpool.accountqueue 1000000 --txpool.cacheSize 1000000 --txpool.globaltxcount %d  --nodiscover  --networkid 102 --allow-insecure-unlock %s > ./platon.log 2>&1 &"
+	return fmt.Sprintf(format, tcp, verbosity, pprof, http, txcount, args)
 }
 func generateStop(tcp int) string {
 	format := "#!/bin/bash\nps aux | grep benchmark | grep %d | grep -v grep | awk '{print $2}' | xargs kill -9"

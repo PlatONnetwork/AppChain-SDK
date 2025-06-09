@@ -6,6 +6,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/testutil"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/x/benchmark"
+	"github.com/PlatONnetwork/AppChain-SDK/x/nontxpool"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/node"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
@@ -20,6 +21,7 @@ import (
 func main() {
 	cliApp := cli.NewApp()
 	benchmark.AddBenchmarkFlags(cliApp)
+	nontxpool.AddNonTxPoolFlags(cliApp)
 	app.InitApp(cliApp, func(ctx *cli.Context) sdk.App {
 		datadir := node.DefaultDataDir()
 		if ctx.GlobalIsSet(cmdutils.DataDirFlag.Name) {
@@ -41,7 +43,8 @@ func main() {
 
 		election := NewElection()
 		benchmarkModule := benchmark.NewModule(ctx, store)
-		manager := module.NewManager(election, benchmarkModule)
+		nonTxPoolModule := nontxpool.NewModule(ctx)
+		manager := module.NewManager(election, benchmarkModule, nonTxPoolModule)
 		manager.SetElection(election.Name())
 		manager.SetWorker(benchmarkModule.Name())
 		manager.SetOrderTxPool(benchmarkModule.Name())

@@ -82,6 +82,7 @@ var (
 			binFlag,
 			verbosityFlag,
 			txCountFlag,
+			extraArgsFlag,
 		},
 		CustomHelpTemplate: flags.CommandHelpTemplate,
 	}
