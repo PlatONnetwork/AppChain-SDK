@@ -497,7 +497,7 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 					basic := entry.Value.(*Basic)
 					account := basic.Account
 					if !account.Suicided {
-						if account.Addr != e.env.Header.Coinbase { // FIXME: coinbase maybe a sender
+						if account.Addr != e.env.Header.Coinbase && account.Nonce > 0 { // FIXME: coinbase maybe a sender
 							statedb.SetNonce(account.Addr, account.Nonce)
 						}
 						statedb.SetBalance(account.Addr, account.Balance)
