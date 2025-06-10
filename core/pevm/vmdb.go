@@ -2,6 +2,7 @@ package pevm
 
 import (
 	"fmt"
+	"math"
 	"math/big"
 	"reflect"
 
@@ -27,6 +28,8 @@ type VmDB struct {
 	readAccounts map[MemoryLocationHash]*AccountBase
 	dirties      map[common.Address]struct{}
 	states       map[common.Address]map[string][]byte
+	addBalances  map[common.Address]*big.Int
+	subBalances  map[common.Address]*big.Int
 
 	refund     uint64
 	logs       map[common.Hash][]*coretypes.Log
@@ -46,9 +49,11 @@ func NewVmDB(
 		fromHash:     fromHash,
 		toHash:       toHash,
 		readSet:      NewReadSet(),
-		readAccounts: make(map[MemoryLocationHash]*AccountBase, 0),
-		dirties:      make(map[common.Address]struct{}, 0),
-		states:       make(map[common.Address]map[string][]byte, 0),
+		readAccounts: make(map[MemoryLocationHash]*AccountBase),
+		dirties:      make(map[common.Address]struct{}),
+		states:       make(map[common.Address]map[string][]byte),
+		addBalances:  make(map[common.Address]*big.Int),
+		subBalances:  make(map[common.Address]*big.Int),
 		refund:       0,
 		logs:         make(map[common.Hash][]*coretypes.Log, 0),
 		accessList:   newAccessList(),
@@ -83,12 +88,20 @@ func (db *VmDB) hashBasic(addr common.Address) MemoryLocationHash {
 
 func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 	var (
-		locationHash   = db.hashBasic(addr)
-		readOrigins    = db.readSet.GetOrDefault(locationHash)
-		hasPrevOrigins = readOrigins.Len() > 0
-		newOrigins     = NewReadOrigins()
-		finalAccount   *AccountBase
+		locationHash    = db.hashBasic(addr)
+		readOrigins     = db.readSet.GetOrDefault(locationHash)
+		hasPrevOrigins  = readOrigins.Len() > 0
+		newOrigins      = NewReadOrigins()
+		finalAccount    *AccountBase
+		balanceAddition        = new(big.Int)
+		nonceAddtion    uint64 = 0
 	)
+
+	if db.isLazy {
+		if locationHash == db.fromHash || locationHash == db.toHash {
+			return nil
+		}
+	}
 
 	if basic, ok := db.readAccounts[locationHash]; ok {
 		return basic
@@ -97,20 +110,28 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 	if db.txIdx > 0 {
 		if writtenTxs, ok := db.vm.mvMemory.data.Get(locationHash); ok {
 			it := writtenTxs.AscendRange(&item{TxIdx: db.txIdx})
-			// Now only deal with account basic, doing lazy calculate in the further.
-			// So if we have a `DataEntry`, it must be a `AccountBasic`.
-			entry := it.NextBack()
-			if entry != nil {
-				entry := entry.(*item)
-				switch entry.Entry.(type) {
+			for {
+				entry := it.NextBack()
+				if entry == nil {
+					break
+				}
+				entryItem := entry.(*item)
+				switch entryItem.Entry.(type) {
 				case *DataEntry:
-					de := entry.Entry.(*DataEntry)
+					de := entryItem.Entry.(*DataEntry)
+
+					// About to push a new origin
+					// Inconsistent: new origin will be longer than the previous!
+					if hasPrevOrigins && readOrigins.Len() == newOrigins.Len() {
+						panic(ErrInconsistentRead)
+					}
+
 					origin := NewMemory(TxVersion{
-						TxIdx:         entry.TxIdx,
+						TxIdx:         entryItem.TxIdx,
 						TxIncarnation: de.TxIncarnation,
 					})
 					if hasPrevOrigins {
-						if !reflect.DeepEqual(origin, readOrigins.Get(0)) {
+						if !reflect.DeepEqual(origin, readOrigins.Get(newOrigins.Len())) {
 							panic(ErrInconsistentRead)
 						}
 					} else {
@@ -120,12 +141,21 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 					case *Basic:
 						basic := de.Value.(*Basic)
 						finalAccount = basic.Account
+						break
+					case *LazySender:
+						lazySender := de.Value.(*LazySender)
+						balanceAddition = new(big.Int).Sub(balanceAddition, lazySender.Balance)
+						nonceAddtion += 1
+					case *LazyRecipient:
+						lazyRecipient := de.Value.(*LazyRecipient)
+						balanceAddition = new(big.Int).Add(balanceAddition, lazyRecipient.Balance)
 					default:
 						panic(ErrInvalidMemoryValueType)
 					}
 				case *EstimateMarker:
-					panic(BlockingError{entry.TxIdx})
+					panic(BlockingError{entryItem.TxIdx})
 				}
+
 			}
 		}
 	}
@@ -152,18 +182,53 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 		db.readSet.Set(locationHash, newOrigins)
 	}
 
+	finalAccount.Nonce += nonceAddtion
+	if locationHash == db.fromHash && db.tx.Nonce() != finalAccount.Nonce {
+		if db.txIdx > 0 {
+			panic(BlockingError{db.txIdx})
+		} else {
+			panic(InvalidNonceError{db.txIdx})
+		}
+	}
+	finalAccount.Balance = new(big.Int).Add(finalAccount.Balance, balanceAddition)
+	// TODO: get code
+	/*
+		var codeHash common.Hash
+		if locationHash == db.toHash {
+			codeHash = db.toCodeHash
+		} else {
+			codeHash = db.GetCodeHash(addr)
+		}*/
+
 	db.readAccounts[locationHash] = finalAccount.Clone()
 	return db.readAccounts[locationHash]
 }
 
 func (db *VmDB) GetBalance(addr common.Address) *big.Int {
+	locationHash := BasicLoc(addr)
+	if db.isLazy {
+		if db.fromHash == locationHash {
+			return new(big.Int).SetUint64(math.MaxUint64)
+		}
+		if db.toHash == locationHash {
+			return common.Big0
+		}
+	}
+
 	if basic := db.getAccountBasic(addr); basic != nil {
 		return basic.Balance
 	}
-	return new(big.Int)
+	return common.Big0
 }
 
 func (db *VmDB) GetNonce(addr common.Address) uint64 {
+	locationHash := BasicLoc(addr)
+	if db.isLazy {
+		if db.fromHash == locationHash {
+			return db.tx.Nonce()
+		}
+	}
+
 	if basic := db.getAccountBasic(addr); basic != nil {
 		return basic.Nonce
 	}
@@ -272,6 +337,18 @@ func (db *VmDB) SubBalance(addr common.Address, amount *big.Int) {
 	if amount.Sign() == 0 {
 		return
 	}
+
+	locationHash := BasicLoc(addr)
+	isLazy := (db.isLazy && locationHash == db.fromHash) || addr == db.vm.env.Header.Coinbase
+	if isLazy {
+		if balance, exist := db.subBalances[addr]; exist {
+			db.subBalances[addr] = new(big.Int).Add(balance, amount)
+		} else {
+			db.subBalances[addr] = new(big.Int).Set(amount)
+		}
+		return
+	}
+
 	if basic := db.getAccountBasic(addr); basic != nil {
 		db.dirties[addr] = struct{}{}
 		basic.Balance = new(big.Int).Sub(basic.Balance, amount)
@@ -279,6 +356,17 @@ func (db *VmDB) SubBalance(addr common.Address, amount *big.Int) {
 }
 
 func (db *VmDB) AddBalance(addr common.Address, amount *big.Int) {
+	locationHash := BasicLoc(addr)
+	isLazy := (db.isLazy && locationHash == db.toHash) || addr == db.vm.env.Header.Coinbase
+	if isLazy {
+		if balance, exist := db.addBalances[addr]; exist {
+			db.addBalances[addr] = new(big.Int).Add(balance, amount)
+		} else {
+			db.addBalances[addr] = new(big.Int).Set(amount)
+		}
+		return
+	}
+
 	if basic := db.getAccountBasic(addr); basic != nil {
 		if amount.Sign() == 0 {
 			if basic.Empty() && basic.Touch() {
@@ -296,6 +384,11 @@ func (db *VmDB) SetBalance(common.Address, *big.Int) {
 }
 
 func (db *VmDB) SetNonce(addr common.Address, nonce uint64) {
+	locationHash := BasicLoc(addr)
+	if db.isLazy && locationHash == db.fromHash {
+		return // Lazy cumulative
+	}
+
 	if basic := db.getAccountBasic(addr); basic != nil {
 		db.dirties[addr] = struct{}{}
 		basic.Nonce = nonce

@@ -3,6 +3,7 @@ package pevm
 import (
 	"errors"
 	"fmt"
+	"math/big"
 	"reflect"
 	"sync"
 	"time"
@@ -366,7 +367,7 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 				})
 				pevmResult.Transactions = append(pevmResult.Transactions, execTxs...)
 				pevmResult.GasUsed = e.cumulativeGasUsed
-				e.txCount = len(execTxs)
+				e.txCount += len(execTxs)
 
 				now := time.Now()
 				if blockDeadline.Before(time.Now()) {
@@ -486,7 +487,91 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 	}
 
 	statedb := e.env.StateDB
-	for _, writeHistory := range mvMemory.data.Items() {
+	// todo: cumulative lazy address
+	committedLocations := make(map[MemoryLocationHash]bool)
+	var abortErr error
+	mvMemory.ConsumeLazyAddresses(func(addr common.Address) bool {
+		locationHash := BasicLoc(addr)
+		committedLocations[locationHash] = true
+		if writeHistory, ok := mvMemory.data.Get(locationHash); ok {
+			var (
+				balance = new(big.Int)
+				nonce   uint64
+			)
+			writeHistory.Ascend(func(itm btree.Item) bool {
+				entryItem := itm.(*item)
+				de := entryItem.Entry.(*DataEntry)
+				if _, ok := de.Value.(*Basic); !ok {
+					balance = statedb.GetBalance(addr)
+					nonce = statedb.GetNonce(addr)
+				}
+				return false
+			})
+
+			writeHistory.Ascend(func(itm btree.Item) bool {
+				entryItem := itm.(*item)
+				tx := txs[entryItem.TxIdx]
+				switch entryItem.Entry.(type) {
+				case *DataEntry:
+					entry := entryItem.Entry.(*DataEntry)
+					switch entry.Value.(type) {
+					case *Basic:
+						basic := entry.Value.(*Basic)
+						account := basic.Account
+						balance = new(big.Int).Set(account.Balance)
+						nonce = account.Nonce
+					case *LazyRecipient:
+						lazy := entry.Value.(*LazyRecipient)
+						balance = new(big.Int).Add(balance, lazy.Balance)
+					case *LazySender:
+						lazy := entry.Value.(*LazySender)
+						maxFee := tx.Gas()*tx.GasPrice().Uint64() + tx.Value().Uint64()
+						if balance.Uint64() < maxFee {
+							abortErr = fmt.Errorf("lack of fund for max fee(balance: %d, maxFee: %d)",
+								balance.Uint64(), maxFee)
+							return false
+						}
+						balance = new(big.Int).Sub(balance, lazy.Balance)
+						nonce += 1
+					}
+				}
+
+				if tx.FromAddr(coretypes.NewEIP155Signer(e.env.ChainConfig.ChainID)) == addr {
+					var executeNonce uint64
+					if nonce == 0 {
+						abortErr = fmt.Errorf("unreachable error(addr: %s)", addr.Hex())
+						return false
+					}
+					executeNonce = nonce - 1
+					if executeNonce != tx.Nonce() {
+						abortErr = fmt.Errorf("nonce mismatch(tx: %s, nonce: %d, execute_nonce: %d)",
+							tx.Hash().TerminalString(), tx.Nonce(), executeNonce)
+						return false
+					}
+				}
+
+				statedb.SetBalance(addr, balance)
+				if nonce > 0 {
+					statedb.SetNonce(addr, nonce)
+				}
+				// End writeHistory.Ascend
+				return true
+			})
+			if abortErr != nil {
+				return false
+			}
+		}
+		// End mvMomeory.ConsumeLazyAddresses()
+		return true
+	})
+	if abortErr != nil {
+		return nil, abortErr
+	}
+
+	for locationHash, writeHistory := range mvMemory.data.Items() {
+		if committedLocations[locationHash] {
+			continue
+		}
 		writeHistory.Ascend(func(itm btree.Item) bool {
 			d := itm.(*item)
 			switch d.Entry.(type) {
@@ -497,7 +582,7 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 					basic := entry.Value.(*Basic)
 					account := basic.Account
 					if !account.Suicided {
-						if account.Addr != e.env.Header.Coinbase && account.Nonce > 0 { // FIXME: coinbase maybe a sender
+						if account.Nonce > 0 {
 							statedb.SetNonce(account.Addr, account.Nonce)
 						}
 						statedb.SetBalance(account.Addr, account.Balance)

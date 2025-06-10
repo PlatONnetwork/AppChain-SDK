@@ -2,6 +2,7 @@ package pevm
 
 import (
 	"bytes"
+	"math/big"
 
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core"
@@ -99,12 +100,23 @@ func (vm *Vm) Execute(txVersion *TxVersion) (result *VmExecutionResult, err erro
 			}
 		}
 
-		//if db.isLazy {
-		//		db.vm.mvMemory.AddLazyAddresses([]common.Address{tx.FromAddr(coretypes.NewEIP155Signer(db.vm.ctx.ChainConfig().ChainID)), *tx.To()})
-		//}
+		for addr, balance := range db.addBalances {
+			lh := BasicLoc(addr)
+			writeSet.Add(lh, NewLazyRecipient(addr, new(big.Int).Set(balance)))
+		}
+		for addr, balance := range db.subBalances {
+			lh := BasicLoc(addr)
+			writeSet.Add(lh, NewLazySender(addr, new(big.Int).Set(balance)))
+		}
+
+		if db.isLazy {
+			db.vm.mvMemory.AddLazyAddresses([]common.Address{
+				tx.FromAddr(coretypes.NewEIP155Signer(db.vm.env.ChainConfig.ChainID)),
+				*tx.To()})
+		}
 
 		var flags FinishExecFlags
-		if db.txIdx > 0 {
+		if db.txIdx > 0 && !db.isLazy {
 			flags.Set(NeedValidation)
 		}
 
