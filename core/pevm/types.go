@@ -9,7 +9,7 @@ import (
 	"github.com/cespare/xxhash/v2"
 )
 
-var emptyCodeHash = crypto.Keccak256(nil)
+var emptyCodeHash = common.Hash(crypto.Keccak256(nil))
 var ripemd = common.HexToAddress("0000000000000000000000000000000000000003")
 
 type IncarnationStatus uint8
@@ -129,7 +129,7 @@ func NewEmptyAccountBase(addr common.Address) *AccountBase {
 func (ab *AccountBase) Empty() bool {
 	return ab.Nonce == 0 &&
 		ab.Balance.Sign() == 0 &&
-		bytes.Equal(ab.CodeHash[:], emptyCodeHash)
+		bytes.Equal(ab.CodeHash[:], emptyCodeHash[:])
 }
 
 func (ab *AccountBase) Touch() bool {

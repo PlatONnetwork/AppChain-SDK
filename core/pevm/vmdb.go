@@ -63,7 +63,7 @@ func NewVmDB(
 	}
 	if tx.To() != nil {
 		db.toCodeHash = vm.statedb.GetCodeHash(*tx.To())
-		db.isLazy = db.toCodeHash == common.ZeroHash &&
+		db.isLazy = db.toCodeHash == emptyCodeHash &&
 			(vm.mvMemory.data.Has(fromHash) || vm.mvMemory.data.Has(toHash))
 	}
 	return db
