@@ -26,6 +26,7 @@ type VmExecutionResult struct {
 type Vm struct {
 	env                     *Env
 	cApp                    sdk.ContractsApp
+	signer                  coretypes.Signer
 	statedb                 sdk.StateDB
 	mvMemory                *MvMemory
 	txs                     coretypes.Transactions
@@ -35,12 +36,14 @@ type Vm struct {
 func NewVm(
 	env *Env,
 	cApp sdk.ContractsApp,
+	signer coretypes.Signer,
 	statedb sdk.StateDB,
 	mvMemory *MvMemory,
 	txs coretypes.Transactions) *Vm {
 	return &Vm{
 		env:                     env,
 		cApp:                    cApp,
+		signer:                  signer,
 		statedb:                 statedb,
 		mvMemory:                mvMemory,
 		txs:                     txs,
@@ -58,14 +61,15 @@ func (vm *Vm) Execute(txVersion *TxVersion) (result *VmExecutionResult, err erro
 	}()
 	var (
 		tx       = vm.txs[txVersion.TxIdx]
-		fromHash = BasicLoc(tx.FromAddr(coretypes.NewEIP155Signer(vm.env.ChainConfig.ChainID)))
+		fromAddr = tx.FromAddr(vm.signer)
+		fromHash = BasicLoc(fromAddr)
 		toHash   MemoryLocationHash
 	)
 	if tx.To() != nil {
 		toHash = BasicLoc(*tx.To())
 	}
 
-	db := NewVmDB(vm, txVersion.TxIdx, tx, fromHash, toHash)
+	db := NewVmDB(vm, txVersion.TxIdx, tx, fromAddr, fromHash, toHash)
 	chainCtx := vm.env.ChainContext
 	chainCfg := vm.env.ChainConfig
 	vmCfg := vm.env.VMConfig
@@ -110,9 +114,7 @@ func (vm *Vm) Execute(txVersion *TxVersion) (result *VmExecutionResult, err erro
 		}
 
 		if db.isLazy {
-			db.vm.mvMemory.AddLazyAddresses([]common.Address{
-				tx.FromAddr(coretypes.NewEIP155Signer(db.vm.env.ChainConfig.ChainID)),
-				*tx.To()})
+			db.vm.mvMemory.AddLazyAddresses([]common.Address{db.fromAddr, *tx.To()})
 		}
 
 		var flags FinishExecFlags

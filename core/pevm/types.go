@@ -6,6 +6,7 @@ import (
 
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
+	"github.com/cespare/xxhash/v2"
 )
 
 var emptyCodeHash = crypto.Keccak256(nil)
@@ -44,7 +45,7 @@ func (f FinishExecFlags) Has(flags FinishExecFlags) bool {
 	return (f & flags) == flags
 }
 
-type MemoryLocationHash = common.Hash
+type MemoryLocationHash = uint64
 
 type TxStatus struct {
 	Incarnation int32
@@ -56,12 +57,12 @@ type TxVersion struct {
 	TxIncarnation int32
 }
 
-func BasicLoc(addr common.Address) MemoryLocationHash { return crypto.Keccak256Hash(addr[:]) }
+func BasicLoc(addr common.Address) MemoryLocationHash { return xxhash.Sum64(addr[:]) }
 func CodeHashLoc(addr common.Address) MemoryLocationHash {
-	return crypto.Keccak256Hash(addr[:], []byte("code_hash"))
+	return xxhash.Sum64String(string(addr[:]) + "code_hash")
 }
 func StateLoc(addr common.Address, key []byte) MemoryLocationHash {
-	return crypto.Keccak256Hash(addr[:], key)
+	return xxhash.Sum64String(string(addr[:]) + string(key))
 }
 
 type MemoryValue interface {

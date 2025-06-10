@@ -126,6 +126,7 @@ type PEVM struct {
 	logger log.Logger
 	env    *Env
 	cApp   sdk.ContractsApp
+	signer coretypes.Signer
 
 	// Use in serial execution
 	gp *core.GasPool
@@ -151,6 +152,7 @@ func NewPEVM(
 		logger:           logger,
 		env:              env,
 		cApp:             cApp,
+		signer:           coretypes.NewEIP155Signer(env.ChainConfig.ChainID),
 
 		gp: new(core.GasPool).AddGas(env.Header.GasLimit),
 	}
@@ -203,12 +205,11 @@ func (e *PEVM) commitTransactions(txs coretypes.Transactions, isSysTxs bool) *PE
 		parentHash   = header.ParentHash
 		timestamp    = int64(header.Time)
 		statedb      = e.env.StateDB
-		signer       = coretypes.MakeSigner(e.env.ChainConfig, header.Number)
 		committedTxs = make(coretypes.Transactions, 0)
 		receipts     = make(coretypes.Receipts, 0)
 		timeout      bool
 		begin        = time.Now()
-		peeker       = miner.NewAppTxsPeeker(txs, signer)
+		peeker       = miner.NewAppTxsPeeker(txs, e.signer)
 	)
 
 	for {
@@ -237,7 +238,7 @@ func (e *PEVM) commitTransactions(txs coretypes.Transactions, isSysTxs bool) *PE
 		if tx == nil {
 			break
 		}
-		from, _ := coretypes.Sender(signer, tx)
+		from, _ := coretypes.Sender(e.signer, tx)
 		statedb.Prepare(tx.Hash(), e.txCount)
 
 		receipt, err := e.applyTransaction(tx)
@@ -440,7 +441,7 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 	mvMemory := NewMvMemory(int(blockSize), map[MemoryLocationHash][]int32{
 		BasicLoc(e.env.Header.Coinbase): txIdxs,
 	}, []common.Address{e.env.Header.Coinbase})
-	vm := NewVm(e.env, e.cApp, e.env.StateDB, mvMemory, txs)
+	vm := NewVm(e.env, e.cApp, e.signer, e.env.StateDB, mvMemory, txs)
 
 	g := new(errgroup.Group)
 	for j := 0; j < e.concurrencyLevel; j++ {
@@ -536,7 +537,7 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 					}
 				}
 
-				if tx.FromAddr(coretypes.NewEIP155Signer(e.env.ChainConfig.ChainID)) == addr {
+				if tx.FromAddr(e.signer) == addr {
 					var executeNonce uint64
 					if nonce == 0 {
 						abortErr = fmt.Errorf("unreachable error(addr: %s)", addr.Hex())

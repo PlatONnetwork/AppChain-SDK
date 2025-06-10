@@ -20,6 +20,7 @@ type VmDB struct {
 	vm           *Vm
 	txIdx        int32
 	tx           *coretypes.Transaction
+	fromAddr     common.Address
 	fromHash     MemoryLocationHash
 	toHash       MemoryLocationHash
 	toCodeHash   common.Hash
@@ -41,11 +42,13 @@ func NewVmDB(
 	vm *Vm,
 	txIdx int32,
 	tx *coretypes.Transaction,
+	fromAddr common.Address,
 	fromHash, toHash MemoryLocationHash) *VmDB {
 	db := &VmDB{
 		vm:           vm,
 		txIdx:        txIdx,
 		tx:           tx,
+		fromAddr:     fromAddr,
 		fromHash:     fromHash,
 		toHash:       toHash,
 		readSet:      NewReadSet(),
@@ -77,7 +80,7 @@ func (db *VmDB) pushOrigin(readOrigins *ReadOrigins, readOrigin ReadOrigin) {
 }
 
 func (db *VmDB) hashBasic(addr common.Address) MemoryLocationHash {
-	if addr == db.tx.FromAddr(coretypes.NewEIP155Signer(db.vm.env.ChainConfig.ChainID)) {
+	if addr == db.fromAddr {
 		return db.fromHash
 	}
 	if db.tx.To() != nil && addr == *db.tx.To() {

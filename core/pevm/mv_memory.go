@@ -324,7 +324,7 @@ func (m *MvMemory) ConsumeLazyAddresses(f func(common.Address) bool) {
 }
 
 func memHashShard(h MemoryLocationHash) uint32 {
-	return uint32(h[31]) % 31
+	return uint32(h % 31)
 }
 
 func hashShard(h common.Hash) uint32 {
