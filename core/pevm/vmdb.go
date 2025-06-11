@@ -345,7 +345,7 @@ func (db *VmDB) SubBalance(addr common.Address, amount *big.Int) {
 	isLazy := (db.isLazy && locationHash == db.fromHash) || addr == db.vm.env.Header.Coinbase
 	if isLazy {
 		if balance, exist := db.subBalances[addr]; exist {
-			db.subBalances[addr] = new(big.Int).Add(balance, amount)
+			db.subBalances[addr] = balance.Add(balance, amount)
 		} else {
 			db.subBalances[addr] = new(big.Int).Set(amount)
 		}
@@ -354,7 +354,7 @@ func (db *VmDB) SubBalance(addr common.Address, amount *big.Int) {
 
 	if basic := db.getAccountBasic(addr); basic != nil {
 		db.dirties[addr] = struct{}{}
-		basic.Balance = new(big.Int).Sub(basic.Balance, amount)
+		basic.Balance = basic.Balance.Sub(basic.Balance, amount)
 	}
 }
 
@@ -363,7 +363,7 @@ func (db *VmDB) AddBalance(addr common.Address, amount *big.Int) {
 	isLazy := (db.isLazy && locationHash == db.toHash) || addr == db.vm.env.Header.Coinbase
 	if isLazy {
 		if balance, exist := db.addBalances[addr]; exist {
-			db.addBalances[addr] = new(big.Int).Add(balance, amount)
+			db.addBalances[addr] = balance.Add(balance, amount)
 		} else {
 			db.addBalances[addr] = new(big.Int).Set(amount)
 		}
@@ -378,7 +378,7 @@ func (db *VmDB) AddBalance(addr common.Address, amount *big.Int) {
 			return
 		}
 		db.dirties[addr] = struct{}{}
-		basic.Balance = new(big.Int).Add(basic.Balance, amount)
+		basic.Balance = basic.Balance.Add(basic.Balance, amount)
 	}
 }
 
