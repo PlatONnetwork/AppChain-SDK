@@ -3,11 +3,15 @@ package main
 import (
 	"encoding/json"
 	"path/filepath"
-
-	"github.com/PlatONnetwork/AppChain-SDK/x/gov"
-	"github.com/PlatONnetwork/AppChain-SDK/x/votetoken"
+	"time"
 
 	"gopkg.in/urfave/cli.v1"
+
+	xconsensus "github.com/PlatONnetwork/AppChain-SDK/x/consensus"
+	"github.com/PlatONnetwork/AppChain-SDK/x/gov"
+	"github.com/PlatONnetwork/AppChain-SDK/x/votetoken"
+	ctypes "github.com/PlatONnetwork/PlatON-Go/consensus/cbft/types"
+	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 
 	"github.com/PlatONnetwork/AppChain-SDK/baseapp"
 	"github.com/PlatONnetwork/AppChain-SDK/store/storage"
@@ -60,6 +64,7 @@ type SimApp struct {
 	upgrade            *upgrade.Module
 	voteToken          *votetoken.Module
 	gov                *gov.Module
+	consensusNetwork   *xconsensus.ConsensusNetworkModule
 	manager            *module.Manager
 }
 
@@ -128,6 +133,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 	app.gov, _ = gov.NewModule(ctx)
 	tm := testmod.NewModule()
 	tc := testcontract.NewModule()
+	app.consensusNetwork = xconsensus.NewModule(ctx)
 
 	manager := module.NewManager(
 		app.stateSync,
@@ -145,6 +151,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		app.upgrade,
 		app.gov,
 		app.voteToken,
+		app.consensusNetwork,
 		tm, tc)
 	manager.SetElection(app.staking.Name())
 	manager.SetConsensusExtend(app.extraVote.Name())
@@ -162,6 +169,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		app.reward.Name(),
 		app.upgrade.Name(),
 		app.gov.Name(),
+		app.consensusNetwork.Name(),
 	)
 
 	manager.SetOrderGenesis(
@@ -314,4 +322,39 @@ func (s *SimApp) AddTxs(ctx sdk.WorkerContext) (types.Transactions, error) {
 
 func (s *SimApp) SortTxs(ctx sdk.WorkerContext, local, remote map[common.Address]types.Transactions) (types.Transactions, error) {
 	return s.manager.SortTxs(ctx, local, remote)
+}
+
+func (s *SimApp) StartNetworkEngine() {
+	s.manager.StartNetworkEngine()
+}
+func (s *SimApp) Broadcast(msg ctypes.Message) {
+	s.manager.Broadcast(msg)
+}
+func (s *SimApp) PartBroadcast(msg ctypes.Message) {
+	s.manager.PartBroadcast(msg)
+}
+func (s *SimApp) Forwarding(nodeID string, msg ctypes.Message) error {
+	return s.manager.Forwarding(nodeID, msg)
+}
+func (s *SimApp) Send(peerID string, msg ctypes.Message) {
+	s.manager.Send(peerID, msg)
+}
+func (s *SimApp) AvgLatency() time.Duration {
+	return s.manager.AvgLatency()
+}
+func (s *SimApp) PeerSetting(peerID string, bType uint64, blockNumber uint64) error {
+	return s.manager.PeerSetting(peerID, bType, blockNumber)
+}
+func (s *SimApp) RemovePeer(id string) {
+	s.RemovePeer(id)
+}
+
+func (s *SimApp) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackApp) (types.Transactions, types.Receipts, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *SimApp) ExecuteTxs(ctx sdk.WorkerContext, cApp vm.ContractsApp, txs types.Transactions) (types.Receipts, uint64, error) {
+	//TODO implement me
+	panic("implement me")
 }

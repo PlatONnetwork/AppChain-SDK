@@ -3,12 +3,14 @@ package baseapp
 import (
 	"encoding/json"
 	"math/big"
+	"time"
 
 	"github.com/PlatONnetwork/AppChain-SDK/store"
 	sdktypes "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/protocols"
+	ctypes "github.com/PlatONnetwork/PlatON-Go/consensus/cbft/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	basep2p "github.com/PlatONnetwork/PlatON-Go/p2p"
@@ -309,4 +311,29 @@ func (app *BaseApp) SortTxs(ctx sdk.WorkerContext, local, remote map[common.Addr
 		return app.sortTxser(ctx, local, remote)
 	}
 	return app.manager.SortTxs(ctx, local, remote)
+}
+
+func (app *BaseApp) StartNetworkEngine() {
+	app.manager.StartNetworkEngine()
+}
+func (app *BaseApp) Broadcast(msg ctypes.Message) {
+	app.manager.Broadcast(msg)
+}
+func (app *BaseApp) PartBroadcast(msg ctypes.Message) {
+	app.manager.PartBroadcast(msg)
+}
+func (app *BaseApp) Forwarding(nodeID string, msg ctypes.Message) error {
+	return app.manager.Forwarding(nodeID, msg)
+}
+func (app *BaseApp) Send(peerID string, msg ctypes.Message) {
+	app.manager.Send(peerID, msg)
+}
+func (app *BaseApp) AvgLatency() time.Duration {
+	return app.manager.AvgLatency()
+}
+func (app *BaseApp) PeerSetting(peerID string, bType uint64, blockNumber uint64) error {
+	return app.manager.PeerSetting(peerID, bType, blockNumber)
+}
+func (app *BaseApp) RemovePeer(id string) {
+	app.manager.RemovePeer(id)
 }
