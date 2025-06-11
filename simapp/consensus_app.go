@@ -95,6 +95,7 @@ func NewConsensusApp(ctx *cli.Context) (*ConsensusApp, error) {
 		app.vrf.Name(),
 		app.staking.Name(),
 	)
+	manager.SetConsensusNetwork(app.consensusNetwork.Name())
 
 	baseApp, err := baseapp.NewBaseApp("consensusapp", store, manager)
 	if err != nil {

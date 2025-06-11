@@ -6,6 +6,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/testutil"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/x/benchmark"
+	xconsensus "github.com/PlatONnetwork/AppChain-SDK/x/consensus"
 	"github.com/PlatONnetwork/AppChain-SDK/x/nontxpool"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/node"
@@ -44,10 +45,12 @@ func main() {
 		election := NewElection()
 		benchmarkModule := benchmark.NewModule(ctx, store)
 		nonTxPoolModule := nontxpool.NewModule(ctx)
-		manager := module.NewManager(election, benchmarkModule, nonTxPoolModule)
+		consensusNetworkModule := xconsensus.NewModule(ctx)
+		manager := module.NewManager(election, benchmarkModule, nonTxPoolModule, consensusNetworkModule)
 		manager.SetElection(election.Name())
 		manager.SetWorker(benchmarkModule.Name())
 		manager.SetOrderTxPool(benchmarkModule.Name())
+		manager.SetConsensusNetwork(consensusNetworkModule.Name())
 		app := testutil.NewApp(manager)
 		return app
 	}, nil, nil, nil)
