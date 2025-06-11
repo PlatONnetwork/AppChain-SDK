@@ -11,6 +11,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/l1"
 	"github.com/PlatONnetwork/AppChain-SDK/x/stage"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking"
+	"github.com/PlatONnetwork/AppChain-SDK/x/vrf"
 	ctypes "github.com/PlatONnetwork/PlatON-Go/consensus/cbft/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 
@@ -36,6 +37,7 @@ type ConsensusApp struct {
 
 	l1               *l1.L1Module
 	stage            *stage.StageModule
+	vrf              *vrf.VRFModule
 	staking          *staking.StakeModule
 	consensusNetwork *xconsensus.ConsensusNetworkModule
 	manager          *module.Manager
@@ -64,27 +66,34 @@ func NewConsensusApp(ctx *cli.Context) (*ConsensusApp, error) {
 	app := &ConsensusApp{}
 	app.l1 = l1.NewModule(store)
 	app.stage = stage.NewModule(ctx)
+	app.vrf = vrf.NewModule(ctx, app.stage)
 	app.staking = staking.NewModule(ctx, app.l1, app.stage)
 	app.consensusNetwork = xconsensus.NewModule(ctx)
+
+	app.vrf.SetStakeModule(app.staking)
+	app.staking.SetVRFModule(app.vrf)
 
 	manager := module.NewManager(
 		app.l1,
 		app.stage,
+		app.vrf,
 		app.staking,
 		app.consensusNetwork,
 	)
 	manager.SetElection(app.staking.Name())
 	manager.SetOrderBeginBlocker(app.stage.Name(), app.staking.Name())
-	manager.SetOrderEndBlocker(app.stage.Name(), app.staking.Name())
+	manager.SetOrderEndBlocker(app.stage.Name(), app.vrf.Name(), app.staking.Name())
 	manager.SetOrderBlockCommitter(app.staking.Name())
 	manager.SetOrderInit(
+		app.vrf.Name(),
 		app.staking.Name(),
 		app.consensusNetwork.Name(),
 	)
 	manager.SetOrderGenesis(
 		app.l1.Name(),
-		app.staking.Name(),
 		app.stage.Name(),
+		app.vrf.Name(),
+		app.staking.Name(),
 	)
 
 	baseApp, err := baseapp.NewBaseApp("consensusapp", store, manager)
