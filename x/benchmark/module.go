@@ -14,6 +14,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/rpc"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
+	"gopkg.in/urfave/cli.v1"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -23,12 +24,20 @@ import (
 const (
 	ModuleName    = "benchmark"
 	ModuleVersion = 0
-	AccountLimit  = 100000
+	AccountLimit  = 1000
 )
 
 var (
-	Deployer = common.BigToAddress(big.NewInt(1))
+	Deployer         = common.BigToAddress(big.NewInt(1))
+	PendingLimitFlag = cli.Uint64Flag{
+		Name:  "benchmark.pendinglimit",
+		Usage: "How many transactions are packaged after sending a transaction",
+	}
 )
+
+func AddBenchmarkFlags(app *cli.App) {
+	app.Flags = append(app.Flags, PendingLimitFlag)
+}
 
 type Account struct {
 	key  *ecdsa.PrivateKey
@@ -38,15 +47,6 @@ type Account struct {
 type TxPool interface {
 	Nonce(addr common.Address) uint64
 	AddLocal(tx *types.Transaction) error
-}
-type MockTxPool struct {
-}
-
-func (MockTxPool) Nonce(addr common.Address) uint64 {
-	return 0
-}
-func (MockTxPool) AddLocal(tx *types.Transaction) error {
-	return nil
 }
 
 type Params struct {
@@ -65,24 +65,26 @@ type Module struct {
 	Params
 	Statistics
 	sync.Mutex
-	logger  log.Logger
-	db      *DB
-	keys    []*Account
-	txCache map[common.Address][]*types.Transaction
-	sent    sync.Map //map[common.Hash]uint64
-	signer  types.Signer
+	pendingLimit uint64
+	logger       log.Logger
+	db           *DB
+	keys         []*Account
+	txCache      map[common.Address][]*types.Transaction
+	sent         sync.Map //map[common.Hash]uint64
+	signer       types.Signer
 
 	txPool   TxPool
 	starting atomic.Bool
 	stopC    chan struct{}
 }
 
-func NewModule(store store.Store) *Module {
+func NewModule(ctx *cli.Context, store store.Store) *Module {
 	m := &Module{
-		logger:  log.New("module", ModuleName),
-		db:      NewDB(store),
-		txCache: make(map[common.Address][]*types.Transaction),
-		stopC:   make(chan struct{}),
+		logger:       log.New("module", ModuleName),
+		db:           NewDB(store),
+		txCache:      make(map[common.Address][]*types.Transaction),
+		stopC:        make(chan struct{}),
+		pendingLimit: ctx.GlobalUint64(PendingLimitFlag.Name),
 	}
 	m.initAccount()
 	return m
@@ -123,7 +125,7 @@ func (m *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *param
 	//}
 
 	for i := 0; i < AccountLimit; i++ {
-		db.AddBalance(m.keys[i].addr, big.NewInt(1000000000000000000))
+		db.AddBalance(m.keys[i].addr, new(big.Int).Mul(big.NewInt(1000000000000000000), big.NewInt(10000000)))
 		caller, err := contracts.NewBenchTokenGenesisCaller(ctx, db, chainConfig)
 		if err != nil {
 			return err
@@ -151,12 +153,14 @@ func (m *Module) APIs() []rpc.API {
 
 func (m *Module) createTransactions(amount uint64) error {
 	rawStartIndex := m.startIndex
-	rawEndIndex := (m.endIndex - m.startIndex) * m.rawTxPercent / (m.rawTxPercent + m.contractTxPercent)
-	contractStartIndex := rawEndIndex + 1
-	contractEndIndex := m.endIndex
+	rawEndIndex := m.startIndex + (m.endIndex-m.startIndex)*m.rawTxPercent/(m.rawTxPercent+m.contractTxPercent)
+	contractStartIndex := rawEndIndex
+	contractEndIndex := m.endIndex + 1
 	sum := uint64(0)
+	m.logger.Debug("create tx", "rawStartIndex", rawStartIndex, "rawEndIndex", rawEndIndex, "contractStartIndex", contractStartIndex, "contractEndIndex", contractEndIndex, "amount", amount)
 	for amount > sum {
-		for i := rawStartIndex; i <= rawEndIndex && amount > sum; i, sum = i+1, sum+1 {
+		for i := rawStartIndex; i < rawEndIndex && amount > sum; i, sum = i+1, sum+1 {
+			m.Lock()
 			k := m.keys[i]
 			txs := m.txCache[k.addr]
 			nonce := uint64(0)
@@ -167,13 +171,16 @@ func (m *Module) createTransactions(amount uint64) error {
 			}
 			tx, err := createRawTransfer(m.signer, k.key, GenRecipient(uint64(i)), nonce)
 			if err != nil {
+				m.Unlock()
 				return err
 			}
 			txs = append(txs, tx)
 			m.txCache[k.addr] = txs
+			m.Unlock()
 		}
 
-		for i := contractStartIndex; i <= contractEndIndex && amount > sum; i, sum = i+1, sum+1 {
+		for i := contractStartIndex; i < contractEndIndex && amount > sum; i, sum = i+1, sum+1 {
+			m.Lock()
 			k := m.keys[i]
 			txs := m.txCache[k.addr]
 			nonce := uint64(0)
@@ -184,10 +191,12 @@ func (m *Module) createTransactions(amount uint64) error {
 			}
 			tx, err := createTokenTransfer(m.signer, k.key, GenContract(uint64(i)), GenRecipient(uint64(i)), nonce)
 			if err != nil {
+				m.Unlock()
 				return err
 			}
 			txs = append(txs, tx)
 			m.txCache[k.addr] = txs
+			m.Unlock()
 		}
 	}
 	return nil
@@ -213,7 +222,25 @@ func (m *Module) stop() error {
 	}
 	return nil
 }
+
+func (m *Module) SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions, remote map[common.Address]types.Transactions) (types.Transactions, error) {
+	m.logger.Warn("benchmark sort txs", "local", len(local), "remote", len(remote))
+	if m.send.Load() >= m.pendingLimit {
+		allTxs := make(types.Transactions, 0)
+		for _, txs := range local {
+			allTxs = append(allTxs, txs...)
+		}
+		for _, txs := range remote {
+			allTxs = append(allTxs, txs...)
+		}
+		return allTxs, nil
+	} else {
+		return make(types.Transactions, 0), nil
+	}
+
+}
 func (m *Module) AddTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions) (map[common.Address]types.Transactions, error) {
+
 	if !m.sendTxPool {
 		//
 	}
@@ -253,24 +280,29 @@ func (m *Module) sendLoop(amount uint64) {
 	for {
 		select {
 		case <-tick.C:
+			m.Lock()
 			sum := uint64(0)
-			for sum < amount {
+			for sum < amount && len(m.txCache) != 0 {
 				pos := index%total + m.startIndex
 				txs := m.txCache[m.keys[pos].addr]
 				if len(txs) > 0 {
 					err := m.txPool.AddLocal(txs[0])
 					if err != nil {
-						m.logger.Warn("Add local tx failed", "error", err)
+						m.logger.Warn("Add local tx failed", "error", err, m.keys[pos].addr.Hex())
 						continue
 					} else {
 						m.sent.Store(txs[0].Hash(), uint64(time.Now().UnixMilli()))
 						m.txCache[m.keys[pos].addr] = txs[1:]
 						m.send.Add(1)
 					}
+				} else {
+					delete(m.txCache, m.keys[pos].addr)
+					m.logger.Warn("txs is empty", "addr", m.keys[pos].addr.Hex(), "pos", pos, "total", total, "index", index, "startIndex", m.startIndex)
 				}
 				sum++
 				index++
 			}
+			m.Unlock()
 		case <-m.stopC:
 			m.starting.Store(false)
 			m.Statistics.send.Store(0)

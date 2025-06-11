@@ -2,13 +2,11 @@ package statesync
 
 import (
 	"errors"
-	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
-	"github.com/PlatONnetwork/AppChain-SDK/x/message"
 	"math/big"
 
-	"github.com/PlatONnetwork/AppChain-SDK/merkle"
-	"github.com/PlatONnetwork/AppChain-SDK/x/statesync/contracts"
-	"github.com/PlatONnetwork/AppChain-SDK/x/statesync/sync"
+	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
+	"github.com/PlatONnetwork/AppChain-SDK/x/message"
+
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/protocols"
 	types2 "github.com/PlatONnetwork/PlatON-Go/consensus/cbft/types"
@@ -17,6 +15,10 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
+
+	"github.com/PlatONnetwork/AppChain-SDK/merkle"
+	"github.com/PlatONnetwork/AppChain-SDK/x/statesync/contracts"
+	"github.com/PlatONnetwork/AppChain-SDK/x/statesync/sync"
 )
 
 func (s *StateSync) ExtendDataImpl(ctx sdk.ConsensusContext, epoch, view uint64, index uint32, header *types.Header) []byte {
@@ -109,7 +111,7 @@ func (s *StateSync) MaxSyncId(ctx sdk.ConsensusContext, blockNumber uint64) (*bi
 	if vs.Len() > 1 {
 		peers := make(map[string]struct{})
 		for _, v := range vs.NodeList() {
-			peers[v.TerminalString()] = struct{}{}
+			peers[v.String()] = struct{}{}
 		}
 		quorumId := s.p2p.GetQuorumSyncId(peers)
 		if quorumId == nil {

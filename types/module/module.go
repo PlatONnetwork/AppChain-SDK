@@ -110,6 +110,11 @@ type ConsensusExtendModule interface {
 	PrepareQC(ctx sdk.ConsensusContext, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote)
 }
 
+type ViewChangeModule interface {
+	Module
+	ViewChange(ctx sdk.ConsensusContext, validators []*cbfttypes.ValidateNode)
+}
+
 type BlockCommitterModule interface {
 	Module
 	OnCommit(ctx sdk.ConsensusContext, block *types.Block) error
@@ -317,12 +322,12 @@ func (m *Manager) SetModuleValidChecker(moduleValidChecker ModuleValidChecker) {
 }
 
 func (m *Manager) InitChain(ctx sdk.InitContext) error {
-	log.Info("Init modules for sdk")
+	log.Debug("Init modules for sdk")
 	for _, moduleName := range m.OrderInit {
 
 		mod := m.Modules[moduleName]
 		if module, ok := mod.(InitModule); ok {
-			log.Info("Init for module", "module", moduleName)
+			log.Debug("Init for module", "module", moduleName)
 			if err := module.Init(ctx); err != nil {
 				log.Error("Failed to init module", "module", moduleName, "err", err)
 				return err
@@ -365,7 +370,7 @@ func (m *Manager) Protocols() []p2p.Protocol {
 }
 
 func (m *Manager) CheckTx(ctx sdk.Context, tx *types.Transaction) error {
-	log.Info("Check transaction for tx pool", "hash", tx.Hash())
+	log.Debug("Check transaction for tx pool", "hash", tx.Hash())
 	for _, moduleName := range m.OrderTxPool {
 		statedb, _ := ctx.Backend().State()
 		if !m.isModuleValid(statedb, moduleName, ctx.Backend().CurrentHeader().Number.Uint64()) {
@@ -384,7 +389,7 @@ func (m *Manager) CheckTx(ctx sdk.Context, tx *types.Transaction) error {
 }
 
 func (m *Manager) FilterPendingTxs(ctx sdk.Context, txs map[common.Address]types.Transactions) map[common.Address]types.Transactions {
-	log.Info("Filter pending transactions for tx pool")
+	log.Debug("Filter pending transactions for tx pool")
 	filterTxs := txs
 	for _, moduleName := range m.OrderTxPool {
 		statedb, _ := ctx.Backend().State()
@@ -402,7 +407,7 @@ func (m *Manager) FilterPendingTxs(ctx sdk.Context, txs map[common.Address]types
 }
 
 func (m *Manager) ExtendData(ctx sdk.ConsensusContext) []byte {
-	log.Info("Extend data for consensus engine")
+	log.Debug("Extend data for consensus engine")
 	if m.Modules[m.ConsensusExtend] == nil {
 		return []byte{}
 	}
@@ -416,7 +421,7 @@ func (m *Manager) ExtendData(ctx sdk.ConsensusContext) []byte {
 }
 
 func (m *Manager) VerifyExtendData(ctx sdk.ConsensusContext, data []byte) (common.Hash, error) {
-	log.Info("Verify extend data for consensus engine")
+	log.Debug("Verify extend data for consensus engine")
 	if m.Modules[m.ConsensusExtend] == nil {
 		return common.ZeroHash, nil
 	}
@@ -430,7 +435,7 @@ func (m *Manager) VerifyExtendData(ctx sdk.ConsensusContext, data []byte) (commo
 }
 
 func (m *Manager) PrepareQC(ctx sdk.ConsensusContext, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote) {
-	log.Info("Notify prepare qc")
+	log.Debug("Notify prepare qc")
 	if m.Modules[m.ConsensusExtend] == nil {
 		return
 	}
@@ -444,11 +449,19 @@ func (m *Manager) PrepareQC(ctx sdk.ConsensusContext, block *protocols.PrepareBl
 }
 
 func (m *Manager) ViewChange(ctx sdk.ConsensusContext, validators []*cbfttypes.ValidateNode) {
+	log.Debug("Notify viewchange")
 
+	for name, mod := range m.Modules {
+		if module, ok := mod.(ViewChangeModule); ok {
+			log.Debug("Notify viewchange for module", "module", name)
+			module.ViewChange(ctx, validators)
+		}
+	}
+	return
 }
 
 func (m *Manager) NewHeader(ctx sdk.ConsensusContext, header *types.Header) error {
-	log.Info("New header for election app", "blockNumber", header.Number.Uint64())
+	log.Debug("New header for election app", "blockNumber", header.Number.Uint64())
 	if m.Modules[m.Election] == nil {
 		return nil
 	}
@@ -462,7 +475,7 @@ func (m *Manager) NewHeader(ctx sdk.ConsensusContext, header *types.Header) erro
 }
 
 func (m *Manager) GetLastNumber(ctx sdk.ConsensusContext, blockNumber uint64) uint64 {
-	log.Info("Get last number for election app", "blockNumber", blockNumber)
+	log.Debug("Get last number for election app", "blockNumber", blockNumber)
 	if m.Modules[m.Election] == nil {
 		return 0
 	}
@@ -477,7 +490,7 @@ func (m *Manager) GetLastNumber(ctx sdk.ConsensusContext, blockNumber uint64) ui
 }
 
 func (m *Manager) GetValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error) {
-	log.Info("Get validator for election app", "blockNumber", blockNumber)
+	log.Debug("Get validator for election app", "blockNumber", blockNumber)
 	if m.Modules[m.Election] == nil {
 		return nil, nil
 	}
@@ -494,7 +507,7 @@ func (m *Manager) GetValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*c
 }
 
 func (m *Manager) IsCandidateNode(ctx sdk.ConsensusContext, nodeID enode.IDv0) bool {
-	log.Info("Check node if a candidate node for election app")
+	log.Debug("Check node if a candidate node for election app")
 	if m.Modules[m.Election] == nil {
 		return false
 	}
@@ -508,7 +521,7 @@ func (m *Manager) IsCandidateNode(ctx sdk.ConsensusContext, nodeID enode.IDv0) b
 }
 
 func (m *Manager) OnCommit(ctx sdk.ConsensusContext, block *types.Block) error {
-	log.Info("Notify block commit for election app")
+	log.Debug("Notify block commit for election app")
 	for _, moduleName := range m.OrderBlockCommitter {
 		if !m.isModuleValid(ctx.StateDB(), moduleName, ctx.Header().Number.Uint64()) {
 			continue
@@ -526,7 +539,7 @@ func (m *Manager) OnCommit(ctx sdk.ConsensusContext, block *types.Block) error {
 }
 
 func (m *Manager) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data map[string]json.RawMessage) error {
-	log.Info("Init blockchain state from genesis.json")
+	log.Debug("Init blockchain state from genesis.json")
 	for _, moduleName := range m.OrderGenesis {
 		if data[moduleName] == nil {
 			continue
@@ -534,7 +547,7 @@ func (m *Manager) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *para
 
 		mod := m.Modules[moduleName]
 		if module, ok := mod.(GenesisModule); ok {
-			log.Info("Running initialization for module ", "module", moduleName)
+			log.Debug("Running initialization for module ", "module", moduleName)
 
 			if err := module.InitGenesis(ctx, db, chainConfig, data[moduleName]); err != nil {
 				return err
