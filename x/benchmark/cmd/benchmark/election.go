@@ -3,14 +3,15 @@ package main
 import (
 	"crypto/ecdsa"
 	"encoding/json"
-	"fmt"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
+	"github.com/PlatONnetwork/PlatON-Go/crypto/bls"
 	"github.com/PlatONnetwork/PlatON-Go/p2p/enode"
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
+	"math/big"
 )
 
 var ElectionAddress = common.HexToAddress("0x1300000000000000000000000000000000000001")
@@ -44,29 +45,6 @@ func (e *Election) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *par
 	return nil
 }
 func (e *Election) Init(ctx sdk.InitContext) error {
-	statedb, err := ctx.Backend().State()
-	if err != nil {
-		return err
-	}
-	data := statedb.GetState(ElectionAddress, key)
-	fmt.Println("get data:", len(data))
-	var nodes []params.CbftNode
-	err = json.Unmarshal(data, &nodes)
-	if err != nil {
-		return err
-	}
-	nodeMap := make(cbfttypes.ValidateNodeMap)
-	for i, n := range nodes {
-		nodeMap[n.Node.ID()] = &cbfttypes.ValidateNode{
-			Index:     uint32(i),
-			Address:   crypto.PubkeyToNodeAddress(*n.Node.Pubkey()),
-			PubKey:    n.Node.Pubkey(),
-			NodeID:    n.Node.ID(),
-			BlsPubKey: &n.BlsPubKey,
-		}
-	}
-	e.validator.Nodes = nodeMap
-	e.validator.ValidBlockNumber = maxValidNumber
 	return nil
 }
 func (e Election) NewHeader(ctx sdk.ConsensusContext, header *types.Header) error {
@@ -81,7 +59,33 @@ func (e Election) GetLastNumber(ctx sdk.ConsensusContext, blockNumber uint64) ui
 }
 
 func (e Election) GetValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*cbfttypes.Validators, error) {
-	return &e.validator, nil
+	statedb, err := ctx.Backend().State()
+	if err != nil {
+		return nil, err
+	}
+	data := statedb.GetState(ElectionAddress, key)
+	var nodes []params.CbftNode
+	err = json.Unmarshal(data, &nodes)
+	if err != nil {
+		return nil, err
+	}
+	var validator cbfttypes.Validators
+	nodeMap := make(cbfttypes.ValidateNodeMap)
+	for i, n := range nodes {
+		var blsPubKey bls.PublicKey
+		blsPubKey.Deserialize(n.BlsPubKey.Serialize())
+		nodeMap[n.Node.ID()] = &cbfttypes.ValidateNode{
+			Index:     uint32(i),
+			Address:   crypto.PubkeyToNodeAddress(*n.Node.Pubkey()),
+			PubKey:    n.Node.Pubkey(),
+			NodeID:    n.Node.ID(),
+			BlsPubKey: &blsPubKey,
+			Shares:    big.NewInt(1),
+		}
+	}
+	validator.Nodes = nodeMap
+	validator.ValidBlockNumber = maxValidNumber
+	return &validator, nil
 }
 
 func (e Election) IsCandidateNode(ctx sdk.ConsensusContext, nodeID enode.IDv0) bool {

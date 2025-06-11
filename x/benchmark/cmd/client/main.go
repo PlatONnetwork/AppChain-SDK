@@ -10,6 +10,8 @@ import (
 	"gopkg.in/urfave/cli.v1"
 	"os"
 	"strings"
+	"sync"
+	"time"
 )
 
 var (
@@ -66,7 +68,6 @@ var (
 			startBlockFlag,
 			endBlockFlag,
 			outputFlag,
-			serverFlag,
 		},
 		CustomHelpTemplate: flags.CommandHelpTemplate,
 	}
@@ -79,6 +80,9 @@ var (
 			userFlag,
 			passwordFlag,
 			binFlag,
+			verbosityFlag,
+			txCountFlag,
+			extraArgsFlag,
 		},
 		CustomHelpTemplate: flags.CommandHelpTemplate,
 	}
@@ -109,13 +113,21 @@ func GenTx(ctx *cli.Context) error {
 	rawTxPercent := ctx.Int(rawTxPercentFlag.Name)
 	contractTxPercent := 100 - rawTxPercent
 	amount := ctx.Uint64(countFlag.Name)
+	var s sync.WaitGroup
+	s.Add(len(clis))
 	for i, cli := range clis {
-		fmt.Println(i*addrs, (i+1)*addrs, rawTxPercent, contractTxPercent, amount)
-		err = cli.GenTxs(context.Background(), i*addrs, (i+1)*addrs, rawTxPercent, contractTxPercent, amount)
-		if err != nil {
-			log.Error("gen txs failed", "url", cli.url, "err", err)
-		}
+		fmt.Println(cli.url, i*addrs, (i+1)*addrs-1, rawTxPercent, contractTxPercent, amount)
+		go func(cli *Connection, start, end int) {
+			ctx, _ := context.WithTimeout(context.Background(), time.Hour)
+			err = cli.GenTxs(ctx, start, end, rawTxPercent, contractTxPercent, amount)
+			if err != nil {
+				log.Error("gen txs failed", "url", cli.url, "err", err)
+			}
+			fmt.Println(cli.url, "gen txs success")
+			s.Done()
+		}(cli, i*addrs, (i+1)*addrs-1)
 	}
+	s.Wait()
 	return nil
 }
 func Start(ctx *cli.Context) error {
@@ -130,6 +142,7 @@ func Start(ctx *cli.Context) error {
 		if err != nil {
 			log.Error("start failed", "url", cli.url, "err", err)
 		}
+		fmt.Println(fmt.Sprintf("[%s]", cli.url), "start success")
 	}
 	return nil
 }
@@ -143,6 +156,8 @@ func Stop(ctx *cli.Context) error {
 		if err != nil {
 			log.Error("stop failed", "url", cli.url, "err", err)
 		}
+		fmt.Println(fmt.Sprintf("[%s]", cli.url), "stop success")
+
 	}
 	return nil
 }

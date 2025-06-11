@@ -18,7 +18,7 @@ type DefaultPeer struct {
 
 func NewDefaultPeer(peer *p2p.Peer, rw p2p.MsgReadWriter) *DefaultPeer {
 	return &DefaultPeer{
-		id:   peer.ID().TerminalString(),
+		id:   peer.ID().String(),
 		peer: peer,
 		rw:   rw,
 	}

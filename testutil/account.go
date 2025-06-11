@@ -126,7 +126,7 @@ var DefaultGenesisTemplate = core.Genesis{
 	Nonce:      hexutil.MustDecode("0x0376e56dffd12ab53bb149bda4e0cbce2b6aabe4cccc0df0b5a39e12977a2fcd23"),
 	Timestamp:  1602973620000,
 	ExtraData:  hexutil.MustDecode("0x22cf84e1bf86cf8220e1bc84cebdcf8920e1bd81ceb4cebfe1bfa620e1bc80ceb5e1bdb620e1bc91cebecf8ccebcceb5ceb8ceb120cebaceb1e1bdb620ceb4ceb9cebaceb1ceb9cebfcf83cf8dcebdceb7cebd20cebcceb5cf84e1bdb020cf86cf81cebfcebdceaecf83ceb5cf89cf8220cf80ceb1cebdcf84e1bdb620cf84cf81cf8ccf80e1bfb320e1bc90cf80ceb9cf84ceb7ceb4ceb5cf8dcf83cebfcebcceb5cebd2e220a225765207368616c6c20616c77617973206b65657020746f2074686520757070657220726f616420616e64207072616374696365206a75737469636520776974682070727564656e636520696e206576657279207761792e220a22e8aea9e68891e4bbace6b0b8e8bf9ce59d9ae68c81e8b5b0e59091e4b88ae79a84e8b7afefbc8ce585a8e58a9be4bba5e5aea1e6858ee8b7b5e8a18ce6ada3e4b989e3808222"),
-	GasLimit:   201600000,
+	GasLimit:   1201600000,
 	Coinbase:   common.Address{},
 	Alloc:      nil,
 	Number:     0,

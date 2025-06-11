@@ -7,7 +7,7 @@
   tasks:
     - name: Ensure script exists on remote
       stat:
-        path: /opt/node/{{ cmd }}.sh
+        path: ~/opt/node/{{ cmd }}.sh
       register: script_stat
 
     - name: Execute command remote server
@@ -17,9 +17,11 @@
         current_item: "{{ item }}"
       command: "/bin/bash ./{{ cmd }}.sh"
       args:
-        chdir: "/opt/node"
+        chdir: "~/opt/node"
       register: script_output
 
-    - name: ddd
+    - name: print result
       debug:
-        msg: "{{ script_output.results.0.stdout }}"
+        msg: "{{ item.stdout }}"
+      loop: "{{ script_output.results }}"
+      when: item.stdout is defined
