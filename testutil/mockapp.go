@@ -3,9 +3,11 @@ package testutil
 import (
 	"encoding/hex"
 	"encoding/json"
+	"time"
 
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/protocols"
+	ctypes "github.com/PlatONnetwork/PlatON-Go/consensus/cbft/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
@@ -136,4 +138,24 @@ func (m *MockApp) SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.
 func (m *MockApp) InitChain(ctx sdk.InitContext) error {
 
 	return nil
+}
+
+func (m *MockApp) StartNetworkEngine() {
+}
+func (m *MockApp) Broadcast(msg ctypes.Message) {
+}
+func (m *MockApp) PartBroadcast(msg ctypes.Message) {
+}
+func (m *MockApp) Forwarding(nodeID string, msg ctypes.Message) error {
+	return nil
+}
+func (m *MockApp) Send(peerID string, msg ctypes.Message) {
+}
+func (m *MockApp) AvgLatency() time.Duration {
+	return time.Second
+}
+func (m *MockApp) PeerSetting(peerID string, bType uint64, blockNumber uint64) error {
+	return nil
+}
+func (m *MockApp) RemovePeer(id string) {
 }

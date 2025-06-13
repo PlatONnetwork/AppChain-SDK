@@ -5,14 +5,16 @@ import (
 	"os"
 
 	"github.com/PlatONnetwork/AppChain-SDK/utils"
-	"github.com/PlatONnetwork/AppChain-SDK/x/miner"
 	"github.com/PlatONnetwork/AppChain-SDK/x/statesync"
+
+	"gopkg.in/urfave/cli.v1"
+
+	"github.com/PlatONnetwork/AppChain-SDK/x/miner"
 
 	"github.com/PlatONnetwork/AppChain-SDK/x"
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"github.com/PlatONnetwork/PlatON-Go/sdk/app"
-	"gopkg.in/urfave/cli.v1"
 )
 
 func main() {
@@ -24,6 +26,7 @@ func main() {
 	utils.AddModuleInitFlags(cliApp)
 	app.InitApp(cliApp, func(ctx *cli.Context) sdk.App {
 		simApp, err := NewSimApp(ctx)
+		//simApp, err := NewConsensusApp(ctx)
 		if err != nil {
 			panic(fmt.Sprintf("Create simple app error: %v", err))
 		}
