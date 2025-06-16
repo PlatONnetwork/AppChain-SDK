@@ -2,8 +2,11 @@ package pevm
 
 import (
 	"math"
+	"runtime"
 	"sync"
 	"sync/atomic"
+
+	"github.com/PlatONnetwork/PlatON-Go/log"
 )
 
 type LockedTxStatus struct {
@@ -57,7 +60,7 @@ func NewScheduler(blockSize int32) *Scheduler {
 		txsDependents: initializeTxDependents(blockSize),
 	}
 	s.executionIdx.Store(0)
-	s.validationIdx.Store(int32(blockSize))
+	s.validationIdx.Store(blockSize)
 	s.minValidationIdx.Store(blockSize)
 	s.numValidated.Store(0)
 	s.aborted.Store(false)
@@ -78,6 +81,7 @@ func (s *Scheduler) NextTask() Task {
 			if s.numValidated.Load() >= s.blockSize-s.minValidationIdx.Load() {
 				break
 			}
+			runtime.Gosched()
 			continue
 		}
 
@@ -130,29 +134,32 @@ func (s *Scheduler) tryExecute(txIdx int32) *TxVersion {
 		tx := s.txsStatus[txIdx]
 		tx.Lock()
 		defer tx.Unlock()
-		return &TxVersion{
-			TxIdx:         txIdx,
-			TxIncarnation: tx.Incarnation,
+		if tx.Status == ReadyToExecute {
+			tx.Status = Executing
+			return &TxVersion{
+				TxIdx:         txIdx,
+				TxIncarnation: tx.Incarnation,
+			}
 		}
 	}
 	return nil
 }
 
-func (s *Scheduler) AddDependency(txIdx, blockingIdx int32) bool {
+func (s *Scheduler) AddDependency(txIdx, blockingIdx int32) (aborted bool) {
 	// This is an important lock to prevent a race condition where the blocking
 	// transaction completes re-execution before this dependency can be added.
 	blockingTx := s.txsStatus[blockingIdx]
 	blockingTx.RLock()
+	defer blockingTx.RUnlock()
 	if blockingTx.Status == Executed || blockingTx.Status == Validated {
-		blockingTx.RUnlock()
 		return false
 	}
-	blockingTx.RUnlock()
 
 	tx := s.txsStatus[txIdx]
 	tx.Lock()
+	defer tx.Unlock()
+
 	tx.Status = Aborting
-	tx.Unlock()
 
 	blockingDeps := s.txsDependents[blockingIdx]
 	blockingDeps.Lock()
@@ -170,7 +177,24 @@ func (s *Scheduler) SetReadyStatus(txIdx int32) {
 	tx.Incarnation += 1
 }
 
-func (s *Scheduler) FinishExecution(txVersion TxVersion, flags FinishExecFlags) Task {
+func (s *Scheduler) CheckStatus() {
+	for txIdx, status := range s.txsStatus {
+		if status.Status != Validated {
+			log.Error("scheduler check error",
+				"txIdx", txIdx,
+				"status", status.Status,
+				"blockSize", s.blockSize,
+				"executionIdx", s.executionIdx.Load(),
+				"validationIdx", s.validationIdx.Load(),
+				"minValidationIdx", s.minValidationIdx.Load(),
+				"numValidated", s.numValidated.Load(),
+				"aborted", s.aborted.Load())
+			return
+		}
+	}
+}
+
+func (s *Scheduler) FinishExecution(txVersion TxVersion, flags FinishExecFlags) (task Task) {
 	tx := s.txsStatus[txVersion.TxIdx]
 	tx.Lock()
 	defer tx.Unlock()
@@ -239,7 +263,7 @@ func (s *Scheduler) TryValidationAbort(txVersion TxVersion) bool {
 	return aborting
 }
 
-func (s *Scheduler) FinishValidation(txVersion TxVersion, aborted bool) Task {
+func (s *Scheduler) FinishValidation(txVersion TxVersion, aborted bool) (task Task) {
 	if aborted {
 		s.SetReadyStatus(txVersion.TxIdx)
 		fetchMinI32(&s.validationIdx, txVersion.TxIdx+1)

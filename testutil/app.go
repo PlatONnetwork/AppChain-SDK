@@ -152,3 +152,11 @@ func (s *SimApp) AddTxs(ctx sdk.WorkerContext) (types.Transactions, error) {
 func (s *SimApp) SortTxs(ctx sdk.WorkerContext, local, remote map[common.Address]types.Transactions) (types.Transactions, error) {
 	return s.manager.SortTxs(ctx, local, remote)
 }
+
+func (s *SimApp) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackApp) (types.Transactions, types.Receipts, error) {
+	return s.manager.FillTransactions(ctx, cb)
+}
+
+func (s *SimApp) ExecuteTxs(ctx sdk.WorkerContext, cApp sdk.ContractsApp, txs types.Transactions) (types.Receipts, uint64, error) {
+	return s.manager.ExecuteTxs(ctx, cApp, txs)
+}

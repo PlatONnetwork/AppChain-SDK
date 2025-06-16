@@ -322,9 +322,11 @@ func (rs *ReadSet) Set(locationHash MemoryLocationHash, ro *ReadOrigins) {
 	rs.readOrigins[locationHash] = ro
 }
 
-func (rs *ReadSet) Range(f func(MemoryLocationHash, *ReadOrigins)) {
+func (rs *ReadSet) Range(f func(MemoryLocationHash, *ReadOrigins) bool) {
 	for h, ro := range rs.readOrigins {
-		f(h, ro)
+		if !f(h, ro) {
+			break
+		}
 	}
 }
 

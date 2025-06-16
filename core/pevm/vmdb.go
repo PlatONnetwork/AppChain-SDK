@@ -29,6 +29,7 @@ type VmDB struct {
 	readAccounts map[MemoryLocationHash]*AccountBase
 	dirties      map[common.Address]struct{}
 	states       map[common.Address]map[string][]byte
+	readStates   map[common.Address]map[string][]byte
 	addBalances  map[common.Address]*big.Int
 	subBalances  map[common.Address]*big.Int
 
@@ -55,6 +56,7 @@ func NewVmDB(
 		readAccounts: make(map[MemoryLocationHash]*AccountBase),
 		dirties:      make(map[common.Address]struct{}),
 		states:       make(map[common.Address]map[string][]byte),
+		readStates:   make(map[common.Address]map[string][]byte),
 		addBalances:  make(map[common.Address]*big.Int),
 		subBalances:  make(map[common.Address]*big.Int),
 		refund:       0,
@@ -91,13 +93,13 @@ func (db *VmDB) hashBasic(addr common.Address) MemoryLocationHash {
 
 func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 	var (
-		locationHash    = db.hashBasic(addr)
-		readOrigins     = db.readSet.GetOrDefault(locationHash)
-		hasPrevOrigins  = readOrigins.Len() > 0
-		newOrigins      = NewReadOrigins()
-		finalAccount    *AccountBase
+		locationHash           = db.hashBasic(addr)
+		readOrigins            = db.readSet.GetOrDefault(locationHash)
+		hasPrevOrigins         = readOrigins.Len() > 0
+		newOrigins             = NewReadOrigins()
 		balanceAddition        = new(big.Int)
 		nonceAddtion    uint64 = 0
+		finalAccount    *AccountBase
 	)
 
 	if db.isLazy {
@@ -113,10 +115,11 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 	if db.txIdx > 0 {
 		if writtenTxs, ok := db.vm.mvMemory.data.Get(locationHash); ok {
 			it := writtenTxs.AscendRange(&item{TxIdx: db.txIdx})
+		itLoop:
 			for {
 				entry := it.NextBack()
 				if entry == nil {
-					break
+					break itLoop
 				}
 				entryItem := entry.(*item)
 				switch entryItem.Entry.(type) {
@@ -144,7 +147,7 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 					case *Basic:
 						basic := de.Value.(*Basic)
 						finalAccount = basic.Account
-						break
+						break itLoop
 					case *LazySender:
 						lazySender := de.Value.(*LazySender)
 						balanceAddition = new(big.Int).Sub(balanceAddition, lazySender.Balance)
@@ -156,7 +159,7 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 						panic(ErrInvalidMemoryValueType)
 					}
 				case *EstimateMarker:
-					panic(BlockingError{entryItem.TxIdx})
+					panic(BlockingError{Addr: addr, TxIdx: entryItem.TxIdx})
 				}
 
 			}
@@ -179,6 +182,8 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 			Code:     db.vm.statedb.GetCode(addr),
 			Suicided: db.vm.statedb.HasSuicided(addr),
 		}
+	} else {
+		finalAccount = finalAccount.Clone()
 	}
 
 	if !hasPrevOrigins {
@@ -188,7 +193,7 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 	finalAccount.Nonce += nonceAddtion
 	if locationHash == db.fromHash && db.tx.Nonce() != finalAccount.Nonce {
 		if db.txIdx > 0 {
-			panic(BlockingError{db.txIdx})
+			panic(BlockingError{Addr: addr, TxIdx: db.txIdx - 1})
 		} else {
 			panic(InvalidNonceError{db.txIdx})
 		}
@@ -201,10 +206,10 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 			codeHash = db.toCodeHash
 		} else {
 			codeHash = db.GetCodeHash(addr)
-		}*/
+	}*/
 
-	db.readAccounts[locationHash] = finalAccount.Clone()
-	return db.readAccounts[locationHash]
+	db.readAccounts[locationHash] = finalAccount
+	return finalAccount
 }
 
 func (db *VmDB) GetBalance(addr common.Address) *big.Int {
@@ -269,6 +274,10 @@ func (db *VmDB) GetState(addr common.Address, key []byte) []byte {
 	locationHash := StateLoc(addr, key)
 	readOrigins := db.readSet.GetOrDefault(locationHash)
 
+	if val, exist := db.getStateFromCache(addr, key); exist {
+		return val
+	}
+
 	// Try reading from multi-version data
 	if db.txIdx > 0 {
 		if writtenTxs, ok := db.vm.mvMemory.data.Get(locationHash); ok {
@@ -283,9 +292,11 @@ func (db *VmDB) GetState(addr common.Address, key []byte) []byte {
 						TxIdx:         entry.TxIdx,
 						TxIncarnation: de.TxIncarnation,
 					}))
-					return de.Value.(*State).Value
+					val := de.Value.(*State).Value
+					db.setReadState(addr, key, val)
+					return val
 				case *EstimateMarker:
-					panic(&BlockingError{entry.TxIdx})
+					panic(BlockingError{Addr: addr, TxIdx: entry.TxIdx})
 				default:
 					panic(ErrInvalidMemoryValueType)
 				}
@@ -295,7 +306,9 @@ func (db *VmDB) GetState(addr common.Address, key []byte) []byte {
 
 	// Fall back to storage
 	db.pushOrigin(readOrigins, NewStorage())
-	return db.vm.statedb.GetState(addr, key)
+	val := db.vm.statedb.GetState(addr, key)
+	db.setReadState(addr, key, val)
+	return val
 }
 
 func (db *VmDB) HasSuicided(addr common.Address) bool {
@@ -493,3 +506,27 @@ func (db *VmDB) TxIndex() int             { return int(db.txIdx) }
 
 func (db *VmDB) Finalise(bool)                     {}
 func (db *VmDB) IntermediateRoot(bool) common.Hash { return common.ZeroHash }
+
+func (db *VmDB) setReadState(addr common.Address, key, val []byte) {
+	if states, exist := db.readStates[addr]; exist {
+		states[string(key)] = val
+		db.readStates[addr] = states
+	} else {
+		states = make(map[string][]byte)
+		states[string(key)] = val
+		db.readStates[addr] = states
+	}
+}
+
+func (db *VmDB) getStateFromCache(addr common.Address, key []byte) ([]byte, bool) {
+	if states, exist := db.states[addr]; exist {
+		if val, valExist := states[string(key)]; valExist {
+			return val, valExist
+		}
+	}
+	if states, exist := db.readStates[addr]; exist {
+		val, valExist := states[string(key)]
+		return val, valExist
+	}
+	return []byte{}, false
+}

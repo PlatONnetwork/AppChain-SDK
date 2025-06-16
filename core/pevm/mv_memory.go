@@ -22,7 +22,7 @@ func (l *LastLocations) SetRead(rs *ReadSet) {
 	l.read = rs
 }
 
-func (l *LastLocations) RangeRead(f func(MemoryLocationHash, *ReadOrigins)) {
+func (l *LastLocations) RangeRead(f func(MemoryLocationHash, *ReadOrigins) bool) {
 	l.RLock()
 	defer l.RUnlock()
 
@@ -162,6 +162,24 @@ func (cbt *ConcurrencyBTree) AscendRange(lessThan btree.Item) *Iterator {
 	return NewIterator(items)
 }
 
+func (cbt *ConcurrencyBTree) Ascend(iter btree.ItemIterator) {
+	cbt.RLock()
+	defer cbt.RUnlock()
+	cbt.BTree.Ascend(iter)
+}
+
+func (cbt *ConcurrencyBTree) Delete(item btree.Item) btree.Item {
+	cbt.Lock()
+	defer cbt.Unlock()
+	return cbt.BTree.Delete(item)
+}
+
+func (cbt *ConcurrencyBTree) ReplaceOrInsert(item btree.Item) btree.Item {
+	cbt.Lock()
+	defer cbt.Unlock()
+	return cbt.BTree.ReplaceOrInsert(item)
+}
+
 type Iterator struct {
 	items []btree.Item
 	last  int
@@ -205,7 +223,7 @@ func NewMvMemory(
 	for h, txIdxs := range estimatedLoactions {
 		tree := NewConcurrentBTree()
 		for _, txIdx := range txIdxs {
-			tree.BTree.ReplaceOrInsert(&item{
+			tree.ReplaceOrInsert(&item{
 				TxIdx: txIdx,
 				Entry: NewEstimate(),
 			})
@@ -234,7 +252,7 @@ func (m *MvMemory) Record(txVersion *TxVersion, readSet *ReadSet, writeSet Write
 		// Remove old locations that aren't written to anymore.
 		if _, found := writeSet.Find(prevLocation); !found {
 			if writtenTxs, has := m.data.Get(prevLocation); has {
-				writtenTxs.BTree.Delete(&item{
+				writtenTxs.Delete(&item{
 					TxIdx: txVersion.TxIdx,
 				})
 			}
@@ -250,7 +268,7 @@ func (m *MvMemory) Record(txVersion *TxVersion, readSet *ReadSet, writeSet Write
 			if !exist {
 				valueInMap = NewConcurrentBTree()
 			}
-			valueInMap.BTree.ReplaceOrInsert(&item{
+			valueInMap.ReplaceOrInsert(&item{
 				TxIdx: txVersion.TxIdx,
 				Entry: NewDataEntry(txVersion.TxIdx, value),
 			})
@@ -268,7 +286,7 @@ func (m *MvMemory) Record(txVersion *TxVersion, readSet *ReadSet, writeSet Write
 func (m *MvMemory) ValidateReadLocations(txIdx int32) bool {
 	validated := true
 	lastLocation := m.lastLocations[txIdx]
-	lastLocation.RangeRead(func(location MemoryLocationHash, priorOrigins *ReadOrigins) {
+	lastLocation.RangeRead(func(location MemoryLocationHash, priorOrigins *ReadOrigins) bool {
 		if writtenTxs, found := m.data.Get(location); found {
 			it := writtenTxs.AscendRange(&item{TxIdx: txIdx})
 
@@ -276,13 +294,18 @@ func (m *MvMemory) ValidateReadLocations(txIdx int32) bool {
 				switch priorOrigin.(type) {
 				case *Memory:
 					priorVer := priorOrigin.(*Memory)
-					entry := it.NextBack().(*item)
-					dataEntry, isData := entry.Entry.(*DataEntry)
+					entry := it.NextBack()
+					if entry == nil {
+						validated = false
+						return false
+					}
+					entryItem := entry.(*item)
+					dataEntry, isData := entryItem.Entry.(*DataEntry)
 					if !isData {
 						validated = false
 						return false
 					}
-					if priorVer.Version.TxIdx != entry.TxIdx ||
+					if priorVer.Version.TxIdx != entryItem.TxIdx ||
 						dataEntry.TxIncarnation != priorVer.Version.TxIncarnation {
 						validated = false
 						return false
@@ -301,6 +324,10 @@ func (m *MvMemory) ValidateReadLocations(txIdx int32) bool {
 				validated = false
 			}
 		}
+		if !validated {
+			return false
+		}
+		return true
 	})
 	return validated
 }
@@ -309,12 +336,10 @@ func (m *MvMemory) ConvertWritesToEstimate(txIdx int32) {
 	lastLocation := m.lastLocations[txIdx]
 	lastLocation.RangeWrite(func(location MemoryLocationHash) {
 		if writtenTxs, ok := m.data.Get(location); ok {
-			writtenTxs.Lock()
-			writtenTxs.BTree.ReplaceOrInsert(&item{
+			writtenTxs.ReplaceOrInsert(&item{
 				TxIdx: txIdx,
 				Entry: NewEstimate(),
 			})
-			writtenTxs.Unlock()
 		}
 	})
 }

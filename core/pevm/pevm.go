@@ -90,14 +90,17 @@ func NewExecutionResults(blockSize int32) *ExecutionResults {
 func (e *ExecutionResults) Set(index int32, result *ExecutionResult) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if result.receipt == nil {
+		panic(fmt.Sprintf("empty receipt(txIdx: %d)", index))
+	}
 	e.results[index] = result
 }
 
-func (e *ExecutionResults) Range(f func(*ExecutionResult)) {
+func (e *ExecutionResults) Range(f func(int, *ExecutionResult)) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	for _, result := range e.results {
-		f(result)
+	for i, result := range e.results {
+		f(i, result)
 	}
 }
 
@@ -152,7 +155,7 @@ func NewPEVM(
 		logger:           logger,
 		env:              env,
 		cApp:             cApp,
-		signer:           coretypes.NewEIP155Signer(env.ChainConfig.ChainID),
+		signer:           coretypes.NewLondonSigner(env.ChainConfig.ChainID),
 
 		gp: new(core.GasPool).AddGas(env.Header.GasLimit),
 	}
@@ -340,7 +343,7 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 			if err != nil {
 				return &pevmResult, err
 			}
-			executionResults.Range(func(result *ExecutionResult) {
+			executionResults.Range(func(_ int, result *ExecutionResult) {
 				receipt := result.receipt
 				e.cumulativeGasUsed += receipt.CumulativeGasUsed
 				receipt.CumulativeGasUsed = e.cumulativeGasUsed
@@ -359,7 +362,11 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 				if err != nil {
 					return &pevmResult, err
 				}
-				executionResults.Range(func(result *ExecutionResult) {
+				executionResults.Range(func(i int, result *ExecutionResult) {
+					if result == nil || result.receipt == nil {
+						panic(fmt.Sprintf("empty result(index: %d, txCount: %d, count: %d, startIdx: %d, endIdx: %d)",
+							i, e.txCount, count, startIndex, endIndex))
+					}
 					receipt := result.receipt
 					e.cumulativeGasUsed += receipt.CumulativeGasUsed
 					receipt.CumulativeGasUsed = e.cumulativeGasUsed
@@ -402,7 +409,7 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 			return &pevmResult, err
 		}
 		var cumulativeGasUsed uint64
-		executionResults.Range(func(result *ExecutionResult) {
+		executionResults.Range(func(_ int, result *ExecutionResult) {
 			receipt := result.receipt
 			cumulativeGasUsed += receipt.CumulativeGasUsed
 			receipt.CumulativeGasUsed = cumulativeGasUsed
@@ -441,7 +448,7 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 	mvMemory := NewMvMemory(int(blockSize), map[MemoryLocationHash][]int32{
 		BasicLoc(e.env.Header.Coinbase): txIdxs,
 	}, []common.Address{e.env.Header.Coinbase})
-	vm := NewVm(e.env, e.cApp, e.signer, e.env.StateDB, mvMemory, txs)
+	vm := NewVm(e.env, e.cApp, e.signer, NewStateDBMut(e.env.StateDB), mvMemory, txs)
 
 	g := new(errgroup.Group)
 	for j := 0; j < e.concurrencyLevel; j++ {
@@ -487,8 +494,9 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 		return nil, reason
 	}
 
+	scheduler.CheckStatus()
+
 	statedb := e.env.StateDB
-	// todo: cumulative lazy address
 	committedLocations := make(map[MemoryLocationHash]bool)
 	var abortErr error
 	mvMemory.ConsumeLazyAddresses(func(addr common.Address) bool {
@@ -545,8 +553,8 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 					}
 					executeNonce = nonce - 1
 					if executeNonce != tx.Nonce() {
-						abortErr = fmt.Errorf("nonce mismatch(tx: %s, nonce: %d, execute_nonce: %d)",
-							tx.Hash().TerminalString(), tx.Nonce(), executeNonce)
+						abortErr = fmt.Errorf("nonce mismatch(tx: %s, txIdx: %d, from: %s, nonce: %d, execute_nonce: %d)",
+							tx.Hash().TerminalString(), entryItem.TxIdx, addr.Hex(), tx.Nonce(), executeNonce)
 						return false
 					}
 				}

@@ -56,6 +56,8 @@ func (vm *Vm) Execute(txVersion *TxVersion) (result *VmExecutionResult, err erro
 		if catchErr := recover(); catchErr != nil {
 			if realErr, ok := catchErr.(error); ok {
 				err = ToVmExecutionError(realErr)
+			} else {
+				panic(catchErr)
 			}
 		}
 	}()
@@ -136,7 +138,7 @@ func (vm *Vm) Execute(txVersion *TxVersion) (result *VmExecutionResult, err erro
 
 	case core.ErrNonceTooLow, core.ErrNonceTooHigh:
 		if db.txIdx > 0 {
-			return nil, ExecutionBlockingError{TxIdx: db.txIdx}
+			return nil, ExecutionBlockingError{TxIdx: db.txIdx - 1}
 		} else {
 			return nil, ExecutionError{err}
 		}

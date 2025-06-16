@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+
+	"github.com/PlatONnetwork/PlatON-Go/common"
 )
 
 var (
@@ -28,11 +30,12 @@ func (e StorageError) Is(rhl error) bool {
 }
 
 type BlockingError struct {
+	Addr  common.Address
 	TxIdx int32
 }
 
 func (e BlockingError) Error() string {
-	return fmt.Sprintf("Read of memory location is blocked by tx #%d", e.TxIdx)
+	return fmt.Sprintf("Read of memory location(%s) is blocked by tx #%d", e.Addr.Hex(), e.TxIdx)
 }
 
 func (e BlockingError) Is(rhl error) bool {
