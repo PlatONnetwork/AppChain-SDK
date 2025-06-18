@@ -268,7 +268,10 @@ func (s *Scheduler) FinishValidation(txVersion TxVersion, aborted bool) (task Ta
 		s.SetReadyStatus(txVersion.TxIdx)
 		fetchMinI32(&s.validationIdx, txVersion.TxIdx+1)
 		if s.executionIdx.Load() > int32(txVersion.TxIdx) {
-			return NewExection(*s.tryExecute(int32(txVersion.TxIdx)))
+			ver := s.tryExecute(int32(txVersion.TxIdx))
+			if ver != nil {
+				return NewExection(*ver)
+			}
 		}
 	} else {
 		tx := s.txsStatus[txVersion.TxIdx]

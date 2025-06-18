@@ -333,8 +333,6 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 			timestamp        int64 = int64(e.env.Header.Time)
 			blockDeadline          = e.env.BlockDeadline
 			batch                  = e.txsBatch
-			startIndex       int
-			endIndex         int
 			executionResults *ExecutionResults
 			err              error
 		)
@@ -354,18 +352,17 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 			pevmResult.GasUsed = e.cumulativeGasUsed
 			e.txCount += len(txs)
 		} else {
-			count := len(txs)
-			endIndex = startIndex + batch
-			for endIndex <= count {
-				execTxs := txs[startIndex:endIndex]
+			peeker := NewTxsPeeker(txs, e.signer)
+			execTxs := peeker.Peeks(batch)
+			for len(execTxs) > 0 {
 				executionResults, err = e.parallelExecuteBatch(execTxs, isSysTxs)
 				if err != nil {
 					return &pevmResult, err
 				}
 				executionResults.Range(func(i int, result *ExecutionResult) {
 					if result == nil || result.receipt == nil {
-						panic(fmt.Sprintf("empty result(index: %d, txCount: %d, count: %d, startIdx: %d, endIdx: %d)",
-							i, e.txCount, count, startIndex, endIndex))
+						panic(fmt.Sprintf("empty result(index: %d, txCount: %d, count: %d)",
+							i, e.txCount, len(execTxs)))
 					}
 					receipt := result.receipt
 					e.cumulativeGasUsed += receipt.CumulativeGasUsed
@@ -388,15 +385,7 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 					pevmResult.Timeout = true
 					break
 				}
-
-				startIndex = endIndex
-				if startIndex >= count-1 {
-					break
-				}
-				endIndex = startIndex + batch
-				if endIndex > count {
-					endIndex = count
-				}
+				execTxs = peeker.Peeks(batch)
 			}
 		}
 	} else {
