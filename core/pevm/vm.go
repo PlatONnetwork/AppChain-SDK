@@ -52,15 +52,6 @@ func NewVm(
 }
 
 func (vm *Vm) Execute(txVersion *TxVersion) (result *VmExecutionResult, err error) {
-	defer func() {
-		if catchErr := recover(); catchErr != nil {
-			if realErr, ok := catchErr.(error); ok {
-				err = ToVmExecutionError(realErr)
-			} else {
-				panic(catchErr)
-			}
-		}
-	}()
 	var (
 		tx       = vm.txs[txVersion.TxIdx]
 		fromAddr = tx.FromAddr(vm.signer)
@@ -80,6 +71,9 @@ func (vm *Vm) Execute(txVersion *TxVersion) (result *VmExecutionResult, err erro
 	usedGas := new(uint64)
 
 	receipt, err := core.ApplyTransaction(chainCfg, chainCtx, gasPool, db, header, tx, usedGas, vmCfg, vm.cApp)
+	if db.abortErr != nil {
+		return nil, ToVmExecutionError(db.abortErr)
+	}
 	switch err {
 	case nil:
 		writeSet := NewWriteSet()

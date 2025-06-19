@@ -343,7 +343,7 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 			}
 			executionResults.Range(func(_ int, result *ExecutionResult) {
 				receipt := result.receipt
-				e.cumulativeGasUsed += receipt.CumulativeGasUsed
+				e.cumulativeGasUsed += receipt.GasUsed
 				receipt.CumulativeGasUsed = e.cumulativeGasUsed
 				receipt.TransactionIndex += uint(e.txCount)
 				pevmResult.Receipts = append(pevmResult.Receipts, receipt)
@@ -365,7 +365,7 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 							i, e.txCount, len(execTxs)))
 					}
 					receipt := result.receipt
-					e.cumulativeGasUsed += receipt.CumulativeGasUsed
+					e.cumulativeGasUsed += receipt.GasUsed
 					receipt.CumulativeGasUsed = e.cumulativeGasUsed
 					receipt.TransactionIndex += uint(e.txCount)
 					pevmResult.Receipts = append(pevmResult.Receipts, receipt)
@@ -400,7 +400,7 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 		var cumulativeGasUsed uint64
 		executionResults.Range(func(_ int, result *ExecutionResult) {
 			receipt := result.receipt
-			cumulativeGasUsed += receipt.CumulativeGasUsed
+			cumulativeGasUsed += receipt.GasUsed
 			receipt.CumulativeGasUsed = cumulativeGasUsed
 			pevmResult.Receipts = append(pevmResult.Receipts, receipt)
 		})
@@ -500,7 +500,7 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 				entryItem := itm.(*item)
 				de := entryItem.Entry.(*DataEntry)
 				if _, ok := de.Value.(*Basic); !ok {
-					balance = statedb.GetBalance(addr)
+					balance.Set(statedb.GetBalance(addr))
 					nonce = statedb.GetNonce(addr)
 				}
 				return false
@@ -516,11 +516,11 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 					case *Basic:
 						basic := entry.Value.(*Basic)
 						account := basic.Account
-						balance = new(big.Int).Set(account.Balance)
+						balance.Set(account.Balance)
 						nonce = account.Nonce
 					case *LazyRecipient:
 						lazy := entry.Value.(*LazyRecipient)
-						balance = new(big.Int).Add(balance, lazy.Balance)
+						balance.Add(balance, lazy.Balance)
 					case *LazySender:
 						lazy := entry.Value.(*LazySender)
 						maxFee := tx.Gas()*tx.GasPrice().Uint64() + tx.Value().Uint64()
@@ -529,7 +529,7 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 								balance.Uint64(), maxFee)
 							return false
 						}
-						balance = new(big.Int).Sub(balance, lazy.Balance)
+						balance.Sub(balance, lazy.Balance)
 						nonce += 1
 					}
 				}

@@ -2,7 +2,6 @@ package pevm
 
 import (
 	"fmt"
-	"math"
 	"math/big"
 	"reflect"
 
@@ -13,7 +12,8 @@ import (
 )
 
 var (
-	_ sdk.StateDB = (*VmDB)(nil)
+	_             sdk.StateDB = (*VmDB)(nil)
+	maxUint256, _             = new(big.Int).SetString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 16)
 )
 
 type VmDB struct {
@@ -37,6 +37,8 @@ type VmDB struct {
 	logs       map[common.Hash][]*coretypes.Log
 	logSize    uint
 	accessList *accessList
+
+	abortErr error
 }
 
 func NewVmDB(
@@ -64,7 +66,7 @@ func NewVmDB(
 		accessList:   newAccessList(),
 	}
 	if tx.To() != nil {
-		db.toCodeHash = vm.statedb.GetCodeHash(*tx.To())
+		db.toCodeHash = db.GetCodeHash(*tx.To())
 		db.isLazy = db.toCodeHash == emptyCodeHash &&
 			(vm.mvMemory.data.Has(fromHash) || vm.mvMemory.data.Has(toHash))
 	}
@@ -75,7 +77,8 @@ func (db *VmDB) pushOrigin(readOrigins *ReadOrigins, readOrigin ReadOrigin) {
 	if readOrigins.Len() > 0 {
 		last := readOrigins.Last()
 		if !reflect.DeepEqual(last, readOrigin) {
-			panic(ErrInconsistentRead)
+			db.abortErr = ErrInconsistentRead
+			return
 		}
 	}
 	readOrigins.Push(readOrigin)
@@ -92,6 +95,10 @@ func (db *VmDB) hashBasic(addr common.Address) MemoryLocationHash {
 }
 
 func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
+	if db.abortErr != nil {
+		return nil
+	}
+
 	var (
 		locationHash           = db.hashBasic(addr)
 		readOrigins            = db.readSet.GetOrDefault(locationHash)
@@ -129,7 +136,8 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 					// About to push a new origin
 					// Inconsistent: new origin will be longer than the previous!
 					if hasPrevOrigins && readOrigins.Len() == newOrigins.Len() {
-						panic(ErrInconsistentRead)
+						db.abortErr = ErrInconsistentRead
+						return nil
 					}
 
 					origin := NewMemory(TxVersion{
@@ -138,7 +146,8 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 					})
 					if hasPrevOrigins {
 						if !reflect.DeepEqual(origin, readOrigins.Get(newOrigins.Len())) {
-							panic(ErrInconsistentRead)
+							db.abortErr = ErrInconsistentRead
+							return nil
 						}
 					} else {
 						newOrigins.Push(origin)
@@ -150,16 +159,18 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 						break itLoop
 					case *LazySender:
 						lazySender := de.Value.(*LazySender)
-						balanceAddition = new(big.Int).Sub(balanceAddition, lazySender.Balance)
+						balanceAddition.Sub(balanceAddition, lazySender.Balance)
 						nonceAddtion += 1
 					case *LazyRecipient:
 						lazyRecipient := de.Value.(*LazyRecipient)
-						balanceAddition = new(big.Int).Add(balanceAddition, lazyRecipient.Balance)
+						balanceAddition.Add(balanceAddition, lazyRecipient.Balance)
 					default:
-						panic(ErrInvalidMemoryValueType)
+						db.abortErr = ErrInvalidMemoryValueType
+						return nil
 					}
 				case *EstimateMarker:
-					panic(BlockingError{Addr: addr, TxIdx: entryItem.TxIdx})
+					db.abortErr = BlockingError{Addr: addr, TxIdx: entryItem.TxIdx}
+					return nil
 				}
 
 			}
@@ -171,12 +182,13 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 			newOrigins.Push(NewStorage())
 		} else if readOrigins.Len() != newOrigins.Len()+1 ||
 			!reflect.DeepEqual(readOrigins.Last(), NewStorage()) {
-			panic(ErrInconsistentRead)
+			db.abortErr = ErrInconsistentRead
+			return nil
 		}
 		finalAccount = &AccountBase{
 			Addr:     addr,
 			Nonce:    db.vm.statedb.GetNonce(addr),
-			Balance:  db.vm.statedb.GetBalance(addr),
+			Balance:  new(big.Int).Set(db.vm.statedb.GetBalance(addr)),
 			CodeHash: db.vm.statedb.GetCodeHash(addr),
 			CodeSize: db.vm.statedb.GetCodeSize(addr),
 			Code:     db.vm.statedb.GetCode(addr),
@@ -193,12 +205,13 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 	finalAccount.Nonce += nonceAddtion
 	if locationHash == db.fromHash && db.tx.Nonce() != finalAccount.Nonce {
 		if db.txIdx > 0 {
-			panic(BlockingError{Addr: addr, TxIdx: db.txIdx - 1})
+			db.abortErr = BlockingError{Addr: addr, TxIdx: db.txIdx - 1}
 		} else {
-			panic(InvalidNonceError{db.txIdx})
+			db.abortErr = InvalidNonceError{db.txIdx}
 		}
+		return nil
 	}
-	finalAccount.Balance = new(big.Int).Add(finalAccount.Balance, balanceAddition)
+	finalAccount.Balance.Add(finalAccount.Balance, balanceAddition)
 	// TODO: get code
 	/*
 		var codeHash common.Hash
@@ -213,23 +226,31 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 }
 
 func (db *VmDB) GetBalance(addr common.Address) *big.Int {
+	if db.abortErr != nil {
+		return big.NewInt(0)
+	}
+
 	locationHash := BasicLoc(addr)
 	if db.isLazy {
 		if db.fromHash == locationHash {
-			return new(big.Int).SetUint64(math.MaxUint64)
+			return new(big.Int).Set(maxUint256)
 		}
 		if db.toHash == locationHash {
-			return common.Big0
+			return big.NewInt(0)
 		}
 	}
 
 	if basic := db.getAccountBasic(addr); basic != nil {
 		return basic.Balance
 	}
-	return common.Big0
+	return big.NewInt(0)
 }
 
 func (db *VmDB) GetNonce(addr common.Address) uint64 {
+	if db.abortErr != nil {
+		return 0
+	}
+
 	locationHash := BasicLoc(addr)
 	if db.isLazy {
 		if db.fromHash == locationHash {
@@ -244,13 +265,44 @@ func (db *VmDB) GetNonce(addr common.Address) uint64 {
 }
 
 func (db *VmDB) GetCodeHash(addr common.Address) common.Hash {
-	if acc := db.getAccountBasic(addr); acc != nil {
-		return acc.CodeHash
-	}
-	return db.vm.statedb.GetCodeHash(addr)
+	/*
+		locationHash := CodeHashLoc(addr)
+		readOrigins := db.readSet.GetOrDefault(locationHash)
+
+		if writtenTxs, ok := db.vm.mvMemory.data.Get(locationHash); ok {
+			it := writtenTxs.AscendRange(&item{TxIdx: db.txIdx})
+			entryItem := it.NextBack()
+			if entryItem != nil {
+				switch entryItem.(*item).Entry.(type) {
+				case *DataEntry:
+					entry := entryItem.(*item).Entry.(*DataEntry)
+					switch entry.Value.(type) {
+					case *SelfDestructed:
+						panic(ErrSelfDestructedAccount)
+					case *CodeHash:
+						codeHash := entry.Value.(*CodeHash)
+						db.pushOrigin(readOrigins, NewMemory(TxVersion{
+							TxIdx:         entryItem.(*item).TxIdx,
+							TxIncarnation: entry.TxIncarnation,
+						}))
+						return codeHash.CodeHash
+					}
+				}
+			}
+		}
+
+		// Fallback to storage
+		db.pushOrigin(readOrigins, NewStorage())
+		return db.vm.statedb.GetCodeHash(addr)
+	*/
+	return emptyCodeHash
 }
 
 func (db *VmDB) GetCode(addr common.Address) []byte {
+	if db.abortErr != nil {
+		return []byte{}
+	}
+
 	codeHash := db.GetCodeHash(addr)
 	if code, ok := db.vm.mvMemory.newByteCodes.Get(codeHash); ok {
 		return code
@@ -259,6 +311,9 @@ func (db *VmDB) GetCode(addr common.Address) []byte {
 }
 
 func (db *VmDB) GetCodeSize(addr common.Address) int {
+	if db.abortErr != nil {
+		return 0
+	}
 	return len(db.GetCode(addr))
 }
 
@@ -271,6 +326,10 @@ func (db *VmDB) GetCommittedState(addr common.Address, key []byte) []byte {
 }
 
 func (db *VmDB) GetState(addr common.Address, key []byte) []byte {
+	if db.abortErr != nil {
+		return []byte{}
+	}
+
 	locationHash := StateLoc(addr, key)
 	readOrigins := db.readSet.GetOrDefault(locationHash)
 
@@ -296,9 +355,11 @@ func (db *VmDB) GetState(addr common.Address, key []byte) []byte {
 					db.setReadState(addr, key, val)
 					return val
 				case *EstimateMarker:
-					panic(BlockingError{Addr: addr, TxIdx: entry.TxIdx})
+					db.abortErr = BlockingError{Addr: addr, TxIdx: entry.TxIdx}
+					return []byte{}
 				default:
-					panic(ErrInvalidMemoryValueType)
+					db.abortErr = ErrInvalidMemoryValueType
+					return []byte{}
 				}
 			}
 		}
@@ -312,6 +373,10 @@ func (db *VmDB) GetState(addr common.Address, key []byte) []byte {
 }
 
 func (db *VmDB) HasSuicided(addr common.Address) bool {
+	if db.abortErr != nil {
+		return true
+	}
+
 	if acc := db.getAccountBasic(addr); acc != nil {
 		return acc.Suicided
 	}
@@ -319,6 +384,10 @@ func (db *VmDB) HasSuicided(addr common.Address) bool {
 }
 
 func (db *VmDB) Exist(addr common.Address) bool {
+	if db.abortErr != nil {
+		return false
+	}
+
 	_, exist := db.readAccounts[BasicLoc(addr)]
 	if exist {
 		return exist
@@ -327,6 +396,10 @@ func (db *VmDB) Exist(addr common.Address) bool {
 }
 
 func (db *VmDB) Empty(addr common.Address) bool {
+	if db.abortErr != nil {
+		return true
+	}
+
 	if acc := db.getAccountBasic(addr); acc != nil {
 		return acc.Empty()
 	}
@@ -342,6 +415,9 @@ func (db *VmDB) GetLogs(hash common.Hash, blockHash common.Hash) []*coretypes.Lo
 }
 
 func (db *VmDB) CreateAccount(addr common.Address) {
+	if db.abortErr != nil {
+		return
+	}
 	db.dirties[addr] = struct{}{}
 	if db.getAccountBasic(addr) == nil {
 		basic := NewEmptyAccountBase(addr)
@@ -350,6 +426,10 @@ func (db *VmDB) CreateAccount(addr common.Address) {
 }
 
 func (db *VmDB) SubBalance(addr common.Address, amount *big.Int) {
+	if db.abortErr != nil {
+		return
+	}
+
 	if amount.Sign() == 0 {
 		return
 	}
@@ -372,6 +452,10 @@ func (db *VmDB) SubBalance(addr common.Address, amount *big.Int) {
 }
 
 func (db *VmDB) AddBalance(addr common.Address, amount *big.Int) {
+	if db.abortErr != nil {
+		return
+	}
+
 	locationHash := BasicLoc(addr)
 	isLazy := (db.isLazy && locationHash == db.toHash) || addr == db.vm.env.Header.Coinbase
 	if isLazy {
@@ -400,6 +484,9 @@ func (db *VmDB) SetBalance(common.Address, *big.Int) {
 }
 
 func (db *VmDB) SetNonce(addr common.Address, nonce uint64) {
+	if db.abortErr != nil {
+		return
+	}
 	locationHash := BasicLoc(addr)
 	if db.isLazy && locationHash == db.fromHash {
 		return // Lazy cumulative
@@ -412,6 +499,9 @@ func (db *VmDB) SetNonce(addr common.Address, nonce uint64) {
 }
 
 func (db *VmDB) SetCode(addr common.Address, code []byte) {
+	if db.abortErr != nil {
+		return
+	}
 	if basic := db.getAccountBasic(addr); basic != nil {
 		db.dirties[addr] = struct{}{}
 		basic.Code = code
@@ -435,7 +525,6 @@ func (db *VmDB) SubRefund(gas uint64) {
 }
 
 func (db *VmDB) SetState(addr common.Address, key, val []byte) {
-	db.dirties[addr] = struct{}{} // FIXME: is need to set dirty?
 	if _, ok := db.states[addr]; !ok {
 		db.states[addr] = make(map[string][]byte, 0)
 	}
@@ -443,6 +532,9 @@ func (db *VmDB) SetState(addr common.Address, key, val []byte) {
 }
 
 func (db *VmDB) Suicide(addr common.Address) bool {
+	if db.abortErr != nil {
+		return false
+	}
 	if basic := db.getAccountBasic(addr); basic != nil {
 		db.dirties[addr] = struct{}{}
 		basic.Suicided = true
