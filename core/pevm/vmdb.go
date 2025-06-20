@@ -33,6 +33,8 @@ type VmDB struct {
 	addBalances  map[common.Address]*big.Int
 	subBalances  map[common.Address]*big.Int
 
+	readCodeHash map[common.Address]common.Hash
+
 	refund     uint64
 	logs       map[common.Hash][]*coretypes.Log
 	logSize    uint
@@ -61,6 +63,7 @@ func NewVmDB(
 		readStates:   make(map[common.Address]map[string][]byte),
 		addBalances:  make(map[common.Address]*big.Int),
 		subBalances:  make(map[common.Address]*big.Int),
+		readCodeHash: make(map[common.Address]common.Hash),
 		refund:       0,
 		logs:         make(map[common.Hash][]*coretypes.Log, 0),
 		accessList:   newAccessList(),
@@ -189,9 +192,9 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 			Addr:     addr,
 			Nonce:    db.vm.statedb.GetNonce(addr),
 			Balance:  new(big.Int).Set(db.vm.statedb.GetBalance(addr)),
-			CodeHash: db.vm.statedb.GetCodeHash(addr),
-			CodeSize: db.vm.statedb.GetCodeSize(addr),
-			Code:     db.vm.statedb.GetCode(addr),
+			CodeHash: db.GetCodeHash(addr),
+			CodeSize: db.GetCodeSize(addr),
+			Code:     db.GetCode(addr),
 			Suicided: db.vm.statedb.HasSuicided(addr),
 		}
 	} else {
@@ -265,37 +268,46 @@ func (db *VmDB) GetNonce(addr common.Address) uint64 {
 }
 
 func (db *VmDB) GetCodeHash(addr common.Address) common.Hash {
-	/*
-		locationHash := CodeHashLoc(addr)
-		readOrigins := db.readSet.GetOrDefault(locationHash)
+	if db.abortErr != nil {
+		return emptyCodeHash
+	}
 
-		if writtenTxs, ok := db.vm.mvMemory.data.Get(locationHash); ok {
-			it := writtenTxs.AscendRange(&item{TxIdx: db.txIdx})
-			entryItem := it.NextBack()
-			if entryItem != nil {
-				switch entryItem.(*item).Entry.(type) {
-				case *DataEntry:
-					entry := entryItem.(*item).Entry.(*DataEntry)
-					switch entry.Value.(type) {
-					case *SelfDestructed:
-						panic(ErrSelfDestructedAccount)
-					case *CodeHash:
-						codeHash := entry.Value.(*CodeHash)
-						db.pushOrigin(readOrigins, NewMemory(TxVersion{
-							TxIdx:         entryItem.(*item).TxIdx,
-							TxIncarnation: entry.TxIncarnation,
-						}))
-						return codeHash.CodeHash
-					}
+	if h, ok := db.readCodeHash[addr]; ok {
+		return h
+	}
+
+	locationHash := CodeHashLoc(addr)
+	readOrigins := db.readSet.GetOrDefault(locationHash)
+
+	if writtenTxs, ok := db.vm.mvMemory.data.Get(locationHash); ok {
+		it := writtenTxs.AscendRange(&item{TxIdx: db.txIdx})
+		entryItem := it.NextBack()
+		if entryItem != nil {
+			switch entryItem.(*item).Entry.(type) {
+			case *DataEntry:
+				entry := entryItem.(*item).Entry.(*DataEntry)
+				switch entry.Value.(type) {
+				case *SelfDestructed:
+					db.abortErr = ErrSelfDestructedAccount
+					return emptyCodeHash
+				case *CodeHash:
+					codeHash := entry.Value.(*CodeHash)
+					db.pushOrigin(readOrigins, NewMemory(TxVersion{
+						TxIdx:         entryItem.(*item).TxIdx,
+						TxIncarnation: entry.TxIncarnation,
+					}))
+					db.readCodeHash[addr] = codeHash.CodeHash
+					return codeHash.CodeHash
 				}
 			}
 		}
+	}
 
-		// Fallback to storage
-		db.pushOrigin(readOrigins, NewStorage())
-		return db.vm.statedb.GetCodeHash(addr)
-	*/
-	return emptyCodeHash
+	// Fallback to storage
+	db.pushOrigin(readOrigins, NewStorage())
+	h := db.vm.statedb.GetCodeHash(addr)
+	db.readCodeHash[addr] = h
+	return h
 }
 
 func (db *VmDB) GetCode(addr common.Address) []byte {
