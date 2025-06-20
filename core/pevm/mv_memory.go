@@ -1,12 +1,169 @@
 package pevm
 
 import (
+	"sort"
 	"sync"
 
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/google/btree"
 	cmap "github.com/orcaman/concurrent-map/v2"
 )
+
+const writeHistoryShards = 64
+
+type WriteHistoryShard struct {
+	histories map[MemoryLocationHash]*WriteHistory
+	mu        sync.RWMutex
+}
+
+func NewWriteHistoryShard() *WriteHistoryShard {
+	return &WriteHistoryShard{
+		histories: make(map[MemoryLocationHash]*WriteHistory),
+	}
+}
+
+func (s *WriteHistoryShard) GetOrCreate(loc MemoryLocationHash) *WriteHistory {
+	s.mu.RLock()
+	if wh, ok := s.histories[loc]; ok {
+		s.mu.RUnlock()
+		return wh
+	}
+	s.mu.RUnlock()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if wh, ok := s.histories[loc]; ok {
+		return wh
+	}
+
+	wh := NewWriteHistory()
+	s.histories[loc] = wh
+	return wh
+}
+
+func (s *WriteHistoryShard) Get(loc MemoryLocationHash) *WriteHistory {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.histories[loc]
+}
+
+func (s *WriteHistoryShard) Has(loc MemoryLocationHash) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	_, ok := s.histories[loc]
+	return ok
+}
+
+type ShardedWriteHistory struct {
+	shards [writeHistoryShards]*WriteHistoryShard
+}
+
+func NewShardedWriteHistory() *ShardedWriteHistory {
+	s := &ShardedWriteHistory{}
+	for i := range s.shards {
+		s.shards[i] = NewWriteHistoryShard()
+	}
+	return s
+}
+
+func (s *ShardedWriteHistory) GetOrCreate(loc MemoryLocationHash) *WriteHistory {
+	shardIdx := loc % writeHistoryShards
+	return s.shards[shardIdx].GetOrCreate(loc)
+}
+
+func (s *ShardedWriteHistory) Get(loc MemoryLocationHash) *WriteHistory {
+	shardIdx := loc % writeHistoryShards
+	return s.shards[shardIdx].Get(loc)
+}
+
+func (s *ShardedWriteHistory) Has(loc MemoryLocationHash) bool {
+	shardIdx := loc % writeHistoryShards
+	return s.shards[shardIdx].Has(loc)
+}
+
+type WriteHistory struct {
+	// Ascend sorted
+	items []*item
+	mu    sync.RWMutex
+}
+
+func NewWriteHistory() *WriteHistory {
+	return &WriteHistory{
+		items: make([]*item, 0, 16),
+	}
+}
+
+func (wh *WriteHistory) AscendRange(txIdx int32) *ItemIterator {
+	wh.mu.RLock()
+	defer wh.mu.RUnlock()
+
+	start := sort.Search(len(wh.items), func(i int) bool {
+		return wh.items[i].TxIdx < txIdx
+	})
+
+	return &ItemIterator{
+		items: wh.items[start:],
+		index: 0,
+	}
+}
+
+func (wh *WriteHistory) Ascend(f func(*item) bool) {
+	wh.mu.RLock()
+	defer wh.mu.RUnlock()
+
+	i := len(wh.items) - 1
+	for ; i >= 0; i-- {
+		if !f(wh.items[i]) {
+			break
+		}
+	}
+}
+
+func (wh *WriteHistory) ReplaceOrInsert(entry *item) {
+	wh.mu.Lock()
+	defer wh.mu.Unlock()
+
+	idx := sort.Search(len(wh.items), func(i int) bool {
+		return wh.items[i].TxIdx <= entry.TxIdx
+	})
+
+	if idx < len(wh.items) && wh.items[idx].TxIdx == entry.TxIdx {
+		wh.items[idx] = entry
+	} else {
+		wh.items = append(wh.items, nil)
+		copy(wh.items[idx+1:], wh.items[idx:])
+		wh.items[idx] = entry
+	}
+}
+
+func (wh *WriteHistory) Delete(txIdx int32) {
+	wh.mu.Lock()
+	defer wh.mu.Unlock()
+
+	idx := sort.Search(len(wh.items), func(i int) bool {
+		return wh.items[i].TxIdx <= txIdx
+	})
+
+	if idx < len(wh.items) && wh.items[idx].TxIdx == txIdx {
+		copy(wh.items[idx:], wh.items[idx+1:])
+		wh.items = wh.items[:len(wh.items)-1]
+	}
+}
+
+type ItemIterator struct {
+	items []*item
+	index int
+}
+
+func (it *ItemIterator) NextBack() *item {
+	if it.index >= len(it.items) {
+		return nil
+	}
+	item := it.items[it.index]
+	it.index++
+	return item
+}
 
 type LastLocations struct {
 	sync.RWMutex
@@ -140,70 +297,8 @@ func (it item) Less(rh btree.Item) bool {
 	return it.TxIdx < rh.(*item).TxIdx
 }
 
-type ConcurrencyBTree struct {
-	*btree.BTree
-	sync.RWMutex
-}
-
-func NewConcurrentBTree() *ConcurrencyBTree {
-	return &ConcurrencyBTree{
-		BTree: btree.New(32),
-	}
-}
-
-func (cbt *ConcurrencyBTree) AscendRange(lessThan btree.Item) *Iterator {
-	cbt.RLock()
-	defer cbt.RUnlock()
-	items := make([]btree.Item, 0)
-	cbt.AscendLessThan(lessThan, func(item btree.Item) bool {
-		items = append(items, item)
-		return true
-	})
-	return NewIterator(items)
-}
-
-func (cbt *ConcurrencyBTree) Ascend(iter btree.ItemIterator) {
-	cbt.RLock()
-	defer cbt.RUnlock()
-	cbt.BTree.Ascend(iter)
-}
-
-func (cbt *ConcurrencyBTree) Delete(item btree.Item) btree.Item {
-	cbt.Lock()
-	defer cbt.Unlock()
-	return cbt.BTree.Delete(item)
-}
-
-func (cbt *ConcurrencyBTree) ReplaceOrInsert(item btree.Item) btree.Item {
-	cbt.Lock()
-	defer cbt.Unlock()
-	return cbt.BTree.ReplaceOrInsert(item)
-}
-
-type Iterator struct {
-	items []btree.Item
-	last  int
-}
-
-func NewIterator(items []btree.Item) *Iterator {
-	return &Iterator{
-		items: items,
-		last:  len(items) - 1,
-	}
-}
-
-func (it *Iterator) NextBack() btree.Item {
-	if it.last < 0 {
-		return nil
-	}
-	item := it.items[it.last]
-	it.items = it.items[:it.last]
-	it.last--
-	return item
-}
-
 type MvMemory struct {
-	data          cmap.ConcurrentMap[MemoryLocationHash, *ConcurrencyBTree]
+	data          *ShardedWriteHistory
 	lastLocations []*LastLocations
 	lazyAddresses *LazyAddresses
 	newByteCodes  cmap.ConcurrentMap[common.Hash, []byte]
@@ -214,21 +309,20 @@ func NewMvMemory(
 	estimatedLoactions map[MemoryLocationHash][]int32,
 	lazyAddrs []common.Address) *MvMemory {
 	m := &MvMemory{
-		data:          cmap.NewWithCustomShardingFunction[MemoryLocationHash, *ConcurrencyBTree](memHashShard),
+		data:          NewShardedWriteHistory(),
 		lastLocations: initializeLastLocations(blockSize),
 		lazyAddresses: NewLazyAddresses(),
 		newByteCodes:  cmap.NewWithCustomShardingFunction[common.Hash, []byte](hashShard),
 	}
 
 	for h, txIdxs := range estimatedLoactions {
-		tree := NewConcurrentBTree()
+		his := m.data.GetOrCreate(h)
 		for _, txIdx := range txIdxs {
-			tree.ReplaceOrInsert(&item{
+			his.ReplaceOrInsert(&item{
 				TxIdx: txIdx,
 				Entry: NewEstimate(),
 			})
 		}
-		m.data.Set(h, tree)
 	}
 	if len(lazyAddrs) > 0 {
 		m.AddLazyAddresses(lazyAddrs)
@@ -246,97 +340,142 @@ func (m *MvMemory) Record(txVersion *TxVersion, readSet *ReadSet, writeSet Write
 	lastLocation := m.lastLocations[txVersion.TxIdx]
 	lastLocation.SetRead(readSet)
 
-	lastLocationIdx := 0
-	for lastLocationIdx < len(lastLocation.write) {
-		prevLocation := lastLocation.GetWrite(lastLocationIdx)
-		// Remove old locations that aren't written to anymore.
-		if _, found := writeSet.Find(prevLocation); !found {
-			if writtenTxs, has := m.data.Get(prevLocation); has {
-				writtenTxs.Delete(&item{
-					TxIdx: txVersion.TxIdx,
-				})
-			}
-			lastLocation.SwapRemoveWriteAt(lastLocationIdx)
+	oldWrites := lastLocation.write
+	newWrites := oldWrites[:0]
+
+	wroteNewLocation := false
+	foundInWriteSet := false
+
+	for _, loc := range oldWrites {
+		if _, found := writeSet.Find(loc); found {
+			newWrites = append(newWrites, loc)
 		} else {
-			lastLocationIdx++
+			if wh := m.data.Get(loc); wh != nil {
+				wh.Delete(txVersion.TxIdx)
+			}
 		}
 	}
 
-	wroteNewLocation := false
-	writeSet.Range(func(h MemoryLocationHash, value MemoryValue) {
-		m.data.Upsert(h, nil, func(exist bool, valueInMap, newValue *ConcurrencyBTree) *ConcurrencyBTree {
-			if !exist {
-				valueInMap = NewConcurrentBTree()
-			}
-			valueInMap.ReplaceOrInsert(&item{
-				TxIdx: txVersion.TxIdx,
-				Entry: NewDataEntry(txVersion.TxIdx, value),
-			})
-			return valueInMap
+	for _, entry := range writeSet {
+		h := entry.Hash
+		value := entry.Value
+
+		wh := m.data.GetOrCreate(h)
+		wh.ReplaceOrInsert(&item{
+			TxIdx: txVersion.TxIdx,
+			Entry: NewDataEntry(txVersion.TxIncarnation, value),
 		})
 
-		if !lastLocation.HasWrite(h) {
-			lastLocation.AppendWrite(h)
+		foundInWriteSet = false
+		for _, existing := range newWrites {
+			if existing == h {
+				foundInWriteSet = true
+				break
+			}
+		}
+
+		if !foundInWriteSet {
+			newWrites = append(newWrites, h)
 			wroteNewLocation = true
 		}
-	})
+	}
+
+	lastLocation.write = newWrites
 	return wroteNewLocation
 }
 
 func (m *MvMemory) ValidateReadLocations(txIdx int32) bool {
-	validated := true
 	lastLocation := m.lastLocations[txIdx]
-	lastLocation.RangeRead(func(location MemoryLocationHash, priorOrigins *ReadOrigins) bool {
-		if writtenTxs, found := m.data.Get(location); found {
-			it := writtenTxs.AscendRange(&item{TxIdx: txIdx})
+	validated := true
 
-			priorOrigins.Range(func(priorOrigin ReadOrigin) bool {
-				switch priorOrigin.(type) {
-				case *Memory:
-					priorVer := priorOrigin.(*Memory)
-					entry := it.NextBack()
-					if entry == nil {
-						validated = false
-						return false
-					}
-					entryItem := entry.(*item)
-					dataEntry, isData := entryItem.Entry.(*DataEntry)
-					if !isData {
-						validated = false
-						return false
-					}
-					if priorVer.Version.TxIdx != entryItem.TxIdx ||
-						dataEntry.TxIncarnation != priorVer.Version.TxIncarnation {
-						validated = false
-						return false
-					}
-				case *Storage:
-					if it.NextBack() != nil {
-						validated = false
-						return false
-					}
-				}
-				return true
-			})
-		} else {
-			_, ok := priorOrigins.Last().(*Storage)
-			if priorOrigins.Len() != 1 || !ok {
+	locations := make([]MemoryLocationHash, 0, 16)
+	originsMap := make(map[MemoryLocationHash]*ReadOrigins)
+
+	lastLocation.RangeRead(func(loc MemoryLocationHash, priorOrigins *ReadOrigins) bool {
+		locations = append(locations, loc)
+		originsMap[loc] = priorOrigins
+		return true
+	})
+
+	if len(locations) > 50 {
+		var wg sync.WaitGroup
+		results := make(chan bool, len(locations))
+
+		for _, loc := range locations {
+			wg.Add(1)
+			go func(loc MemoryLocationHash, origins *ReadOrigins) {
+				defer wg.Done()
+				valid := m.validateSingleLocation(txIdx, loc, origins)
+				results <- valid
+			}(loc, originsMap[loc])
+		}
+
+		go func() {
+			wg.Wait()
+			close(results)
+		}()
+
+		for valid := range results {
+			if !valid {
 				validated = false
 			}
 		}
-		if !validated {
-			return false
+	} else {
+		for _, loc := range locations {
+			if !m.validateSingleLocation(txIdx, loc, originsMap[loc]) {
+				validated = false
+				break
+			}
+		}
+	}
+
+	return validated
+}
+
+func (m *MvMemory) validateSingleLocation(txIdx int32, loc MemoryLocationHash, priorOrigins *ReadOrigins) bool {
+	wh := m.data.Get(loc)
+	if wh == nil {
+		_, ok := priorOrigins.Last().(*Storage)
+		return priorOrigins.Len() == 1 && ok
+	}
+
+	it := wh.AscendRange(txIdx)
+	valid := true
+
+	priorOrigins.Range(func(priorOrigin ReadOrigin) bool {
+		switch po := priorOrigin.(type) {
+		case *Memory:
+			entry := it.NextBack()
+			if entry == nil {
+				valid = false
+				return false
+			}
+			if de, ok := entry.Entry.(*DataEntry); ok {
+				if po.Version.TxIdx != entry.TxIdx || de.TxIncarnation != po.Version.TxIncarnation {
+					valid = false
+					return false
+				}
+			} else {
+				valid = false
+				return false
+			}
+		case *Storage:
+			if it.NextBack() != nil {
+				valid = false
+				return false
+			}
 		}
 		return true
 	})
-	return validated
+
+	return valid
 }
 
 func (m *MvMemory) ConvertWritesToEstimate(txIdx int32) {
 	lastLocation := m.lastLocations[txIdx]
 	lastLocation.RangeWrite(func(location MemoryLocationHash) {
-		if writtenTxs, ok := m.data.Get(location); ok {
-			writtenTxs.ReplaceOrInsert(&item{
+		if wh := m.data.Get(location); wh != nil {
+			wh.ReplaceOrInsert(&item{
 				TxIdx: txIdx,
 				Entry: NewEstimate(),
 			})

@@ -3,14 +3,30 @@ package pevm
 import (
 	"bytes"
 	"math/big"
+	"sync"
+	"unsafe"
 
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
-	"github.com/cespare/xxhash/v2"
+	"github.com/zeebo/xxh3"
 )
 
 var emptyCodeHash = common.Hash(crypto.Keccak256(nil))
 var ripemd = common.HexToAddress("0000000000000000000000000000000000000003")
+var codeHashSuffix = []byte("code_hash")
+
+var (
+	basicHashCache sync.Map // map[common.Address]MemoryLocationHash
+	stateHashCache sync.Map // map[common.Address]map[string]MemoryLocationHash
+	codeHashCache  sync.Map
+)
+
+var xxhashPool = sync.Pool{
+	New: func() interface{} {
+		h := xxh3.New()
+		return h
+	},
+}
 
 type IncarnationStatus uint8
 
@@ -57,12 +73,68 @@ type TxVersion struct {
 	TxIncarnation int32
 }
 
-func BasicLoc(addr common.Address) MemoryLocationHash { return xxhash.Sum64(addr[:]) }
-func CodeHashLoc(addr common.Address) MemoryLocationHash {
-	return xxhash.Sum64String(string(addr[:]) + "code_hash")
+func BasicLoc(addr common.Address) MemoryLocationHash {
+	if hash, ok := basicHashCache.Load(addr); ok {
+		return hash.(MemoryLocationHash)
+	}
+
+	hash := xxh3.Hash(addr[:])
+
+	basicHashCache.Store(addr, hash)
+	return hash
 }
+
+func CodeHashLoc(addr common.Address) MemoryLocationHash {
+	if hash, ok := codeHashCache.Load(addr); ok {
+		return hash.(MemoryLocationHash)
+	}
+
+	// 从池中获取hasher
+	h := xxhashPool.Get().(*xxh3.Hasher)
+	h.Reset()
+
+	h.Write(addr[:])
+	h.Write(codeHashSuffix[:])
+	hash := h.Sum64()
+
+	// 放回池中
+	xxhashPool.Put(h)
+
+	codeHashCache.Store(addr, hash)
+	return hash
+}
+
 func StateLoc(addr common.Address, key []byte) MemoryLocationHash {
-	return xxhash.Sum64String(string(addr[:]) + string(key))
+	// 创建复合键
+	var k struct {
+		addr common.Address
+		key  string
+	}
+	k.addr = addr
+
+	if len(key) > 0 {
+		k.key = unsafe.String((*byte)(unsafe.Pointer(&key[0])), len(key))
+	}
+
+	// 尝试从全局缓存获取
+	if hash, ok := stateHashCache.Load(k); ok {
+		return hash.(MemoryLocationHash)
+	}
+
+	// 从池中获取hasher
+	h := xxhashPool.Get().(*xxh3.Hasher)
+	h.Reset()
+
+	h.Write(addr[:])
+	h.Write(key)
+	hash := h.Sum64()
+
+	// 放回池中
+	xxhashPool.Put(h)
+
+	// 存储到缓存
+	stateHashCache.Store(k, hash)
+	return hash
 }
 
 type MemoryValue interface {

@@ -17,7 +17,6 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/miner"
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
-	"github.com/google/btree"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -491,14 +490,13 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 	mvMemory.ConsumeLazyAddresses(func(addr common.Address) bool {
 		locationHash := BasicLoc(addr)
 		committedLocations[locationHash] = true
-		if writeHistory, ok := mvMemory.data.Get(locationHash); ok {
+		if writeHistory := mvMemory.data.Get(locationHash); writeHistory != nil {
 			var (
 				balance = new(big.Int)
 				nonce   uint64
 			)
-			writeHistory.Ascend(func(itm btree.Item) bool {
-				entryItem := itm.(*item)
-				de := entryItem.Entry.(*DataEntry)
+			writeHistory.Ascend(func(entry *item) bool {
+				de := entry.Entry.(*DataEntry)
 				if _, ok := de.Value.(*Basic); !ok {
 					balance.Set(statedb.GetBalance(addr))
 					nonce = statedb.GetNonce(addr)
@@ -506,12 +504,11 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 				return false
 			})
 
-			writeHistory.Ascend(func(itm btree.Item) bool {
-				entryItem := itm.(*item)
-				tx := txs[entryItem.TxIdx]
-				switch entryItem.Entry.(type) {
+			writeHistory.Ascend(func(entry *item) bool {
+				tx := txs[entry.TxIdx]
+				switch entry.Entry.(type) {
 				case *DataEntry:
-					entry := entryItem.Entry.(*DataEntry)
+					entry := entry.Entry.(*DataEntry)
 					switch entry.Value.(type) {
 					case *Basic:
 						basic := entry.Value.(*Basic)
@@ -543,7 +540,7 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 					executeNonce = nonce - 1
 					if executeNonce != tx.Nonce() {
 						abortErr = fmt.Errorf("nonce mismatch(tx: %s, txIdx: %d, from: %s, nonce: %d, execute_nonce: %d)",
-							tx.Hash().TerminalString(), entryItem.TxIdx, addr.Hex(), tx.Nonce(), executeNonce)
+							tx.Hash().TerminalString(), entry.TxIdx, addr.Hex(), tx.Nonce(), executeNonce)
 						return false
 					}
 				}
@@ -566,40 +563,41 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 		return nil, abortErr
 	}
 
-	for locationHash, writeHistory := range mvMemory.data.Items() {
-		if committedLocations[locationHash] {
-			continue
-		}
-		writeHistory.Ascend(func(itm btree.Item) bool {
-			d := itm.(*item)
-			switch d.Entry.(type) {
-			case *DataEntry:
-				entry := d.Entry.(*DataEntry)
-				switch entry.Value.(type) {
-				case *Basic:
-					basic := entry.Value.(*Basic)
-					account := basic.Account
-					if !account.Suicided {
-						if account.Nonce > 0 {
-							statedb.SetNonce(account.Addr, account.Nonce)
+	for _, shard := range mvMemory.data.shards {
+		for locationHash, writeHistory := range shard.histories {
+			if committedLocations[locationHash] {
+				continue
+			}
+			writeHistory.Ascend(func(d *item) bool {
+				switch d.Entry.(type) {
+				case *DataEntry:
+					entry := d.Entry.(*DataEntry)
+					switch entry.Value.(type) {
+					case *Basic:
+						basic := entry.Value.(*Basic)
+						account := basic.Account
+						if !account.Suicided {
+							if account.Nonce > 0 {
+								statedb.SetNonce(account.Addr, account.Nonce)
+							}
+							statedb.SetBalance(account.Addr, account.Balance)
 						}
-						statedb.SetBalance(account.Addr, account.Balance)
-					}
-				case *SelfDestructed:
-					des := entry.Value.(*SelfDestructed)
-					statedb.Suicide(des.Addr)
-				case *State:
-					state := entry.Value.(*State)
-					statedb.SetState(state.Addr, state.Key, state.Value)
-				case *CodeHash:
-					codeHash := entry.Value.(*CodeHash)
-					if code, ok := mvMemory.newByteCodes.Get(codeHash.CodeHash); ok {
-						statedb.SetCode(codeHash.Addr, code)
+					case *SelfDestructed:
+						des := entry.Value.(*SelfDestructed)
+						statedb.Suicide(des.Addr)
+					case *State:
+						state := entry.Value.(*State)
+						statedb.SetState(state.Addr, state.Key, state.Value)
+					case *CodeHash:
+						codeHash := entry.Value.(*CodeHash)
+						if code, ok := mvMemory.newByteCodes.Get(codeHash.CodeHash); ok {
+							statedb.SetCode(codeHash.Addr, code)
+						}
 					}
 				}
-			}
-			return true
-		})
+				return true
+			})
+		}
 	}
 	return executionResults, nil
 }

@@ -123,18 +123,17 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 	}
 
 	if db.txIdx > 0 {
-		if writtenTxs, ok := db.vm.mvMemory.data.Get(locationHash); ok {
-			it := writtenTxs.AscendRange(&item{TxIdx: db.txIdx})
+		if writtenTxs := db.vm.mvMemory.data.Get(locationHash); writtenTxs != nil {
+			it := writtenTxs.AscendRange(db.txIdx)
 		itLoop:
 			for {
 				entry := it.NextBack()
 				if entry == nil {
 					break itLoop
 				}
-				entryItem := entry.(*item)
-				switch entryItem.Entry.(type) {
+				switch entry.Entry.(type) {
 				case *DataEntry:
-					de := entryItem.Entry.(*DataEntry)
+					de := entry.Entry.(*DataEntry)
 
 					// About to push a new origin
 					// Inconsistent: new origin will be longer than the previous!
@@ -144,7 +143,7 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 					}
 
 					origin := NewMemory(TxVersion{
-						TxIdx:         entryItem.TxIdx,
+						TxIdx:         entry.TxIdx,
 						TxIncarnation: de.TxIncarnation,
 					})
 					if hasPrevOrigins {
@@ -172,7 +171,7 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 						return nil
 					}
 				case *EstimateMarker:
-					db.abortErr = BlockingError{Addr: addr, TxIdx: entryItem.TxIdx}
+					db.abortErr = BlockingError{Addr: addr, TxIdx: entry.TxIdx}
 					return nil
 				}
 
@@ -279,13 +278,13 @@ func (db *VmDB) GetCodeHash(addr common.Address) common.Hash {
 	locationHash := CodeHashLoc(addr)
 	readOrigins := db.readSet.GetOrDefault(locationHash)
 
-	if writtenTxs, ok := db.vm.mvMemory.data.Get(locationHash); ok {
-		it := writtenTxs.AscendRange(&item{TxIdx: db.txIdx})
+	if writtenTxs := db.vm.mvMemory.data.Get(locationHash); writtenTxs != nil {
+		it := writtenTxs.AscendRange(db.txIdx)
 		entryItem := it.NextBack()
 		if entryItem != nil {
-			switch entryItem.(*item).Entry.(type) {
+			switch entryItem.Entry.(type) {
 			case *DataEntry:
-				entry := entryItem.(*item).Entry.(*DataEntry)
+				entry := entryItem.Entry.(*DataEntry)
 				switch entry.Value.(type) {
 				case *SelfDestructed:
 					db.abortErr = ErrSelfDestructedAccount
@@ -293,7 +292,7 @@ func (db *VmDB) GetCodeHash(addr common.Address) common.Hash {
 				case *CodeHash:
 					codeHash := entry.Value.(*CodeHash)
 					db.pushOrigin(readOrigins, NewMemory(TxVersion{
-						TxIdx:         entryItem.(*item).TxIdx,
+						TxIdx:         entryItem.TxIdx,
 						TxIncarnation: entry.TxIncarnation,
 					}))
 					db.readCodeHash[addr] = codeHash.CodeHash
@@ -351,11 +350,10 @@ func (db *VmDB) GetState(addr common.Address, key []byte) []byte {
 
 	// Try reading from multi-version data
 	if db.txIdx > 0 {
-		if writtenTxs, ok := db.vm.mvMemory.data.Get(locationHash); ok {
-			it := writtenTxs.AscendRange(&item{TxIdx: db.txIdx})
+		if writtenTxs := db.vm.mvMemory.data.Get(locationHash); writtenTxs != nil {
+			it := writtenTxs.AscendRange(db.txIdx)
 			entry := it.NextBack()
 			if entry != nil {
-				entry := entry.(*item)
 				switch entry.Entry.(type) {
 				case *DataEntry:
 					de := entry.Entry.(*DataEntry)
