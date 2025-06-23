@@ -118,18 +118,26 @@ type WriteHistory struct {
 
 func NewWriteHistory() *WriteHistory {
 	return &WriteHistory{
-		items: make([]*item, 0, 32),
+		items: make([]*item, 0, 128),
 	}
 }
 
+// 优化 AscendRange 方法
 func (wh *WriteHistory) AscendRange(txIdx int32) *ItemIterator {
 	wh.mu.RLock()
 	defer wh.mu.RUnlock()
 
-	start := sort.Search(len(wh.items), func(i int) bool {
+	n := len(wh.items)
+	if n == 0 {
+		return &ItemIterator{items: nil}
+	}
+
+	// 二分查找起始位置（第一个 >= txIdx 的索引）
+	start := sort.Search(n, func(i int) bool {
 		return wh.items[i].TxIdx < txIdx
 	})
 
+	// 返回从 start 到结尾的切片（降序排列）
 	return &ItemIterator{
 		items: wh.items[start:],
 		index: 0,
@@ -152,17 +160,36 @@ func (wh *WriteHistory) ReplaceOrInsert(entry *item) {
 	wh.mu.Lock()
 	defer wh.mu.Unlock()
 
-	idx := sort.Search(len(wh.items), func(i int) bool {
+	n := len(wh.items)
+
+	// 快速路径：空列表或新项最大
+	if n == 0 || entry.TxIdx > wh.items[0].TxIdx {
+		// 在开头插入
+		wh.items = append([]*item{entry}, wh.items...)
+		return
+	}
+
+	// 快速路径：新项最小
+	if entry.TxIdx < wh.items[n-1].TxIdx {
+		wh.items = append(wh.items, entry)
+		return
+	}
+
+	// 二分查找插入位置（降序）
+	idx := sort.Search(n, func(i int) bool {
 		return wh.items[i].TxIdx <= entry.TxIdx
 	})
 
-	if idx < len(wh.items) && wh.items[idx].TxIdx == entry.TxIdx {
-		old := wh.items[idx]
+	if idx < n && wh.items[idx].TxIdx == entry.TxIdx {
+		// 替换
+		putItem(wh.items[idx])
 		wh.items[idx] = entry
-		putItem(old)
 	} else {
+		// 插入
 		wh.items = append(wh.items, nil)
-		copy(wh.items[idx+1:], wh.items[idx:])
+		if idx < n {
+			copy(wh.items[idx+1:], wh.items[idx:])
+		}
 		wh.items[idx] = entry
 	}
 }
@@ -423,88 +450,77 @@ func (m *MvMemory) Record(txVersion *TxVersion, readSet *ReadSet, writeSet Write
 }
 
 func (m *MvMemory) ValidateReadLocations(txIdx int32) bool {
-	lastLocation := m.lastLocations[txIdx]
-	validated := true
+	const batchSize = 8 // CPU缓存行大小
 
-	locations := make([]MemoryLocationHash, 0, 16)
-	originsMap := make(map[MemoryLocationHash]*ReadOrigins)
+	lastLocation := m.lastLocations[txIdx]
+
+	locations := make([]MemoryLocationHash, 0, 32)
+	originsMap := make([]*ReadOrigins, 0, 32)
 
 	lastLocation.RangeRead(func(loc MemoryLocationHash, priorOrigins *ReadOrigins) bool {
 		locations = append(locations, loc)
-		originsMap[loc] = priorOrigins
+		originsMap = append(originsMap, priorOrigins)
 		return true
 	})
 
-	if len(locations) > 50 {
-		var wg sync.WaitGroup
-		results := make(chan bool, len(locations))
-
-		for _, loc := range locations {
-			wg.Add(1)
-			go func(loc MemoryLocationHash, origins *ReadOrigins) {
-				defer wg.Done()
-				valid := m.validateSingleLocation(txIdx, loc, origins)
-				results <- valid
-			}(loc, originsMap[loc])
+	// 批处理验证 (8个一组)
+	valid := true
+	for i := 0; i < len(locations); i += batchSize {
+		end := i + batchSize
+		if end > len(locations) {
+			end = len(locations)
 		}
 
-		go func() {
-			wg.Wait()
-			close(results)
-		}()
-
-		for valid := range results {
-			if !valid {
-				validated = false
-			}
-		}
-	} else {
-		for _, loc := range locations {
-			if !m.validateSingleLocation(txIdx, loc, originsMap[loc]) {
-				validated = false
-				break
-			}
+		batchValid := m.validateBatch(txIdx, locations[i:end], originsMap[i:end])
+		valid = valid && batchValid
+		if !valid {
+			break
 		}
 	}
-
-	return validated
+	return valid
 }
 
-func (m *MvMemory) validateSingleLocation(txIdx int32, loc MemoryLocationHash, priorOrigins *ReadOrigins) bool {
-	wh := m.data.Get(loc)
-	if wh == nil {
-		_, ok := priorOrigins.Last().(*Storage)
-		return priorOrigins.Len() == 1 && ok
-	}
-
-	it := wh.AscendRange(txIdx)
+func (m *MvMemory) validateBatch(txIdx int32, locs []MemoryLocationHash, priorOrigins []*ReadOrigins) bool {
 	valid := true
+	for i, loc := range locs {
+		wh := m.data.Get(loc)
+		origins := priorOrigins[i]
+		if wh == nil {
+			_, ok := origins.Last().(*Storage)
+			return origins.Len() == 1 && ok
+		}
 
-	priorOrigins.Range(func(priorOrigin ReadOrigin) bool {
-		switch po := priorOrigin.(type) {
-		case *Memory:
-			entry := it.NextBack()
-			if entry == nil {
-				valid = false
-				return false
-			}
-			if de, ok := entry.Entry.(*DataEntry); ok {
-				if po.Version.TxIdx != entry.TxIdx || de.TxIncarnation != po.Version.TxIncarnation {
+		it := wh.AscendRange(txIdx)
+
+		origins.Range(func(priorOrigin ReadOrigin) bool {
+			switch po := priorOrigin.(type) {
+			case *Memory:
+				entry := it.NextBack()
+				if entry == nil {
 					valid = false
 					return false
 				}
-			} else {
-				valid = false
-				return false
+				if de, ok := entry.Entry.(*DataEntry); ok {
+					if po.Version.TxIdx != entry.TxIdx || de.TxIncarnation != po.Version.TxIncarnation {
+						valid = false
+						return false
+					}
+				} else {
+					valid = false
+					return false
+				}
+			case *Storage:
+				if it.NextBack() != nil {
+					valid = false
+					return false
+				}
 			}
-		case *Storage:
-			if it.NextBack() != nil {
-				valid = false
-				return false
-			}
+			return true
+		})
+		if !valid {
+			break
 		}
-		return true
-	})
+	}
 
 	return valid
 }
