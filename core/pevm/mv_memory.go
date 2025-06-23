@@ -9,6 +9,22 @@ import (
 	cmap "github.com/orcaman/concurrent-map/v2"
 )
 
+var itemPool = sync.Pool{
+	New: func() interface{} {
+		return new(item)
+	},
+}
+
+func getItem() *item {
+	return itemPool.Get().(*item)
+}
+
+func putItem(it *item) {
+	it.TxIdx = 0
+	it.Entry = nil
+	itemPool.Put(it)
+}
+
 const writeHistoryShards = 64
 
 type WriteHistoryShard struct {
@@ -55,6 +71,12 @@ func (s *WriteHistoryShard) Has(loc MemoryLocationHash) bool {
 	return ok
 }
 
+func (s *WriteHistoryShard) Release() {
+	for _, wh := range s.histories {
+		wh.Release()
+	}
+}
+
 type ShardedWriteHistory struct {
 	shards [writeHistoryShards]*WriteHistoryShard
 }
@@ -82,6 +104,12 @@ func (s *ShardedWriteHistory) Has(loc MemoryLocationHash) bool {
 	return s.shards[shardIdx].Has(loc)
 }
 
+func (s *ShardedWriteHistory) Release() {
+	for _, shard := range s.shards {
+		shard.Release()
+	}
+}
+
 type WriteHistory struct {
 	// Ascend sorted
 	items []*item
@@ -90,7 +118,7 @@ type WriteHistory struct {
 
 func NewWriteHistory() *WriteHistory {
 	return &WriteHistory{
-		items: make([]*item, 0, 16),
+		items: make([]*item, 0, 32),
 	}
 }
 
@@ -129,7 +157,9 @@ func (wh *WriteHistory) ReplaceOrInsert(entry *item) {
 	})
 
 	if idx < len(wh.items) && wh.items[idx].TxIdx == entry.TxIdx {
+		old := wh.items[idx]
 		wh.items[idx] = entry
+		putItem(old)
 	} else {
 		wh.items = append(wh.items, nil)
 		copy(wh.items[idx+1:], wh.items[idx:])
@@ -146,8 +176,16 @@ func (wh *WriteHistory) Delete(txIdx int32) {
 	})
 
 	if idx < len(wh.items) && wh.items[idx].TxIdx == txIdx {
+		putItem(wh.items[idx])
 		copy(wh.items[idx:], wh.items[idx+1:])
 		wh.items = wh.items[:len(wh.items)-1]
+	}
+}
+
+func (wh *WriteHistory) Release() {
+	for _, entry := range wh.items {
+		cpy := entry
+		putItem(cpy)
 	}
 }
 
@@ -361,10 +399,10 @@ func (m *MvMemory) Record(txVersion *TxVersion, readSet *ReadSet, writeSet Write
 		value := entry.Value
 
 		wh := m.data.GetOrCreate(h)
-		wh.ReplaceOrInsert(&item{
-			TxIdx: txVersion.TxIdx,
-			Entry: NewDataEntry(txVersion.TxIncarnation, value),
-		})
+		entry := getItem()
+		entry.TxIdx = txVersion.TxIdx
+		entry.Entry = NewDataEntry(txVersion.TxIncarnation, value)
+		wh.ReplaceOrInsert(entry)
 
 		foundInWriteSet = false
 		for _, existing := range newWrites {
@@ -485,6 +523,10 @@ func (m *MvMemory) ConvertWritesToEstimate(txIdx int32) {
 
 func (m *MvMemory) ConsumeLazyAddresses(f func(common.Address) bool) {
 	m.lazyAddresses.Range(f)
+}
+
+func (m *MvMemory) Release() {
+	m.data.Release()
 }
 
 func memHashShard(h MemoryLocationHash) uint32 {

@@ -436,6 +436,7 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 	mvMemory := NewMvMemory(int(blockSize), map[MemoryLocationHash][]int32{
 		BasicLoc(e.env.Header.Coinbase): txIdxs,
 	}, []common.Address{e.env.Header.Coinbase})
+	defer mvMemory.Release()
 	vm := NewVm(e.env, e.cApp, e.signer, NewStateDBMut(e.env.StateDB), mvMemory, txs)
 
 	g := new(errgroup.Group)

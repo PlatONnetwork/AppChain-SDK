@@ -315,6 +315,9 @@ func (db *VmDB) GetCode(addr common.Address) []byte {
 	}
 
 	codeHash := db.GetCodeHash(addr)
+	if codeHash == emptyCodeHash {
+		return []byte{}
+	}
 	if code, ok := db.vm.mvMemory.newByteCodes.Get(codeHash); ok {
 		return code
 	}
@@ -428,7 +431,9 @@ func (db *VmDB) CreateAccount(addr common.Address) {
 	if db.abortErr != nil {
 		return
 	}
-	db.dirties[addr] = struct{}{}
+	if _, ok := db.dirties[addr]; !ok {
+		db.dirties[addr] = struct{}{}
+	}
 	if db.getAccountBasic(addr) == nil {
 		basic := NewEmptyAccountBase(addr)
 		db.readAccounts[BasicLoc(addr)] = basic
@@ -456,7 +461,9 @@ func (db *VmDB) SubBalance(addr common.Address, amount *big.Int) {
 	}
 
 	if basic := db.getAccountBasic(addr); basic != nil {
-		db.dirties[addr] = struct{}{}
+		if _, ok := db.dirties[addr]; !ok {
+			db.dirties[addr] = struct{}{}
+		}
 		basic.Balance = basic.Balance.Sub(basic.Balance, amount)
 	}
 }
@@ -480,11 +487,15 @@ func (db *VmDB) AddBalance(addr common.Address, amount *big.Int) {
 	if basic := db.getAccountBasic(addr); basic != nil {
 		if amount.Sign() == 0 {
 			if basic.Empty() && basic.Touch() {
-				db.dirties[addr] = struct{}{}
+				if _, ok := db.dirties[addr]; !ok {
+					db.dirties[addr] = struct{}{}
+				}
 			}
 			return
 		}
-		db.dirties[addr] = struct{}{}
+		if _, ok := db.dirties[addr]; !ok {
+			db.dirties[addr] = struct{}{}
+		}
 		basic.Balance = basic.Balance.Add(basic.Balance, amount)
 	}
 }
@@ -503,7 +514,9 @@ func (db *VmDB) SetNonce(addr common.Address, nonce uint64) {
 	}
 
 	if basic := db.getAccountBasic(addr); basic != nil {
-		db.dirties[addr] = struct{}{}
+		if _, ok := db.dirties[addr]; !ok {
+			db.dirties[addr] = struct{}{}
+		}
 		basic.Nonce = nonce
 	}
 }
@@ -513,7 +526,9 @@ func (db *VmDB) SetCode(addr common.Address, code []byte) {
 		return
 	}
 	if basic := db.getAccountBasic(addr); basic != nil {
-		db.dirties[addr] = struct{}{}
+		if _, ok := db.dirties[addr]; !ok {
+			db.dirties[addr] = struct{}{}
+		}
 		basic.Code = code
 		basic.CodeHash = crypto.Keccak256Hash(code)
 		basic.CodeSize = len(code)
@@ -546,7 +561,9 @@ func (db *VmDB) Suicide(addr common.Address) bool {
 		return false
 	}
 	if basic := db.getAccountBasic(addr); basic != nil {
-		db.dirties[addr] = struct{}{}
+		if _, ok := db.dirties[addr]; !ok {
+			db.dirties[addr] = struct{}{}
+		}
 		basic.Suicided = true
 		basic.Balance = new(big.Int)
 		return true
