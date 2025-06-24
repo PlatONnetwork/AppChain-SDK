@@ -1,7 +1,6 @@
 package pevm
 
 import (
-	"bytes"
 	"math/big"
 
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -62,7 +61,11 @@ func (vm *Vm) Execute(txVersion *TxVersion) (result *VmExecutionResult, err erro
 		toHash = BasicLoc(*tx.To())
 	}
 
-	db := NewVmDB(vm, txVersion.TxIdx, tx, fromAddr, fromHash, toHash)
+	db := AcquireVmDB() //NewVmDB(vm, txVersion.TxIdx, tx, fromAddr, fromHash, toHash)
+	db.Init(vm, txVersion.TxIdx, tx, fromAddr, fromHash, toHash)
+	defer func() {
+		ReleaseVmDB(db)
+	}()
 	chainCtx := vm.env.ChainContext
 	chainCfg := vm.env.ChainConfig
 	vmCfg := vm.env.VMConfig
@@ -94,9 +97,9 @@ func (vm *Vm) Execute(txVersion *TxVersion) (result *VmExecutionResult, err erro
 
 		for addr, states := range db.states {
 			for key, val := range states {
-				cloneKey := bytes.Clone([]byte(key))
-				cloneVal := bytes.Clone(val)
-				writeSet.Add(StateLoc(addr, cloneKey), NewState(addr, cloneKey, cloneVal))
+				cpyKey := []byte(key)
+				cpyVal := val
+				writeSet.Add(StateLoc(addr, cpyKey), NewState(addr, cpyKey, cpyVal))
 			}
 		}
 

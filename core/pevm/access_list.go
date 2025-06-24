@@ -54,6 +54,11 @@ func newAccessList() *accessList {
 	}
 }
 
+func (a *accessList) Reset() {
+	clear(a.addresses)
+	clear(a.slots)
+}
+
 // Copy creates an independent copy of an accessList.
 func (a *accessList) Copy() *accessList {
 	cp := newAccessList()

@@ -25,7 +25,7 @@ func putItem(it *item) {
 	itemPool.Put(it)
 }
 
-const writeHistoryShards = 64
+const writeHistoryShards = 256
 
 type WriteHistoryShard struct {
 	histories map[MemoryLocationHash]*WriteHistory
@@ -493,8 +493,7 @@ func (m *MvMemory) validateBatch(txIdx int32, locs []MemoryLocationHash, priorOr
 		it := wh.AscendRange(txIdx)
 
 		origins.Range(func(priorOrigin ReadOrigin) bool {
-			switch po := priorOrigin.(type) {
-			case *Memory:
+			if po, ok := priorOrigin.(*Memory); ok {
 				entry := it.NextBack()
 				if entry == nil {
 					valid = false
@@ -509,7 +508,7 @@ func (m *MvMemory) validateBatch(txIdx int32, locs []MemoryLocationHash, priorOr
 					valid = false
 					return false
 				}
-			case *Storage:
+			} else if _, ok := priorOrigin.(*Storage); ok {
 				if it.NextBack() != nil {
 					valid = false
 					return false

@@ -16,6 +16,7 @@ var ripemd = common.HexToAddress("0000000000000000000000000000000000000003")
 var codeHashSuffix = []byte("code_hash")
 
 var (
+	// FIXME: replace `sync.Map` with `lru.Cache`
 	basicHashCache sync.Map // map[common.Address]MemoryLocationHash
 	stateHashCache sync.Map // map[common.Address]map[string]MemoryLocationHash
 	codeHashCache  sync.Map
@@ -335,7 +336,7 @@ type ReadOrigins struct {
 
 func NewReadOrigins() *ReadOrigins {
 	return &ReadOrigins{
-		origins: make([]ReadOrigin, 0),
+		origins: make([]ReadOrigin, 0, 1),
 	}
 }
 
@@ -370,33 +371,47 @@ func (ro *ReadOrigins) Range(f func(ReadOrigin) bool) {
 	}
 }
 
+const initialReadSetSize = 4 // 大多数交易只有2-4个地址
+
+type ReadSetEntry struct {
+	hash   MemoryLocationHash
+	origin *ReadOrigins
+}
+
 type ReadSet struct {
-	readOrigins map[MemoryLocationHash]*ReadOrigins
+	entries []*ReadSetEntry
 }
 
 func NewReadSet() *ReadSet {
 	return &ReadSet{
-		readOrigins: make(map[MemoryLocationHash]*ReadOrigins),
+		entries: make([]*ReadSetEntry, 0, initialReadSetSize),
 	}
 }
 
 func (rs *ReadSet) GetOrDefault(locationHash MemoryLocationHash) *ReadOrigins {
-	ro, exist := rs.readOrigins[locationHash]
-	if !exist || ro == nil {
-		ro = NewReadOrigins()
-		rs.readOrigins[locationHash] = ro
+	for i := range rs.entries {
+		if rs.entries[i].hash == locationHash {
+			return rs.entries[i].origin
+		}
 	}
-
-	return ro
+	rs.entries = append(rs.entries, &ReadSetEntry{
+		hash:   locationHash,
+		origin: NewReadOrigins(),
+	})
+	return rs.entries[len(rs.entries)-1].origin
 }
 
 func (rs *ReadSet) Set(locationHash MemoryLocationHash, ro *ReadOrigins) {
-	rs.readOrigins[locationHash] = ro
+	for i := range rs.entries {
+		if rs.entries[i].hash == locationHash {
+			rs.entries[i].origin = ro
+		}
+	}
 }
 
 func (rs *ReadSet) Range(f func(MemoryLocationHash, *ReadOrigins) bool) {
-	for h, ro := range rs.readOrigins {
-		if !f(h, ro) {
+	for _, entry := range rs.entries {
+		if !f(entry.hash, entry.origin) {
 			break
 		}
 	}

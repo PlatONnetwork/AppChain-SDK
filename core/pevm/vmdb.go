@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 	"reflect"
+	"sync"
 
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	coretypes "github.com/PlatONnetwork/PlatON-Go/core/types"
@@ -14,7 +15,37 @@ import (
 var (
 	_             sdk.StateDB = (*VmDB)(nil)
 	maxUint256, _             = new(big.Int).SetString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 16)
+
+	vmdbPool = sync.Pool{
+		New: func() interface{} {
+			return &VmDB{
+				readSet:      NewReadSet(),
+				readAccounts: make(map[MemoryLocationHash]*AccountBase, 3),
+				dirties:      make(map[common.Address]struct{}, 3),
+				states:       make(map[common.Address]map[string][]byte, 3),
+				readStates:   make(map[common.Address]map[string][]byte, 3),
+				addBalances:  make(map[common.Address]*big.Int, 3),
+				subBalances:  make(map[common.Address]*big.Int, 3),
+				readCodeHash: make(map[common.Address]common.Hash, 1),
+				refund:       0,
+				logs:         make(map[common.Hash][]*coretypes.Log, 0),
+				accessList:   newAccessList(),
+			}
+		},
+	}
 )
+
+func AcquireVmDB() *VmDB {
+	db := vmdbPool.Get().(*VmDB)
+	// 重置状态
+	db.reset()
+	return db
+}
+
+func ReleaseVmDB(db *VmDB) {
+	db.reset()
+	vmdbPool.Put(db)
+}
 
 type VmDB struct {
 	vm           *Vm
@@ -57,13 +88,13 @@ func NewVmDB(
 		fromHash:     fromHash,
 		toHash:       toHash,
 		readSet:      NewReadSet(),
-		readAccounts: make(map[MemoryLocationHash]*AccountBase),
-		dirties:      make(map[common.Address]struct{}),
-		states:       make(map[common.Address]map[string][]byte),
-		readStates:   make(map[common.Address]map[string][]byte),
-		addBalances:  make(map[common.Address]*big.Int),
-		subBalances:  make(map[common.Address]*big.Int),
-		readCodeHash: make(map[common.Address]common.Hash),
+		readAccounts: make(map[MemoryLocationHash]*AccountBase, 3),
+		dirties:      make(map[common.Address]struct{}, 3),
+		states:       make(map[common.Address]map[string][]byte, 3),
+		readStates:   make(map[common.Address]map[string][]byte, 3),
+		addBalances:  make(map[common.Address]*big.Int, 3),
+		subBalances:  make(map[common.Address]*big.Int, 3),
+		readCodeHash: make(map[common.Address]common.Hash, 1),
 		refund:       0,
 		logs:         make(map[common.Hash][]*coretypes.Log, 0),
 		accessList:   newAccessList(),
@@ -74,6 +105,43 @@ func NewVmDB(
 			(vm.mvMemory.data.Has(fromHash) || vm.mvMemory.data.Has(toHash))
 	}
 	return db
+}
+
+func (db *VmDB) Init(vm *Vm,
+	txIdx int32,
+	tx *coretypes.Transaction,
+	fromAddr common.Address,
+	fromHash, toHash MemoryLocationHash) {
+	db.vm = vm
+	db.txIdx = txIdx
+	db.tx = tx
+	db.fromAddr = fromAddr
+	db.fromHash = fromHash
+	db.toHash = toHash
+	if tx.To() != nil {
+		db.toCodeHash = db.GetCodeHash(*tx.To())
+		db.isLazy = db.toCodeHash == emptyCodeHash &&
+			(vm.mvMemory.data.Has(fromHash) || vm.mvMemory.data.Has(toHash))
+	}
+}
+
+func (db *VmDB) reset() {
+	db.readSet = NewReadSet()
+	db.accessList.Reset()
+	clear(db.readAccounts)
+	clear(db.dirties)
+	clear(db.states)
+	clear(db.readStates)
+	clear(db.addBalances)
+	clear(db.subBalances)
+	clear(db.readCodeHash)
+	clear(db.logs)
+	db.logSize = 0
+	db.refund = 0
+	db.vm = nil
+	db.tx = nil
+	db.isLazy = false
+	db.abortErr = nil
 }
 
 func (db *VmDB) pushOrigin(readOrigins *ReadOrigins, readOrigin ReadOrigin) {
@@ -131,10 +199,7 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 				if entry == nil {
 					break itLoop
 				}
-				switch entry.Entry.(type) {
-				case *DataEntry:
-					de := entry.Entry.(*DataEntry)
-
+				if de, ok := entry.Entry.(*DataEntry); ok {
 					// About to push a new origin
 					// Inconsistent: new origin will be longer than the previous!
 					if hasPrevOrigins && readOrigins.Len() == newOrigins.Len() {
@@ -154,27 +219,22 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 					} else {
 						newOrigins.Push(origin)
 					}
-					switch de.Value.(type) {
-					case *Basic:
-						basic := de.Value.(*Basic)
+					if basic, vok := de.Value.(*Basic); vok {
 						finalAccount = basic.Account
 						break itLoop
-					case *LazySender:
-						lazySender := de.Value.(*LazySender)
+					} else if lazySender, vok := de.Value.(*LazySender); vok {
 						balanceAddition.Sub(balanceAddition, lazySender.Balance)
 						nonceAddtion += 1
-					case *LazyRecipient:
-						lazyRecipient := de.Value.(*LazyRecipient)
+					} else if lazyRecipient, vok := de.Value.(*LazyRecipient); vok {
 						balanceAddition.Add(balanceAddition, lazyRecipient.Balance)
-					default:
+					} else {
 						db.abortErr = ErrInvalidMemoryValueType
 						return nil
 					}
-				case *EstimateMarker:
+				} else if _, ok := entry.Entry.(*EstimateMarker); ok {
 					db.abortErr = BlockingError{Addr: addr, TxIdx: entry.TxIdx}
 					return nil
 				}
-
 			}
 		}
 	}
@@ -282,15 +342,11 @@ func (db *VmDB) GetCodeHash(addr common.Address) common.Hash {
 		it := writtenTxs.AscendRange(db.txIdx)
 		entryItem := it.NextBack()
 		if entryItem != nil {
-			switch entryItem.Entry.(type) {
-			case *DataEntry:
-				entry := entryItem.Entry.(*DataEntry)
-				switch entry.Value.(type) {
-				case *SelfDestructed:
+			if entry, ok := entryItem.Entry.(*DataEntry); ok {
+				if _, vok := entry.Value.(*SelfDestructed); vok {
 					db.abortErr = ErrSelfDestructedAccount
 					return emptyCodeHash
-				case *CodeHash:
-					codeHash := entry.Value.(*CodeHash)
+				} else if codeHash, vok := entry.Value.(*CodeHash); vok {
 					db.pushOrigin(readOrigins, NewMemory(TxVersion{
 						TxIdx:         entryItem.TxIdx,
 						TxIncarnation: entry.TxIncarnation,
@@ -357,9 +413,7 @@ func (db *VmDB) GetState(addr common.Address, key []byte) []byte {
 			it := writtenTxs.AscendRange(db.txIdx)
 			entry := it.NextBack()
 			if entry != nil {
-				switch entry.Entry.(type) {
-				case *DataEntry:
-					de := entry.Entry.(*DataEntry)
+				if de, ok := entry.Entry.(*DataEntry); ok {
 					db.pushOrigin(readOrigins, NewMemory(TxVersion{
 						TxIdx:         entry.TxIdx,
 						TxIncarnation: de.TxIncarnation,
@@ -367,10 +421,10 @@ func (db *VmDB) GetState(addr common.Address, key []byte) []byte {
 					val := de.Value.(*State).Value
 					db.setReadState(addr, key, val)
 					return val
-				case *EstimateMarker:
+				} else if _, ok := entry.Entry.(*EstimateMarker); ok {
 					db.abortErr = BlockingError{Addr: addr, TxIdx: entry.TxIdx}
 					return []byte{}
-				default:
+				} else {
 					db.abortErr = ErrInvalidMemoryValueType
 					return []byte{}
 				}

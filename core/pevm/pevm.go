@@ -507,20 +507,15 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 
 			writeHistory.Ascend(func(entry *item) bool {
 				tx := txs[entry.TxIdx]
-				switch entry.Entry.(type) {
-				case *DataEntry:
-					entry := entry.Entry.(*DataEntry)
-					switch entry.Value.(type) {
-					case *Basic:
-						basic := entry.Value.(*Basic)
+
+				if entry, ok := entry.Entry.(*DataEntry); ok {
+					if basic, vok := entry.Value.(*Basic); vok {
 						account := basic.Account
 						balance.Set(account.Balance)
 						nonce = account.Nonce
-					case *LazyRecipient:
-						lazy := entry.Value.(*LazyRecipient)
+					} else if lazy, vok := entry.Value.(*LazyRecipient); vok {
 						balance.Add(balance, lazy.Balance)
-					case *LazySender:
-						lazy := entry.Value.(*LazySender)
+					} else if lazy, vok := entry.Value.(*LazySender); vok {
 						maxFee := tx.Gas()*tx.GasPrice().Uint64() + tx.Value().Uint64()
 						if balance.Uint64() < maxFee {
 							abortErr = fmt.Errorf("lack of fund for max fee(balance: %d, maxFee: %d)",
@@ -570,12 +565,8 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 				continue
 			}
 			writeHistory.Ascend(func(d *item) bool {
-				switch d.Entry.(type) {
-				case *DataEntry:
-					entry := d.Entry.(*DataEntry)
-					switch entry.Value.(type) {
-					case *Basic:
-						basic := entry.Value.(*Basic)
+				if entry, ok := d.Entry.(*DataEntry); ok {
+					if basic, vok := entry.Value.(*Basic); vok {
 						account := basic.Account
 						if !account.Suicided {
 							if account.Nonce > 0 {
@@ -583,14 +574,11 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 							}
 							statedb.SetBalance(account.Addr, account.Balance)
 						}
-					case *SelfDestructed:
-						des := entry.Value.(*SelfDestructed)
+					} else if des, vok := entry.Value.(*SelfDestructed); vok {
 						statedb.Suicide(des.Addr)
-					case *State:
-						state := entry.Value.(*State)
+					} else if state, vok := entry.Value.(*State); vok {
 						statedb.SetState(state.Addr, state.Key, state.Value)
-					case *CodeHash:
-						codeHash := entry.Value.(*CodeHash)
+					} else if codeHash, vok := entry.Value.(*CodeHash); vok {
 						if code, ok := mvMemory.newByteCodes.Get(codeHash.CodeHash); ok {
 							statedb.SetCode(codeHash.Addr, code)
 						}
