@@ -128,14 +128,30 @@ func (db *VmDB) Init(vm *Vm,
 func (db *VmDB) reset() {
 	db.readSet = NewReadSet()
 	db.accessList.Reset()
-	clear(db.readAccounts)
-	clear(db.dirties)
-	clear(db.states)
-	clear(db.readStates)
-	clear(db.addBalances)
-	clear(db.subBalances)
-	clear(db.readCodeHash)
-	clear(db.logs)
+	for k, _ := range db.readAccounts {
+		delete(db.readAccounts, k)
+	}
+	for k, _ := range db.dirties {
+		delete(db.dirties, k)
+	}
+	for k, _ := range db.states {
+		delete(db.states, k)
+	}
+	for k, _ := range db.readStates {
+		delete(db.readStates, k)
+	}
+	for k, _ := range db.addBalances {
+		delete(db.addBalances, k)
+	}
+	for k, _ := range db.subBalances {
+		delete(db.subBalances, k)
+	}
+	for k, _ := range db.readCodeHash {
+		delete(db.readCodeHash, k)
+	}
+	for k, _ := range db.logs {
+		delete(db.logs, k)
+	}
 	db.logSize = 0
 	db.refund = 0
 	db.vm = nil
@@ -246,12 +262,12 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 			return nil
 		}
 		finalAccount = &AccountBase{
-			Addr:     addr,
-			Nonce:    db.vm.statedb.GetNonce(addr),
-			Balance:  new(big.Int).Set(db.vm.statedb.GetBalance(addr)),
-			CodeHash: db.GetCodeHash(addr),
-			CodeSize: db.GetCodeSize(addr),
-			Code:     db.GetCode(addr),
+			Addr:    addr,
+			Nonce:   db.vm.statedb.GetNonce(addr),
+			Balance: new(big.Int).Set(db.vm.statedb.GetBalance(addr)),
+			//CodeHash: db.GetCodeHash(addr),
+			//CodeSize: db.GetCodeSize(addr),
+			//Code:     db.GetCode(addr),
 			Suicided: db.vm.statedb.HasSuicided(addr),
 		}
 	} else {
@@ -505,7 +521,7 @@ func (db *VmDB) SubBalance(addr common.Address, amount *big.Int) {
 	isLazy := (db.isLazy && locationHash == db.fromHash) || addr == db.vm.env.Header.Coinbase
 	if isLazy {
 		if balance, exist := db.subBalances[addr]; exist {
-			db.subBalances[addr] = balance.Add(balance, amount)
+			balance.Add(balance, amount)
 		} else {
 			db.subBalances[addr] = new(big.Int).Set(amount)
 		}
@@ -516,7 +532,7 @@ func (db *VmDB) SubBalance(addr common.Address, amount *big.Int) {
 		if _, ok := db.dirties[addr]; !ok {
 			db.dirties[addr] = struct{}{}
 		}
-		basic.Balance = basic.Balance.Sub(basic.Balance, amount)
+		basic.Balance.Sub(basic.Balance, amount)
 	}
 }
 
@@ -529,7 +545,7 @@ func (db *VmDB) AddBalance(addr common.Address, amount *big.Int) {
 	isLazy := (db.isLazy && locationHash == db.toHash) || addr == db.vm.env.Header.Coinbase
 	if isLazy {
 		if balance, exist := db.addBalances[addr]; exist {
-			db.addBalances[addr] = balance.Add(balance, amount)
+			balance.Add(balance, amount)
 		} else {
 			db.addBalances[addr] = new(big.Int).Set(amount)
 		}
@@ -548,7 +564,7 @@ func (db *VmDB) AddBalance(addr common.Address, amount *big.Int) {
 		if _, ok := db.dirties[addr]; !ok {
 			db.dirties[addr] = struct{}{}
 		}
-		basic.Balance = basic.Balance.Add(basic.Balance, amount)
+		basic.Balance.Add(basic.Balance, amount)
 	}
 }
 

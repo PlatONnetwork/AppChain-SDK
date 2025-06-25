@@ -1,6 +1,7 @@
 package pevm
 
 import (
+	"sort"
 	"sync"
 
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -39,60 +40,48 @@ func getShard() *WriteHistoryShard {
 func putShard(s *WriteHistoryShard) {
 	// 清理 shard 的状态，避免数据污染
 	for _, wh := range s.histories {
-		wh.wh.Release()
+		wh.Release()
 	}
-	s.histories = make(map[MemoryLocationHash]*writeHistoryEntry)
+	s.histories = make(map[MemoryLocationHash]*WriteHistory)
 	shardPool.Put(s)
 }
 
-type writeHistoryEntry struct {
-	wh   *WriteHistory
-	once sync.Once
-}
-
-func (e *writeHistoryEntry) GetOrCreate() *WriteHistory {
-	e.once.Do(func() {
-		e.wh = NewWriteHistory()
-	})
-	return e.wh
-}
-
 type WriteHistoryShard struct {
-	histories map[MemoryLocationHash]*writeHistoryEntry
+	histories map[MemoryLocationHash]*WriteHistory
 	mu        sync.RWMutex
 }
 
 func NewWriteHistoryShard() *WriteHistoryShard {
 	return &WriteHistoryShard{
-		histories: make(map[MemoryLocationHash]*writeHistoryEntry),
+		histories: make(map[MemoryLocationHash]*WriteHistory),
 	}
 }
 
 func (s *WriteHistoryShard) GetOrCreate(loc MemoryLocationHash) *WriteHistory {
 	s.mu.RLock()
-	if entry, ok := s.histories[loc]; ok {
+	if wh, ok := s.histories[loc]; ok {
 		s.mu.RUnlock()
-		return entry.wh
+		return wh
 	}
 	s.mu.RUnlock()
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if entry, ok := s.histories[loc]; ok {
-		return entry.GetOrCreate()
+	if wh, ok := s.histories[loc]; ok {
+		return wh
 	}
 
-	entry := &writeHistoryEntry{}
-	s.histories[loc] = entry
-	return entry.GetOrCreate()
+	wh := NewWriteHistory()
+	s.histories[loc] = wh
+	return wh
 }
 
 func (s *WriteHistoryShard) Get(loc MemoryLocationHash) *WriteHistory {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if entry, ok := s.histories[loc]; ok {
-		return entry.wh
+	if wh, ok := s.histories[loc]; ok {
+		return wh
 	}
 	return nil
 }
@@ -105,8 +94,8 @@ func (s *WriteHistoryShard) Has(loc MemoryLocationHash) bool {
 }
 
 func (s *WriteHistoryShard) Release() {
-	for _, entry := range s.histories {
-		entry.wh.Release()
+	for _, wh := range s.histories {
+		wh.Release()
 	}
 }
 
@@ -144,13 +133,14 @@ func (s *ShardedWriteHistory) Release() {
 }
 
 type WriteHistory struct {
-	items *btree.BTree
+	// Ascend sorted
+	items []*item
 	mu    sync.RWMutex
 }
 
 func NewWriteHistory() *WriteHistory {
 	return &WriteHistory{
-		items: btree.New(2),
+		items: make([]*item, 0, 32),
 	}
 }
 
@@ -158,15 +148,18 @@ func (wh *WriteHistory) AscendRange(txIdx int32) *ItemIterator {
 	wh.mu.RLock()
 	defer wh.mu.RUnlock()
 
-	var items []*item
-	wh.items.AscendLessThan(&item{TxIdx: txIdx}, func(entry btree.Item) bool {
-		items = append(items, entry.(*item))
-		return true
+	n := len(wh.items)
+	if n == 0 {
+		return &ItemIterator{items: nil}
+	}
+
+	start := sort.Search(n, func(i int) bool {
+		return wh.items[i].TxIdx < txIdx
 	})
 
 	return &ItemIterator{
-		items: items,
-		index: len(items) - 1,
+		items: wh.items[start:],
+		index: 0,
 	}
 }
 
@@ -174,18 +167,40 @@ func (wh *WriteHistory) Ascend(f func(*item) bool) {
 	wh.mu.RLock()
 	defer wh.mu.RUnlock()
 
-	wh.items.Ascend(func(entry btree.Item) bool {
-		return f(entry.(*item))
-	})
+	for i := len(wh.items) - 1; i >= 0; i-- {
+		if !f(wh.items[i]) {
+			break
+		}
+	}
 }
 
 func (wh *WriteHistory) ReplaceOrInsert(entry *item) {
 	wh.mu.Lock()
 	defer wh.mu.Unlock()
 
-	old := wh.items.ReplaceOrInsert(entry)
-	if old != nil {
-		putItem(old.(*item))
+	n := len(wh.items)
+	if n == 0 || entry.TxIdx > wh.items[0].TxIdx {
+		wh.items = append([]*item{entry}, wh.items...)
+		return
+	}
+
+	if entry.TxIdx < wh.items[n-1].TxIdx {
+		wh.items = append(wh.items, entry)
+		return
+	}
+
+	idx := sort.Search(n, func(i int) bool {
+		return wh.items[i].TxIdx <= entry.TxIdx
+	})
+	if idx < n && wh.items[idx].TxIdx == entry.TxIdx {
+		putItem(wh.items[idx])
+		wh.items[idx] = entry
+	} else {
+		wh.items = append(wh.items, nil)
+		if idx < n {
+			copy(wh.items[idx+1:], wh.items[idx:])
+		}
+		wh.items[idx] = entry
 	}
 }
 
@@ -193,18 +208,22 @@ func (wh *WriteHistory) Delete(txIdx int32) {
 	wh.mu.Lock()
 	defer wh.mu.Unlock()
 
-	entry := wh.items.Delete(&item{TxIdx: txIdx})
-	if entry != nil {
-		putItem(entry.(*item))
+	n := len(wh.items)
+	idx := sort.Search(n, func(i int) bool {
+		return wh.items[i].TxIdx <= txIdx
+	})
+	if idx < n && wh.items[idx].TxIdx == txIdx {
+		putItem(wh.items[idx])
+		copy(wh.items[idx:], wh.items[idx+1:])
+		wh.items = wh.items[:len(wh.items)-1]
 	}
 }
 
 func (wh *WriteHistory) Release() {
-	wh.items.Ascend(func(entry btree.Item) bool {
-		putItem(entry.(*item))
-		return true
-	})
-	wh.items.Clear(false)
+	for _, entry := range wh.items {
+		cpy := entry
+		putItem(cpy)
+	}
 }
 
 type ItemIterator struct {
@@ -213,11 +232,11 @@ type ItemIterator struct {
 }
 
 func (it *ItemIterator) NextBack() *item {
-	if it.index < 0 {
+	if len(it.items) == 0 || it.index >= len(it.items) {
 		return nil
 	}
 	item := it.items[it.index]
-	it.index--
+	it.index++
 	return item
 }
 
@@ -416,18 +435,14 @@ func (m *MvMemory) Record(txVersion *TxVersion, readSet *ReadSet, writeSet Write
 	writeHistories := make(map[MemoryLocationHash]*WriteHistory)
 
 	// First, get or create all the WriteHistory instances
-	for _, entry := range writeSet {
-		h := entry.Hash
+	for h, _ := range writeSet {
 		if _, ok := writeHistories[h]; !ok {
 			writeHistories[h] = m.data.GetOrCreate(h)
 		}
 	}
 
 	// Now, iterate through the writeSet and insert the entries
-	for _, entry := range writeSet {
-		h := entry.Hash
-		value := entry.Value
-
+	for h, value := range writeSet {
 		wh := writeHistories[h]
 		entry := getItem()
 		entry.TxIdx = txVersion.TxIdx

@@ -1,10 +1,13 @@
 package pevm
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
 	"reflect"
+	"runtime/pprof"
 	"sync"
 	"time"
 
@@ -161,6 +164,16 @@ func NewPEVM(
 }
 
 func (e *PEVM) Run(txs coretypes.Transactions, isSysTxs bool) (*PEVMResult, error) {
+	begin := time.Now()
+	pbuf := bytes.NewBuffer(nil)
+	pprof.StartCPUProfile(pbuf)
+	defer func() {
+		pprof.StopCPUProfile()
+		elapsed := time.Since(begin)
+		if elapsed > 150*time.Millisecond {
+			os.WriteFile(fmt.Sprintf("./pevm-%s.pprof", elapsed), pbuf.Bytes(), 0666)
+		}
+	}()
 	if e.forceSequential || len(txs) < e.concurrencyLevel {
 		return e.serialExecute(txs, isSysTxs)
 	}
@@ -440,6 +453,7 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 	vm := NewVm(e.env, e.cApp, e.signer, NewStateDBMut(e.env.StateDB), mvMemory, txs)
 
 	g := new(errgroup.Group)
+	g.SetLimit(e.concurrencyLevel)
 	for j := 0; j < e.concurrencyLevel; j++ {
 		g.Go(func() error {
 			task := scheduler.NextTask()
@@ -564,7 +578,7 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 			if committedLocations[locationHash] {
 				continue
 			}
-			writeHistory.wh.Ascend(func(d *item) bool {
+			writeHistory.Ascend(func(d *item) bool {
 				if entry, ok := d.Entry.(*DataEntry); ok {
 					if basic, vok := entry.Value.(*Basic); vok {
 						account := basic.Account

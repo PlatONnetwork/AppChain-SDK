@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"math/big"
 	"sync"
-	"unsafe"
 
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
@@ -106,36 +105,22 @@ func CodeHashLoc(addr common.Address) MemoryLocationHash {
 }
 
 func StateLoc(addr common.Address, key []byte) MemoryLocationHash {
-	// 创建复合键
-	var k struct {
-		addr common.Address
-		key  string
-	}
-	k.addr = addr
+	cacheMap, _ := stateHashCache.LoadOrStore(addr, &sync.Map{})
+	innerMap := cacheMap.(*sync.Map)
 
-	if len(key) > 0 {
-		k.key = unsafe.String((*byte)(unsafe.Pointer(&key[0])), len(key))
-	}
-
-	// 尝试从全局缓存获取
-	if hash, ok := stateHashCache.Load(k); ok {
+	if hash, ok := innerMap.Load(string(key)); ok {
 		return hash.(MemoryLocationHash)
 	}
 
-	// 从池中获取hasher
 	h := xxhashPool.Get().(*xxh3.Hasher)
 	h.Reset()
-
 	h.Write(addr[:])
 	h.Write(key)
-	hash := h.Sum64()
-
-	// 放回池中
+	hashVal := h.Sum64()
 	xxhashPool.Put(h)
 
-	// 存储到缓存
-	stateHashCache.Store(k, hash)
-	return hash
+	innerMap.Store(string(key), hashVal)
+	return hashVal
 }
 
 type MemoryValue interface {
@@ -422,28 +407,27 @@ type WriteEntry struct {
 	Value MemoryValue
 }
 
-type WriteSet []WriteEntry
+type WriteSet map[MemoryLocationHash]MemoryValue
 
 func NewWriteSet() WriteSet {
-	return make(WriteSet, 0)
+	return make(WriteSet)
 }
 
 func (ws *WriteSet) Add(hash MemoryLocationHash, value MemoryValue) {
-	*ws = append(*ws, WriteEntry{Hash: hash, Value: value})
+	if _, ok := (*ws)[hash]; ok {
+		panic("duplicate hash in write set")
+	}
+	(*ws)[hash] = value
 }
 
 func (ws *WriteSet) Find(hash MemoryLocationHash) (MemoryValue, bool) {
-	for _, entry := range *ws {
-		if entry.Hash == hash {
-			return entry.Value, true
-		}
-	}
-	return nil, false
+	v, ok := (*ws)[hash]
+	return v, ok
 }
 
 func (ws *WriteSet) Range(f func(MemoryLocationHash, MemoryValue)) {
-	for _, entry := range *ws {
-		f(entry.Hash, entry.Value)
+	for hash, val := range *ws {
+		f(hash, val)
 	}
 }
 
