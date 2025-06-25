@@ -480,63 +480,60 @@ func (m *MvMemory) ValidateReadLocations(txIdx int32) bool {
 		return true
 	})
 
-	valid := true
-	for i := 0; i < len(locations); i += batchSize {
-		end := i + batchSize
-		if end > len(locations) {
-			end = len(locations)
-		}
+	m.prefetchWriteHistories(locations)
 
-		batchValid := m.validateBatch(txIdx, locations[i:end], originsMap[i:end])
-		valid = valid && batchValid
-		if !valid {
+	valid := true
+	for i, loc := range locations {
+		if !m.validateLocation(txIdx, loc, originsMap[i]) {
+			valid = false
 			break
 		}
 	}
 	return valid
 }
 
-func (m *MvMemory) validateBatch(txIdx int32, locs []MemoryLocationHash, priorOrigins []*ReadOrigins) bool {
-	valid := true
-	for i, loc := range locs {
-		wh := m.data.Get(loc)
-		origins := priorOrigins[i]
-		if wh == nil {
-			_, ok := origins.Last().(*Storage)
-			return origins.Len() == 1 && ok
-		}
-
-		it := wh.AscendRange(txIdx)
-
-		origins.Range(func(priorOrigin ReadOrigin) bool {
-			if po, ok := priorOrigin.(*Memory); ok {
-				entry := it.NextBack()
-				if entry == nil {
-					valid = false
-					return false
-				}
-				if de, ok := entry.Entry.(*DataEntry); ok {
-					if po.Version.TxIdx != entry.TxIdx || de.TxIncarnation != po.Version.TxIncarnation {
-						valid = false
-						return false
-					}
-				} else {
-					valid = false
-					return false
-				}
-			} else if _, ok := priorOrigin.(*Storage); ok {
-				if it.NextBack() != nil {
-					valid = false
-					return false
-				}
-			}
-			return true
-		})
-		if !valid {
-			break
+func (m *MvMemory) prefetchWriteHistories(locs []MemoryLocationHash) {
+	for _, loc := range locs {
+		if wh := m.data.Get(loc); wh != nil {
+			_ = wh.items
 		}
 	}
+}
 
+func (m *MvMemory) validateLocation(txIdx int32, loc MemoryLocationHash, origins *ReadOrigins) bool {
+	valid := true
+	wh := m.data.Get(loc)
+	if wh == nil {
+		_, ok := origins.Last().(*Storage)
+		return origins.Len() == 1 && ok
+	}
+
+	it := wh.AscendRange(txIdx)
+
+	origins.Range(func(priorOrigin ReadOrigin) bool {
+		if po, ok := priorOrigin.(*Memory); ok {
+			entry := it.NextBack()
+			if entry == nil {
+				valid = false
+				return false
+			}
+			if de, ok := entry.Entry.(*DataEntry); ok {
+				if po.Version.TxIdx != entry.TxIdx || de.TxIncarnation != po.Version.TxIncarnation {
+					valid = false
+					return false
+				}
+			} else {
+				valid = false
+				return false
+			}
+		} else if _, ok := priorOrigin.(*Storage); ok {
+			if it.NextBack() != nil {
+				valid = false
+				return false
+			}
+		}
+		return true
+	})
 	return valid
 }
 

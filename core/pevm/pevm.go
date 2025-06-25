@@ -1,13 +1,10 @@
 package pevm
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"math/big"
-	"os"
 	"reflect"
-	"runtime/pprof"
 	"sync"
 	"time"
 
@@ -164,16 +161,17 @@ func NewPEVM(
 }
 
 func (e *PEVM) Run(txs coretypes.Transactions, isSysTxs bool) (*PEVMResult, error) {
-	begin := time.Now()
-	pbuf := bytes.NewBuffer(nil)
-	pprof.StartCPUProfile(pbuf)
-	defer func() {
-		pprof.StopCPUProfile()
-		elapsed := time.Since(begin)
-		if elapsed > 150*time.Millisecond {
-			os.WriteFile(fmt.Sprintf("./pevm-%s.pprof", elapsed), pbuf.Bytes(), 0666)
-		}
-	}()
+	/*
+		begin := time.Now()
+		pbuf := bytes.NewBuffer(nil)
+		pprof.StartCPUProfile(pbuf)
+		defer func() {
+			pprof.StopCPUProfile()
+			elapsed := time.Since(begin)
+			if elapsed > 150*time.Millisecond {
+				os.WriteFile(fmt.Sprintf("./pevm-%s.pprof", elapsed), pbuf.Bytes(), 0666)
+			}
+		}()*/
 	if e.forceSequential || len(txs) < e.concurrencyLevel {
 		return e.serialExecute(txs, isSysTxs)
 	}
