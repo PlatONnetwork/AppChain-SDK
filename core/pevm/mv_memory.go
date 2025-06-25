@@ -412,17 +412,28 @@ func (m *MvMemory) Record(txVersion *TxVersion, readSet *ReadSet, writeSet Write
 		}
 	}
 
+	// Create a map to store WriteHistory instances for each location
+	writeHistories := make(map[MemoryLocationHash]*WriteHistory)
+
+	// First, get or create all the WriteHistory instances
+	for _, entry := range writeSet {
+		h := entry.Hash
+		if _, ok := writeHistories[h]; !ok {
+			writeHistories[h] = m.data.GetOrCreate(h)
+		}
+	}
+
+	// Now, iterate through the writeSet and insert the entries
 	for _, entry := range writeSet {
 		h := entry.Hash
 		value := entry.Value
 
-		wh := m.data.GetOrCreate(h)
+		wh := writeHistories[h]
 		entry := getItem()
 		entry.TxIdx = txVersion.TxIdx
 		entry.Entry = NewDataEntry(txVersion.TxIncarnation, value)
 		wh.ReplaceOrInsert(entry)
 
-		foundInWriteSet = false
 		for _, existing := range newWrites {
 			if existing == h {
 				foundInWriteSet = true
@@ -441,7 +452,7 @@ func (m *MvMemory) Record(txVersion *TxVersion, readSet *ReadSet, writeSet Write
 }
 
 func (m *MvMemory) ValidateReadLocations(txIdx int32) bool {
-	const batchSize = 8 // CPU缓存行大小
+	const batchSize = 8
 
 	lastLocation := m.lastLocations[txIdx]
 
@@ -454,7 +465,6 @@ func (m *MvMemory) ValidateReadLocations(txIdx int32) bool {
 		return true
 	})
 
-	// 批处理验证 (8个一组)
 	valid := true
 	for i := 0; i < len(locations); i += batchSize {
 		end := i + batchSize
