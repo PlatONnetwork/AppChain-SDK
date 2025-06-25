@@ -169,9 +169,17 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 	if db.abortErr != nil {
 		return nil
 	}
+	locationHash := db.hashBasic(addr)
+	if db.isLazy {
+		if locationHash == db.fromHash || locationHash == db.toHash {
+			return nil
+		}
+	}
+	if basic, ok := db.readAccounts[locationHash]; ok {
+		return basic
+	}
 
 	var (
-		locationHash           = db.hashBasic(addr)
 		readOrigins            = db.readSet.GetOrDefault(locationHash)
 		hasPrevOrigins         = readOrigins.Len() > 0
 		newOrigins             = NewReadOrigins()
@@ -179,16 +187,6 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 		nonceAddtion    uint64 = 0
 		finalAccount    *AccountBase
 	)
-
-	if db.isLazy {
-		if locationHash == db.fromHash || locationHash == db.toHash {
-			return nil
-		}
-	}
-
-	if basic, ok := db.readAccounts[locationHash]; ok {
-		return basic
-	}
 
 	if db.txIdx > 0 {
 		if writtenTxs := db.vm.mvMemory.data.Get(locationHash); writtenTxs != nil {

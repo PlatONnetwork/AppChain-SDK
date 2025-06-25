@@ -564,7 +564,7 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 			if committedLocations[locationHash] {
 				continue
 			}
-			writeHistory.Ascend(func(d *item) bool {
+			writeHistory.wh.Ascend(func(d *item) bool {
 				if entry, ok := d.Entry.(*DataEntry); ok {
 					if basic, vok := entry.Value.(*Basic); vok {
 						account := basic.Account

@@ -1,7 +1,6 @@
 package pevm
 
 import (
-	"sort"
 	"sync"
 
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -27,41 +26,75 @@ func putItem(it *item) {
 
 const writeHistoryShards = 256
 
+var shardPool = sync.Pool{
+	New: func() interface{} {
+		return NewWriteHistoryShard()
+	},
+}
+
+func getShard() *WriteHistoryShard {
+	return shardPool.Get().(*WriteHistoryShard)
+}
+
+func putShard(s *WriteHistoryShard) {
+	// 清理 shard 的状态，避免数据污染
+	for _, wh := range s.histories {
+		wh.wh.Release()
+	}
+	s.histories = make(map[MemoryLocationHash]*writeHistoryEntry)
+	shardPool.Put(s)
+}
+
+type writeHistoryEntry struct {
+	wh   *WriteHistory
+	once sync.Once
+}
+
+func (e *writeHistoryEntry) GetOrCreate() *WriteHistory {
+	e.once.Do(func() {
+		e.wh = NewWriteHistory()
+	})
+	return e.wh
+}
+
 type WriteHistoryShard struct {
-	histories map[MemoryLocationHash]*WriteHistory
+	histories map[MemoryLocationHash]*writeHistoryEntry
 	mu        sync.RWMutex
 }
 
 func NewWriteHistoryShard() *WriteHistoryShard {
 	return &WriteHistoryShard{
-		histories: make(map[MemoryLocationHash]*WriteHistory),
+		histories: make(map[MemoryLocationHash]*writeHistoryEntry),
 	}
 }
 
 func (s *WriteHistoryShard) GetOrCreate(loc MemoryLocationHash) *WriteHistory {
 	s.mu.RLock()
-	if wh, ok := s.histories[loc]; ok {
+	if entry, ok := s.histories[loc]; ok {
 		s.mu.RUnlock()
-		return wh
+		return entry.wh
 	}
 	s.mu.RUnlock()
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if wh, ok := s.histories[loc]; ok {
-		return wh
+	if entry, ok := s.histories[loc]; ok {
+		return entry.GetOrCreate()
 	}
 
-	wh := NewWriteHistory()
-	s.histories[loc] = wh
-	return wh
+	entry := &writeHistoryEntry{}
+	s.histories[loc] = entry
+	return entry.GetOrCreate()
 }
 
 func (s *WriteHistoryShard) Get(loc MemoryLocationHash) *WriteHistory {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.histories[loc]
+	if entry, ok := s.histories[loc]; ok {
+		return entry.wh
+	}
+	return nil
 }
 
 func (s *WriteHistoryShard) Has(loc MemoryLocationHash) bool {
@@ -72,8 +105,8 @@ func (s *WriteHistoryShard) Has(loc MemoryLocationHash) bool {
 }
 
 func (s *WriteHistoryShard) Release() {
-	for _, wh := range s.histories {
-		wh.Release()
+	for _, entry := range s.histories {
+		entry.wh.Release()
 	}
 }
 
@@ -84,7 +117,7 @@ type ShardedWriteHistory struct {
 func NewShardedWriteHistory() *ShardedWriteHistory {
 	s := &ShardedWriteHistory{}
 	for i := range s.shards {
-		s.shards[i] = NewWriteHistoryShard()
+		s.shards[i] = getShard()
 	}
 	return s
 }
@@ -106,41 +139,34 @@ func (s *ShardedWriteHistory) Has(loc MemoryLocationHash) bool {
 
 func (s *ShardedWriteHistory) Release() {
 	for _, shard := range s.shards {
-		shard.Release()
+		putShard(shard)
 	}
 }
 
 type WriteHistory struct {
-	// Ascend sorted
-	items []*item
+	items *btree.BTree
 	mu    sync.RWMutex
 }
 
 func NewWriteHistory() *WriteHistory {
 	return &WriteHistory{
-		items: make([]*item, 0, 128),
+		items: btree.New(2),
 	}
 }
 
-// 优化 AscendRange 方法
 func (wh *WriteHistory) AscendRange(txIdx int32) *ItemIterator {
 	wh.mu.RLock()
 	defer wh.mu.RUnlock()
 
-	n := len(wh.items)
-	if n == 0 {
-		return &ItemIterator{items: nil}
-	}
-
-	// 二分查找起始位置（第一个 >= txIdx 的索引）
-	start := sort.Search(n, func(i int) bool {
-		return wh.items[i].TxIdx < txIdx
+	var items []*item
+	wh.items.AscendLessThan(&item{TxIdx: txIdx}, func(entry btree.Item) bool {
+		items = append(items, entry.(*item))
+		return true
 	})
 
-	// 返回从 start 到结尾的切片（降序排列）
 	return &ItemIterator{
-		items: wh.items[start:],
-		index: 0,
+		items: items,
+		index: len(items) - 1,
 	}
 }
 
@@ -148,49 +174,18 @@ func (wh *WriteHistory) Ascend(f func(*item) bool) {
 	wh.mu.RLock()
 	defer wh.mu.RUnlock()
 
-	i := len(wh.items) - 1
-	for ; i >= 0; i-- {
-		if !f(wh.items[i]) {
-			break
-		}
-	}
+	wh.items.Ascend(func(entry btree.Item) bool {
+		return f(entry.(*item))
+	})
 }
 
 func (wh *WriteHistory) ReplaceOrInsert(entry *item) {
 	wh.mu.Lock()
 	defer wh.mu.Unlock()
 
-	n := len(wh.items)
-
-	// 快速路径：空列表或新项最大
-	if n == 0 || entry.TxIdx > wh.items[0].TxIdx {
-		// 在开头插入
-		wh.items = append([]*item{entry}, wh.items...)
-		return
-	}
-
-	// 快速路径：新项最小
-	if entry.TxIdx < wh.items[n-1].TxIdx {
-		wh.items = append(wh.items, entry)
-		return
-	}
-
-	// 二分查找插入位置（降序）
-	idx := sort.Search(n, func(i int) bool {
-		return wh.items[i].TxIdx <= entry.TxIdx
-	})
-
-	if idx < n && wh.items[idx].TxIdx == entry.TxIdx {
-		// 替换
-		putItem(wh.items[idx])
-		wh.items[idx] = entry
-	} else {
-		// 插入
-		wh.items = append(wh.items, nil)
-		if idx < n {
-			copy(wh.items[idx+1:], wh.items[idx:])
-		}
-		wh.items[idx] = entry
+	old := wh.items.ReplaceOrInsert(entry)
+	if old != nil {
+		putItem(old.(*item))
 	}
 }
 
@@ -198,22 +193,18 @@ func (wh *WriteHistory) Delete(txIdx int32) {
 	wh.mu.Lock()
 	defer wh.mu.Unlock()
 
-	idx := sort.Search(len(wh.items), func(i int) bool {
-		return wh.items[i].TxIdx <= txIdx
-	})
-
-	if idx < len(wh.items) && wh.items[idx].TxIdx == txIdx {
-		putItem(wh.items[idx])
-		copy(wh.items[idx:], wh.items[idx+1:])
-		wh.items = wh.items[:len(wh.items)-1]
+	entry := wh.items.Delete(&item{TxIdx: txIdx})
+	if entry != nil {
+		putItem(entry.(*item))
 	}
 }
 
 func (wh *WriteHistory) Release() {
-	for _, entry := range wh.items {
-		cpy := entry
-		putItem(cpy)
-	}
+	wh.items.Ascend(func(entry btree.Item) bool {
+		putItem(entry.(*item))
+		return true
+	})
+	wh.items.Clear(false)
 }
 
 type ItemIterator struct {
@@ -222,11 +213,11 @@ type ItemIterator struct {
 }
 
 func (it *ItemIterator) NextBack() *item {
-	if it.index >= len(it.items) {
+	if it.index < 0 {
 		return nil
 	}
 	item := it.items[it.index]
-	it.index++
+	it.index--
 	return item
 }
 
