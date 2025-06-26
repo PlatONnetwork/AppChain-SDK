@@ -100,7 +100,7 @@ func NewVmDB(
 		accessList:   newAccessList(),
 	}
 	if tx.To() != nil {
-		db.toCodeHash = db.GetCodeHash(*tx.To())
+		db.toCodeHash = db.getCodeHash(*tx.To())
 		db.isLazy = db.toCodeHash == emptyCodeHash &&
 			(vm.mvMemory.data.Has(fromHash) || vm.mvMemory.data.Has(toHash))
 	}
@@ -119,7 +119,7 @@ func (db *VmDB) Init(vm *Vm,
 	db.fromHash = fromHash
 	db.toHash = toHash
 	if tx.To() != nil {
-		db.toCodeHash = db.GetCodeHash(*tx.To())
+		db.toCodeHash = db.getCodeHash(*tx.To())
 		db.isLazy = db.toCodeHash == emptyCodeHash &&
 			(vm.mvMemory.data.Has(fromHash) || vm.mvMemory.data.Has(toHash))
 	}
@@ -345,6 +345,18 @@ func (db *VmDB) GetCodeHash(addr common.Address) common.Hash {
 		return emptyCodeHash
 	}
 
+	locationHash := CodeHashLoc(addr)
+	if locationHash == db.toHash {
+		return db.toCodeHash
+	}
+	return db.getCodeHash(addr)
+}
+
+func (db *VmDB) getCodeHash(addr common.Address) common.Hash {
+	if db.abortErr != nil {
+		return emptyCodeHash
+	}
+
 	if h, ok := db.readCodeHash[addr]; ok {
 		return h
 	}
@@ -458,6 +470,7 @@ func (db *VmDB) HasSuicided(addr common.Address) bool {
 		return true
 	}
 
+	// FIXME: read from mv memory
 	if acc := db.getAccountBasic(addr); acc != nil {
 		return acc.Suicided
 	}
