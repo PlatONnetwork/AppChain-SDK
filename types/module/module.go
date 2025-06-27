@@ -181,7 +181,10 @@ type TxExecutorModule interface {
 	Module
 	ExecuteTxs(ctx sdk.WorkerContext, cApp sdk.ContractsApp, txs types.Transactions) (types.Receipts, uint64, error)
 }
-
+type BlockExecutorModule interface {
+	Module
+	CreateBlockExecutor(ctx sdk.BlockchainContext) (sdk.BlockExecutor, error)
+}
 type UpgradeRegistrar interface {
 	RegisterUpgradeHandler(module string, version uint64, handler UpgradeHandler) error
 }
@@ -196,6 +199,7 @@ type Manager struct {
 	ConsensusExtend     string
 	Election            string
 	Worker              string
+	BlockExecutor       string
 	TxFiller            string
 	TxExecutor          string
 	ConsensusNetwork    string
@@ -291,7 +295,13 @@ func (m *Manager) SetTxExecutor(moduleName string) {
 	}
 	m.TxExecutor = moduleName
 }
-
+func (m *Manager) SetBlockExecutor(moduleName string) {
+	mod := m.Modules[moduleName]
+	if _, has := mod.(BlockExecutorModule); !has {
+		panic(fmt.Sprintf("TxExecutorModule %s missing", moduleName))
+	}
+	m.BlockExecutor = moduleName
+}
 func (m *Manager) SetConsensusNetwork(moduleName string) {
 	mod := m.Modules[moduleName]
 	if _, has := mod.(ConsensusNetworkModule); !has {
@@ -398,7 +408,7 @@ func (m *Manager) Protocols() []p2p.Protocol {
 }
 
 func (m *Manager) CheckTx(ctx sdk.Context, tx *types.Transaction) error {
-	log.Debug("Check transaction for tx pool", "hash", tx.Hash())
+	log.Trace("Check transaction for tx pool", "hash", tx.Hash())
 	for _, moduleName := range m.OrderTxPool {
 		statedb, _ := ctx.Backend().State()
 		if !m.isModuleValid(statedb, moduleName, ctx.Backend().CurrentHeader().Number.Uint64()) {
@@ -669,6 +679,12 @@ func (m *Manager) ExecuteTxs(ctx sdk.WorkerContext, cApp sdk.ContractsApp, txs t
 	return nil, 0, nil
 }
 
+func (m *Manager) CreateBlockExecutor(ctx sdk.BlockchainContext) (sdk.BlockExecutor, error) {
+	if module, ok := m.Modules[m.BlockExecutor].(BlockExecutorModule); ok {
+		return module.CreateBlockExecutor(ctx)
+	}
+	return nil, nil
+}
 func (m *Manager) RegisterUpgradeHandler(registrar UpgradeRegistrar) error {
 	for _, module := range m.Modules {
 		if mod, ok := module.(RegistryModule); ok {

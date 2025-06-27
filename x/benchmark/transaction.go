@@ -18,7 +18,7 @@ func createRawTransfer(signer types.Signer, from *ecdsa.PrivateKey, to common.Ad
 		Nonce:    nonce,
 		To:       &to,
 		Value:    big.NewInt(1),
-		Gas:      200000,
+		Gas:      30000,
 		GasPrice: gasPrice,
 		Data:     nil,
 	})

@@ -157,11 +157,11 @@ func (s *SimApp) SortTxs(ctx sdk.WorkerContext, local, remote map[common.Address
 }
 
 func (s *SimApp) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackApp) (types.Transactions, types.Receipts, error) {
-	return nil, nil, nil
+	return s.manager.FillTransactions(ctx, cb)
 }
 
 func (s *SimApp) ExecuteTxs(ctx sdk.WorkerContext, cApp vm.ContractsApp, txs types.Transactions) (types.Receipts, uint64, error) {
-	return nil, 0, nil
+	return s.manager.ExecuteTxs(ctx, cApp, txs)
 }
 
 func (s *SimApp) StartNetworkEngine() {
@@ -187,4 +187,7 @@ func (s *SimApp) PeerSetting(peerID string, bType uint64, blockNumber uint64) er
 }
 func (s *SimApp) RemovePeer(id string) {
 	s.manager.RemovePeer(id)
+}
+func (s *SimApp) CreateBlockExecutor(ctx sdk.BlockchainContext) (sdk.BlockExecutor, error) {
+	return s.manager.CreateBlockExecutor(ctx)
 }

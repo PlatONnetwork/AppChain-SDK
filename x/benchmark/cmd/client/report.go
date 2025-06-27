@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/x/benchmark"
 	"gopkg.in/urfave/cli.v1"
-	"math/big"
 	"os"
 	"time"
 )
@@ -48,44 +47,45 @@ func generateReport(clis []*Connection, start, end uint64) ([][]string, error) {
 	lastTxLength := 0
 	for i := start; i <= end; i++ {
 		beginTime := time.Now()
-		block, err := clis[0].BlockByNumber(context.Background(), new(big.Int).SetUint64(i))
-		if err != nil {
-			return nil, err
-		}
 		var info benchmark.BlockInfo
-		info.Number = block.NumberU64()
-		info.ProduceTime = block.Time()
 		for _, cli := range clis {
 			f, err := cli.GetBlockState(context.Background(), i)
 			if err != nil {
 				return nil, err
 			}
-			if f.Number != block.NumberU64() || f.ProduceTime != block.Time() {
-				return nil, fmt.Errorf("get block info failed, expect:%d,%d, actual:%d,%d", block.NumberU64(), block.Time(), f.Number, f.ProduceTime)
-			}
-
+			info.Number = f.Number
+			info.ProduceTime = f.ProduceTime
+			info.TotalLength = f.TotalLength
 			info.TimeUse += f.TimeUse
 			info.TxLength += f.TxLength
 		}
 		fmt.Println("get block finish", info.Number, "cost", time.Since(beginTime))
 
 		if i != start {
-			tps := float64(txTotal) / (float64(block.Time()-startTime) / float64(1000))
+			tps := float64(txTotal) / (float64(info.ProduceTime-startTime) / float64(1000))
 			latency := float64(0)
 			if info.TxLength != 0 {
 				latency = (float64(info.TimeUse) / float64(1000)) / float64(info.TxLength)
 			}
 			report = append(report, []string{
-				time.UnixMilli(int64(info.ProduceTime)).Format("2006-01-02 15:04:05.123"),
-				fmt.Sprintf("%d", lastTxLength),
+				fmt.Sprintf("%d", i),
+				time.UnixMilli(int64(info.ProduceTime)).Format(time.RFC3339Nano),
+				fmt.Sprintf("%d", info.TotalLength),
 				fmt.Sprintf("%.3f", tps),
 				fmt.Sprintf("%.3f", latency),
 			})
 		} else {
-			startTime = block.Time()
+			startTime = info.ProduceTime
+			report = append(report, []string{
+				fmt.Sprintf("%d", i),
+				time.UnixMilli(int64(info.ProduceTime)).Format(time.RFC3339Nano),
+				fmt.Sprintf("%d", lastTxLength),
+				fmt.Sprintf("%d", 0),
+				fmt.Sprintf("%d", 0),
+			})
 		}
-		lastTxLength = block.Transactions().Len()
-		txTotal += int64(block.Transactions().Len())
+		lastTxLength = info.TotalLength
+		txTotal += int64(info.TotalLength)
 
 	}
 	return report, nil

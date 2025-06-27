@@ -138,7 +138,7 @@ func (r *router) SendMessage(m *types.MsgPackage) {
 // 2.Some message types return all consensus nodes and random non-consensus nodes.
 func (r *router) filteredPeers(msgType uint64, condition common.Hash) ([]*peer, error) {
 	switch msgType {
-	case protocols.PrepareBlockMsg, protocols.PrepareVoteMsg, protocols.BlockQuorumCertMsg, protocols.ViewChangeQuorumCertMsg:
+	case protocols.PrepareHeaderMsg, protocols.PrepareBlockMsg, protocols.PrepareVoteMsg, protocols.BlockQuorumCertMsg, protocols.ViewChangeQuorumCertMsg:
 		return r.kMixingRandomNodes(condition, r.filter)
 	case protocols.ViewChangeMsg:
 		return r.kConsensusRandomNodes(false, condition) // ViewChangeMsg 只发给所有共识节点，只在共识节点间扩散

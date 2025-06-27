@@ -152,7 +152,7 @@ func NewPEVM(
 		logger:           logger,
 		env:              env,
 		cApp:             cApp,
-		signer:           coretypes.NewEIP155Signer(env.ChainConfig.ChainID),
+		signer:           coretypes.NewLondonSigner(env.ChainConfig.ChainID),
 
 		gp: new(core.GasPool).AddGas(env.Header.GasLimit),
 	}
@@ -186,7 +186,7 @@ func (e *PEVM) applyTransaction(tx *coretypes.Transaction) (*coretypes.Receipt, 
 		header   = e.env.Header
 		statedb  = e.env.StateDB
 	)
-	receipt, err := core.ApplyTransaction(chainCfg, chainCtx, e.gp, statedb, header, tx, &e.cumulativeGasUsed, vmCfg, e.cApp)
+	receipt, err := core.ApplyTransactionWithHash(chainCfg, chainCtx, e.gp, statedb, header, common.Hash{}, tx, &e.cumulativeGasUsed, vmCfg, e.cApp)
 	if err != nil {
 		e.logger.Error("Failed to apply transaction",
 			"blockNumber", header.Number,

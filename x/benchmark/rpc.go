@@ -20,6 +20,7 @@ type Status struct {
 type BlockInfo struct {
 	ProduceTime uint64 `json:"id_time"`
 	Number      uint64 `json:"block"`
+	TotalLength int    `json:"total_length"`
 	TxLength    int    `json:"tx_length"`
 	TimeUse     uint64 `json:"time_use"`
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/crypto/bls"
 	"github.com/PlatONnetwork/PlatON-Go/p2p/enode"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
+	"math/big"
 )
 
 type Validator struct {
@@ -37,6 +38,7 @@ func NewValidator(accounts []*Account) (*Validator, error) {
 			PubKey:    &nodePrivate.PublicKey,
 			NodeID:    node.ID(),
 			BlsPubKey: blsKey.GetPublicKey(),
+			Shares:    big.NewInt(1),
 		}
 	}
 	validators.Nodes = nodeMap

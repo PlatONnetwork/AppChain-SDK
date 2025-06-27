@@ -270,7 +270,11 @@ func (m *Module) sendTx(txs []*types.Transaction) {
 			randomIndex := rand.Intn(len(tmp))
 			sendPeer = tmp[randomIndex]
 		}
-		m.logger.Debug("Didn't found leader connection, select a validator connection", "leader", leader, "peer", sendPeer.Id())
+		if sendPeer == nil {
+			m.logger.Warn("Didn't found any connection", "leader", leader)
+		} else {
+			m.logger.Debug("Didn't found leader connection, select a validator connection", "leader", leader, "peer", sendPeer.Id())
+		}
 
 	}
 	if sendPeer != nil {

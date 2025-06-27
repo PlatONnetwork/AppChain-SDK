@@ -441,7 +441,14 @@ func (h *EngineManager) handleMsg(p *peer) error {
 	case msg.Code == protocols.CBFTStatusMsg:
 		// CBFTStatusMsg belongs to the type of handshake message and will not appear here.
 		return types.ErrResp(types.ErrExtraStatusMsg, "uncontrolled status message")
-
+	case msg.Code == protocols.PrepareHeaderMsg:
+		var request protocols.PrepareHeader
+		if err := msg.Decode(&request); err != nil {
+			return types.ErrResp(types.ErrDecode, "%v: %v", msg, err)
+		}
+		p.MarkMessageHash((&request).MsgHash())
+		// Message transfer to cbft message queue.
+		return h.engine.ReceiveMessage(types.NewMsgInfo(&request, p.PeerID()))
 	case msg.Code == protocols.PrepareBlockMsg:
 		var request protocols.PrepareBlock
 		if err := msg.Decode(&request); err != nil {

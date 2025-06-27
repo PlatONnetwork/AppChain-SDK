@@ -55,6 +55,7 @@ type Params struct {
 	rawTxPercent      int
 	contractTxPercent int
 	sendTxPool        bool
+	amount            int
 }
 type Statistics struct {
 	start   time.Time
@@ -154,18 +155,19 @@ func (m *Module) APIs() []rpc.API {
 func (m *Module) createTransactions(amount uint64) error {
 	rawStartIndex := m.startIndex
 	rawEndIndex := m.startIndex + (m.endIndex-m.startIndex)*m.rawTxPercent/(m.rawTxPercent+m.contractTxPercent)
-	contractStartIndex := rawEndIndex
-	contractEndIndex := m.endIndex + 1
+	contractStartIndex := rawEndIndex + 1
+	contractEndIndex := m.endIndex
 	sum := uint64(0)
 	m.logger.Debug("create tx", "rawStartIndex", rawStartIndex, "rawEndIndex", rawEndIndex, "contractStartIndex", contractStartIndex, "contractEndIndex", contractEndIndex, "amount", amount)
 	for amount > sum {
-		for i := rawStartIndex; i < rawEndIndex && amount > sum; i, sum = i+1, sum+1 {
+		for i := rawStartIndex; i <= rawEndIndex && amount > sum; i, sum = i+1, sum+1 {
 			m.Lock()
 			k := m.keys[i]
 			txs := m.txCache[k.addr]
 			nonce := uint64(0)
 			if len(txs) == 0 {
 				nonce = m.txPool.Nonce(k.addr)
+				m.logger.Debug("create tx", "address", k.addr, "nonce", nonce)
 			} else {
 				nonce = txs[len(txs)-1].Nonce() + 1
 			}
@@ -174,6 +176,7 @@ func (m *Module) createTransactions(amount uint64) error {
 				m.Unlock()
 				return err
 			}
+			types.Sender(m.signer, tx)
 			txs = append(txs, tx)
 			m.txCache[k.addr] = txs
 			m.Unlock()
@@ -194,10 +197,14 @@ func (m *Module) createTransactions(amount uint64) error {
 				m.Unlock()
 				return err
 			}
+			types.Sender(m.signer, tx)
 			txs = append(txs, tx)
 			m.txCache[k.addr] = txs
 			m.Unlock()
 		}
+	}
+	for k, v := range m.txCache {
+		m.logger.Debug("create tx result", "address", k, "len", len(v), "nonce", v[0].Nonce())
 	}
 	return nil
 }
@@ -206,6 +213,7 @@ func (m *Module) start(amount uint64, sendTxPool bool) error {
 	m.Lock()
 	defer m.Unlock()
 	m.sendTxPool = sendTxPool
+	m.amount = int(amount)
 	if m.starting.Load() {
 		return errors.New("had started")
 	}
@@ -224,7 +232,32 @@ func (m *Module) stop() error {
 }
 
 func (m *Module) SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions, remote map[common.Address]types.Transactions) (types.Transactions, error) {
-	m.logger.Warn("benchmark sort txs", "local", len(local), "remote", len(remote))
+	m.logger.Warn("benchmark sort txs", "local", len(local), "remote", len(remote), "number", ctx.Header().Number)
+	if m.starting.Load() {
+		var txs types.Transactions
+		sum := 0
+		for k, v := range m.txCache {
+			nonce := ctx.StateDB().GetNonce(k)
+			start := int(nonce - v[0].Nonce())
+			end := len(v)
+			if sum+len(v)-start > m.amount {
+				end = start + m.amount - sum
+			}
+			m.logger.Debug("Sort Txs", "address", k, "len", len(v), "nonce", nonce, "firstNonce", v[0].Nonce(), "start", start, "end", end, "amount", m.amount, "sum", sum)
+			txs = append(txs, v[start:end]...)
+			
+			sum += end - start
+			in := time.Now().UnixMilli()
+			for _, t := range v[start:end] {
+				m.sent.Store(t.Hash(), uint64(in))
+			}
+			m.send.Add(uint64(end - start))
+			if sum >= m.amount {
+				break
+			}
+		}
+		return txs, nil
+	}
 	if m.send.Load() >= m.pendingLimit {
 		allTxs := make(types.Transactions, 0)
 		for _, txs := range local {
@@ -264,6 +297,7 @@ func (m *Module) OnCommit(ctx sdk.ConsensusContext, block *types.Block) error {
 		blockInfo := &BlockInfo{
 			ProduceTime: now,
 			Number:      block.NumberU64(),
+			TotalLength: block.Transactions().Len(),
 			TxLength:    count,
 			TimeUse:     elapsed,
 		}

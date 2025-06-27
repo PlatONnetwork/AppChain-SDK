@@ -323,7 +323,6 @@ func (app *BaseApp) SortTxs(ctx sdk.WorkerContext, local, remote map[common.Addr
 	return app.manager.SortTxs(ctx, local, remote)
 }
 
-<<<<<<< HEAD
 func (app *BaseApp) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackApp) (types.Transactions, types.Receipts, error) {
 	if app.txFiller != nil {
 		return app.txFiller(ctx, cb)
@@ -336,7 +335,7 @@ func (app *BaseApp) ExecuteTxs(ctx sdk.WorkerContext, cApp sdk.ContractsApp, txs
 		return app.txExecutor(ctx, cApp, txs)
 	}
 	return nil, 0, nil
-=======
+}
 func (app *BaseApp) StartNetworkEngine() {
 	app.manager.StartNetworkEngine()
 }
@@ -360,5 +359,4 @@ func (app *BaseApp) PeerSetting(peerID string, bType uint64, blockNumber uint64)
 }
 func (app *BaseApp) RemovePeer(id string) {
 	app.manager.RemovePeer(id)
->>>>>>> performance
 }

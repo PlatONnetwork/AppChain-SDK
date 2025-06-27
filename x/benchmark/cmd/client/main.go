@@ -20,7 +20,7 @@ var (
 	rawTxPercentFlag = cli.IntFlag{Name: "rawtx", EnvVar: "BENCHMARK_RAWTX", Value: 100, Usage: "The proportion of transactions to the total number of transactions"}
 	countFlag        = cli.Uint64Flag{Name: "count", EnvVar: "BENCHMARK_COUNT", Value: 10000, Usage: "Generate transaction count"}
 	tpsFlag          = cli.Uint64Flag{Name: "tps", EnvVar: "BENCHMARK_TPS", Value: 1000, Usage: " Sent txs per second"}
-	sendTxPoolFlag   = cli.BoolTFlag{Name: "txpool", Usage: "Transactions send to the txpool"}
+	sendTxPoolFlag   = cli.BoolFlag{Name: "txpool", Usage: "Transactions send to the txpool"}
 	startBlockFlag   = cli.Uint64Flag{Name: "start", EnvVar: "BENCHMARK_STARTBLOCK", Usage: "Start block number"}
 	endBlockFlag     = cli.Uint64Flag{Name: "end", EnvVar: "BENCHMARK_ENDBLOCK", Usage: "End block number"}
 	GenTxCommand     = cli.Command{
@@ -136,7 +136,7 @@ func Start(ctx *cli.Context) error {
 		return err
 	}
 	tps := ctx.Uint64(tpsFlag.Name)
-	sendTxPool := ctx.BoolT(sendTxPoolFlag.Name)
+	sendTxPool := ctx.Bool(sendTxPoolFlag.Name)
 	for _, cli := range clis {
 		err = cli.Start(context.Background(), tps, sendTxPool)
 		if err != nil {

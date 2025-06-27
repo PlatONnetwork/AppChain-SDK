@@ -363,5 +363,5 @@ func (s *SimApp) RemovePeer(id string) {
 	s.RemovePeer(id)
 }
 func (s *SimApp) CreateBlockExecutor(ctx sdk.BlockchainContext) (sdk.BlockExecutor, error) {
-	return s.manager.
+	return s.manager.CreateBlockExecutor(ctx)
 }
