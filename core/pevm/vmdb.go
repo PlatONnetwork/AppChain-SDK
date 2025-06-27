@@ -218,6 +218,7 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 	if db.txIdx > 0 {
 		if writtenTxs := db.vm.mvMemory.data.Get(locationHash); writtenTxs != nil {
 			it := writtenTxs.AscendRange(db.txIdx)
+			defer it.Release()
 		itLoop:
 			for {
 				entry := it.NextBack()
@@ -377,6 +378,7 @@ func (db *VmDB) getCodeHash(addr common.Address) common.Hash {
 
 	if writtenTxs := db.vm.mvMemory.data.Get(locationHash); writtenTxs != nil {
 		it := writtenTxs.AscendRange(db.txIdx)
+		defer it.Release()
 		entryItem := it.NextBack()
 		if entryItem != nil {
 			if entry, ok := entryItem.Entry.(*DataEntry); ok {
@@ -447,6 +449,7 @@ func (db *VmDB) GetState(addr common.Address, key []byte) []byte {
 	if db.txIdx > 0 {
 		if writtenTxs := db.vm.mvMemory.data.Get(locationHash); writtenTxs != nil {
 			it := writtenTxs.AscendRange(db.txIdx)
+			defer it.Release()
 			entry := it.NextBack()
 			if entry != nil {
 				if de, ok := entry.Entry.(*DataEntry); ok {
