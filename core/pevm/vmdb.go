@@ -52,6 +52,7 @@ type VmDB struct {
 	txIdx        int32
 	tx           *coretypes.Transaction
 	fromAddr     common.Address
+	toAddr       common.Address
 	fromHash     MemoryLocationHash
 	toHash       MemoryLocationHash
 	toCodeHash   common.Hash
@@ -85,6 +86,7 @@ func NewVmDB(
 		txIdx:        txIdx,
 		tx:           tx,
 		fromAddr:     fromAddr,
+		toAddr:       common.ZeroAddr,
 		fromHash:     fromHash,
 		toHash:       toHash,
 		readSet:      NewReadSet(),
@@ -100,7 +102,8 @@ func NewVmDB(
 		accessList:   newAccessList(),
 	}
 	if tx.To() != nil {
-		db.toCodeHash = db.getCodeHash(*tx.To())
+		db.toAddr = *tx.To()
+		db.toCodeHash = db.getCodeHash(db.toAddr)
 		db.isLazy = db.toCodeHash == emptyCodeHash &&
 			(vm.mvMemory.data.Has(fromHash) || vm.mvMemory.data.Has(toHash))
 	}
@@ -118,10 +121,18 @@ func (db *VmDB) Init(vm *Vm,
 	db.fromAddr = fromAddr
 	db.fromHash = fromHash
 	db.toHash = toHash
-	if tx.To() != nil {
-		db.toCodeHash = db.getCodeHash(*tx.To())
+	toAddr := tx.To()
+	if toAddr != nil {
+		db.toAddr = *toAddr
+		db.toCodeHash = db.getCodeHash(db.toAddr)
 		db.isLazy = db.toCodeHash == emptyCodeHash &&
 			(vm.mvMemory.data.Has(fromHash) || vm.mvMemory.data.Has(toHash))
+	}
+	if !db.isLazy {
+		db.getAccountBasic(db.fromAddr)
+		if toAddr != nil {
+			db.getAccountBasic(db.toAddr)
+		}
 	}
 }
 
@@ -175,7 +186,7 @@ func (db *VmDB) hashBasic(addr common.Address) MemoryLocationHash {
 	if addr == db.fromAddr {
 		return db.fromHash
 	}
-	if db.tx.To() != nil && addr == *db.tx.To() {
+	if db.toAddr != common.ZeroAddr && addr == db.toAddr {
 		return db.toHash
 	}
 	return BasicLoc(addr)
@@ -268,7 +279,7 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 			//CodeHash: db.GetCodeHash(addr),
 			//CodeSize: db.GetCodeSize(addr),
 			//Code:     db.GetCode(addr),
-			Suicided: db.vm.statedb.HasSuicided(addr),
+			//Suicided: db.vm.statedb.HasSuicided(addr),
 		}
 	} else {
 		finalAccount = finalAccount.Clone()

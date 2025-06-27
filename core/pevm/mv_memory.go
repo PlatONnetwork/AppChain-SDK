@@ -5,9 +5,11 @@ import (
 	"sync"
 
 	"github.com/PlatONnetwork/PlatON-Go/common"
-	"github.com/google/btree"
 	cmap "github.com/orcaman/concurrent-map/v2"
 )
+
+const writeHistoryShards = 256
+const linearThreshold = 32
 
 var itemPool = sync.Pool{
 	New: func() interface{} {
@@ -24,8 +26,6 @@ func putItem(it *item) {
 	it.Entry = nil
 	itemPool.Put(it)
 }
-
-const writeHistoryShards = 256
 
 var shardPool = sync.Pool{
 	New: func() interface{} {
@@ -179,12 +179,23 @@ func (wh *WriteHistory) ReplaceOrInsert(entry *item) {
 	defer wh.mu.Unlock()
 
 	n := len(wh.items)
-	if n == 0 || entry.TxIdx > wh.items[0].TxIdx {
-		wh.items = append([]*item{entry}, wh.items...)
-		return
-	}
 
-	if entry.TxIdx < wh.items[n-1].TxIdx {
+	if n < linearThreshold {
+		for i := 0; i < n; i++ {
+			if wh.items[i].TxIdx == entry.TxIdx {
+				putItem(wh.items[i])
+				wh.items[i] = entry
+				return
+			}
+			if wh.items[i].TxIdx < entry.TxIdx {
+				// 插入到当前位置
+				wh.items = append(wh.items, nil)
+				copy(wh.items[i+1:], wh.items[i:])
+				wh.items[i] = entry
+				return
+			}
+		}
+		// 追加到末尾
 		wh.items = append(wh.items, entry)
 		return
 	}
@@ -366,10 +377,6 @@ func (la *LazyAddresses) Range(f func(common.Address) bool) {
 type item struct {
 	TxIdx int32
 	Entry MemoryEntry
-}
-
-func (it item) Less(rh btree.Item) bool {
-	return it.TxIdx < rh.(*item).TxIdx
 }
 
 type MvMemory struct {
