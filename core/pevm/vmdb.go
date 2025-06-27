@@ -427,12 +427,11 @@ func (db *VmDB) GetState(addr common.Address, key []byte) []byte {
 	}
 
 	locationHash := StateLoc(addr, key)
-	readOrigins := db.readSet.GetOrDefault(locationHash)
-
 	if val, exist := db.getStateFromCache(addr, key); exist {
 		return val
 	}
 
+	readOrigins := db.readSet.GetOrDefault(locationHash)
 	// Try reading from multi-version data
 	if db.txIdx > 0 {
 		if writtenTxs := db.vm.mvMemory.data.Get(locationHash); writtenTxs != nil {
@@ -511,9 +510,6 @@ func (db *VmDB) GetLogs(hash common.Hash, blockHash common.Hash) []*coretypes.Lo
 func (db *VmDB) CreateAccount(addr common.Address) {
 	if db.abortErr != nil {
 		return
-	}
-	if _, ok := db.dirties[addr]; !ok {
-		db.dirties[addr] = struct{}{}
 	}
 	if db.getAccountBasic(addr) == nil {
 		basic := NewEmptyAccountBase(addr)

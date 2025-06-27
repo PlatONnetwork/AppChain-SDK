@@ -179,7 +179,7 @@ type AccountBase struct {
 func NewEmptyAccountBase(addr common.Address) *AccountBase {
 	return &AccountBase{
 		Addr:     addr,
-		Balance:  common.Big0,
+		Balance:  big.NewInt(0),
 		CodeHash: common.Hash(emptyCodeHash),
 	}
 }
