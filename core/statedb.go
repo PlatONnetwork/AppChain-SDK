@@ -11,3 +11,9 @@ func CloneStateDB(statedb sdk.StateDB) sdk.StateDB {
 	}
 	return nil
 }
+
+func CleanStateDB(statedb sdk.StateDB) {
+	if s, ok := statedb.(*state.StateDB); ok {
+		s.ClearParentReference()
+	}
+}

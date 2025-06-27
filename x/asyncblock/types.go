@@ -3,6 +3,7 @@ package asyncblock
 import (
 	"errors"
 	"fmt"
+	"github.com/PlatONnetwork/AppChain-SDK/core"
 	"github.com/PlatONnetwork/AppChain-SDK/core/pevm"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
@@ -149,12 +150,14 @@ func (e *EntryExecutorTree) GetBlockExecutor(blockNumber uint64) []*EntryExecuto
 	}
 	return nil
 }
+
 func (e *EntryExecutorTree) Clean(epoch, view uint64, finishFn func(e *EntryExecutor)) {
 	e.Lock()
 	defer e.Unlock()
 	for k, exes := range e.tree {
 		for _, exe := range exes {
 			if exe.epoch < epoch || (exe.epoch == epoch && exe.view < view) {
+				core.CleanStateDB(exe.statedb)
 				if exe.running.Load() == DONE {
 					finishFn(exe)
 				}
