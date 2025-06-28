@@ -3,12 +3,11 @@ package asyncblock
 import (
 	"errors"
 	"fmt"
-	"github.com/PlatONnetwork/AppChain-SDK/core"
 	"github.com/PlatONnetwork/AppChain-SDK/core/pevm"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
-	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/event"
+	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/p2p/enode"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
@@ -157,7 +156,7 @@ func (e *EntryExecutorTree) Clean(epoch, view uint64, finishFn func(e *EntryExec
 	for k, exes := range e.tree {
 		for _, exe := range exes {
 			if exe.epoch < epoch || (exe.epoch == epoch && exe.view < view) {
-				core.CleanStateDB(exe.statedb)
+				//core.CleanStateDB(exe.statedb)
 				if exe.running.Load() == DONE {
 					finishFn(exe)
 				}
@@ -189,7 +188,7 @@ func (e *EntryExecutorTree) FindBlockNumbers() []uint64 {
 type BlockStateCache struct {
 	sync.Mutex
 	logger      log.Logger
-	executing   *EntryExecutor
+	executing   atomic.Value
 	splitBlock  sync.Map //map[uint64]struct{}
 	blocks      sync.Map
 	fragments   *EntryExecutorTree
@@ -262,11 +261,12 @@ func (b *BlockStateCache) Clean(epoch, view uint64) {
 }
 
 func (b *BlockStateCache) FindExecutableEntry() {
-	b.Lock()
-	defer b.Unlock()
-	if b.executing != nil && b.executing.Status() == RUNNING {
+	exe := b.executing.Load()
+	if exe != nil && exe.(*EntryExecutor).Status() == RUNNING {
 		return
 	}
+	b.Lock()
+	defer b.Unlock()
 	nums := b.fragments.FindBlockNumbers()
 	skip := false
 	b.logger.Debug("Find block number entry", "nums", nums)
@@ -279,7 +279,7 @@ func (b *BlockStateCache) FindExecutableEntry() {
 			b.logger.Debug("Block executor status", "blockNumber", n, "status", status)
 			switch status {
 			case READY, PAUSE:
-				b.executing = v
+				b.executing.Store(v)
 				v.Execute()
 				if v.Status() != DONE {
 					skip = true

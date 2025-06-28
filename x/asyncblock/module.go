@@ -121,7 +121,7 @@ func (m *Module) genEnv(header *types.Header, parentSealHash, parentHash common.
 		return nil, nil, nil, err
 	}
 	return statedb, pevm.NewPEVM(
-		true,
+		false,
 		4,
 		32,
 		m.logger,
@@ -223,31 +223,6 @@ func (m *Module) BlockBody(ctx sdk.BlockExecutorContext, blockNumber *big.Int, e
 	return m.bsc.TryFindBody(view, blockNumber.Uint64())
 }
 
-func (m *Module) createEVMEnv(header *types.Header, worker bool, deadline time.Time) (*pevm.PEVM, error) {
-	statedb, err := m.chain.StateDbMaker().MakeStateDB(header)
-	if err != nil {
-		return nil, err
-	}
-	chainConfig := m.chain.ChainReader().Config()
-	chainContext := m.chain.ChainReader()
-	vmConfig := *m.chain.ChainReader().GetVMConfig()
-	evm := pevm.NewPEVM(
-		true,
-		4,
-		32,
-		m.logger,
-		&pevm.Env{
-			Header:        header,
-			StateDB:       statedb,
-			ChainConfig:   chainConfig,
-			ChainContext:  chainContext,
-			VMConfig:      vmConfig,
-			IsWorker:      worker,
-			BlockDeadline: deadline,
-		}, m.chain.ChainReader().ContractApp())
-
-	return evm, nil
-}
 func (m *Module) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackApp) (types.Transactions, types.Receipts, error) {
 	var (
 		allReceipts = make(types.Receipts, 0)
@@ -255,7 +230,7 @@ func (m *Module) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackA
 		usedGas     uint64
 		begin       = time.Now()
 		pevm        = pevm.NewPEVM(
-			true,
+			false,
 			4,
 			32,
 			m.logger,
@@ -388,16 +363,17 @@ func (m *Module) executeLoop() {
 		select {
 		case <-m.stateChangeCh:
 			log.Info("state change ch")
-			m.bsc.FindExecutableEntry()
+			go m.bsc.FindExecutableEntry()
 		case <-tick:
 			log.Info("state change tick")
 			//todo find next executable entry
-			m.bsc.FindExecutableEntry()
+			go m.bsc.FindExecutableEntry()
 		}
 	}
 }
 
 func (m *Module) handleEntry(peer sdkp2p.Peer, msg *EntryMsg) error {
+	m.logger.Debug("handle receive entry ", "epoch", msg.Epoch, "view", msg.View, "blockNumber", msg.BlockNumber, "entryNumber", msg.EntryNumber)
 	//verify signature
 	if err := m.cs.VerifyEntry(&msg.Entry); err != nil {
 		m.logger.Error("Verify entry failed", "err", err)
@@ -405,9 +381,14 @@ func (m *Module) handleEntry(peer sdkp2p.Peer, msg *EntryMsg) error {
 	}
 
 	//create state
+	m.logger.Debug("receive entry success", "epoch", msg.Epoch, "view", msg.View, "blockNumber", msg.BlockNumber, "entryNumber", msg.EntryNumber)
+
 	m.bsc.AddEntry(&msg.Entry)
-	m.fillSender(msg.Transactions)
+	m.logger.Debug("entry receive entry success", "epoch", msg.Epoch, "view", msg.View, "blockNumber", msg.BlockNumber, "entryNumber", msg.EntryNumber)
+
+	go m.fillSender(msg.Transactions)
 	m.stateChangeCh <- struct{}{}
+
 	m.logger.Debug("Add entry success", "epoch", msg.Epoch, "view", msg.View, "blockNumber", msg.BlockNumber, "entryNumber", msg.EntryNumber)
 	return nil
 }
@@ -434,11 +415,12 @@ func (m *Module) HandleMsg(peer sdkp2p.Peer, msg sdkp2p.Message) error {
 
 func (m *Module) fillSender(txs types.Transactions) {
 	start := time.Now()
+
 	end := uint32(txs.Len())
 	index := atomic.Uint32{}
 	group := sync.WaitGroup{}
-	group.Add(4)
-	for i := 0; i < 4; i++ {
+	group.Add(2)
+	for i := 0; i < 2; i++ {
 		go func() {
 			defer group.Done()
 			for {

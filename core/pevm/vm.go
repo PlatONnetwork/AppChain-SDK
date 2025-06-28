@@ -1,7 +1,6 @@
 package pevm
 
 import (
-	"bytes"
 	"math/big"
 
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -52,13 +51,6 @@ func NewVm(
 }
 
 func (vm *Vm) Execute(txVersion *TxVersion) (result *VmExecutionResult, err error) {
-	defer func() {
-		if catchErr := recover(); catchErr != nil {
-			if realErr, ok := catchErr.(error); ok {
-				err = ToVmExecutionError(realErr)
-			}
-		}
-	}()
 	var (
 		tx       = vm.txs[txVersion.TxIdx]
 		fromAddr = tx.FromAddr(vm.signer)
@@ -69,7 +61,11 @@ func (vm *Vm) Execute(txVersion *TxVersion) (result *VmExecutionResult, err erro
 		toHash = BasicLoc(*tx.To())
 	}
 
-	db := NewVmDB(vm, txVersion.TxIdx, tx, fromAddr, fromHash, toHash)
+	db := AcquireVmDB() //NewVmDB(vm, txVersion.TxIdx, tx, fromAddr, fromHash, toHash)
+	db.Init(vm, txVersion.TxIdx, tx, fromAddr, fromHash, toHash)
+	defer func() {
+		ReleaseVmDB(db)
+	}()
 	chainCtx := vm.env.ChainContext
 	chainCfg := vm.env.ChainConfig
 	vmCfg := vm.env.VMConfig
@@ -78,6 +74,9 @@ func (vm *Vm) Execute(txVersion *TxVersion) (result *VmExecutionResult, err erro
 	usedGas := new(uint64)
 
 	receipt, err := core.ApplyTransaction(chainCfg, chainCtx, gasPool, db, header, tx, usedGas, vmCfg, vm.cApp)
+	if db.abortErr != nil {
+		return nil, ToVmExecutionError(db.abortErr)
+	}
 	switch err {
 	case nil:
 		writeSet := NewWriteSet()
@@ -98,9 +97,9 @@ func (vm *Vm) Execute(txVersion *TxVersion) (result *VmExecutionResult, err erro
 
 		for addr, states := range db.states {
 			for key, val := range states {
-				cloneKey := bytes.Clone([]byte(key))
-				cloneVal := bytes.Clone(val)
-				writeSet.Add(StateLoc(addr, cloneKey), NewState(addr, cloneKey, cloneVal))
+				cpyKey := []byte(key)
+				cpyVal := val
+				writeSet.Add(StateLoc(addr, cpyKey), NewState(addr, cpyKey, cpyVal))
 			}
 		}
 
@@ -136,7 +135,7 @@ func (vm *Vm) Execute(txVersion *TxVersion) (result *VmExecutionResult, err erro
 
 	case core.ErrNonceTooLow, core.ErrNonceTooHigh:
 		if db.txIdx > 0 {
-			return nil, ExecutionBlockingError{TxIdx: db.txIdx}
+			return nil, ExecutionBlockingError{TxIdx: db.txIdx - 1}
 		} else {
 			return nil, ExecutionError{err}
 		}

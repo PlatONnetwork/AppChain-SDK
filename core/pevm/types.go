@@ -3,14 +3,30 @@ package pevm
 import (
 	"bytes"
 	"math/big"
+	"sync"
 
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
-	"github.com/cespare/xxhash/v2"
+	"github.com/zeebo/xxh3"
 )
 
 var emptyCodeHash = common.Hash(crypto.Keccak256(nil))
 var ripemd = common.HexToAddress("0000000000000000000000000000000000000003")
+var codeHashSuffix = []byte("code_hash")
+
+var (
+	// FIXME: replace `sync.Map` with `lru.Cache`
+	basicHashCache sync.Map // map[common.Address]MemoryLocationHash
+	stateHashCache sync.Map // map[common.Address]map[string]MemoryLocationHash
+	codeHashCache  sync.Map
+)
+
+var xxhashPool = sync.Pool{
+	New: func() interface{} {
+		h := xxh3.New()
+		return h
+	},
+}
 
 type IncarnationStatus uint8
 
@@ -57,12 +73,54 @@ type TxVersion struct {
 	TxIncarnation int32
 }
 
-func BasicLoc(addr common.Address) MemoryLocationHash { return xxhash.Sum64(addr[:]) }
-func CodeHashLoc(addr common.Address) MemoryLocationHash {
-	return xxhash.Sum64String(string(addr[:]) + "code_hash")
+func BasicLoc(addr common.Address) MemoryLocationHash {
+	if hash, ok := basicHashCache.Load(addr); ok {
+		return hash.(MemoryLocationHash)
+	}
+
+	hash := xxh3.Hash(addr[:])
+
+	basicHashCache.Store(addr, hash)
+	return hash
 }
+
+func CodeHashLoc(addr common.Address) MemoryLocationHash {
+	if hash, ok := codeHashCache.Load(addr); ok {
+		return hash.(MemoryLocationHash)
+	}
+
+	// 从池中获取hasher
+	h := xxhashPool.Get().(*xxh3.Hasher)
+	h.Reset()
+
+	h.Write(addr[:])
+	h.Write(codeHashSuffix[:])
+	hash := h.Sum64()
+
+	// 放回池中
+	xxhashPool.Put(h)
+
+	codeHashCache.Store(addr, hash)
+	return hash
+}
+
 func StateLoc(addr common.Address, key []byte) MemoryLocationHash {
-	return xxhash.Sum64String(string(addr[:]) + string(key))
+	cacheMap, _ := stateHashCache.LoadOrStore(addr, &sync.Map{})
+	innerMap := cacheMap.(*sync.Map)
+
+	if hash, ok := innerMap.Load(string(key)); ok {
+		return hash.(MemoryLocationHash)
+	}
+
+	h := xxhashPool.Get().(*xxh3.Hasher)
+	h.Reset()
+	h.Write(addr[:])
+	h.Write(key)
+	hashVal := h.Sum64()
+	xxhashPool.Put(h)
+
+	innerMap.Store(string(key), hashVal)
+	return hashVal
 }
 
 type MemoryValue interface {
@@ -121,7 +179,7 @@ type AccountBase struct {
 func NewEmptyAccountBase(addr common.Address) *AccountBase {
 	return &AccountBase{
 		Addr:     addr,
-		Balance:  common.Big0,
+		Balance:  big.NewInt(0),
 		CodeHash: common.Hash(emptyCodeHash),
 	}
 }
@@ -263,7 +321,7 @@ type ReadOrigins struct {
 
 func NewReadOrigins() *ReadOrigins {
 	return &ReadOrigins{
-		origins: make([]ReadOrigin, 0),
+		origins: make([]ReadOrigin, 0, 1),
 	}
 }
 
@@ -298,33 +356,49 @@ func (ro *ReadOrigins) Range(f func(ReadOrigin) bool) {
 	}
 }
 
+const initialReadSetSize = 4 // 大多数交易只有2-4个地址
+
+type ReadSetEntry struct {
+	hash   MemoryLocationHash
+	origin *ReadOrigins
+}
+
 type ReadSet struct {
-	readOrigins map[MemoryLocationHash]*ReadOrigins
+	entries []*ReadSetEntry
 }
 
 func NewReadSet() *ReadSet {
 	return &ReadSet{
-		readOrigins: make(map[MemoryLocationHash]*ReadOrigins),
+		entries: make([]*ReadSetEntry, 0, initialReadSetSize),
 	}
 }
 
 func (rs *ReadSet) GetOrDefault(locationHash MemoryLocationHash) *ReadOrigins {
-	ro, exist := rs.readOrigins[locationHash]
-	if !exist || ro == nil {
-		ro = NewReadOrigins()
-		rs.readOrigins[locationHash] = ro
+	for i := range rs.entries {
+		if rs.entries[i].hash == locationHash {
+			return rs.entries[i].origin
+		}
 	}
-
-	return ro
+	rs.entries = append(rs.entries, &ReadSetEntry{
+		hash:   locationHash,
+		origin: NewReadOrigins(),
+	})
+	return rs.entries[len(rs.entries)-1].origin
 }
 
 func (rs *ReadSet) Set(locationHash MemoryLocationHash, ro *ReadOrigins) {
-	rs.readOrigins[locationHash] = ro
+	for i := range rs.entries {
+		if rs.entries[i].hash == locationHash {
+			rs.entries[i].origin = ro
+		}
+	}
 }
 
-func (rs *ReadSet) Range(f func(MemoryLocationHash, *ReadOrigins)) {
-	for h, ro := range rs.readOrigins {
-		f(h, ro)
+func (rs *ReadSet) Range(f func(MemoryLocationHash, *ReadOrigins) bool) {
+	for _, entry := range rs.entries {
+		if !f(entry.hash, entry.origin) {
+			break
+		}
 	}
 }
 
@@ -333,28 +407,27 @@ type WriteEntry struct {
 	Value MemoryValue
 }
 
-type WriteSet []WriteEntry
+type WriteSet map[MemoryLocationHash]MemoryValue
 
 func NewWriteSet() WriteSet {
-	return make(WriteSet, 0)
+	return make(WriteSet)
 }
 
 func (ws *WriteSet) Add(hash MemoryLocationHash, value MemoryValue) {
-	*ws = append(*ws, WriteEntry{Hash: hash, Value: value})
+	if _, ok := (*ws)[hash]; ok {
+		panic("duplicate hash in write set")
+	}
+	(*ws)[hash] = value
 }
 
 func (ws *WriteSet) Find(hash MemoryLocationHash) (MemoryValue, bool) {
-	for _, entry := range *ws {
-		if entry.Hash == hash {
-			return entry.Value, true
-		}
-	}
-	return nil, false
+	v, ok := (*ws)[hash]
+	return v, ok
 }
 
 func (ws *WriteSet) Range(f func(MemoryLocationHash, MemoryValue)) {
-	for _, entry := range *ws {
-		f(entry.Hash, entry.Value)
+	for hash, val := range *ws {
+		f(hash, val)
 	}
 }
 

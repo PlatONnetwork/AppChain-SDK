@@ -17,7 +17,6 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/miner"
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
-	"github.com/google/btree"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -90,14 +89,17 @@ func NewExecutionResults(blockSize int32) *ExecutionResults {
 func (e *ExecutionResults) Set(index int32, result *ExecutionResult) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if result.receipt == nil {
+		panic(fmt.Sprintf("empty receipt(txIdx: %d)", index))
+	}
 	e.results[index] = result
 }
 
-func (e *ExecutionResults) Range(f func(*ExecutionResult)) {
+func (e *ExecutionResults) Range(f func(int, *ExecutionResult)) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	for _, result := range e.results {
-		f(result)
+	for i, result := range e.results {
+		f(i, result)
 	}
 }
 
@@ -159,6 +161,17 @@ func NewPEVM(
 }
 
 func (e *PEVM) Run(txs coretypes.Transactions, isSysTxs bool) (*PEVMResult, error) {
+	/*
+		begin := time.Now()
+		pbuf := bytes.NewBuffer(nil)
+		pprof.StartCPUProfile(pbuf)
+		defer func() {
+			pprof.StopCPUProfile()
+			elapsed := time.Since(begin)
+			if elapsed > 150*time.Millisecond {
+				os.WriteFile(fmt.Sprintf("./pevm-%s.pprof", elapsed), pbuf.Bytes(), 0666)
+			}
+		}()*/
 	if e.forceSequential || len(txs) < e.concurrencyLevel {
 		return e.serialExecute(txs, isSysTxs)
 	}
@@ -330,8 +343,6 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 			timestamp        int64 = int64(e.env.Header.Time)
 			blockDeadline          = e.env.BlockDeadline
 			batch                  = e.txsBatch
-			startIndex       int
-			endIndex         int
 			executionResults *ExecutionResults
 			err              error
 		)
@@ -340,9 +351,9 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 			if err != nil {
 				return &pevmResult, err
 			}
-			executionResults.Range(func(result *ExecutionResult) {
+			executionResults.Range(func(_ int, result *ExecutionResult) {
 				receipt := result.receipt
-				e.cumulativeGasUsed += receipt.CumulativeGasUsed
+				e.cumulativeGasUsed += receipt.GasUsed
 				receipt.CumulativeGasUsed = e.cumulativeGasUsed
 				receipt.TransactionIndex += uint(e.txCount)
 				pevmResult.Receipts = append(pevmResult.Receipts, receipt)
@@ -351,17 +362,20 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 			pevmResult.GasUsed = e.cumulativeGasUsed
 			e.txCount += len(txs)
 		} else {
-			count := len(txs)
-			endIndex = startIndex + batch
-			for endIndex <= count {
-				execTxs := txs[startIndex:endIndex]
+			peeker := NewTxsPeeker(txs, e.signer)
+			execTxs := peeker.Peeks(batch)
+			for len(execTxs) > 0 {
 				executionResults, err = e.parallelExecuteBatch(execTxs, isSysTxs)
 				if err != nil {
 					return &pevmResult, err
 				}
-				executionResults.Range(func(result *ExecutionResult) {
+				executionResults.Range(func(i int, result *ExecutionResult) {
+					if result == nil || result.receipt == nil {
+						panic(fmt.Sprintf("empty result(index: %d, txCount: %d, count: %d)",
+							i, e.txCount, len(execTxs)))
+					}
 					receipt := result.receipt
-					e.cumulativeGasUsed += receipt.CumulativeGasUsed
+					e.cumulativeGasUsed += receipt.GasUsed
 					receipt.CumulativeGasUsed = e.cumulativeGasUsed
 					receipt.TransactionIndex += uint(e.txCount)
 					pevmResult.Receipts = append(pevmResult.Receipts, receipt)
@@ -381,15 +395,7 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 					pevmResult.Timeout = true
 					break
 				}
-
-				startIndex = endIndex
-				if startIndex >= count-1 {
-					break
-				}
-				endIndex = startIndex + batch
-				if endIndex > count {
-					endIndex = count
-				}
+				execTxs = peeker.Peeks(batch)
 			}
 		}
 	} else {
@@ -402,9 +408,9 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 			return &pevmResult, err
 		}
 		var cumulativeGasUsed uint64
-		executionResults.Range(func(result *ExecutionResult) {
+		executionResults.Range(func(_ int, result *ExecutionResult) {
 			receipt := result.receipt
-			cumulativeGasUsed += receipt.CumulativeGasUsed
+			cumulativeGasUsed += receipt.GasUsed
 			receipt.CumulativeGasUsed = cumulativeGasUsed
 			pevmResult.Receipts = append(pevmResult.Receipts, receipt)
 		})
@@ -441,9 +447,11 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 	mvMemory := NewMvMemory(int(blockSize), map[MemoryLocationHash][]int32{
 		BasicLoc(e.env.Header.Coinbase): txIdxs,
 	}, []common.Address{e.env.Header.Coinbase})
-	vm := NewVm(e.env, e.cApp, e.signer, e.env.StateDB, mvMemory, txs)
+	defer mvMemory.Release()
+	vm := NewVm(e.env, e.cApp, e.signer, NewStateDBMut(e.env.StateDB), mvMemory, txs)
 
 	g := new(errgroup.Group)
+	g.SetLimit(e.concurrencyLevel)
 	for j := 0; j < e.concurrencyLevel; j++ {
 		g.Go(func() error {
 			task := scheduler.NextTask()
@@ -487,52 +495,46 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 		return nil, reason
 	}
 
+	scheduler.CheckStatus()
+
 	statedb := e.env.StateDB
-	// todo: cumulative lazy address
 	committedLocations := make(map[MemoryLocationHash]bool)
 	var abortErr error
 	mvMemory.ConsumeLazyAddresses(func(addr common.Address) bool {
 		locationHash := BasicLoc(addr)
 		committedLocations[locationHash] = true
-		if writeHistory, ok := mvMemory.data.Get(locationHash); ok {
+		if writeHistory := mvMemory.data.Get(locationHash); writeHistory != nil {
 			var (
 				balance = new(big.Int)
 				nonce   uint64
 			)
-			writeHistory.Ascend(func(itm btree.Item) bool {
-				entryItem := itm.(*item)
-				de := entryItem.Entry.(*DataEntry)
+			writeHistory.Ascend(func(entry *item) bool {
+				de := entry.Entry.(*DataEntry)
 				if _, ok := de.Value.(*Basic); !ok {
-					balance = statedb.GetBalance(addr)
+					balance.Set(statedb.GetBalance(addr))
 					nonce = statedb.GetNonce(addr)
 				}
 				return false
 			})
 
-			writeHistory.Ascend(func(itm btree.Item) bool {
-				entryItem := itm.(*item)
-				tx := txs[entryItem.TxIdx]
-				switch entryItem.Entry.(type) {
-				case *DataEntry:
-					entry := entryItem.Entry.(*DataEntry)
-					switch entry.Value.(type) {
-					case *Basic:
-						basic := entry.Value.(*Basic)
+			writeHistory.Ascend(func(entry *item) bool {
+				tx := txs[entry.TxIdx]
+
+				if entry, ok := entry.Entry.(*DataEntry); ok {
+					if basic, vok := entry.Value.(*Basic); vok {
 						account := basic.Account
-						balance = new(big.Int).Set(account.Balance)
+						balance.Set(account.Balance)
 						nonce = account.Nonce
-					case *LazyRecipient:
-						lazy := entry.Value.(*LazyRecipient)
-						balance = new(big.Int).Add(balance, lazy.Balance)
-					case *LazySender:
-						lazy := entry.Value.(*LazySender)
+					} else if lazy, vok := entry.Value.(*LazyRecipient); vok {
+						balance.Add(balance, lazy.Balance)
+					} else if lazy, vok := entry.Value.(*LazySender); vok {
 						maxFee := tx.Gas()*tx.GasPrice().Uint64() + tx.Value().Uint64()
 						if balance.Uint64() < maxFee {
 							abortErr = fmt.Errorf("lack of fund for max fee(balance: %d, maxFee: %d)",
 								balance.Uint64(), maxFee)
 							return false
 						}
-						balance = new(big.Int).Sub(balance, lazy.Balance)
+						balance.Sub(balance, lazy.Balance)
 						nonce += 1
 					}
 				}
@@ -545,8 +547,8 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 					}
 					executeNonce = nonce - 1
 					if executeNonce != tx.Nonce() {
-						abortErr = fmt.Errorf("nonce mismatch(tx: %s, nonce: %d, execute_nonce: %d)",
-							tx.Hash().TerminalString(), tx.Nonce(), executeNonce)
+						abortErr = fmt.Errorf("nonce mismatch(tx: %s, txIdx: %d, from: %s, nonce: %d, execute_nonce: %d)",
+							tx.Hash().TerminalString(), entry.TxIdx, addr.Hex(), tx.Nonce(), executeNonce)
 						return false
 					}
 				}
@@ -569,40 +571,34 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 		return nil, abortErr
 	}
 
-	for locationHash, writeHistory := range mvMemory.data.Items() {
-		if committedLocations[locationHash] {
-			continue
-		}
-		writeHistory.Ascend(func(itm btree.Item) bool {
-			d := itm.(*item)
-			switch d.Entry.(type) {
-			case *DataEntry:
-				entry := d.Entry.(*DataEntry)
-				switch entry.Value.(type) {
-				case *Basic:
-					basic := entry.Value.(*Basic)
-					account := basic.Account
-					if !account.Suicided {
-						if account.Nonce > 0 {
-							statedb.SetNonce(account.Addr, account.Nonce)
+	for _, shard := range mvMemory.data.shards {
+		for locationHash, writeHistory := range shard.histories {
+			if committedLocations[locationHash] {
+				continue
+			}
+			writeHistory.Ascend(func(d *item) bool {
+				if entry, ok := d.Entry.(*DataEntry); ok {
+					if basic, vok := entry.Value.(*Basic); vok {
+						account := basic.Account
+						if !account.Suicided {
+							if account.Nonce > 0 {
+								statedb.SetNonce(account.Addr, account.Nonce)
+							}
+							statedb.SetBalance(account.Addr, account.Balance)
 						}
-						statedb.SetBalance(account.Addr, account.Balance)
-					}
-				case *SelfDestructed:
-					des := entry.Value.(*SelfDestructed)
-					statedb.Suicide(des.Addr)
-				case *State:
-					state := entry.Value.(*State)
-					statedb.SetState(state.Addr, state.Key, state.Value)
-				case *CodeHash:
-					codeHash := entry.Value.(*CodeHash)
-					if code, ok := mvMemory.newByteCodes.Get(codeHash.CodeHash); ok {
-						statedb.SetCode(codeHash.Addr, code)
+					} else if des, vok := entry.Value.(*SelfDestructed); vok {
+						statedb.Suicide(des.Addr)
+					} else if state, vok := entry.Value.(*State); vok {
+						statedb.SetState(state.Addr, state.Key, state.Value)
+					} else if codeHash, vok := entry.Value.(*CodeHash); vok {
+						if code, ok := mvMemory.newByteCodes.Get(codeHash.CodeHash); ok {
+							statedb.SetCode(codeHash.Addr, code)
+						}
 					}
 				}
-			}
-			return true
-		})
+				return true
+			})
+		}
 	}
 	return executionResults, nil
 }

@@ -54,6 +54,13 @@ func newAccessList() *accessList {
 	}
 }
 
+func (a *accessList) Reset() {
+	for k, _ := range a.addresses {
+		delete(a.addresses, k)
+	}
+	a.slots = a.slots[:0]
+}
+
 // Copy creates an independent copy of an accessList.
 func (a *accessList) Copy() *accessList {
 	cp := newAccessList()
