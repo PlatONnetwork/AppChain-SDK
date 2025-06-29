@@ -164,6 +164,7 @@ func (m *Module) ExecuteBlock(ctx sdk.BlockExecutorContext, block *types.Block, 
 			return statedb, receipts, nil
 		} else {
 			if !m.bsc.HadFullEntry(block.NumberU64()) {
+				m.Unlock()
 				return nil, nil, errors.New("no full block entry")
 			}
 			ev := make(chan NewFinalizeBlockEvent, 10)

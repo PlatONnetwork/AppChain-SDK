@@ -30,13 +30,13 @@ func NewModule(ctx *cli.Context) *ConsensusNetworkModule {
 }
 
 func (s *ConsensusNetworkModule) Init(ctx sdk.InitContext) error {
-	consensusEngine := ctx.Backend().ChainContext().Engine()
-	networkEngine, ok := consensusEngine.(network.ConsensusNetworkEngine)
-	if ok {
-		s.network.SetEngine(networkEngine)
-	} else {
-		panic("Illegal consensus engine")
-	}
+	//consensusEngine := ctx.Backend().ChainContext().Engine()
+	//networkEngine, ok := consensusEngine.(network.ConsensusNetworkEngine)
+	//if ok {
+	//	s.network.SetEngine(networkEngine)
+	//} else {
+	//	panic("Illegal consensus engine")
+	//}
 	return nil
 }
 
@@ -46,6 +46,10 @@ func (s *ConsensusNetworkModule) Name() string {
 
 func (s *ConsensusNetworkModule) Version() uint64 {
 	return ModuleVersion
+}
+func (s *ConsensusNetworkModule) CreateConsensusNetworkEngine(ctx sdk.ConsensusNetworkContext) (sdk.ConsensusNetworkEngine, error) {
+	s.network.SetEngine(ctx)
+	return s, nil
 }
 
 func (s *ConsensusNetworkModule) Protocols() []p2p.Protocol {

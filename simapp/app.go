@@ -2,21 +2,15 @@ package main
 
 import (
 	"encoding/json"
-	xconsensus "github.com/PlatONnetwork/AppChain-SDK/x/consensus"
-	"github.com/PlatONnetwork/AppChain-SDK/x/gov"
-	"github.com/PlatONnetwork/AppChain-SDK/x/votetoken"
-	ctypes "github.com/PlatONnetwork/PlatON-Go/consensus/cbft/types"
-	"gopkg.in/urfave/cli.v1"
-	"path/filepath"
-	"time"
-
 	"github.com/PlatONnetwork/AppChain-SDK/baseapp"
 	"github.com/PlatONnetwork/AppChain-SDK/store/storage"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/x"
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint"
+	xconsensus "github.com/PlatONnetwork/AppChain-SDK/x/consensus"
 	"github.com/PlatONnetwork/AppChain-SDK/x/deposit"
 	"github.com/PlatONnetwork/AppChain-SDK/x/extravote"
+	"github.com/PlatONnetwork/AppChain-SDK/x/gov"
 	"github.com/PlatONnetwork/AppChain-SDK/x/l1"
 	"github.com/PlatONnetwork/AppChain-SDK/x/miner"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward"
@@ -29,6 +23,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/upgrade"
 	"github.com/PlatONnetwork/AppChain-SDK/x/upgrade/testcontract"
 	"github.com/PlatONnetwork/AppChain-SDK/x/upgrade/testmod"
+	"github.com/PlatONnetwork/AppChain-SDK/x/votetoken"
 	"github.com/PlatONnetwork/AppChain-SDK/x/vrf"
 	"github.com/PlatONnetwork/PlatON-Go/cmd/utils"
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -42,6 +37,8 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/rpc"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
+	"gopkg.in/urfave/cli.v1"
+	"path/filepath"
 )
 
 type SimApp struct {
@@ -337,30 +334,8 @@ func (s *SimApp) AddTxs(ctx sdk.WorkerContext) (types.Transactions, error) {
 func (s *SimApp) SortTxs(ctx sdk.WorkerContext, local, remote map[common.Address]types.Transactions) (types.Transactions, error) {
 	return s.manager.SortTxs(ctx, local, remote)
 }
-
-func (s *SimApp) StartNetworkEngine() {
-	s.manager.StartNetworkEngine()
-}
-func (s *SimApp) Broadcast(msg ctypes.Message) {
-	s.manager.Broadcast(msg)
-}
-func (s *SimApp) PartBroadcast(msg ctypes.Message) {
-	s.manager.PartBroadcast(msg)
-}
-func (s *SimApp) Forwarding(nodeID string, msg ctypes.Message) error {
-	return s.manager.Forwarding(nodeID, msg)
-}
-func (s *SimApp) Send(peerID string, msg ctypes.Message) {
-	s.manager.Send(peerID, msg)
-}
-func (s *SimApp) AvgLatency() time.Duration {
-	return s.manager.AvgLatency()
-}
-func (s *SimApp) PeerSetting(peerID string, bType uint64, blockNumber uint64) error {
-	return s.manager.PeerSetting(peerID, bType, blockNumber)
-}
-func (s *SimApp) RemovePeer(id string) {
-	s.RemovePeer(id)
+func (s *SimApp) CreateConsensusNetworkEngine(ctx sdk.ConsensusNetworkContext) (sdk.ConsensusNetworkEngine, error) {
+	return s.manager.CreateConsensusNetworkEngine(ctx)
 }
 func (s *SimApp) CreateBlockExecutor(ctx sdk.BlockchainContext) (sdk.BlockExecutor, error) {
 	return s.manager.CreateBlockExecutor(ctx)

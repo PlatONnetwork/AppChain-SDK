@@ -3,16 +3,10 @@ package testutil
 import (
 	"encoding/json"
 	"fmt"
-	"math/rand"
-	"os"
-	"path/filepath"
-	"time"
-
 	"github.com/PlatONnetwork/AppChain-SDK/baseapp"
 	"github.com/PlatONnetwork/AppChain-SDK/store/storage"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/protocols"
-	ctypes "github.com/PlatONnetwork/PlatON-Go/consensus/cbft/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
@@ -21,6 +15,9 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/rpc"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
+	"math/rand"
+	"os"
+	"path/filepath"
 
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 )
@@ -163,31 +160,9 @@ func (s *SimApp) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackA
 func (s *SimApp) ExecuteTxs(ctx sdk.WorkerContext, cApp vm.ContractsApp, txs types.Transactions) (types.Receipts, uint64, error) {
 	return s.manager.ExecuteTxs(ctx, cApp, txs)
 }
-
-func (s *SimApp) StartNetworkEngine() {
-	s.manager.StartNetworkEngine()
-}
-func (s *SimApp) Broadcast(msg ctypes.Message) {
-	s.manager.Broadcast(msg)
-}
-func (s *SimApp) PartBroadcast(msg ctypes.Message) {
-	s.manager.PartBroadcast(msg)
-}
-func (s *SimApp) Forwarding(nodeID string, msg ctypes.Message) error {
-	return s.manager.Forwarding(nodeID, msg)
-}
-func (s *SimApp) Send(peerID string, msg ctypes.Message) {
-	s.manager.Send(peerID, msg)
-}
-func (s *SimApp) AvgLatency() time.Duration {
-	return s.manager.AvgLatency()
-}
-func (s *SimApp) PeerSetting(peerID string, bType uint64, blockNumber uint64) error {
-	return s.manager.PeerSetting(peerID, bType, blockNumber)
-}
-func (s *SimApp) RemovePeer(id string) {
-	s.manager.RemovePeer(id)
-}
 func (s *SimApp) CreateBlockExecutor(ctx sdk.BlockchainContext) (sdk.BlockExecutor, error) {
 	return s.manager.CreateBlockExecutor(ctx)
+}
+func (s *SimApp) CreateConsensusNetworkEngine(ctx sdk.ConsensusNetworkContext) (sdk.ConsensusNetworkEngine, error) {
+	return s.manager.CreateConsensusNetworkEngine(ctx)
 }
