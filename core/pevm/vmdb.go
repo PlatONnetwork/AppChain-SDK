@@ -324,12 +324,11 @@ func (db *VmDB) GetBalance(addr common.Address) *big.Int {
 		return big.NewInt(0)
 	}
 
-	locationHash := BasicLoc(addr)
 	if db.isLazy {
-		if db.fromHash == locationHash {
+		if db.fromAddr == addr {
 			return new(big.Int).Set(maxUint256)
 		}
-		if db.toHash == locationHash {
+		if db.toAddr == addr {
 			return big.NewInt(0)
 		}
 	}
@@ -345,9 +344,8 @@ func (db *VmDB) GetNonce(addr common.Address) uint64 {
 		return 0
 	}
 
-	locationHash := BasicLoc(addr)
 	if db.isLazy {
-		if db.fromHash == locationHash {
+		if db.fromAddr == addr {
 			return db.tx.Nonce()
 		}
 	}
@@ -363,8 +361,7 @@ func (db *VmDB) GetCodeHash(addr common.Address) common.Hash {
 		return emptyCodeHash
 	}
 
-	locationHash := CodeHashLoc(addr)
-	if locationHash == db.toHash {
+	if addr == db.toAddr {
 		return db.toCodeHash
 	}
 	return db.getCodeHash(addr)
@@ -447,11 +444,11 @@ func (db *VmDB) GetState(addr common.Address, key []byte) []byte {
 		return []byte{}
 	}
 
-	locationHash := StateLoc(addr, key)
 	if val, exist := db.getStateFromCache(addr, key); exist {
 		return val
 	}
 
+	locationHash := StateLoc(addr, key)
 	readOrigins := db.readSet.GetOrDefault(locationHash)
 	// Try reading from multi-version data
 	if db.txIdx > 0 {
@@ -550,8 +547,7 @@ func (db *VmDB) SubBalance(addr common.Address, amount *big.Int) {
 		return
 	}
 
-	locationHash := BasicLoc(addr)
-	isLazy := (db.isLazy && locationHash == db.fromHash) || addr == db.vm.env.Header.Coinbase
+	isLazy := (db.isLazy && addr == db.fromAddr) || addr == db.vm.env.Header.Coinbase
 	if isLazy {
 		if balance, exist := db.subBalances[addr]; exist {
 			balance.Add(balance, amount)
@@ -574,8 +570,7 @@ func (db *VmDB) AddBalance(addr common.Address, amount *big.Int) {
 		return
 	}
 
-	locationHash := BasicLoc(addr)
-	isLazy := (db.isLazy && locationHash == db.toHash) || addr == db.vm.env.Header.Coinbase
+	isLazy := (db.isLazy && addr == db.toAddr) || addr == db.vm.env.Header.Coinbase
 	if isLazy {
 		if balance, exist := db.addBalances[addr]; exist {
 			balance.Add(balance, amount)
@@ -609,8 +604,8 @@ func (db *VmDB) SetNonce(addr common.Address, nonce uint64) {
 	if db.abortErr != nil {
 		return
 	}
-	locationHash := BasicLoc(addr)
-	if db.isLazy && locationHash == db.fromHash {
+
+	if db.isLazy && addr == db.fromAddr {
 		return // Lazy cumulative
 	}
 
