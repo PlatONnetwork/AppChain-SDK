@@ -9,7 +9,6 @@ import (
 )
 
 const writeHistoryShards = 256
-const linearThreshold = 32
 
 var itemPool = sync.Pool{
 	New: func() interface{} {
@@ -58,13 +57,6 @@ func NewWriteHistoryShard() *WriteHistoryShard {
 }
 
 func (s *WriteHistoryShard) GetOrCreate(loc MemoryLocationHash) *WriteHistory {
-	s.mu.RLock()
-	if wh, ok := s.histories[loc]; ok {
-		s.mu.RUnlock()
-		return wh
-	}
-	s.mu.RUnlock()
-
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -146,10 +138,10 @@ func NewWriteHistory() *WriteHistory {
 
 func (wh *WriteHistory) AscendRange(txIdx int32) *ItemIterator {
 	wh.mu.RLock()
-	defer wh.mu.RUnlock()
 
 	n := len(wh.items)
 	if n == 0 {
+		wh.mu.RUnlock()
 		return &ItemIterator{items: nil}
 	}
 
@@ -160,6 +152,7 @@ func (wh *WriteHistory) AscendRange(txIdx int32) *ItemIterator {
 	return &ItemIterator{
 		items: wh.items[start:],
 		index: 0,
+		lock:  &wh.mu,
 	}
 }
 
@@ -179,27 +172,6 @@ func (wh *WriteHistory) ReplaceOrInsert(entry *item) {
 	defer wh.mu.Unlock()
 
 	n := len(wh.items)
-
-	if n < linearThreshold {
-		for i := 0; i < n; i++ {
-			if wh.items[i].TxIdx == entry.TxIdx {
-				putItem(wh.items[i])
-				wh.items[i] = entry
-				return
-			}
-			if wh.items[i].TxIdx < entry.TxIdx {
-				// 插入到当前位置
-				wh.items = append(wh.items, nil)
-				copy(wh.items[i+1:], wh.items[i:])
-				wh.items[i] = entry
-				return
-			}
-		}
-		// 追加到末尾
-		wh.items = append(wh.items, entry)
-		return
-	}
-
 	idx := sort.Search(n, func(i int) bool {
 		return wh.items[i].TxIdx <= entry.TxIdx
 	})
@@ -240,6 +212,7 @@ func (wh *WriteHistory) Release() {
 type ItemIterator struct {
 	items []*item
 	index int
+	lock  *sync.RWMutex
 }
 
 func (it *ItemIterator) NextBack() *item {
@@ -249,6 +222,13 @@ func (it *ItemIterator) NextBack() *item {
 	item := it.items[it.index]
 	it.index++
 	return item
+}
+
+func (it *ItemIterator) Release() {
+	if it.lock != nil {
+		it.lock.RUnlock()
+		it.lock = nil
+	}
 }
 
 type LastLocations struct {
@@ -516,6 +496,7 @@ func (m *MvMemory) validateLocation(txIdx int32, loc MemoryLocationHash, origins
 	}
 
 	it := wh.AscendRange(txIdx)
+	defer it.Release()
 
 	origins.Range(func(priorOrigin ReadOrigin) bool {
 		if po, ok := priorOrigin.(*Memory); ok {
