@@ -41,7 +41,9 @@ func putShard(s *WriteHistoryShard) {
 	for _, wh := range s.histories {
 		wh.Release()
 	}
-	s.histories = make(map[MemoryLocationHash]*WriteHistory)
+	for k, _ := range s.histories {
+		delete(s.histories, k)
+	}
 	shardPool.Put(s)
 }
 
