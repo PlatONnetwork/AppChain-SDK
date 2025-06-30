@@ -3,12 +3,8 @@ package module
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
-	"time"
-
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/protocols"
-	ctypes "github.com/PlatONnetwork/PlatON-Go/consensus/cbft/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/log"
@@ -17,6 +13,8 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/rpc"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
+	"sort"
+	"time"
 )
 
 type ModuleValidChecker func(db sdk.StateDBReader, name string, blockNumber uint64) bool
@@ -119,19 +117,12 @@ type ViewChangeModule interface {
 
 type ConsensusNetworkModule interface {
 	Module
-	StartNetworkEngine()
-
-	// send
-	Broadcast(msg ctypes.Message)
-	PartBroadcast(msg ctypes.Message)
-	Forwarding(nodeID string, msg ctypes.Message) error
-	Send(peerID string, msg ctypes.Message)
-
-	AvgLatency() time.Duration
-
-	// peer
-	PeerSetting(peerID string, bType uint64, blockNumber uint64) error
-	RemovePeer(id string)
+	CreateConsensusNetworkEngine(ctx sdk.ConsensusNetworkContext) (sdk.ConsensusNetworkEngine, error)
+}
+type ConsensusBlockTimeModule interface {
+	Module
+	CalcBlockDeadline(ctx sdk.ConsensusBlockTimeContext, timePoint time.Time) time.Time
+	CalcNextBlockTime(ctx sdk.ConsensusBlockTimeContext, blockTime time.Time) time.Time
 }
 
 type BlockCommitterModule interface {
@@ -203,6 +194,7 @@ type Manager struct {
 	TxFiller            string
 	TxExecutor          string
 	ConsensusNetwork    string
+	ConsensusBlockTime  string
 	OrderInit           []string
 	OrderTxPool         []string
 	OrderBlockCommitter []string
@@ -305,9 +297,16 @@ func (m *Manager) SetBlockExecutor(moduleName string) {
 func (m *Manager) SetConsensusNetwork(moduleName string) {
 	mod := m.Modules[moduleName]
 	if _, has := mod.(ConsensusNetworkModule); !has {
-		panic(fmt.Sprintf("WorkerModule %s missing", moduleName))
+		panic(fmt.Sprintf("ConsensusNetworkModule %s missing", moduleName))
 	}
 	m.ConsensusNetwork = moduleName
+}
+func (m *Manager) SetConsensusBlockTime(moduleName string) {
+	mod := m.Modules[moduleName]
+	if _, has := mod.(ConsensusBlockTimeModule); !has {
+		panic(fmt.Sprintf("ConsensusBlockTimeModule %s missing", moduleName))
+	}
+	m.ConsensusBlockTime = moduleName
 }
 
 func (m *Manager) SetOrderBlockCommitter(moduleNames ...string) {
@@ -756,51 +755,25 @@ func (m *Manager) isModuleValid(db sdk.StateDBReader, name string, blockNumber u
 	}
 	return true
 }
+func (m *Manager) CreateConsensusNetworkEngine(ctx sdk.ConsensusNetworkContext) (sdk.ConsensusNetworkEngine, error) {
+	if module, ok := m.Modules[m.ConsensusNetwork].(ConsensusNetworkModule); ok {
+		return module.CreateConsensusNetworkEngine(ctx)
+	}
+	return nil, nil
+}
 
-func (m *Manager) StartNetworkEngine() {
-	log.Debug("StartNetworkEngine on manager")
-
-	if module, ok := m.Modules[m.ConsensusNetwork].(ConsensusNetworkModule); ok {
-		log.Debug("StartNetworkEngine on module", "module", m.ConsensusNetwork)
-		module.StartNetworkEngine()
+func (m *Manager) CalcBlockDeadline(ctx sdk.ConsensusBlockTimeContext, timePoint time.Time) time.Time {
+	if module, ok := m.Modules[m.ConsensusBlockTime].(ConsensusBlockTimeModule); ok {
+		return module.CalcBlockDeadline(ctx, timePoint)
 	}
+	if ctx.Deadline().Sub(timePoint) > ctx.ProduceInterval() {
+		return timePoint.Add(ctx.ProduceInterval())
+	}
+	return ctx.Deadline()
 }
-func (m *Manager) Broadcast(msg ctypes.Message) {
-	if module, ok := m.Modules[m.ConsensusNetwork].(ConsensusNetworkModule); ok {
-		module.Broadcast(msg)
+func (m *Manager) CalcNextBlockTime(ctx sdk.ConsensusBlockTimeContext, blockTime time.Time) time.Time {
+	if module, ok := m.Modules[m.ConsensusBlockTime].(ConsensusBlockTimeModule); ok {
+		return module.CalcNextBlockTime(ctx, blockTime)
 	}
-}
-func (m *Manager) PartBroadcast(msg ctypes.Message) {
-	if module, ok := m.Modules[m.ConsensusNetwork].(ConsensusNetworkModule); ok {
-		module.PartBroadcast(msg)
-	}
-}
-func (m *Manager) Forwarding(nodeID string, msg ctypes.Message) error {
-	if module, ok := m.Modules[m.ConsensusNetwork].(ConsensusNetworkModule); ok {
-		return module.Forwarding(nodeID, msg)
-	}
-	return nil
-}
-func (m *Manager) Send(peerID string, msg ctypes.Message) {
-	if module, ok := m.Modules[m.ConsensusNetwork].(ConsensusNetworkModule); ok {
-		module.Send(peerID, msg)
-	}
-}
-func (m *Manager) AvgLatency() time.Duration {
-	if module, ok := m.Modules[m.ConsensusNetwork].(ConsensusNetworkModule); ok {
-		return module.AvgLatency()
-	}
-	return time.Second
-}
-func (m *Manager) PeerSetting(peerID string, bType uint64, blockNumber uint64) error {
-	if module, ok := m.Modules[m.ConsensusNetwork].(ConsensusNetworkModule); ok {
-		return module.PeerSetting(peerID, bType, blockNumber)
-	}
-
-	return nil
-}
-func (m *Manager) RemovePeer(id string) {
-	if module, ok := m.Modules[m.ConsensusNetwork].(ConsensusNetworkModule); ok {
-		module.RemovePeer(id)
-	}
+	return blockTime.Add(ctx.ProduceInterval())
 }

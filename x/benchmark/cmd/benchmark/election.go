@@ -12,6 +12,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"math/big"
+	"time"
 )
 
 var ElectionAddress = common.HexToAddress("0x1300000000000000000000000000000000000001")
@@ -90,4 +91,14 @@ func (e Election) GetValidator(ctx sdk.ConsensusContext, blockNumber uint64) (*c
 
 func (e Election) IsCandidateNode(ctx sdk.ConsensusContext, nodeID enode.IDv0) bool {
 	return false
+}
+
+func (e Election) CalcBlockDeadline(ctx sdk.ConsensusBlockTimeContext, timePoint time.Time) time.Time {
+	if ctx.Deadline().Sub(timePoint) > ctx.ProduceInterval() {
+		return timePoint.Add(ctx.ProduceInterval())
+	}
+	return ctx.Deadline()
+}
+func (e Election) CalcNextBlockTime(ctx sdk.ConsensusBlockTimeContext, blockTime time.Time) time.Time {
+	return blockTime.Add(400 * time.Millisecond)
 }

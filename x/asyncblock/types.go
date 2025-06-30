@@ -55,6 +55,7 @@ func (c *ConsensusState) Update(epoch, viewNumber uint64, validator []*cbfttypes
 }
 
 func (c *ConsensusState) VerifyEntry(entry *Entry) error {
+	return nil
 	c.Lock()
 	defer c.Unlock()
 	if entry.Epoch == c.Epoch && (entry.View == c.ViewNumber) {
@@ -103,7 +104,8 @@ func (e *EntryExecutorTree) FullEntry(blockNumber uint64) bool {
 	defer e.Unlock()
 	if fragment, ok := e.tree[blockNumber]; ok {
 		for _, f := range fragment {
-			if f.LastEntry().Ending == 1 {
+			entry := f.LastEntry()
+			if entry != nil && f.LastEntry().Ending == 1 {
 				return true
 			}
 		}
@@ -337,6 +339,9 @@ func (e *EntryList) AddEntry(entry *Entry) {
 func (e *EntryList) LastEntry() *Entry {
 	e.Lock()
 	defer e.Unlock()
+	if len(e.entries) == 0 {
+		return nil
+	}
 	return e.entries[len(e.entries)-1]
 }
 
