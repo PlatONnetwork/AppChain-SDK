@@ -39,6 +39,9 @@ type Module struct {
 	stateChangeCh       chan struct{}
 	entrySizeLimit      int
 	splitEntryThreshold int
+	concurrencyLevel    int
+	forceSequential     bool
+	txsBatch            int
 	blsKey              *bls.SecretKey
 }
 
@@ -48,6 +51,9 @@ func NewModule(ctx *cli.Context) *Module {
 		stateChangeCh:       make(chan struct{}, 10),
 		entrySizeLimit:      ctx.GlobalInt(EntrySizeFlag.Name),
 		splitEntryThreshold: ctx.GlobalInt(SplitThresholdFlag.Name),
+		concurrencyLevel:    ctx.GlobalInt(ConcurrencyLevelFlag.Name),
+		forceSequential:     ctx.GlobalBool(ForceSequentialFlag.Name),
+		txsBatch:            ctx.GlobalInt(TxsBatchFlag.Name),
 	}
 	m.p2p = NewAsyncBlockP2P(m.HandleMsg)
 	m.bsc = NewBlockStateCache(m.genEnv, m.Finalize)
@@ -121,9 +127,9 @@ func (m *Module) genEnv(header *types.Header, parentSealHash, parentHash common.
 		return nil, nil, nil, err
 	}
 	return statedb, pevm.NewPEVM(
-		false,
-		4,
-		32,
+		m.forceSequential,
+		m.concurrencyLevel,
+		m.txsBatch,
 		m.logger,
 		&pevm.Env{
 			Header:        header,
@@ -231,9 +237,9 @@ func (m *Module) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackA
 		usedGas     uint64
 		begin       = time.Now()
 		pevm        = pevm.NewPEVM(
-			false,
-			4,
-			32,
+			m.forceSequential,
+			m.concurrencyLevel,
+			m.txsBatch,
 			m.logger,
 			&pevm.Env{
 				Header:        ctx.Header(),
@@ -381,11 +387,7 @@ func (m *Module) handleEntry(peer sdkp2p.Peer, msg *EntryMsg) error {
 		return nil
 	}
 
-	//create state
-	m.logger.Debug("receive entry success", "epoch", msg.Epoch, "view", msg.View, "blockNumber", msg.BlockNumber, "entryNumber", msg.EntryNumber)
-
 	m.bsc.AddEntry(&msg.Entry)
-	m.logger.Debug("entry receive entry success", "epoch", msg.Epoch, "view", msg.View, "blockNumber", msg.BlockNumber, "entryNumber", msg.EntryNumber)
 
 	go m.fillSender(msg.Transactions)
 	m.stateChangeCh <- struct{}{}
