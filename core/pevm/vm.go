@@ -81,13 +81,14 @@ func (vm *Vm) Execute(txVersion *TxVersion) (result *VmExecutionResult, err erro
 	case nil:
 		writeSet := NewWriteSet()
 		for addr, _ := range db.dirties {
-			locationHash := BasicLoc(addr)
-			account := db.readAccounts[locationHash]
+
+			account := db.readAccounts[addr]
 			if account.Suicided {
 				writeSet.Add(CodeHashLoc(addr), NewSelfDestructed(addr))
 				continue
 			}
 
+			locationHash := BasicLoc(addr)
 			writeSet.Add(locationHash, NewBasic(addr, account))
 			if account.NewCode {
 				writeSet.Add(CodeHashLoc(addr), NewCodeHash(addr, account.CodeHash))

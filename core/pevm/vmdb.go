@@ -19,7 +19,7 @@ var (
 		New: func() interface{} {
 			return &VmDB{
 				readSet:      NewReadSet(),
-				readAccounts: make(map[MemoryLocationHash]*AccountBase, 3),
+				readAccounts: make(map[common.Address]*AccountBase, 3),
 				dirties:      make(map[common.Address]struct{}, 3),
 				states:       make(map[common.Address]map[string][]byte, 3),
 				readStates:   make(map[common.Address]map[string][]byte, 3),
@@ -57,7 +57,7 @@ type VmDB struct {
 	toCodeHash   common.Hash
 	isLazy       bool
 	readSet      *ReadSet
-	readAccounts map[MemoryLocationHash]*AccountBase
+	readAccounts map[common.Address]*AccountBase
 	dirties      map[common.Address]struct{}
 	states       map[common.Address]map[string][]byte
 	readStates   map[common.Address]map[string][]byte
@@ -89,7 +89,7 @@ func NewVmDB(
 		fromHash:     fromHash,
 		toHash:       toHash,
 		readSet:      NewReadSet(),
-		readAccounts: make(map[MemoryLocationHash]*AccountBase, 3),
+		readAccounts: make(map[common.Address]*AccountBase, 3),
 		dirties:      make(map[common.Address]struct{}, 3),
 		states:       make(map[common.Address]map[string][]byte, 3),
 		readStates:   make(map[common.Address]map[string][]byte, 3),
@@ -195,17 +195,18 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 	if db.abortErr != nil {
 		return nil
 	}
-	locationHash := db.hashBasic(addr)
+
 	if db.isLazy {
-		if locationHash == db.fromHash || locationHash == db.toHash {
+		if addr == db.fromAddr || addr == db.toAddr {
 			return nil
 		}
 	}
-	if basic, ok := db.readAccounts[locationHash]; ok {
+	if basic, ok := db.readAccounts[addr]; ok {
 		return basic
 	}
 
 	var (
+		locationHash           = db.hashBasic(addr)
 		readOrigins            = db.readSet.GetOrDefault(locationHash)
 		hasPrevOrigins         = readOrigins.Len() > 0
 		newOrigins             = NewReadOrigins()
@@ -314,7 +315,7 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 			codeHash = db.GetCodeHash(addr)
 	}*/
 
-	db.readAccounts[locationHash] = finalAccount
+	db.readAccounts[addr] = finalAccount
 	return finalAccount
 }
 
@@ -504,7 +505,7 @@ func (db *VmDB) Exist(addr common.Address) bool {
 		return false
 	}
 
-	_, exist := db.readAccounts[BasicLoc(addr)]
+	_, exist := db.readAccounts[addr]
 	if exist {
 		return exist
 	}
@@ -536,7 +537,7 @@ func (db *VmDB) CreateAccount(addr common.Address) {
 	}
 	if db.getAccountBasic(addr) == nil {
 		basic := NewEmptyAccountBase(addr)
-		db.readAccounts[BasicLoc(addr)] = basic
+		db.readAccounts[addr] = basic
 	}
 }
 
