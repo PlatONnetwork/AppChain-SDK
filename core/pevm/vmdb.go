@@ -3,7 +3,6 @@ package pevm
 import (
 	"fmt"
 	"math/big"
-	"reflect"
 	"sync"
 
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -174,7 +173,7 @@ func (db *VmDB) reset() {
 func (db *VmDB) pushOrigin(readOrigins *ReadOrigins, readOrigin ReadOrigin) {
 	if readOrigins.Len() > 0 {
 		last := readOrigins.Last()
-		if !reflect.DeepEqual(last, readOrigin) {
+		if !last.Equal(readOrigin) {
 			db.abortErr = ErrInconsistentRead
 			return
 		}
@@ -225,7 +224,9 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 				if entry == nil {
 					break itLoop
 				}
-				if de, ok := entry.Entry.(*DataEntry); ok {
+				switch entry.Entry.(type) {
+				case *DataEntry:
+					de := entry.Entry.(*DataEntry)
 					// About to push a new origin
 					// Inconsistent: new origin will be longer than the previous!
 					if hasPrevOrigins && readOrigins.Len() == newOrigins.Len() {
@@ -238,26 +239,30 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 						TxIncarnation: de.TxIncarnation,
 					})
 					if hasPrevOrigins {
-						if !reflect.DeepEqual(origin, readOrigins.Get(newOrigins.Len())) {
+						if !origin.Equal(readOrigins.Get(newOrigins.Len())) {
 							db.abortErr = ErrInconsistentRead
 							return nil
 						}
 					} else {
 						newOrigins.Push(origin)
 					}
-					if basic, vok := de.Value.(*Basic); vok {
+					switch de.Value.(type) {
+					case *Basic:
+						basic := de.Value.(*Basic)
 						finalAccount = basic.Account
 						break itLoop
-					} else if lazySender, vok := de.Value.(*LazySender); vok {
+					case *LazySender:
+						lazySender := de.Value.(*LazySender)
 						balanceAddition.Sub(balanceAddition, lazySender.Balance)
 						nonceAddtion += 1
-					} else if lazyRecipient, vok := de.Value.(*LazyRecipient); vok {
+					case *LazyRecipient:
+						lazyRecipient := de.Value.(*LazyRecipient)
 						balanceAddition.Add(balanceAddition, lazyRecipient.Balance)
-					} else {
+					default:
 						db.abortErr = ErrInvalidMemoryValueType
 						return nil
 					}
-				} else if _, ok := entry.Entry.(*EstimateMarker); ok {
+				case *EstimateMarker:
 					db.abortErr = BlockingError{Addr: addr, TxIdx: entry.TxIdx}
 					return nil
 				}
@@ -269,7 +274,7 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 		if !hasPrevOrigins {
 			newOrigins.Push(NewStorage())
 		} else if readOrigins.Len() != newOrigins.Len()+1 ||
-			!reflect.DeepEqual(readOrigins.Last(), NewStorage()) {
+			!readOrigins.Last().Equal(NewStorage()) {
 			db.abortErr = ErrInconsistentRead
 			return nil
 		}
@@ -382,10 +387,12 @@ func (db *VmDB) getCodeHash(addr common.Address) common.Hash {
 		entryItem := it.NextBack()
 		if entryItem != nil {
 			if entry, ok := entryItem.Entry.(*DataEntry); ok {
-				if _, vok := entry.Value.(*SelfDestructed); vok {
+				switch entry.Value.(type) {
+				case *SelfDestructed:
 					db.abortErr = ErrSelfDestructedAccount
 					return emptyCodeHash
-				} else if codeHash, vok := entry.Value.(*CodeHash); vok {
+				case *CodeHash:
+					codeHash := entry.Value.(*CodeHash)
 					db.pushOrigin(readOrigins, NewMemory(TxVersion{
 						TxIdx:         entryItem.TxIdx,
 						TxIncarnation: entry.TxIncarnation,
@@ -452,7 +459,9 @@ func (db *VmDB) GetState(addr common.Address, key []byte) []byte {
 			defer it.Release()
 			entry := it.NextBack()
 			if entry != nil {
-				if de, ok := entry.Entry.(*DataEntry); ok {
+				switch entry.Entry.(type) {
+				case *DataEntry:
+					de := entry.Entry.(*DataEntry)
 					db.pushOrigin(readOrigins, NewMemory(TxVersion{
 						TxIdx:         entry.TxIdx,
 						TxIncarnation: de.TxIncarnation,
@@ -460,10 +469,10 @@ func (db *VmDB) GetState(addr common.Address, key []byte) []byte {
 					val := de.Value.(*State).Value
 					db.setReadState(addr, key, val)
 					return val
-				} else if _, ok := entry.Entry.(*EstimateMarker); ok {
+				case *EstimateMarker:
 					db.abortErr = BlockingError{Addr: addr, TxIdx: entry.TxIdx}
 					return []byte{}
-				} else {
+				default:
 					db.abortErr = ErrInvalidMemoryValueType
 					return []byte{}
 				}
