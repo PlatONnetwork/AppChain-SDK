@@ -412,8 +412,10 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 			receipt := result.receipt
 			cumulativeGasUsed += receipt.GasUsed
 			receipt.CumulativeGasUsed = cumulativeGasUsed
+			receipt.TransactionIndex += uint(e.txCount)
 			pevmResult.Receipts = append(pevmResult.Receipts, receipt)
 		})
+		e.txCount += len(txs)
 		pevmResult.Transactions = append(pevmResult.Transactions, txs...)
 		pevmResult.GasUsed = cumulativeGasUsed
 		e.logger.Info("parallel execute success",
@@ -528,10 +530,12 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 					} else if lazy, vok := entry.Value.(*LazyRecipient); vok {
 						balance.Add(balance, lazy.Balance)
 					} else if lazy, vok := entry.Value.(*LazySender); vok {
-						maxFee := tx.Gas()*tx.GasPrice().Uint64() + tx.Value().Uint64()
-						if balance.Uint64() < maxFee {
+						maxFee := new(big.Int).SetUint64(tx.Gas())
+						maxFee = maxFee.Mul(maxFee, tx.GasPrice())
+						maxFee.Add(maxFee, tx.Value())
+						if balance.Cmp(maxFee) < 0 {
 							abortErr = fmt.Errorf("lack of fund for max fee(balance: %d, maxFee: %d)",
-								balance.Uint64(), maxFee)
+								balance, maxFee)
 							return false
 						}
 						balance.Sub(balance, lazy.Balance)
