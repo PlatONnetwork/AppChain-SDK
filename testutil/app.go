@@ -18,6 +18,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 )
@@ -162,6 +163,12 @@ func (s *SimApp) ExecuteTxs(ctx sdk.WorkerContext, cApp vm.ContractsApp, txs typ
 }
 func (s *SimApp) CreateBlockExecutor(ctx sdk.BlockchainContext) (sdk.BlockExecutor, error) {
 	return s.manager.CreateBlockExecutor(ctx)
+}
+func (s *SimApp) CalcBlockDeadline(ctx sdk.ConsensusBlockTimeContext, timePoint time.Time) time.Time {
+	return s.manager.CalcBlockDeadline(ctx, timePoint)
+}
+func (s *SimApp) CalcNextBlockTime(ctx sdk.ConsensusBlockTimeContext, blockTime time.Time) time.Time {
+	return s.manager.CalcNextBlockTime(ctx, blockTime)
 }
 func (s *SimApp) CreateConsensusNetworkEngine(ctx sdk.ConsensusNetworkContext) (sdk.ConsensusNetworkEngine, error) {
 	return s.manager.CreateConsensusNetworkEngine(ctx)

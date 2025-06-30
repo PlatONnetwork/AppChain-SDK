@@ -15,6 +15,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/rpc"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"math/big"
+	"time"
 )
 
 const (
@@ -335,4 +336,12 @@ func (app *BaseApp) ExecuteTxs(ctx sdk.WorkerContext, cApp sdk.ContractsApp, txs
 }
 func (app *BaseApp) CreateConsensusNetworkEngine(ctx sdk.ConsensusNetworkContext) (sdk.ConsensusNetworkEngine, error) {
 	return app.manager.CreateConsensusNetworkEngine(ctx)
+}
+
+func (app *BaseApp) CalcBlockDeadline(ctx sdk.ConsensusBlockTimeContext, timePoint time.Time) time.Time {
+	return app.manager.CalcBlockDeadline(ctx, timePoint)
+}
+
+func (app *BaseApp) CalcNextBlockTime(ctx sdk.ConsensusBlockTimeContext, blockTime time.Time) time.Time {
+	return app.manager.CalcNextBlockTime(ctx, blockTime)
 }

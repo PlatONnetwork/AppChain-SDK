@@ -56,6 +56,7 @@ func main() {
 		manager.SetWorker(benchmarkModule.Name())
 		manager.SetOrderTxPool(benchmarkModule.Name())
 		manager.SetConsensusNetwork(consensusNetworkModule.Name())
+		manager.SetConsensusBlockTime(election.Name())
 		app := testutil.NewApp(manager)
 		return app
 	}, nil, nil, nil)
