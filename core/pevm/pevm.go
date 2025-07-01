@@ -199,7 +199,7 @@ func (e *PEVM) applyTransaction(tx *coretypes.Transaction) (*coretypes.Receipt, 
 		header   = e.env.Header
 		statedb  = e.env.StateDB
 	)
-	receipt, err := core.ApplyTransactionWithHash(chainCfg, chainCtx, e.gp, statedb, header, common.Hash{}, tx, &e.cumulativeGasUsed, vmCfg, e.cApp)
+	receipt, err := core.ApplyTransaction(chainCfg, chainCtx, e.gp, statedb, header, tx, &e.cumulativeGasUsed, vmCfg, e.cApp)
 	if err != nil {
 		e.logger.Error("Failed to apply transaction",
 			"blockNumber", header.Number,
@@ -412,10 +412,8 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 			receipt := result.receipt
 			cumulativeGasUsed += receipt.GasUsed
 			receipt.CumulativeGasUsed = cumulativeGasUsed
-			receipt.TransactionIndex += uint(e.txCount)
 			pevmResult.Receipts = append(pevmResult.Receipts, receipt)
 		})
-		e.txCount += len(txs)
 		pevmResult.Transactions = append(pevmResult.Transactions, txs...)
 		pevmResult.GasUsed = cumulativeGasUsed
 		e.logger.Info("parallel execute success",
@@ -530,12 +528,10 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 					} else if lazy, vok := entry.Value.(*LazyRecipient); vok {
 						balance.Add(balance, lazy.Balance)
 					} else if lazy, vok := entry.Value.(*LazySender); vok {
-						maxFee := new(big.Int).SetUint64(tx.Gas())
-						maxFee = maxFee.Mul(maxFee, tx.GasPrice())
-						maxFee.Add(maxFee, tx.Value())
-						if balance.Cmp(maxFee) < 0 {
+						maxFee := tx.Gas()*tx.GasPrice().Uint64() + tx.Value().Uint64()
+						if balance.Uint64() < maxFee {
 							abortErr = fmt.Errorf("lack of fund for max fee(balance: %d, maxFee: %d)",
-								balance, maxFee)
+								balance.Uint64(), maxFee)
 							return false
 						}
 						balance.Sub(balance, lazy.Balance)

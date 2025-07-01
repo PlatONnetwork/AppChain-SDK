@@ -3,7 +3,6 @@ package pevm
 import (
 	"fmt"
 	"math/big"
-	"reflect"
 	"sync"
 
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -20,7 +19,7 @@ var (
 		New: func() interface{} {
 			return &VmDB{
 				readSet:      NewReadSet(),
-				readAccounts: make(map[MemoryLocationHash]*AccountBase, 3),
+				readAccounts: make(map[common.Address]*AccountBase, 3),
 				dirties:      make(map[common.Address]struct{}, 3),
 				states:       make(map[common.Address]map[string][]byte, 3),
 				readStates:   make(map[common.Address]map[string][]byte, 3),
@@ -58,7 +57,7 @@ type VmDB struct {
 	toCodeHash   common.Hash
 	isLazy       bool
 	readSet      *ReadSet
-	readAccounts map[MemoryLocationHash]*AccountBase
+	readAccounts map[common.Address]*AccountBase
 	dirties      map[common.Address]struct{}
 	states       map[common.Address]map[string][]byte
 	readStates   map[common.Address]map[string][]byte
@@ -90,7 +89,7 @@ func NewVmDB(
 		fromHash:     fromHash,
 		toHash:       toHash,
 		readSet:      NewReadSet(),
-		readAccounts: make(map[MemoryLocationHash]*AccountBase, 3),
+		readAccounts: make(map[common.Address]*AccountBase, 3),
 		dirties:      make(map[common.Address]struct{}, 3),
 		states:       make(map[common.Address]map[string][]byte, 3),
 		readStates:   make(map[common.Address]map[string][]byte, 3),
@@ -174,7 +173,7 @@ func (db *VmDB) reset() {
 func (db *VmDB) pushOrigin(readOrigins *ReadOrigins, readOrigin ReadOrigin) {
 	if readOrigins.Len() > 0 {
 		last := readOrigins.Last()
-		if !reflect.DeepEqual(last, readOrigin) {
+		if !last.Equal(readOrigin) {
 			db.abortErr = ErrInconsistentRead
 			return
 		}
@@ -196,17 +195,18 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 	if db.abortErr != nil {
 		return nil
 	}
-	locationHash := db.hashBasic(addr)
+
 	if db.isLazy {
-		if locationHash == db.fromHash || locationHash == db.toHash {
+		if addr == db.fromAddr || addr == db.toAddr {
 			return nil
 		}
 	}
-	if basic, ok := db.readAccounts[locationHash]; ok {
+	if basic, ok := db.readAccounts[addr]; ok {
 		return basic
 	}
 
 	var (
+		locationHash           = db.hashBasic(addr)
 		readOrigins            = db.readSet.GetOrDefault(locationHash)
 		hasPrevOrigins         = readOrigins.Len() > 0
 		newOrigins             = NewReadOrigins()
@@ -225,7 +225,9 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 				if entry == nil {
 					break itLoop
 				}
-				if de, ok := entry.Entry.(*DataEntry); ok {
+				switch entry.Entry.(type) {
+				case *DataEntry:
+					de := entry.Entry.(*DataEntry)
 					// About to push a new origin
 					// Inconsistent: new origin will be longer than the previous!
 					if hasPrevOrigins && readOrigins.Len() == newOrigins.Len() {
@@ -238,26 +240,30 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 						TxIncarnation: de.TxIncarnation,
 					})
 					if hasPrevOrigins {
-						if !reflect.DeepEqual(origin, readOrigins.Get(newOrigins.Len())) {
+						if !origin.Equal(readOrigins.Get(newOrigins.Len())) {
 							db.abortErr = ErrInconsistentRead
 							return nil
 						}
 					} else {
 						newOrigins.Push(origin)
 					}
-					if basic, vok := de.Value.(*Basic); vok {
+					switch de.Value.(type) {
+					case *Basic:
+						basic := de.Value.(*Basic)
 						finalAccount = basic.Account
 						break itLoop
-					} else if lazySender, vok := de.Value.(*LazySender); vok {
+					case *LazySender:
+						lazySender := de.Value.(*LazySender)
 						balanceAddition.Sub(balanceAddition, lazySender.Balance)
 						nonceAddtion += 1
-					} else if lazyRecipient, vok := de.Value.(*LazyRecipient); vok {
+					case *LazyRecipient:
+						lazyRecipient := de.Value.(*LazyRecipient)
 						balanceAddition.Add(balanceAddition, lazyRecipient.Balance)
-					} else {
+					default:
 						db.abortErr = ErrInvalidMemoryValueType
 						return nil
 					}
-				} else if _, ok := entry.Entry.(*EstimateMarker); ok {
+				case *EstimateMarker:
 					db.abortErr = BlockingError{Addr: addr, TxIdx: entry.TxIdx}
 					return nil
 				}
@@ -269,7 +275,7 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 		if !hasPrevOrigins {
 			newOrigins.Push(NewStorage())
 		} else if readOrigins.Len() != newOrigins.Len()+1 ||
-			!reflect.DeepEqual(readOrigins.Last(), NewStorage()) {
+			!readOrigins.Last().Equal(NewStorage()) {
 			db.abortErr = ErrInconsistentRead
 			return nil
 		}
@@ -309,7 +315,7 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 			codeHash = db.GetCodeHash(addr)
 	}*/
 
-	db.readAccounts[locationHash] = finalAccount
+	db.readAccounts[addr] = finalAccount
 	return finalAccount
 }
 
@@ -318,12 +324,11 @@ func (db *VmDB) GetBalance(addr common.Address) *big.Int {
 		return big.NewInt(0)
 	}
 
-	locationHash := BasicLoc(addr)
 	if db.isLazy {
-		if db.fromHash == locationHash {
+		if db.fromAddr == addr {
 			return new(big.Int).Set(maxUint256)
 		}
-		if db.toHash == locationHash {
+		if db.toAddr == addr {
 			return big.NewInt(0)
 		}
 	}
@@ -339,9 +344,8 @@ func (db *VmDB) GetNonce(addr common.Address) uint64 {
 		return 0
 	}
 
-	locationHash := BasicLoc(addr)
 	if db.isLazy {
-		if db.fromHash == locationHash {
+		if db.fromAddr == addr {
 			return db.tx.Nonce()
 		}
 	}
@@ -357,8 +361,7 @@ func (db *VmDB) GetCodeHash(addr common.Address) common.Hash {
 		return emptyCodeHash
 	}
 
-	locationHash := CodeHashLoc(addr)
-	if locationHash == db.toHash {
+	if addr == db.toAddr {
 		return db.toCodeHash
 	}
 	return db.getCodeHash(addr)
@@ -382,10 +385,12 @@ func (db *VmDB) getCodeHash(addr common.Address) common.Hash {
 		entryItem := it.NextBack()
 		if entryItem != nil {
 			if entry, ok := entryItem.Entry.(*DataEntry); ok {
-				if _, vok := entry.Value.(*SelfDestructed); vok {
+				switch entry.Value.(type) {
+				case *SelfDestructed:
 					db.abortErr = ErrSelfDestructedAccount
 					return emptyCodeHash
-				} else if codeHash, vok := entry.Value.(*CodeHash); vok {
+				case *CodeHash:
+					codeHash := entry.Value.(*CodeHash)
 					db.pushOrigin(readOrigins, NewMemory(TxVersion{
 						TxIdx:         entryItem.TxIdx,
 						TxIncarnation: entry.TxIncarnation,
@@ -439,11 +444,11 @@ func (db *VmDB) GetState(addr common.Address, key []byte) []byte {
 		return []byte{}
 	}
 
-	locationHash := StateLoc(addr, key)
 	if val, exist := db.getStateFromCache(addr, key); exist {
 		return val
 	}
 
+	locationHash := StateLoc(addr, key)
 	readOrigins := db.readSet.GetOrDefault(locationHash)
 	// Try reading from multi-version data
 	if db.txIdx > 0 {
@@ -452,7 +457,9 @@ func (db *VmDB) GetState(addr common.Address, key []byte) []byte {
 			defer it.Release()
 			entry := it.NextBack()
 			if entry != nil {
-				if de, ok := entry.Entry.(*DataEntry); ok {
+				switch entry.Entry.(type) {
+				case *DataEntry:
+					de := entry.Entry.(*DataEntry)
 					db.pushOrigin(readOrigins, NewMemory(TxVersion{
 						TxIdx:         entry.TxIdx,
 						TxIncarnation: de.TxIncarnation,
@@ -460,10 +467,10 @@ func (db *VmDB) GetState(addr common.Address, key []byte) []byte {
 					val := de.Value.(*State).Value
 					db.setReadState(addr, key, val)
 					return val
-				} else if _, ok := entry.Entry.(*EstimateMarker); ok {
+				case *EstimateMarker:
 					db.abortErr = BlockingError{Addr: addr, TxIdx: entry.TxIdx}
 					return []byte{}
-				} else {
+				default:
 					db.abortErr = ErrInvalidMemoryValueType
 					return []byte{}
 				}
@@ -495,7 +502,7 @@ func (db *VmDB) Exist(addr common.Address) bool {
 		return false
 	}
 
-	_, exist := db.readAccounts[BasicLoc(addr)]
+	_, exist := db.readAccounts[addr]
 	if exist {
 		return exist
 	}
@@ -527,7 +534,7 @@ func (db *VmDB) CreateAccount(addr common.Address) {
 	}
 	if db.getAccountBasic(addr) == nil {
 		basic := NewEmptyAccountBase(addr)
-		db.readAccounts[BasicLoc(addr)] = basic
+		db.readAccounts[addr] = basic
 	}
 }
 
@@ -540,8 +547,7 @@ func (db *VmDB) SubBalance(addr common.Address, amount *big.Int) {
 		return
 	}
 
-	locationHash := BasicLoc(addr)
-	isLazy := (db.isLazy && locationHash == db.fromHash) || addr == db.vm.env.Header.Coinbase
+	isLazy := (db.isLazy && addr == db.fromAddr) || addr == db.vm.env.Header.Coinbase
 	if isLazy {
 		if balance, exist := db.subBalances[addr]; exist {
 			balance.Add(balance, amount)
@@ -564,8 +570,7 @@ func (db *VmDB) AddBalance(addr common.Address, amount *big.Int) {
 		return
 	}
 
-	locationHash := BasicLoc(addr)
-	isLazy := (db.isLazy && locationHash == db.toHash) || addr == db.vm.env.Header.Coinbase
+	isLazy := (db.isLazy && addr == db.toAddr) || addr == db.vm.env.Header.Coinbase
 	if isLazy {
 		if balance, exist := db.addBalances[addr]; exist {
 			balance.Add(balance, amount)
@@ -599,8 +604,8 @@ func (db *VmDB) SetNonce(addr common.Address, nonce uint64) {
 	if db.abortErr != nil {
 		return
 	}
-	locationHash := BasicLoc(addr)
-	if db.isLazy && locationHash == db.fromHash {
+
+	if db.isLazy && addr == db.fromAddr {
 		return // Lazy cumulative
 	}
 

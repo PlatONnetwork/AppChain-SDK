@@ -293,11 +293,13 @@ func NewSelfDestructed(addr common.Address) MemoryValue {
 
 type ReadOrigin interface {
 	isReadOrigin()
+	Equal(o ReadOrigin) bool
 }
 
 type readOrigin struct{}
 
-func (readOrigin) isReadOrigin() {}
+func (readOrigin) isReadOrigin()         {}
+func (readOrigin) Equal(ReadOrigin) bool { return false }
 
 type Memory struct {
 	readOrigin
@@ -307,6 +309,12 @@ type Memory struct {
 
 func NewMemory(ver TxVersion) ReadOrigin { return &Memory{Version: ver} }
 
+func (m *Memory) Equal(o ReadOrigin) bool {
+	other, ok := o.(*Memory)
+	return ok && m.Version.TxIdx == other.Version.TxIdx &&
+		m.Version.TxIncarnation == other.Version.TxIncarnation
+}
+
 type Storage struct {
 	readOrigin
 }
@@ -314,6 +322,10 @@ type Storage struct {
 var storageInstance = &Storage{}
 
 func NewStorage() ReadOrigin { return storageInstance }
+func (Storage) Equal(o ReadOrigin) bool {
+	_, ok := o.(*Storage)
+	return ok
+}
 
 type ReadOrigins struct {
 	origins []ReadOrigin
