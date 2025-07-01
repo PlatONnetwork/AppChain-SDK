@@ -209,6 +209,7 @@ func (wh *WriteHistory) Release() {
 		cpy := entry
 		putItem(cpy)
 	}
+	wh.items = wh.items[:0]
 }
 
 type ItemIterator struct {
@@ -329,7 +330,9 @@ func NewLazyAddresses() *LazyAddresses {
 func (la *LazyAddresses) Insert(addr common.Address) {
 	la.Lock()
 	defer la.Unlock()
-	la.addresses[addr] = struct{}{}
+	if _, ok := la.addresses[addr]; !ok {
+		la.addresses[addr] = struct{}{}
+	}
 }
 
 func (la *LazyAddresses) Remove(addr common.Address) {
