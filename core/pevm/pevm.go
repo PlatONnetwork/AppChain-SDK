@@ -407,15 +407,16 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 				"err", err)
 			return &pevmResult, err
 		}
+		var cumulativeGasUsed uint64
 		executionResults.Range(func(_ int, result *ExecutionResult) {
 			receipt := result.receipt
-			e.cumulativeGasUsed += receipt.GasUsed
-			receipt.CumulativeGasUsed = e.cumulativeGasUsed
+			cumulativeGasUsed += receipt.GasUsed
+			receipt.CumulativeGasUsed = cumulativeGasUsed
 			receipt.TransactionIndex += uint(e.txCount)
 			pevmResult.Receipts = append(pevmResult.Receipts, receipt)
 		})
 		pevmResult.Transactions = append(pevmResult.Transactions, txs...)
-		pevmResult.GasUsed = e.cumulativeGasUsed
+		pevmResult.GasUsed = cumulativeGasUsed
 		e.txCount += len(txs)
 		e.logger.Info("parallel execute success",
 			"number", e.env.Header.Number,
@@ -501,6 +502,7 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 	statedb := e.env.StateDB
 	committedLocations := make(map[MemoryLocationHash]bool)
 	var abortErr error
+	maxFee := new(big.Int)
 	mvMemory.ConsumeLazyAddresses(func(addr common.Address) bool {
 		locationHash := BasicLoc(addr)
 		committedLocations[locationHash] = true
@@ -522,17 +524,23 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 				tx := txs[entry.TxIdx]
 
 				if entry, ok := entry.Entry.(*DataEntry); ok {
-					if basic, vok := entry.Value.(*Basic); vok {
+					switch entry.Value.(type) {
+					case *Basic:
+						basic := entry.Value.(*Basic)
 						account := basic.Account
 						balance.Set(account.Balance)
 						nonce = account.Nonce
-					} else if lazy, vok := entry.Value.(*LazyRecipient); vok {
+					case *LazyRecipient:
+						lazy := entry.Value.(*LazyRecipient)
 						balance.Add(balance, lazy.Balance)
-					} else if lazy, vok := entry.Value.(*LazySender); vok {
-						maxFee := tx.Gas()*tx.GasPrice().Uint64() + tx.Value().Uint64()
-						if balance.Uint64() < maxFee {
+					case *LazySender:
+						lazy := entry.Value.(*LazySender)
+						maxFee.SetUint64(tx.Gas())
+						maxFee.Mul(maxFee, tx.GasPrice())
+						maxFee.Add(maxFee, tx.Value())
+						if balance.Cmp(maxFee) < 0 {
 							abortErr = fmt.Errorf("lack of fund for max fee(balance: %d, maxFee: %d)",
-								balance.Uint64(), maxFee)
+								balance, maxFee)
 							return false
 						}
 						balance.Sub(balance, lazy.Balance)
@@ -579,7 +587,9 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 			}
 			writeHistory.Ascend(func(d *item) bool {
 				if entry, ok := d.Entry.(*DataEntry); ok {
-					if basic, vok := entry.Value.(*Basic); vok {
+					switch entry.Value.(type) {
+					case *Basic:
+						basic := entry.Value.(*Basic)
 						account := basic.Account
 						if !account.Suicided {
 							if account.Nonce > 0 {
@@ -587,11 +597,14 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 							}
 							statedb.SetBalance(account.Addr, account.Balance)
 						}
-					} else if des, vok := entry.Value.(*SelfDestructed); vok {
+					case *SelfDestructed:
+						des := entry.Value.(*SelfDestructed)
 						statedb.Suicide(des.Addr)
-					} else if state, vok := entry.Value.(*State); vok {
+					case *State:
+						state := entry.Value.(*State)
 						statedb.SetState(state.Addr, state.Key, state.Value)
-					} else if codeHash, vok := entry.Value.(*CodeHash); vok {
+					case *CodeHash:
+						codeHash := entry.Value.(*CodeHash)
 						if code, ok := mvMemory.newByteCodes.Get(codeHash.CodeHash); ok {
 							statedb.SetCode(codeHash.Addr, code)
 						}
