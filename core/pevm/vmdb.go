@@ -547,8 +547,7 @@ func (db *VmDB) SubBalance(addr common.Address, amount *big.Int) {
 		return
 	}
 
-	isLazy := (db.isLazy && addr == db.fromAddr) || addr == db.vm.env.Header.Coinbase
-	if isLazy {
+	if db.lazy(addr) {
 		if balance, exist := db.subBalances[addr]; exist {
 			balance.Add(balance, amount)
 		} else {
@@ -570,8 +569,20 @@ func (db *VmDB) AddBalance(addr common.Address, amount *big.Int) {
 		return
 	}
 
-	isLazy := (db.isLazy && addr == db.toAddr) || addr == db.vm.env.Header.Coinbase
-	if isLazy {
+	if db.lazy(addr) {
+		if addr == db.fromAddr {
+			// refund
+			if balance, ok := db.subBalances[addr]; ok {
+				if amount.Cmp(balance) > 0 {
+					panic(fmt.Sprintf("invalid balance(addr: %s, balance: %s, amount: %s)", addr.Hex(), amount, balance))
+				}
+				balance.Sub(balance, amount)
+			} else {
+				panic(fmt.Sprintf("AddBalance: unreachable(%s balance not found)", addr.Hex()))
+			}
+			return
+		}
+
 		if balance, exist := db.addBalances[addr]; exist {
 			balance.Add(balance, amount)
 		} else {
@@ -744,4 +755,9 @@ func (db *VmDB) getStateFromCache(addr common.Address, key []byte) ([]byte, bool
 		return val, valExist
 	}
 	return []byte{}, false
+}
+
+func (db *VmDB) lazy(addr common.Address) bool {
+	lazyAddr := db.isLazy && (addr == db.fromAddr || addr == db.toAddr)
+	return lazyAddr || addr == db.vm.env.Header.Coinbase
 }
