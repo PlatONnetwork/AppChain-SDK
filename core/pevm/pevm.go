@@ -407,16 +407,15 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 				"err", err)
 			return &pevmResult, err
 		}
-		var cumulativeGasUsed uint64
 		executionResults.Range(func(_ int, result *ExecutionResult) {
 			receipt := result.receipt
-			cumulativeGasUsed += receipt.GasUsed
-			receipt.CumulativeGasUsed = cumulativeGasUsed
+			e.cumulativeGasUsed += receipt.GasUsed
+			receipt.CumulativeGasUsed = e.cumulativeGasUsed
 			receipt.TransactionIndex += uint(e.txCount)
 			pevmResult.Receipts = append(pevmResult.Receipts, receipt)
 		})
 		pevmResult.Transactions = append(pevmResult.Transactions, txs...)
-		pevmResult.GasUsed = cumulativeGasUsed
+		pevmResult.GasUsed = e.cumulativeGasUsed
 		e.txCount += len(txs)
 		e.logger.Info("parallel execute success",
 			"number", e.env.Header.Number,
