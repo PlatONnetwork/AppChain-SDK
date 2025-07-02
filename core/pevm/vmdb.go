@@ -44,6 +44,7 @@ func init() {
 
 func AcquireVmDB() *VmDB {
 	db := vmdbPool.Get().(*VmDB)
+	db.reset()
 	return db
 }
 
@@ -424,8 +425,8 @@ func (db *VmDB) GetCode(addr common.Address) []byte {
 	if codeHash == emptyCodeHash {
 		return []byte{}
 	}
-	if code, ok := db.vm.mvMemory.newByteCodes.Get(codeHash); ok {
-		return code
+	if code, ok := db.vm.mvMemory.newByteCodes.Load(codeHash); ok {
+		return code.([]byte)
 	}
 	return db.vm.statedb.GetCode(addr)
 }

@@ -604,8 +604,8 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 						statedb.SetState(state.Addr, state.Key, state.Value)
 					case *CodeHash:
 						codeHash := entry.Value.(*CodeHash)
-						if code, ok := mvMemory.newByteCodes.Get(codeHash.CodeHash); ok {
-							statedb.SetCode(codeHash.Addr, code)
+						if code, ok := mvMemory.newByteCodes.Load(codeHash.CodeHash); ok {
+							statedb.SetCode(codeHash.Addr, code.([]byte))
 						}
 					}
 				}

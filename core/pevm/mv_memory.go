@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/PlatONnetwork/PlatON-Go/common"
-	cmap "github.com/orcaman/concurrent-map/v2"
 )
 
 const writeHistoryShards = 256
@@ -373,7 +372,7 @@ type MvMemory struct {
 	data          *ShardedWriteHistory
 	lastLocations []*LastLocations
 	lazyAddresses *LazyAddresses
-	newByteCodes  cmap.ConcurrentMap[common.Hash, []byte]
+	newByteCodes  sync.Map // map[common.Hash][]byte
 }
 
 func NewMvMemory(
@@ -384,7 +383,6 @@ func NewMvMemory(
 		data:          NewShardedWriteHistory(),
 		lastLocations: initializeLastLocations(blockSize),
 		lazyAddresses: NewLazyAddresses(),
-		newByteCodes:  cmap.NewWithCustomShardingFunction[common.Hash, []byte](hashShard),
 	}
 
 	for h, txIdxs := range estimatedLoactions {
@@ -553,12 +551,4 @@ func (m *MvMemory) ConsumeLazyAddresses(f func(common.Address) bool) {
 
 func (m *MvMemory) Release() {
 	m.data.Release()
-}
-
-func memHashShard(h MemoryLocationHash) uint32 {
-	return uint32(h % 31)
-}
-
-func hashShard(h common.Hash) uint32 {
-	return uint32(h[31]) % 31
 }

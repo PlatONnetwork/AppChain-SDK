@@ -92,7 +92,7 @@ func (vm *Vm) Execute(txVersion *TxVersion) (result *VmExecutionResult, err erro
 			writeSet.Add(locationHash, NewBasic(addr, account))
 			if account.NewCode {
 				writeSet.Add(CodeHashLoc(addr), NewCodeHash(addr, account.CodeHash))
-				db.vm.mvMemory.newByteCodes.Set(account.CodeHash, account.Code)
+				db.vm.mvMemory.newByteCodes.Store(account.CodeHash, account.Code)
 			}
 		}
 
