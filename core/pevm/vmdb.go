@@ -44,8 +44,6 @@ func init() {
 
 func AcquireVmDB() *VmDB {
 	db := vmdbPool.Get().(*VmDB)
-	// 重置状态
-	db.reset()
 	return db
 }
 
