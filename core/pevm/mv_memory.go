@@ -10,6 +10,13 @@ import (
 
 const writeHistoryShards = 256
 
+func init() {
+	for i := 0; i < writeHistoryShards; i++ {
+		itemPool.Put(itemPool.New())
+		shardPool.Put(shardPool.New())
+	}
+}
+
 var itemPool = sync.Pool{
 	New: func() interface{} {
 		return new(item)

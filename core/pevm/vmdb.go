@@ -34,6 +34,14 @@ var (
 	}
 )
 
+const initPoolSize = 64
+
+func init() {
+	for i := 0; i < initPoolSize; i++ {
+		vmdbPool.Put(vmdbPool.New())
+	}
+}
+
 func AcquireVmDB() *VmDB {
 	db := vmdbPool.Get().(*VmDB)
 	// 重置状态
