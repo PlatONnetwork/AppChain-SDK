@@ -38,10 +38,8 @@ func getShard() *WriteHistoryShard {
 
 func putShard(s *WriteHistoryShard) {
 	// 清理 shard 的状态，避免数据污染
-	for _, wh := range s.histories {
+	for k, wh := range s.histories {
 		wh.Release()
-	}
-	for k, _ := range s.histories {
 		delete(s.histories, k)
 	}
 	shardPool.Put(s)
@@ -303,7 +301,7 @@ func (l *LastLocations) AppendWrite(h MemoryLocationHash) {
 func newLastLocations() *LastLocations {
 	return &LastLocations{
 		read:  NewReadSet(),
-		write: make([]MemoryLocationHash, 0),
+		write: make([]MemoryLocationHash, 0, 4),
 	}
 }
 
