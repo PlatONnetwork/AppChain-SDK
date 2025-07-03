@@ -34,9 +34,16 @@ var (
 	}
 )
 
+const initPoolSize = 64
+
+func init() {
+	for i := 0; i < initPoolSize; i++ {
+		vmdbPool.Put(vmdbPool.New())
+	}
+}
+
 func AcquireVmDB() *VmDB {
 	db := vmdbPool.Get().(*VmDB)
-	// 重置状态
 	db.reset()
 	return db
 }
@@ -418,8 +425,8 @@ func (db *VmDB) GetCode(addr common.Address) []byte {
 	if codeHash == emptyCodeHash {
 		return []byte{}
 	}
-	if code, ok := db.vm.mvMemory.newByteCodes.Get(codeHash); ok {
-		return code
+	if code, ok := db.vm.mvMemory.newByteCodes.Load(codeHash); ok {
+		return code.([]byte)
 	}
 	return db.vm.statedb.GetCode(addr)
 }
@@ -490,9 +497,12 @@ func (db *VmDB) HasSuicided(addr common.Address) bool {
 		return true
 	}
 
-	// FIXME: read from mv memory
 	if acc := db.getAccountBasic(addr); acc != nil {
-		return acc.Suicided
+		if acc.Suicided == nil {
+			suicided := db.vm.statedb.HasSuicided(addr)
+			acc.Suicided = &suicided
+		}
+		return *acc.Suicided
 	}
 	return db.vm.statedb.HasSuicided(addr)
 }
@@ -671,7 +681,8 @@ func (db *VmDB) Suicide(addr common.Address) bool {
 		if _, ok := db.dirties[addr]; !ok {
 			db.dirties[addr] = struct{}{}
 		}
-		basic.Suicided = true
+		suicided := true
+		basic.Suicided = &suicided
 		basic.Balance = new(big.Int)
 		return true
 	}

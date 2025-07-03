@@ -83,7 +83,7 @@ func (vm *Vm) Execute(txVersion *TxVersion) (result *VmExecutionResult, err erro
 		for addr, _ := range db.dirties {
 
 			account := db.readAccounts[addr]
-			if account.Suicided {
+			if account.Suicided != nil && *account.Suicided {
 				writeSet.Add(CodeHashLoc(addr), NewSelfDestructed(addr))
 				continue
 			}
@@ -92,7 +92,7 @@ func (vm *Vm) Execute(txVersion *TxVersion) (result *VmExecutionResult, err erro
 			writeSet.Add(locationHash, NewBasic(addr, account))
 			if account.NewCode {
 				writeSet.Add(CodeHashLoc(addr), NewCodeHash(addr, account.CodeHash))
-				db.vm.mvMemory.newByteCodes.Set(account.CodeHash, account.Code)
+				db.vm.mvMemory.newByteCodes.Store(account.CodeHash, account.Code)
 			}
 		}
 

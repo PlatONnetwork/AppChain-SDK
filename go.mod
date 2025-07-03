@@ -4,10 +4,8 @@ go 1.21
 
 require (
 	github.com/PlatONnetwork/PlatON-Go v1.5.0
-	github.com/google/btree v1.1.3
 	github.com/google/uuid v1.1.5
 	github.com/holiman/uint256 v1.2.0
-	github.com/orcaman/concurrent-map/v2 v2.0.1
 	github.com/status-im/keycard-go v0.0.0-20190316090335-8537d3370df4
 	github.com/stretchr/testify v1.7.0
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7

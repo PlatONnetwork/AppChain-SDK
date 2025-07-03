@@ -172,7 +172,7 @@ type AccountBase struct {
 	CodeHash common.Hash
 	CodeSize int
 	Code     []byte
-	Suicided bool
+	Suicided *bool
 	NewCode  bool
 }
 
@@ -195,14 +195,19 @@ func (ab *AccountBase) Touch() bool {
 }
 
 func (ab *AccountBase) Clone() *AccountBase {
+	var suicided *bool = nil
+	if ab.Suicided != nil {
+		s := *ab.Suicided
+		suicided = &s
+	}
 	return &AccountBase{
-		Addr:     common.Address(bytes.Clone(ab.Addr[:])),
+		Addr:     ab.Addr,
 		Nonce:    ab.Nonce,
 		Balance:  new(big.Int).Set(ab.Balance),
-		CodeHash: common.Hash(bytes.Clone(ab.CodeHash[:])),
+		CodeHash: ab.CodeHash,
 		CodeSize: ab.CodeSize,
-		Code:     bytes.Clone(ab.Code),
-		Suicided: ab.Suicided,
+		Code:     ab.Code,
+		Suicided: suicided,
 		NewCode:  ab.NewCode,
 	}
 }
