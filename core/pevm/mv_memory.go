@@ -18,7 +18,7 @@ func init() {
 
 var itemPool = sync.Pool{
 	New: func() interface{} {
-		return new(item)
+		return &item{Entry: NewEstimate()}
 	},
 }
 

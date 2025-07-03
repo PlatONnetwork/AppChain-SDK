@@ -590,7 +590,7 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 					case *Basic:
 						basic := entry.Value.(*Basic)
 						account := basic.Account
-						if !account.Suicided {
+						if account.Suicided == nil || !(*account.Suicided) {
 							if account.Nonce > 0 {
 								statedb.SetNonce(account.Addr, account.Nonce)
 							}

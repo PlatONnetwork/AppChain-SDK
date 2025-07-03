@@ -83,7 +83,7 @@ func (vm *Vm) Execute(txVersion *TxVersion) (result *VmExecutionResult, err erro
 		for addr, _ := range db.dirties {
 
 			account := db.readAccounts[addr]
-			if account.Suicided {
+			if account.Suicided != nil && *account.Suicided {
 				writeSet.Add(CodeHashLoc(addr), NewSelfDestructed(addr))
 				continue
 			}

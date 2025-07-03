@@ -12,7 +12,7 @@ import (
 var _ sdk.StateDB = (*StateDBMut)(nil)
 
 type StateDBMut struct {
-	sync.RWMutex
+	sync.Mutex
 
 	statedb sdk.StateDB
 }

@@ -497,9 +497,12 @@ func (db *VmDB) HasSuicided(addr common.Address) bool {
 		return true
 	}
 
-	// FIXME: read from mv memory
 	if acc := db.getAccountBasic(addr); acc != nil {
-		return acc.Suicided
+		if acc.Suicided == nil {
+			suicided := db.vm.statedb.HasSuicided(addr)
+			acc.Suicided = &suicided
+		}
+		return *acc.Suicided
 	}
 	return db.vm.statedb.HasSuicided(addr)
 }
@@ -678,7 +681,8 @@ func (db *VmDB) Suicide(addr common.Address) bool {
 		if _, ok := db.dirties[addr]; !ok {
 			db.dirties[addr] = struct{}{}
 		}
-		basic.Suicided = true
+		suicided := true
+		basic.Suicided = &suicided
 		basic.Balance = new(big.Int)
 		return true
 	}
