@@ -226,7 +226,9 @@ func (m *Module) start(amount uint64, sendTxPool bool) error {
 }
 func (m *Module) stop() error {
 	if m.starting.Load() {
-		m.stopC <- struct{}{}
+		m.starting.Store(false)
+		m.Statistics.send.Store(0)
+		m.Statistics.confirm.Store(0)
 	}
 	return nil
 }
@@ -245,7 +247,7 @@ func (m *Module) SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.T
 			}
 			m.logger.Debug("Sort Txs", "address", k, "len", len(v), "nonce", nonce, "firstNonce", v[0].Nonce(), "start", start, "end", end, "amount", m.amount, "sum", sum)
 			txs = append(txs, v[start:end]...)
-			
+
 			sum += end - start
 			in := time.Now().UnixMilli()
 			for _, t := range v[start:end] {
@@ -314,6 +316,9 @@ func (m *Module) sendLoop(amount uint64) {
 	for {
 		select {
 		case <-tick.C:
+			if !m.starting.Load() {
+				continue
+			}
 			m.Lock()
 			sum := uint64(0)
 			for sum < amount && len(m.txCache) != 0 {
@@ -337,11 +342,6 @@ func (m *Module) sendLoop(amount uint64) {
 				index++
 			}
 			m.Unlock()
-		case <-m.stopC:
-			m.starting.Store(false)
-			m.Statistics.send.Store(0)
-			m.Statistics.confirm.Store(0)
-			return
 		}
 	}
 }
