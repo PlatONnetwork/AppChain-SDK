@@ -223,15 +223,8 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 	)
 
 	if db.txIdx > 0 {
-		if writtenTxs := db.vm.mvMemory.data.Get(locationHash); writtenTxs != nil {
-			it := writtenTxs.AscendRange(db.txIdx)
-			defer it.Release()
-		itLoop:
-			for {
-				entry := it.NextBack()
-				if entry == nil {
-					break itLoop
-				}
+		if wh := db.vm.mvMemory.data.Get(locationHash); wh != nil {
+			wh.ScanHistory(db.txIdx, func(entry *item) bool {
 				switch entry.Entry.(type) {
 				case *DataEntry:
 					de := entry.Entry.(*DataEntry)
@@ -239,7 +232,7 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 					// Inconsistent: new origin will be longer than the previous!
 					if hasPrevOrigins && readOrigins.Len() == newOrigins.Len() {
 						db.abortErr = ErrInconsistentRead
-						return nil
+						return false
 					}
 
 					origin := NewMemory(TxVersion{
@@ -249,7 +242,7 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 					if hasPrevOrigins {
 						if !origin.Equal(readOrigins.Get(newOrigins.Len())) {
 							db.abortErr = ErrInconsistentRead
-							return nil
+							return false
 						}
 					} else {
 						newOrigins.Push(origin)
@@ -258,7 +251,7 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 					case *Basic:
 						basic := de.Value.(*Basic)
 						finalAccount = basic.Account
-						break itLoop
+						return false
 					case *LazySender:
 						lazySender := de.Value.(*LazySender)
 						balanceAddition.Sub(balanceAddition, lazySender.Balance)
@@ -268,13 +261,14 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 						balanceAddition.Add(balanceAddition, lazyRecipient.Balance)
 					default:
 						db.abortErr = ErrInvalidMemoryValueType
-						return nil
+						return false
 					}
 				case *EstimateMarker:
 					db.abortErr = BlockingError{Addr: addr, TxIdx: entry.TxIdx}
-					return nil
+					return false
 				}
-			}
+				return true
+			})
 		}
 	}
 
@@ -383,19 +377,21 @@ func (db *VmDB) getCodeHash(addr common.Address) common.Hash {
 		return h
 	}
 
-	locationHash := CodeHashLoc(addr)
-	readOrigins := db.readSet.GetOrDefault(locationHash)
+	var (
+		locationHash = CodeHashLoc(addr)
+		readOrigins  = db.readSet.GetOrDefault(locationHash)
+		h            = emptyCodeHash
+		got          bool
+	)
 
-	if writtenTxs := db.vm.mvMemory.data.Get(locationHash); writtenTxs != nil {
-		it := writtenTxs.AscendRange(db.txIdx)
-		defer it.Release()
-		entryItem := it.NextBack()
-		if entryItem != nil {
+	if wh := db.vm.mvMemory.data.Get(locationHash); wh != nil {
+		wh.ScanHistory(db.txIdx, func(entryItem *item) bool {
 			if entry, ok := entryItem.Entry.(*DataEntry); ok {
 				switch entry.Value.(type) {
 				case *SelfDestructed:
 					db.abortErr = ErrSelfDestructedAccount
-					return emptyCodeHash
+					got = true
+					return false
 				case *CodeHash:
 					codeHash := entry.Value.(*CodeHash)
 					db.pushOrigin(readOrigins, NewMemory(TxVersion{
@@ -403,15 +399,21 @@ func (db *VmDB) getCodeHash(addr common.Address) common.Hash {
 						TxIncarnation: entry.TxIncarnation,
 					}))
 					db.readCodeHash[addr] = codeHash.CodeHash
-					return codeHash.CodeHash
+					h = codeHash.CodeHash
+					got = true
+					return false
 				}
 			}
-		}
+			return false
+		})
+	}
+	if got {
+		return h
 	}
 
 	// Fallback to storage
 	db.pushOrigin(readOrigins, NewStorage())
-	h := db.vm.statedb.GetCodeHash(addr)
+	h = db.vm.statedb.GetCodeHash(addr)
 	db.readCodeHash[addr] = h
 	return h
 }
@@ -457,13 +459,15 @@ func (db *VmDB) GetState(addr common.Address, key []byte) []byte {
 
 	locationHash := StateLoc(addr, key)
 	readOrigins := db.readSet.GetOrDefault(locationHash)
+	var (
+		val []byte
+		got bool
+	)
+
 	// Try reading from multi-version data
 	if db.txIdx > 0 {
-		if writtenTxs := db.vm.mvMemory.data.Get(locationHash); writtenTxs != nil {
-			it := writtenTxs.AscendRange(db.txIdx)
-			defer it.Release()
-			entry := it.NextBack()
-			if entry != nil {
+		if wh := db.vm.mvMemory.data.Get(locationHash); wh != nil {
+			wh.ScanHistory(db.txIdx, func(entry *item) bool {
 				switch entry.Entry.(type) {
 				case *DataEntry:
 					de := entry.Entry.(*DataEntry)
@@ -471,23 +475,29 @@ func (db *VmDB) GetState(addr common.Address, key []byte) []byte {
 						TxIdx:         entry.TxIdx,
 						TxIncarnation: de.TxIncarnation,
 					}))
-					val := de.Value.(*State).Value
+					val = de.Value.(*State).Value
 					db.setReadState(addr, key, val)
-					return val
+					got = true
+					return false
 				case *EstimateMarker:
 					db.abortErr = BlockingError{Addr: addr, TxIdx: entry.TxIdx}
-					return []byte{}
+					got = true
+					return false
 				default:
 					db.abortErr = ErrInvalidMemoryValueType
-					return []byte{}
+					got = true
+					return false
 				}
-			}
+			})
 		}
+	}
+	if got {
+		return val
 	}
 
 	// Fall back to storage
 	db.pushOrigin(readOrigins, NewStorage())
-	val := db.vm.statedb.GetState(addr, key)
+	val = db.vm.statedb.GetState(addr, key)
 	db.setReadState(addr, key, val)
 	return val
 }
