@@ -15,15 +15,16 @@ import (
 )
 
 var (
-	urlsFlag         = cli.StringFlag{Name: "urls", EnvVar: "BENCHMARK_URLS", Usage: "Node http rpc url, example:\"127.0.0.1:8801,127.0.0.2:8802\""}
-	addrsFlag        = cli.IntFlag{Name: "addrs", EnvVar: "BENCHMARK_ADDRS", Usage: "Server ip, example:\"127.0.0.1,127.0.0.2\""}
-	rawTxPercentFlag = cli.IntFlag{Name: "rawtx", EnvVar: "BENCHMARK_RAWTX", Value: 100, Usage: "The proportion of transactions to the total number of transactions"}
-	countFlag        = cli.Uint64Flag{Name: "count", EnvVar: "BENCHMARK_COUNT", Value: 10000, Usage: "Generate transaction count"}
-	tpsFlag          = cli.Uint64Flag{Name: "tps", EnvVar: "BENCHMARK_TPS", Value: 1000, Usage: " Sent txs per second"}
-	sendTxPoolFlag   = cli.BoolFlag{Name: "txpool", Usage: "Transactions send to the txpool"}
-	startBlockFlag   = cli.Uint64Flag{Name: "start", EnvVar: "BENCHMARK_STARTBLOCK", Usage: "Start block number"}
-	endBlockFlag     = cli.Uint64Flag{Name: "end", EnvVar: "BENCHMARK_ENDBLOCK", Usage: "End block number"}
-	GenTxCommand     = cli.Command{
+	urlsFlag          = cli.StringFlag{Name: "urls", EnvVar: "BENCHMARK_URLS", Usage: "Node http rpc url, example:\"127.0.0.1:8801,127.0.0.2:8802\""}
+	addrsFlag         = cli.IntFlag{Name: "addrs", EnvVar: "BENCHMARK_ADDRS", Usage: "Server ip, example:\"127.0.0.1,127.0.0.2\""}
+	rawTxPercentFlag  = cli.IntFlag{Name: "rawtx", EnvVar: "BENCHMARK_RAWTX", Value: 100, Usage: "The proportion of transactions to the total number of transactions"}
+	countFlag         = cli.Uint64Flag{Name: "count", EnvVar: "BENCHMARK_COUNT", Value: 10000, Usage: "Generate transaction count"}
+	tpsFlag           = cli.Uint64Flag{Name: "tps", EnvVar: "BENCHMARK_TPS", Value: 1000, Usage: "Sent txs per second"}
+	txsPerAccountFlag = cli.IntFlag{Name: "txsperaccount", EnvVar: "BENCHMARK_TXSPERACCOUNT", Value: 256, Usage: "Sent txs per account"}
+	sendTxPoolFlag    = cli.BoolFlag{Name: "txpool", Usage: "Transactions send to the txpool"}
+	startBlockFlag    = cli.Uint64Flag{Name: "start", EnvVar: "BENCHMARK_STARTBLOCK", Usage: "Start block number"}
+	endBlockFlag      = cli.Uint64Flag{Name: "end", EnvVar: "BENCHMARK_ENDBLOCK", Usage: "End block number"}
+	GenTxCommand      = cli.Command{
 		Name:   "gentx",
 		Action: GenTx,
 		Flags: []cli.Flag{
@@ -40,6 +41,7 @@ var (
 		Flags: []cli.Flag{
 			urlsFlag,
 			tpsFlag,
+			txsPerAccountFlag,
 			sendTxPoolFlag,
 		},
 		CustomHelpTemplate: flags.CommandHelpTemplate,
@@ -136,9 +138,10 @@ func Start(ctx *cli.Context) error {
 		return err
 	}
 	tps := ctx.Uint64(tpsFlag.Name)
+	txsPerAccount := ctx.Int(txsPerAccountFlag.Name)
 	sendTxPool := ctx.Bool(sendTxPoolFlag.Name)
 	for _, cli := range clis {
-		err = cli.Start(context.Background(), tps, sendTxPool)
+		err = cli.Start(context.Background(), tps, txsPerAccount, sendTxPool)
 		if err != nil {
 			log.Error("start failed", "url", cli.url, "err", err)
 		}
