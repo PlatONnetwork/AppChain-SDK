@@ -35,6 +35,7 @@ type Module struct {
 	p2p                 AsyncBlockP2P
 	cs                  ConsensusState
 	bsc                 *BlockStateCache
+	computerSender      *ComputeSender
 	signer              types.Signer
 	stateChangeCh       chan struct{}
 	entrySizeLimit      int
@@ -48,6 +49,7 @@ type Module struct {
 func NewModule(ctx *cli.Context) *Module {
 	m := &Module{
 		logger:              log.New("module", ModuleName),
+		computerSender:      NewComputeSender(10),
 		stateChangeCh:       make(chan struct{}, 10),
 		entrySizeLimit:      ctx.GlobalInt(EntrySizeFlag.Name),
 		splitEntryThreshold: ctx.GlobalInt(SplitThresholdFlag.Name),
@@ -67,6 +69,7 @@ func (m *Module) Version() uint64 { return ModuleVersion }
 func (m *Module) Init(ctx sdk.InitContext) error {
 	m.signer = types.NewLondonSigner(ctx.Backend().ChainConfig().ChainID)
 	m.backend = ctx.Backend()
+	m.computerSender.Run(m.signer)
 	go m.executeLoop()
 	return nil
 }
@@ -171,8 +174,10 @@ func (m *Module) ExecuteBlock(ctx sdk.BlockExecutorContext, block *types.Block, 
 		} else {
 			if !m.bsc.HadFullEntry(block.NumberU64()) {
 				m.Unlock()
+				logger.Debug("No Full block entry, end the search")
 				return nil, nil, errors.New("no full block entry")
 			}
+
 			ev := make(chan NewFinalizeBlockEvent, 10)
 			sub := m.SubscribeNewFinalizeBlockEvent(ev)
 			m.Unlock()
@@ -388,8 +393,7 @@ func (m *Module) handleEntry(peer sdkp2p.Peer, msg *EntryMsg) error {
 	}
 
 	m.bsc.AddEntry(&msg.Entry)
-
-	go m.fillSender(msg.Transactions)
+	m.computerSender.AddEntry(&msg.Entry)
 	m.stateChangeCh <- struct{}{}
 
 	m.logger.Debug("Add entry success", "epoch", msg.Epoch, "view", msg.View, "blockNumber", msg.BlockNumber, "entryNumber", msg.EntryNumber)

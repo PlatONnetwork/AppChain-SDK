@@ -6,8 +6,8 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/core/pevm"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
-	"github.com/PlatONnetwork/PlatON-Go/event"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
+	"github.com/PlatONnetwork/PlatON-Go/event"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/p2p/enode"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
@@ -474,4 +474,105 @@ func (f *FinalizeFeed) SubscribeNewFinalizeBlockEvent(ev chan NewFinalizeBlockEv
 
 func (f *FinalizeFeed) Close() {
 	f.scope.Close()
+}
+
+type ComputeSenderUnit struct {
+	id  uint64
+	txs types.Transactions
+}
+type Result struct {
+	Epoch       uint64
+	View        uint64
+	EntryNumber uint32
+	BlockNumber uint64
+	Start       time.Time
+	Count       int
+	Finish      int
+}
+type ComputeSender struct {
+	shard      int
+	counter    uint64
+	entryCh    chan *Entry
+	resultCh   chan uint64
+	senderUnit []chan *ComputeSenderUnit
+	result     map[uint64]*Result
+	signer     types.Signer
+	cancelCh   chan struct{}
+}
+
+func NewComputeSender(shard int) *ComputeSender {
+	return &ComputeSender{
+		shard:    shard,
+		counter:  0,
+		entryCh:  make(chan *Entry),
+		resultCh: make(chan uint64),
+		result:   make(map[uint64]*Result),
+		cancelCh: make(chan struct{}),
+	}
+}
+
+func (c *ComputeSender) AddEntry(entry *Entry) {
+	c.entryCh <- entry
+}
+func (c *ComputeSender) Run(signer types.Signer) {
+	c.signer = signer
+	for i := 0; i < c.shard; i++ {
+		ch := make(chan *ComputeSenderUnit, 100)
+		go func(csCh chan *ComputeSenderUnit) {
+			for {
+				select {
+				case csu := <-ch:
+					for _, cs := range csu.txs {
+						types.Sender(c.signer, cs)
+					}
+					c.resultCh <- csu.id
+				case <-c.cancelCh:
+					return
+				}
+			}
+		}(ch)
+		c.senderUnit = append(c.senderUnit, ch)
+	}
+	go c.loop()
+}
+func (c *ComputeSender) loop() {
+	log := log.New("module", ModuleName, "component", "computesender")
+	for {
+		select {
+		case e := <-c.entryCh:
+			s := len(e.Transactions) / c.shard
+			if s > 0 {
+				c.result[c.counter] = &Result{
+					Epoch:       e.Epoch,
+					View:        e.View,
+					BlockNumber: e.BlockNumber,
+					EntryNumber: e.EntryNumber,
+					Count:       c.shard,
+					Start:       time.Now(),
+				}
+				for i := 0; i < c.shard; i++ {
+					end := (i + 1) * s
+					if end > len(e.Transactions) {
+						end = len(e.Transactions)
+					}
+					c.senderUnit[i] <- &ComputeSenderUnit{
+						id:  c.counter,
+						txs: e.Transactions[i*s : end],
+					}
+				}
+				c.counter++
+			}
+		case id := <-c.resultCh:
+			r := c.result[id]
+			r.Finish++
+			if r.Finish == r.Count {
+				log.Debug("Fill sender success", "epoch", r.Epoch, "view", r.View, "number", r.BlockNumber, "entry", r.EntryNumber, "cost", time.Since(r.Start))
+			}
+		case <-c.cancelCh:
+			return
+		}
+	}
+}
+func (c *ComputeSender) Stop() {
+	close(c.cancelCh)
 }

@@ -47,8 +47,8 @@ func (r *RPC) GenTxs(accountBeginIndex, accountEndIndex, rawTxPercent, contractT
 	}()
 	return nil
 }
-func (r *RPC) Start(tps uint64, sendTxPool bool) error {
-	return r.m.start(tps, sendTxPool)
+func (r *RPC) Start(tps uint64, txsPerAccount int, sendTxPool bool) error {
+	return r.m.start(tps, txsPerAccount, sendTxPool)
 }
 func (r *RPC) Stop() error {
 	return r.m.stop()
@@ -95,8 +95,8 @@ func (c *Client) GenTxs(ctx context.Context, accountBeginIndex, accountEndIndex,
 	return c.rpc.CallContext(ctx, nil, "benchmark_genTxs", accountBeginIndex, accountEndIndex, rawTxPercent, contractTxPercent, totalTx)
 }
 
-func (c *Client) Start(ctx context.Context, tps uint64, sendTxPool bool) error {
-	err := c.rpc.CallContext(ctx, nil, "benchmark_start", tps, sendTxPool)
+func (c *Client) Start(ctx context.Context, tps uint64, txsPerAccount int, sendTxPool bool) error {
+	err := c.rpc.CallContext(ctx, nil, "benchmark_start", tps, txsPerAccount, sendTxPool)
 	return err
 }
 

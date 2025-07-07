@@ -590,7 +590,7 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 					case *Basic:
 						basic := entry.Value.(*Basic)
 						account := basic.Account
-						if !account.Suicided {
+						if account.Suicided == nil || !(*account.Suicided) {
 							if account.Nonce > 0 {
 								statedb.SetNonce(account.Addr, account.Nonce)
 							}
@@ -604,8 +604,8 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 						statedb.SetState(state.Addr, state.Key, state.Value)
 					case *CodeHash:
 						codeHash := entry.Value.(*CodeHash)
-						if code, ok := mvMemory.newByteCodes.Get(codeHash.CodeHash); ok {
-							statedb.SetCode(codeHash.Addr, code)
+						if code, ok := mvMemory.newByteCodes.Load(codeHash.CodeHash); ok {
+							statedb.SetCode(codeHash.Addr, code.([]byte))
 						}
 					}
 				}
