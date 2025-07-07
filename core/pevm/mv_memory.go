@@ -142,6 +142,25 @@ func NewWriteHistory() *WriteHistory {
 	}
 }
 
+func (wh *WriteHistory) ScanHistory(txIdx int32, f func(*item) bool) {
+	wh.mu.RLock()
+	defer wh.mu.RUnlock()
+
+	n := len(wh.items)
+	if n == 0 {
+		return
+	}
+
+	startIndex := sort.Search(n, func(i int) bool {
+		return wh.items[i].TxIdx < txIdx
+	})
+	for i := startIndex; i < n; i++ {
+		if !f(wh.items[i]) {
+			break
+		}
+	}
+}
+
 func (wh *WriteHistory) AscendRange(txIdx int32) *ItemIterator {
 	wh.mu.RLock()
 
