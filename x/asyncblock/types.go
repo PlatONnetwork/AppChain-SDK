@@ -489,13 +489,17 @@ type Result struct {
 	Count       int
 	Finish      int
 }
+type SenderUnit struct {
+	unitCh   chan *ComputeSenderUnit
+	starting *atomic.Bool
+}
 type ComputeSender struct {
 	shard      int
 	counter    uint64
 	entryCh    chan *Entry
 	resultCh   chan uint64
-	senderUnit []chan *ComputeSenderUnit
-	result     map[uint64]*Result
+	senderUnit []*SenderUnit
+	result     sync.Map
 	signer     types.Signer
 	cancelCh   chan struct{}
 }
@@ -505,8 +509,7 @@ func NewComputeSender(shard int) *ComputeSender {
 		shard:    shard,
 		counter:  0,
 		entryCh:  make(chan *Entry),
-		resultCh: make(chan uint64),
-		result:   make(map[uint64]*Result),
+		resultCh: make(chan uint64, shard),
 		cancelCh: make(chan struct{}),
 	}
 }
@@ -517,61 +520,86 @@ func (c *ComputeSender) AddEntry(entry *Entry) {
 func (c *ComputeSender) Run(signer types.Signer) {
 	c.signer = signer
 	for i := 0; i < c.shard; i++ {
-		ch := make(chan *ComputeSenderUnit, 100)
-		go func(csCh chan *ComputeSenderUnit) {
+		ch := make(chan *ComputeSenderUnit)
+		var starting atomic.Bool
+		go func(csCh chan *ComputeSenderUnit, starting *atomic.Bool) {
 			for {
 				select {
 				case csu := <-ch:
+					starting.Store(true)
 					for _, cs := range csu.txs {
+						if !starting.Load() {
+							break
+						}
 						types.Sender(c.signer, cs)
 					}
+					starting.Store(false)
 					c.resultCh <- csu.id
 				case <-c.cancelCh:
 					return
 				}
 			}
-		}(ch)
-		c.senderUnit = append(c.senderUnit, ch)
+		}(ch, &starting)
+		c.senderUnit = append(c.senderUnit, &SenderUnit{
+			unitCh:   ch,
+			starting: &starting,
+		})
 	}
 	go c.loop()
 }
 func (c *ComputeSender) loop() {
 	log := log.New("module", ModuleName, "component", "computesender")
-	for {
-		select {
-		case e := <-c.entryCh:
-			s := len(e.Transactions) / c.shard
-			if s > 0 {
-				c.result[c.counter] = &Result{
-					Epoch:       e.Epoch,
-					View:        e.View,
-					BlockNumber: e.BlockNumber,
-					EntryNumber: e.EntryNumber,
-					Count:       c.shard,
-					Start:       time.Now(),
-				}
-				for i := 0; i < c.shard; i++ {
-					end := (i + 1) * s
-					if end > len(e.Transactions) {
-						end = len(e.Transactions)
+	go func() {
+		for {
+			select {
+			case e := <-c.entryCh:
+				s := len(e.Transactions) / c.shard
+				if s > 0 {
+					c.result.Store(c.counter, &Result{
+						Epoch:       e.Epoch,
+						View:        e.View,
+						BlockNumber: e.BlockNumber,
+						EntryNumber: e.EntryNumber,
+						Count:       c.shard,
+						Start:       time.Now(),
+					})
+					for i := 0; i < c.shard; i++ {
+						end := (i + 1) * s
+						if end > len(e.Transactions) {
+							end = len(e.Transactions)
+						}
+						senderUnit := c.senderUnit[i]
+						senderUnit.starting.Store(false)
+						senderUnit.unitCh <- &ComputeSenderUnit{
+							id:  c.counter,
+							txs: e.Transactions[i*s : end],
+						}
 					}
-					c.senderUnit[i] <- &ComputeSenderUnit{
-						id:  c.counter,
-						txs: e.Transactions[i*s : end],
-					}
+					c.counter++
 				}
-				c.counter++
+			case <-c.cancelCh:
+				return
 			}
-		case id := <-c.resultCh:
-			r := c.result[id]
-			r.Finish++
-			if r.Finish == r.Count {
-				log.Debug("Fill sender success", "epoch", r.Epoch, "view", r.View, "number", r.BlockNumber, "entry", r.EntryNumber, "cost", time.Since(r.Start))
-			}
-		case <-c.cancelCh:
-			return
 		}
-	}
+	}()
+	go func() {
+		for {
+			select {
+			case id := <-c.resultCh:
+				if res, ok := c.result.Load(id); ok {
+					r := res.(*Result)
+					r.Finish++
+					if r.Finish == r.Count {
+						log.Debug("Fill sender success", "epoch", r.Epoch, "view", r.View, "number", r.BlockNumber, "entry", r.EntryNumber, "cost", time.Since(r.Start))
+						c.result.Delete(id)
+					}
+				}
+			case <-c.cancelCh:
+				return
+			}
+		}
+	}()
+
 }
 func (c *ComputeSender) Stop() {
 	close(c.cancelCh)
