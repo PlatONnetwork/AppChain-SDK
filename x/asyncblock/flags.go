@@ -32,6 +32,11 @@ var (
 		Usage: "How many transactions need to be split",
 		Value: 2000,
 	}
+	ComputeSenderThreadFlag = cli.IntFlag{
+		Name:  "asyncblock.computersenderthread",
+		Usage: "How many threads compute transaction sender",
+		Value: 4,
+	}
 )
 
 func AddAsyncBlockFlags(app *cli.App) {
@@ -40,4 +45,5 @@ func AddAsyncBlockFlags(app *cli.App) {
 	app.Flags = append(app.Flags, TxsBatchFlag)
 	app.Flags = append(app.Flags, EntrySizeFlag)
 	app.Flags = append(app.Flags, SplitThresholdFlag)
+	app.Flags = append(app.Flags, ComputeSenderThreadFlag)
 }

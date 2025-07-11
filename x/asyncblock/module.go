@@ -49,7 +49,7 @@ type Module struct {
 func NewModule(ctx *cli.Context) *Module {
 	m := &Module{
 		logger:              log.New("module", ModuleName),
-		computerSender:      NewComputeSender(10),
+		computerSender:      NewComputeSender(ctx.GlobalInt(ComputeSenderThreadFlag.Name)),
 		stateChangeCh:       make(chan struct{}, 10),
 		entrySizeLimit:      ctx.GlobalInt(EntrySizeFlag.Name),
 		splitEntryThreshold: ctx.GlobalInt(SplitThresholdFlag.Name),
