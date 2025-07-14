@@ -194,7 +194,7 @@ func (m *Module) ExecuteBlock(ctx sdk.BlockExecutorContext, block *types.Block, 
 					logger.Warn("Find block failed, context done", "err", ctx.Err())
 					return nil, nil, ctx.Err()
 				case b := <-ev:
-					if b.Block.NumberU64() == block.NumberU64() && hash != b.Block.Header().SealHash() {
+					if b.Block.NumberU64() == block.NumberU64() && (hash != b.Block.Header().SealHash() || b.Block.ReceiptHash() != block.ReceiptHash() || b.Block.Bloom() != block.Bloom()) {
 						logger.Warn("Receive subscribe block, but is not target block", "number", b.Block.NumberU64(), "seal", b.Block.Header().SealHash(), "targetHeader", block.Header(), "header", b.Block.Header())
 					}
 					if hash == b.Block.Header().SealHash() {
