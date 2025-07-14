@@ -36,6 +36,7 @@ type Module struct {
 	cs                  ConsensusState
 	bsc                 *BlockStateCache
 	computerSender      *ComputeSender
+	stateComputeSender  *ComputeSender
 	signer              types.Signer
 	stateChangeCh       chan struct{}
 	entrySizeLimit      int
@@ -48,8 +49,10 @@ type Module struct {
 
 func NewModule(ctx *cli.Context) *Module {
 	m := &Module{
-		logger:              log.New("module", ModuleName),
-		computerSender:      NewComputeSender(ctx.GlobalInt(ComputeSenderThreadFlag.Name)),
+		logger:             log.New("module", ModuleName),
+		computerSender:     NewComputeSender(ctx.GlobalInt(ComputeSenderThreadFlag.Name), "p2p"),
+		stateComputeSender: NewComputeSender(ctx.GlobalInt(ComputeSenderThreadFlag.Name), "exe"),
+
 		stateChangeCh:       make(chan struct{}, 10),
 		entrySizeLimit:      ctx.GlobalInt(EntrySizeFlag.Name),
 		splitEntryThreshold: ctx.GlobalInt(SplitThresholdFlag.Name),
@@ -58,7 +61,7 @@ func NewModule(ctx *cli.Context) *Module {
 		txsBatch:            ctx.GlobalInt(TxsBatchFlag.Name),
 	}
 	m.p2p = NewAsyncBlockP2P(m.HandleMsg)
-	m.bsc = NewBlockStateCache(m.genEnv, m.Finalize)
+	m.bsc = NewBlockStateCache(m.stateComputeSender, m.genEnv, m.Finalize)
 	m.SetBlsKey(ctx.GlobalString(BLsKeyFlagName))
 	return m
 }
@@ -70,6 +73,7 @@ func (m *Module) Init(ctx sdk.InitContext) error {
 	m.signer = types.NewLondonSigner(ctx.Backend().ChainConfig().ChainID)
 	m.backend = ctx.Backend()
 	m.computerSender.Run(m.signer)
+	m.stateComputeSender.Run(m.signer)
 	go m.executeLoop()
 	return nil
 }

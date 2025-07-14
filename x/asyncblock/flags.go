@@ -35,7 +35,7 @@ var (
 	ComputeSenderThreadFlag = cli.IntFlag{
 		Name:  "asyncblock.computersenderthread",
 		Usage: "How many threads compute transaction sender",
-		Value: 4,
+		Value: 2,
 	}
 )
 

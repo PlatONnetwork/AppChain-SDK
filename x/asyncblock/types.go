@@ -68,16 +68,18 @@ func (c *ConsensusState) VerifyEntry(entry *Entry) error {
 
 type EntryExecutorTree struct {
 	sync.Mutex
-	tree        map[uint64]map[uint64]*EntryExecutor
-	envCreateFn EnvCreateFn
-	finalizeFn  FinalizeFn
+	computeSender *ComputeSender
+	tree          map[uint64]map[uint64]*EntryExecutor
+	envCreateFn   EnvCreateFn
+	finalizeFn    FinalizeFn
 }
 
-func NewEntryExecutorTree(envCreateFn EnvCreateFn, finalizeFn FinalizeFn) *EntryExecutorTree {
+func NewEntryExecutorTree(computeSender *ComputeSender, envCreateFn EnvCreateFn, finalizeFn FinalizeFn) *EntryExecutorTree {
 	return &EntryExecutorTree{
-		tree:        make(map[uint64]map[uint64]*EntryExecutor),
-		envCreateFn: envCreateFn,
-		finalizeFn:  finalizeFn,
+		computeSender: computeSender,
+		tree:          make(map[uint64]map[uint64]*EntryExecutor),
+		envCreateFn:   envCreateFn,
+		finalizeFn:    finalizeFn,
 	}
 }
 func (e *EntryExecutorTree) AddEntry(entry *Entry) {
@@ -86,12 +88,12 @@ func (e *EntryExecutorTree) AddEntry(entry *Entry) {
 	executors := e.tree[entry.BlockNumber]
 	if executors == nil {
 		executors = make(map[uint64]*EntryExecutor)
-		executor := NewEntryExecutor(e.envCreateFn, e.finalizeFn)
+		executor := NewEntryExecutor(e.computeSender, e.envCreateFn, e.finalizeFn)
 		executor.AddEntry(entry)
 		executors[entry.View] = executor
 		e.tree[entry.BlockNumber] = executors
 	} else if executor, ok := executors[entry.View]; !ok {
-		executor = NewEntryExecutor(e.envCreateFn, e.finalizeFn)
+		executor = NewEntryExecutor(e.computeSender, e.envCreateFn, e.finalizeFn)
 		executor.AddEntry(entry)
 		executors[entry.View] = executor
 	} else {
@@ -198,10 +200,10 @@ type BlockStateCache struct {
 	finalizeFn  FinalizeFn
 }
 
-func NewBlockStateCache(envCreateFn EnvCreateFn, finalizeFn FinalizeFn) *BlockStateCache {
+func NewBlockStateCache(computeSender *ComputeSender, envCreateFn EnvCreateFn, finalizeFn FinalizeFn) *BlockStateCache {
 	return &BlockStateCache{
 		logger:      log.New("module", ModuleName, "component", "blockstatecache"),
-		fragments:   NewEntryExecutorTree(envCreateFn, finalizeFn),
+		fragments:   NewEntryExecutorTree(computeSender, envCreateFn, finalizeFn),
 		envCreateFn: envCreateFn,
 		finalizeFn:  finalizeFn,
 	}
@@ -363,15 +365,17 @@ type EntryExecutor struct {
 	receipts       types.Receipts
 	envCreateFn    EnvCreateFn
 	finalizeFn     FinalizeFn
+	computeSender  *ComputeSender
 }
 
-func NewEntryExecutor(envCreateFn EnvCreateFn, finalizeFn FinalizeFn) *EntryExecutor {
+func NewEntryExecutor(computeSender *ComputeSender, envCreateFn EnvCreateFn, finalizeFn FinalizeFn) *EntryExecutor {
 	return &EntryExecutor{
-		start:       time.Now(),
-		logger:      log.New("module", ModuleName, "component", "entryexecutor"),
-		entryList:   NewEntryList(),
-		envCreateFn: envCreateFn,
-		finalizeFn:  finalizeFn,
+		start:         time.Now(),
+		logger:        log.New("module", ModuleName, "component", "entryexecutor"),
+		entryList:     NewEntryList(),
+		envCreateFn:   envCreateFn,
+		finalizeFn:    finalizeFn,
+		computeSender: computeSender,
 	}
 }
 
@@ -433,6 +437,9 @@ func (e *EntryExecutor) Execute() {
 	status := PAUSE
 	for e.entryList.Len() > e.entryIndex {
 		entry := e.entryList.Get(e.entryIndex)
+		if e.entryList.Len() > e.entryIndex+1 {
+			e.computeSender.AddEntry(e.entryList.Get(e.entryIndex + 1))
+		}
 		result, err := e.vm.Run(entry.Transactions, false)
 		if err != nil {
 			e.logger.Warn("Execute entry failed, entry got interrupt", "index", e.entryIndex, "err", err)
@@ -494,6 +501,7 @@ type SenderUnit struct {
 	starting *atomic.Bool
 }
 type ComputeSender struct {
+	logger     log.Logger
 	shard      int
 	counter    uint64
 	entryCh    chan *Entry
@@ -504,8 +512,9 @@ type ComputeSender struct {
 	cancelCh   chan struct{}
 }
 
-func NewComputeSender(shard int) *ComputeSender {
+func NewComputeSender(shard int, tag string) *ComputeSender {
 	return &ComputeSender{
+		logger:   log.New("module", ModuleName, "component", "computesender", "tag", tag),
 		shard:    shard,
 		counter:  0,
 		entryCh:  make(chan *Entry),
@@ -515,9 +524,14 @@ func NewComputeSender(shard int) *ComputeSender {
 }
 
 func (c *ComputeSender) AddEntry(entry *Entry) {
-	c.entryCh <- entry
+	if c.shard > 0 {
+		c.entryCh <- entry
+	}
 }
 func (c *ComputeSender) Run(signer types.Signer) {
+	if c.shard < 0 {
+		return
+	}
 	c.signer = signer
 	for i := 0; i < c.shard; i++ {
 		ch := make(chan *ComputeSenderUnit)
@@ -527,8 +541,9 @@ func (c *ComputeSender) Run(signer types.Signer) {
 				select {
 				case csu := <-ch:
 					starting.Store(true)
-					for _, cs := range csu.txs {
+					for i, cs := range csu.txs {
 						if !starting.Load() {
+							c.logger.Debug("compute sender interrupt", "finish", i, "total", csu.txs.Len())
 							break
 						}
 						types.Sender(c.signer, cs)
@@ -548,7 +563,6 @@ func (c *ComputeSender) Run(signer types.Signer) {
 	go c.loop()
 }
 func (c *ComputeSender) loop() {
-	log := log.New("module", ModuleName, "component", "computesender")
 	go func() {
 		for {
 			select {
@@ -590,7 +604,7 @@ func (c *ComputeSender) loop() {
 					r := res.(*Result)
 					r.Finish++
 					if r.Finish == r.Count {
-						log.Debug("Fill sender success", "epoch", r.Epoch, "view", r.View, "number", r.BlockNumber, "entry", r.EntryNumber, "cost", time.Since(r.Start))
+						c.logger.Debug("Fill sender success", "epoch", r.Epoch, "view", r.View, "number", r.BlockNumber, "entry", r.EntryNumber, "cost", time.Since(r.Start))
 						c.result.Delete(id)
 					}
 				}

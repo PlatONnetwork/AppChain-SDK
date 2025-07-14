@@ -254,10 +254,6 @@ func (m *Module) SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.T
 			txs = append(txs, v[start:end])
 
 			sum += end - start
-			in := time.Now().UnixMilli()
-			for _, t := range v[start:end] {
-				m.sent.Store(t.Hash(), uint64(in))
-			}
 			m.send.Add(uint64(end - start))
 			if sum >= m.amount {
 				break
@@ -267,6 +263,7 @@ func (m *Module) SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.T
 		for _, s := range txs {
 			res = append(res, s...)
 		}
+
 		return res, nil
 	}
 	if m.send.Load() >= m.pendingLimit {
