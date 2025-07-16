@@ -736,6 +736,7 @@ func (db *VmDB) SlotInAccessList(addr common.Address, slot common.Hash) (bool, b
 }
 
 func (db *VmDB) AddAddressToAccessList(addr common.Address) {
+	db.accessList.AddAddress(addr)
 }
 
 func (db *VmDB) AddSlotToAccessList(addr common.Address, slot common.Hash) {
