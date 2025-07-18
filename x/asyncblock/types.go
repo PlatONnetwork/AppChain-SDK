@@ -3,6 +3,11 @@ package asyncblock
 import (
 	"errors"
 	"fmt"
+	"sort"
+	"sync"
+	"sync/atomic"
+	"time"
+
 	"github.com/PlatONnetwork/AppChain-SDK/core/pevm"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
@@ -11,10 +16,6 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/p2p/enode"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
-	"sort"
-	"sync"
-	"sync/atomic"
-	"time"
 )
 
 const (
@@ -447,7 +448,7 @@ func (e *EntryExecutor) Execute() {
 			break
 		}
 		e.receipts = append(e.receipts, result.Receipts...)
-		e.header.GasUsed += result.GasUsed
+		e.header.GasUsed = result.GasUsed
 		e.entryIndex++
 		if entry.Ending == 1 {
 			status = DONE
