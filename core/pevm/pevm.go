@@ -353,6 +353,7 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 		} else {
 			peeker := NewTxsPeeker(txs, e.signer)
 			execTxs := peeker.Peeks(batch)
+			minBatchGas := uint64(batch) * params.TxGas
 			for len(execTxs) > 0 {
 				executionResults, err = e.parallelExecuteBatch(execTxs, isSysTxs)
 				if err != nil {
@@ -384,6 +385,19 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 					pevmResult.Timeout = true
 					break
 				}
+
+				if (e.cumulativeGasUsed >= e.env.Header.GasLimit) ||
+					(e.env.Header.GasLimit-e.cumulativeGasUsed) <= minBatchGas {
+					e.logger.Warn("interrupt current ex-executing",
+						"blockNumber", e.env.Header.Number,
+						"parentHash", e.env.Header.ParentHash,
+						"gasLimit", e.env.Header.GasLimit,
+						"cumulativeGasUsed", e.cumulativeGasUsed,
+						"minBatchGas", minBatchGas,
+					)
+					break
+				}
+
 				execTxs = peeker.Peeks(batch)
 			}
 		}
@@ -416,6 +430,9 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 		"parentHash", e.env.Header.ParentHash,
 		"txs", len(txs),
 		"committedTxs", len(pevmResult.Transactions),
+		"isWorker", e.env.IsWorker,
+		"gasLimit", e.env.Header.GasLimit,
+		"cumulativeGasUsed", e.cumulativeGasUsed,
 		"timeout", pevmResult.Timeout,
 		"elapsed", time.Since(begin))
 	return &pevmResult, nil
