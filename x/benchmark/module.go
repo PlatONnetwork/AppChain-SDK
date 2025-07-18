@@ -67,13 +67,14 @@ type Module struct {
 	Params
 	Statistics
 	sync.Mutex
-	pendingLimit uint64
-	logger       log.Logger
-	db           *DB
-	keys         []*Account
-	txCache      map[common.Address][]*types.Transaction
-	sent         sync.Map //map[common.Hash]uint64
-	signer       types.Signer
+	pendingLimit    uint64
+	lastSortTxBlock uint64
+	logger          log.Logger
+	db              *DB
+	keys            []*Account
+	txCache         map[common.Address][]*types.Transaction
+	sent            sync.Map //map[common.Hash]uint64
+	signer          types.Signer
 
 	txPool   TxPool
 	starting atomic.Bool
@@ -237,12 +238,17 @@ func (m *Module) stop() error {
 
 func (m *Module) SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions, remote map[common.Address]types.Transactions) (types.Transactions, error) {
 	m.logger.Debug("benchmark sort txs", "local", len(local), "remote", len(remote), "number", ctx.Header().Number)
+	lastSortTxBlock := m.lastSortTxBlock
+	m.lastSortTxBlock = ctx.Header().Number.Uint64()
 	if m.starting.Load() {
 		m.Lock()
 		defer m.Unlock()
 		var txs []types.Transactions
 		sum := 0
 		for k, v := range m.txCache {
+			if len(v) == 0 {
+				continue
+			}
 			nonce := ctx.StateDB().GetNonce(k)
 			start := int(nonce - v[0].Nonce())
 			end := start + m.txsPerAccount
@@ -260,7 +266,9 @@ func (m *Module) SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.T
 			if sum >= m.amount {
 				break
 			}
-			m.txCache[k] = v[start:]
+			if lastSortTxBlock+1 < ctx.Header().Number.Uint64() {
+				m.txCache[k] = v[start:]
+			}
 		}
 		res := make(types.Transactions, 0, sum)
 		for _, s := range txs {
