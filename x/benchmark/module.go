@@ -238,6 +238,8 @@ func (m *Module) stop() error {
 func (m *Module) SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions, remote map[common.Address]types.Transactions) (types.Transactions, error) {
 	m.logger.Debug("benchmark sort txs", "local", len(local), "remote", len(remote), "number", ctx.Header().Number)
 	if m.starting.Load() {
+		m.Lock()
+		defer m.Unlock()
 		var txs []types.Transactions
 		sum := 0
 		for k, v := range m.txCache {
