@@ -4,6 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
+	"sync"
+	"sync/atomic"
+	"time"
+
 	"github.com/PlatONnetwork/AppChain-SDK/core"
 	"github.com/PlatONnetwork/AppChain-SDK/core/pevm"
 	sdkp2p "github.com/PlatONnetwork/AppChain-SDK/p2p"
@@ -15,10 +20,6 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/p2p"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"gopkg.in/urfave/cli.v1"
-	"math/big"
-	"sync"
-	"sync/atomic"
-	"time"
 )
 
 const (
@@ -281,7 +282,7 @@ func (m *Module) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackA
 		}
 		allTxs = append(allTxs, result.Transactions...)
 		allReceipts = append(allReceipts, result.Receipts...)
-		usedGas += result.GasUsed
+		usedGas = result.GasUsed
 	}
 	epoch, view := m.cs.EpochView()
 	txpool := ctx.Backend().TxPool()
@@ -317,7 +318,7 @@ func (m *Module) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackA
 			}
 			allTxs = append(allTxs, result.Transactions...)
 			allReceipts = append(allReceipts, result.Receipts...)
-			usedGas += result.GasUsed
+			usedGas = result.GasUsed
 			entry := Entry{
 				Epoch:          epoch,
 				View:           view,
@@ -354,6 +355,7 @@ func (m *Module) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackA
 	m.logger.Info("Fill transactions success",
 		"blockNumber", ctx.Header().Number,
 		"parentHash", ctx.Header().ParentHash,
+		"gasUsed", usedGas,
 		"count", len(allTxs),
 		"elapsed", time.Since(begin))
 	return allTxs, allReceipts, nil
