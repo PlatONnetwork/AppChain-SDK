@@ -258,6 +258,7 @@ func (m *Module) SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.T
 			if sum >= m.amount {
 				break
 			}
+			m.txCache[k] = v[start:]
 		}
 		res := make(types.Transactions, 0, sum)
 		for _, s := range txs {
