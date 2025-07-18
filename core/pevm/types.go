@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"math/big"
 	"sync"
+	"unsafe"
 
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/zeebo/xxh3"
 )
 
@@ -16,9 +18,9 @@ var codeHashSuffix = []byte("code_hash")
 
 var (
 	// FIXME: replace `sync.Map` with `lru.Cache`
-	basicHashCache sync.Map // map[common.Address]MemoryLocationHash
-	stateHashCache sync.Map // map[common.Address]map[string]MemoryLocationHash
-	codeHashCache  sync.Map
+	basicHashCache *lru.Cache // map[common.Address]MemoryLocationHash
+	stateHashCache *lru.Cache // map[common.Address]map[string]MemoryLocationHash
+	codeHashCache  *lru.Cache
 )
 
 var xxhashPool = sync.Pool{
@@ -44,6 +46,12 @@ const (
 	NeedValidation FinishExecFlags = 1 << iota
 	WroteNewLocation
 )
+
+func init() {
+	basicHashCache, _ = lru.New(2048)
+	stateHashCache, _ = lru.New(2048)
+	codeHashCache, _ = lru.New(2048)
+}
 
 func NewFinishExecFlags(flags ...FinishExecFlags) FinishExecFlags {
 	var result FinishExecFlags
@@ -74,22 +82,21 @@ type TxVersion struct {
 }
 
 func BasicLoc(addr common.Address) MemoryLocationHash {
-	if hash, ok := basicHashCache.Load(addr); ok {
+	if hash, ok := basicHashCache.Get(addr); ok {
 		return hash.(MemoryLocationHash)
 	}
 
 	hash := xxh3.Hash(addr[:])
 
-	basicHashCache.Store(addr, hash)
+	basicHashCache.Add(addr, hash)
 	return hash
 }
 
 func CodeHashLoc(addr common.Address) MemoryLocationHash {
-	if hash, ok := codeHashCache.Load(addr); ok {
+	if hash, ok := codeHashCache.Get(addr); ok {
 		return hash.(MemoryLocationHash)
 	}
 
-	// 从池中获取hasher
 	h := xxhashPool.Get().(*xxh3.Hasher)
 	h.Reset()
 
@@ -97,18 +104,29 @@ func CodeHashLoc(addr common.Address) MemoryLocationHash {
 	h.Write(codeHashSuffix[:])
 	hash := h.Sum64()
 
-	// 放回池中
 	xxhashPool.Put(h)
 
-	codeHashCache.Store(addr, hash)
+	codeHashCache.Add(addr, hash)
 	return hash
 }
 
 func StateLoc(addr common.Address, key []byte) MemoryLocationHash {
-	cacheMap, _ := stateHashCache.LoadOrStore(addr, &sync.Map{})
-	innerMap := cacheMap.(*sync.Map)
+	var storageCache *lru.Cache
+	if val, ok := stateHashCache.Get(addr); ok {
+		storageCache = val.(*lru.Cache)
+	} else {
+		// Caches storage entries for a single contract account.
+		// The size 256 is a trade-off. Contracts with vast storage
+		// will churn this cache, but it handles common cases well.
+		storageCache, _ = lru.New(256)
+		stateHashCache.Add(addr, storageCache)
+	}
 
-	if hash, ok := innerMap.Load(string(key)); ok {
+	// Unsafe conversion of key to string for cache lookup.
+	// This is safe because we are only reading and the underlying bytes of the key
+	// are not expected to change during the lookup. This avoids memory allocation on cache hits.
+	cacheKey := *(*string)(unsafe.Pointer(&key))
+	if hash, ok := storageCache.Get(cacheKey); ok {
 		return hash.(MemoryLocationHash)
 	}
 
@@ -119,7 +137,10 @@ func StateLoc(addr common.Address, key []byte) MemoryLocationHash {
 	hashVal := h.Sum64()
 	xxhashPool.Put(h)
 
-	innerMap.Store(string(key), hashVal)
+	// For insertion, we must copy the key to ensure it's stable and not
+	// pointing to a transient buffer. This allocation only happens on a cache miss.
+	stableKey := string(key)
+	storageCache.Add(stableKey, hashVal)
 	return hashVal
 }
 
