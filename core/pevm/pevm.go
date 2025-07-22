@@ -612,20 +612,9 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 						} else {
 							statedb.Suicide(account.Addr)
 						}
-					case *SelfDestructed:
-						/*
-							des := entry.Value.(*SelfDestructed)
-							fmt.Println(d.TxIdx, des.Addr.Hex(), statedb.HasSuicided(des.Addr))
-							statedb.Suicide(des.Addr)*/
 					case *State:
 						state := entry.Value.(*State)
 						statedb.SetState(state.Addr, state.Key, state.Value)
-					case *CodeHash:
-						/*
-							codeHash := entry.Value.(*CodeHash)
-							if code, ok := mvMemory.newByteCodes.Load(codeHash.CodeHash); ok {
-								statedb.SetCode(codeHash.Addr, code.([]byte))
-							}*/
 					}
 				}
 				return true
