@@ -229,7 +229,7 @@ func (ab *AccountBase) Clone() *AccountBase {
 		CodeSize: ab.CodeSize,
 		Code:     ab.Code,
 		Suicided: suicided,
-		NewCode:  ab.NewCode,
+		//NewCode:  ab.NewCode,
 	}
 }
 

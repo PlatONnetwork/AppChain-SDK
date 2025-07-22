@@ -285,6 +285,7 @@ func (e *PEVM) commitTransactions(txs coretypes.Transactions, isSysTxs bool) *PE
 	e.logger.Info("Commit transactions finished",
 		"txs", len(txs),
 		"committedTxs", len(committedTxs),
+		"cumulativeGasUsed", e.cumulativeGasUsed,
 		"timeout", timeout,
 		"elapsed", time.Since(begin))
 	return &PEVMResult{
@@ -311,10 +312,11 @@ func (e *PEVM) applyTransactions(txs coretypes.Transactions) (*PEVMResult, error
 		}
 		receipts = append(receipts, receipt)
 	}
-	e.logger.Info("apply transactions finished",
+	e.logger.Info("Apply transactions finished",
 		"blockNumber", header.Number,
 		"blockHash", header.Hash(),
 		"txs", len(txs),
+		"cumulativeGasUsed", e.cumulativeGasUsed,
 		"elapsed", time.Since(begin))
 	return &PEVMResult{Receipts: receipts, GasUsed: e.cumulativeGasUsed}, nil
 }
@@ -355,6 +357,32 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 			execTxs := peeker.Peeks(batch)
 			minBatchGas := uint64(batch) * params.TxGas
 			for len(execTxs) > 0 {
+				now := time.Now()
+				if blockDeadline.Before(time.Now()) {
+					e.logger.Warn("interrupt current ex-executing",
+						"blockNumber", e.env.Header.Number,
+						"parentHash", e.env.Header.ParentHash,
+						"now", now.UnixMilli(),
+						"timestamp", timestamp,
+						"deadlineDuration", blockDeadline.Sub(time.UnixMilli(timestamp)))
+					pevmResult.Timeout = true
+					pevmResult.GasUsed = e.cumulativeGasUsed
+					break
+				}
+
+				if (e.cumulativeGasUsed >= e.env.Header.GasLimit) ||
+					(e.env.Header.GasLimit-e.cumulativeGasUsed) <= minBatchGas {
+					e.logger.Warn("interrupt current ex-executing",
+						"blockNumber", e.env.Header.Number,
+						"parentHash", e.env.Header.ParentHash,
+						"gasLimit", e.env.Header.GasLimit,
+						"cumulativeGasUsed", e.cumulativeGasUsed,
+						"minBatchGas", minBatchGas,
+					)
+					pevmResult.GasUsed = e.cumulativeGasUsed
+					break
+				}
+
 				executionResults, err = e.parallelExecuteBatch(execTxs, isSysTxs)
 				if err != nil {
 					return &pevmResult, err
@@ -373,30 +401,6 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 				pevmResult.Transactions = append(pevmResult.Transactions, execTxs...)
 				pevmResult.GasUsed = e.cumulativeGasUsed
 				e.txCount += len(execTxs)
-
-				now := time.Now()
-				if blockDeadline.Before(time.Now()) {
-					e.logger.Warn("interrupt current ex-executing",
-						"blockNumber", e.env.Header.Number,
-						"parentHash", e.env.Header.ParentHash,
-						"now", now.UnixMilli(),
-						"timestamp", timestamp,
-						"deadlineDuration", blockDeadline.Sub(time.UnixMilli(timestamp)))
-					pevmResult.Timeout = true
-					break
-				}
-
-				if (e.cumulativeGasUsed >= e.env.Header.GasLimit) ||
-					(e.env.Header.GasLimit-e.cumulativeGasUsed) <= minBatchGas {
-					e.logger.Warn("interrupt current ex-executing",
-						"blockNumber", e.env.Header.Number,
-						"parentHash", e.env.Header.ParentHash,
-						"gasLimit", e.env.Header.GasLimit,
-						"cumulativeGasUsed", e.cumulativeGasUsed,
-						"minBatchGas", minBatchGas,
-					)
-					break
-				}
 
 				execTxs = peeker.Peeks(batch)
 			}
@@ -597,22 +601,31 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 						basic := entry.Value.(*Basic)
 						account := basic.Account
 						if account.Suicided == nil || !(*account.Suicided) {
+							if account.NewCode {
+								statedb.CreateAccount(account.Addr)
+								statedb.SetCode(account.Addr, account.Code)
+							}
 							if account.Nonce > 0 {
 								statedb.SetNonce(account.Addr, account.Nonce)
 							}
 							statedb.SetBalance(account.Addr, account.Balance)
+						} else {
+							statedb.Suicide(account.Addr)
 						}
 					case *SelfDestructed:
-						des := entry.Value.(*SelfDestructed)
-						statedb.Suicide(des.Addr)
+						/*
+							des := entry.Value.(*SelfDestructed)
+							fmt.Println(d.TxIdx, des.Addr.Hex(), statedb.HasSuicided(des.Addr))
+							statedb.Suicide(des.Addr)*/
 					case *State:
 						state := entry.Value.(*State)
 						statedb.SetState(state.Addr, state.Key, state.Value)
 					case *CodeHash:
-						codeHash := entry.Value.(*CodeHash)
-						if code, ok := mvMemory.newByteCodes.Load(codeHash.CodeHash); ok {
-							statedb.SetCode(codeHash.Addr, code.([]byte))
-						}
+						/*
+							codeHash := entry.Value.(*CodeHash)
+							if code, ok := mvMemory.newByteCodes.Load(codeHash.CodeHash); ok {
+								statedb.SetCode(codeHash.Addr, code.([]byte))
+							}*/
 					}
 				}
 				return true

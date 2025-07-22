@@ -190,8 +190,352 @@ func TestHalfParallel(t *testing.T) {
 	require.True(t, env2.StateDB.(*mock.MockStateDB).Equal(env1.StateDB.(*mock.MockStateDB)))
 }
 
-func TestSelfDestruct(t *testing.T) {
+var destructibleBytecode, _ = hexutil.Decode("0x608060405260748060116000396000f3fe60806040526004361060205760003560e01c806341c0e1b514602b57600080fd5b36602657005b600080fd5b348015603657600080fd5b50603c33ff5b00fea2646970667358221220c3b3e93eb98b3985d15e3728a9b06d56b316a52f1c275e93750f25d371709a1a64736f6c63430008070033")
 
+func genDeployDestructibleTx(acc *account, nonce uint64, value *big.Int) *types.Transaction {
+	tx, _ := types.SignNewTx(acc.privateKey, types.NewEIP155Signer(params.TestChainConfig.ChainID), &types.LegacyTx{
+		Nonce:    nonce,
+		GasPrice: big.NewInt(50000),
+		Gas:      500000,
+		To:       nil, // Contract creation
+		Value:    value,
+		Data:     destructibleBytecode,
+	})
+	return tx
+}
+
+func genKillTx(acc *account, nonce uint64, contractAddr common.Address) *types.Transaction {
+	// kill()
+	// Method ID: 0x41c0e1b5
+	methodID, _ := hexutil.Decode("0x41c0e1b5")
+
+	tx, _ := types.SignNewTx(acc.privateKey, types.NewEIP155Signer(params.TestChainConfig.ChainID), &types.LegacyTx{
+		Nonce:    nonce,
+		GasPrice: big.NewInt(50000),
+		Gas:      100000,
+		To:       &contractAddr,
+		Value:    big.NewInt(0),
+		Data:     methodID,
+	})
+	return tx
+}
+
+func TestSelfDestruct(t *testing.T) {
+	// 1. Setup
+	accounts := prepareAccounts(10)
+	deployer := accounts[0]
+	killer := accounts[1] // The killer will also be the beneficiary in this contract
+	initialBalance := new(big.Int).Mul(big.NewInt(10000), big.NewInt(params.LAT))
+
+	statedb1 := prepareStateDB(accounts, initialBalance)
+	statedb2 := prepareStateDB(accounts, initialBalance)
+	// Capture initial balance of the killer for later comparison
+	killerInitialBalance := new(big.Int).Set(statedb1.GetBalance(killer.addr))
+
+	header := prepareHeader(30)
+	chainCtx := newChainContext()
+	vmCfg := vm.Config{}
+
+	// 2. Create transactions
+	txs := make(types.Transactions, 2)
+	contractInitialBalance := new(big.Int).SetUint64(1e18) // 1 LAT
+
+	// Tx 0: Deploy contract with an initial balance
+	txs[0] = genDeployDestructibleTx(deployer, 0, contractInitialBalance)
+	contractAddr := crypto.CreateAddress(deployer.addr, 0)
+
+	// Tx 1: Killer account calls kill(). The funds go to the killer (msg.sender).
+	txs[1] = genKillTx(killer, 0, contractAddr)
+
+	// 3. Run sequential
+	env1 := &Env{
+		Header:        header,
+		StateDB:       statedb1,
+		ChainConfig:   params.TestChainConfig,
+		VMConfig:      vmCfg,
+		ChainContext:  chainCtx,
+		IsWorker:      true,
+		BlockDeadline: time.Now().Add(time.Minute),
+	}
+	pevm1 := NewPEVM(true, 4, 32, log.New("module", "test-seq"), env1, newMockContractsApp())
+	result1, err1 := pevm1.Run(txs, false)
+	require.Nil(t, err1)
+	require.NotNil(t, result1)
+	require.Len(t, result1.Receipts, 2)
+
+	// 4. Run parallel
+	env2 := &Env{
+		Header:        header,
+		StateDB:       statedb2,
+		ChainConfig:   params.TestChainConfig,
+		VMConfig:      vmCfg,
+		ChainContext:  chainCtx,
+		IsWorker:      true,
+		BlockDeadline: time.Now().Add(time.Minute),
+	}
+	pevm2 := NewPEVM(false, 2, 32, log.New("module", "test-para"), env2, newMockContractsApp())
+	result2, err2 := pevm2.Run(txs, false)
+	require.Nil(t, err2)
+	require.NotNil(t, result2)
+	require.Len(t, result2.Receipts, 2)
+
+	// 5. Compare results
+	require.Equal(t, result1.GasUsed, result2.GasUsed, "Gas used should be equal")
+	res1Root := types.DeriveSha(result1.Receipts, trie.NewStackTrie(nil))
+	res2Root := types.DeriveSha(result2.Receipts, trie.NewStackTrie(nil))
+	require.Equal(t, res1Root, res2Root, "Receipt roots should be equal")
+	require.True(t, env1.StateDB.(*mock.MockStateDB).Equal(env2.StateDB.(*mock.MockStateDB)), "StateDBs should be equal")
+
+	// 6. Verify specific state changes from the parallel run
+	// Check that contract code is gone
+	finalCode := statedb2.GetCode(contractAddr)
+	require.NotEmpty(t, finalCode, "Contract code should be not empty after selfdestruct")
+
+	// Check that killer's balance increased by the contract's balance, minus gas costs
+	killTxReceipt := result2.Receipts[1]
+	killTx := txs[1]
+	gasCost := new(big.Int).Mul(new(big.Int).SetUint64(killTxReceipt.GasUsed), killTx.GasPrice())
+
+	expectedKillerBalance := new(big.Int).Add(killerInitialBalance, contractInitialBalance)
+	expectedKillerBalance.Sub(expectedKillerBalance, gasCost)
+
+	finalKillerBalance := statedb2.GetBalance(killer.addr)
+	require.Equal(t, 0, expectedKillerBalance.Cmp(finalKillerBalance), "Killer's final balance is incorrect")
+}
+
+func TestStorageConflict(t *testing.T) {
+	// 1. Setup
+	accounts := prepareAccounts(10)
+	initialBalance := new(big.Int).Mul(big.NewInt(10000), big.NewInt(params.LAT))
+	statedb1 := prepareStateDB(accounts, initialBalance)
+	statedb2 := prepareStateDB(accounts, initialBalance)
+	header := prepareHeader(40)
+	chainCtx := newChainContext()
+	vmCfg := vm.Config{}
+
+	// 2. Deploy ERC20 and create conflicting transactions
+	deployer := accounts[0]
+	recipient := accounts[1]
+	initialSupply := new(big.Int).Mul(new(big.Int).SetInt64(1000000), big.NewInt(params.LAT))
+
+	// Tx 0: Deploy contract
+	deployTx := genERC20DeployTx(deployer, initialSupply, 0)
+	contractAddr := crypto.CreateAddress(deployer.addr, 0)
+
+	// Apply deploy transaction to both states so the contract exists before the conflicting txs
+	applyTxToState := func(env *Env, tx *types.Transaction) {
+		pevm := NewPEVM(true, 1, 1, log.New(), env, newMockContractsApp()) // Sequential execution
+		_, err := pevm.Run(types.Transactions{tx}, false)
+		require.Nil(t, err)
+	}
+	env1Temp := &Env{Header: header, StateDB: statedb1, ChainConfig: params.TestChainConfig, VMConfig: vmCfg, ChainContext: chainCtx, IsWorker: true, BlockDeadline: time.Now().Add(time.Minute)}
+	env2Temp := &Env{Header: header, StateDB: statedb2, ChainConfig: params.TestChainConfig, VMConfig: vmCfg, ChainContext: chainCtx, IsWorker: true, BlockDeadline: time.Now().Add(time.Minute)}
+	applyTxToState(env1Temp, deployTx)
+	applyTxToState(env2Temp, deployTx)
+
+	// Create 3 transactions from the same sender to the same recipient.
+	// This will cause storage conflicts on the balance slots of both accounts in the ERC20 contract.
+	txs := make(types.Transactions, 3)
+	transferAmount := new(big.Int).Mul(big.NewInt(100), big.NewInt(params.Von))
+	for i := 0; i < 3; i++ {
+		// Nonce for deployer is now 1, so start subsequent txs from 1
+		txs[i] = genERC20TransferTx(deployer, uint64(i+1), contractAddr, recipient.addr, transferAmount)
+	}
+
+	// 3. Run sequential
+	env1 := &Env{Header: header, StateDB: statedb1, ChainConfig: params.TestChainConfig, VMConfig: vmCfg, ChainContext: chainCtx, IsWorker: true, BlockDeadline: time.Now().Add(time.Minute)}
+	pevm1 := NewPEVM(true, 4, 32, log.New("module", "test-seq"), env1, newMockContractsApp())
+	result1, err1 := pevm1.Run(txs, false)
+	require.Nil(t, err1)
+	require.NotNil(t, result1)
+
+	// 4. Run parallel
+	env2 := &Env{Header: header, StateDB: statedb2, ChainConfig: params.TestChainConfig, VMConfig: vmCfg, ChainContext: chainCtx, IsWorker: true, BlockDeadline: time.Now().Add(time.Minute)}
+	pevm2 := NewPEVM(false, 2, 32, log.New("module", "test-para"), env2, newMockContractsApp())
+	result2, err2 := pevm2.Run(txs, false)
+	require.Nil(t, err2)
+	require.NotNil(t, result2)
+
+	// 5. Compare results
+	require.Equal(t, result1.GasUsed, result2.GasUsed, "Gas used should be equal")
+	res1Root := types.DeriveSha(result1.Receipts, trie.NewStackTrie(nil))
+	res2Root := types.DeriveSha(result2.Receipts, trie.NewStackTrie(nil))
+	require.Equal(t, res1Root, res2Root, "Receipt roots should be equal")
+	require.True(t, env1.StateDB.(*mock.MockStateDB).Equal(env2.StateDB.(*mock.MockStateDB)), "StateDBs should be equal")
+}
+
+func TestRevertedTransaction(t *testing.T) {
+	// 1. Setup
+	accounts := prepareAccounts(10)
+	initialBalance := new(big.Int).Mul(big.NewInt(10000), big.NewInt(params.LAT))
+	statedb1 := prepareStateDB(accounts, initialBalance)
+	statedb2 := prepareStateDB(accounts, initialBalance)
+	header := prepareHeader(50)
+	chainCtx := newChainContext()
+	vmCfg := vm.Config{}
+
+	// 2. Deploy ERC20 and create mixed success/fail transactions
+	deployer := accounts[0]
+	initialSupply := new(big.Int).Mul(big.NewInt(1000), big.NewInt(params.LAT)) // 1000 tokens
+
+	// Tx 0: Deploy contract
+	deployTx := genERC20DeployTx(deployer, initialSupply, 0)
+	contractAddr := crypto.CreateAddress(deployer.addr, 0)
+
+	// Apply deploy transaction to both states
+	applyTxToState := func(env *Env, tx *types.Transaction) {
+		pevm := NewPEVM(true, 1, 1, log.New(), env, newMockContractsApp())
+		_, err := pevm.Run(types.Transactions{tx}, false)
+		require.Nil(t, err)
+	}
+	env1Temp := &Env{Header: header, StateDB: statedb1, ChainConfig: params.TestChainConfig, VMConfig: vmCfg, ChainContext: chainCtx, IsWorker: true, BlockDeadline: time.Now().Add(time.Minute)}
+	env2Temp := &Env{Header: header, StateDB: statedb2, ChainConfig: params.TestChainConfig, VMConfig: vmCfg, ChainContext: chainCtx, IsWorker: true, BlockDeadline: time.Now().Add(time.Minute)}
+	applyTxToState(env1Temp, deployTx)
+	applyTxToState(env2Temp, deployTx)
+
+	txs := make(types.Transactions, 4)
+	// Tx 0 (Success): deployer transfers 100 tokens to accounts[1]
+	txs[0] = genERC20TransferTx(deployer, 1, contractAddr, accounts[1].addr, big.NewInt(100))
+	// Tx 1 (Fail): accounts[2] (no tokens) transfers to accounts[3]
+	txs[1] = genERC20TransferTx(accounts[2], 0, contractAddr, accounts[3].addr, big.NewInt(100))
+	// Tx 2 (Success): deployer transfers 100 tokens to accounts[4]
+	txs[2] = genERC20TransferTx(deployer, 2, contractAddr, accounts[4].addr, big.NewInt(100))
+	// Tx 3 (Fail): deployer transfers more than total supply
+	txs[3] = genERC20TransferTx(deployer, 3, contractAddr, accounts[5].addr, new(big.Int).Add(initialSupply, big.NewInt(1)))
+
+	// 3. Run sequential
+	env1 := &Env{Header: header, StateDB: statedb1, ChainConfig: params.TestChainConfig, VMConfig: vmCfg, ChainContext: chainCtx, IsWorker: true, BlockDeadline: time.Now().Add(time.Minute)}
+	pevm1 := NewPEVM(true, 4, 32, log.New("module", "test-seq"), env1, newMockContractsApp())
+	result1, err1 := pevm1.Run(txs, false)
+	require.Nil(t, err1)
+	require.NotNil(t, result1)
+
+	// 4. Run parallel
+	env2 := &Env{Header: header, StateDB: statedb2, ChainConfig: params.TestChainConfig, VMConfig: vmCfg, ChainContext: chainCtx, IsWorker: true, BlockDeadline: time.Now().Add(time.Minute)}
+	pevm2 := NewPEVM(false, 4, 32, log.New("module", "test-para"), env2, newMockContractsApp())
+	result2, err2 := pevm2.Run(txs, false)
+	require.Nil(t, err2)
+	require.NotNil(t, result2)
+
+	// 5. Compare results
+	require.Equal(t, result1.GasUsed, result2.GasUsed, "Gas used should be equal")
+	res1Root := types.DeriveSha(result1.Receipts, trie.NewStackTrie(nil))
+	res2Root := types.DeriveSha(result2.Receipts, trie.NewStackTrie(nil))
+	require.Equal(t, res1Root, res2Root, "Receipt roots should be equal")
+	require.True(t, env1.StateDB.(*mock.MockStateDB).Equal(env2.StateDB.(*mock.MockStateDB)), "StateDBs should be equal")
+
+	// 6. Verify receipt statuses
+	require.Equal(t, types.ReceiptStatusSuccessful, result2.Receipts[0].Status, "Tx 0 should succeed")
+	require.Equal(t, types.ReceiptStatusFailed, result2.Receipts[1].Status, "Tx 1 should fail")
+	require.Equal(t, types.ReceiptStatusSuccessful, result2.Receipts[2].Status, "Tx 2 should succeed")
+	require.Equal(t, types.ReceiptStatusFailed, result2.Receipts[3].Status, "Tx 3 should fail")
+}
+
+func TestContractCreationDependency(t *testing.T) {
+	// 1. Setup
+	accounts := prepareAccounts(2)
+	initialBalance := new(big.Int).Mul(big.NewInt(10000), big.NewInt(params.LAT))
+	statedb1 := prepareStateDB(accounts, initialBalance)
+	statedb2 := prepareStateDB(accounts, initialBalance)
+	chainCtx := newChainContext()
+	vmCfg := vm.Config{}
+
+	// 2. Create transactions: 1. Deploy, 2. Send funds to new contract
+	deployer := accounts[0]
+	funder := accounts[1]
+	contractAddr := crypto.CreateAddress(deployer.addr, 0)
+	fundAmount := new(big.Int).Mul(big.NewInt(1), big.NewInt(params.LAT))
+
+	txs := make(types.Transactions, 2)
+	// Tx 0: Deploy a simple contract
+	txs[0] = genDeployDestructibleTx(deployer, 0, big.NewInt(0)) // Deploy with 0 value
+	// Tx 1: Send funds to the contract address
+	tx, _ := types.SignNewTx(funder.privateKey, types.NewEIP155Signer(params.TestChainConfig.ChainID), &types.LegacyTx{
+		Nonce:    0,
+		To:       &contractAddr,
+		Value:    fundAmount,
+		Gas:      210000,
+		GasPrice: big.NewInt(5000),
+	})
+	txs[1] = tx
+
+	// 3. Run sequential
+	env1 := &Env{Header: prepareHeader(60), StateDB: statedb1, ChainConfig: params.TestChainConfig, VMConfig: vmCfg, ChainContext: chainCtx, IsWorker: true, BlockDeadline: time.Now().Add(time.Minute)}
+	pevm1 := NewPEVM(true, 4, 32, log.New("module", "test-seq"), env1, newMockContractsApp())
+	result1, err1 := pevm1.Run(txs, false)
+	require.Nil(t, err1)
+	require.NotNil(t, result1)
+
+	// 4. Run parallel
+	env2 := &Env{Header: prepareHeader(60), StateDB: statedb2, ChainConfig: params.TestChainConfig, VMConfig: vmCfg, ChainContext: chainCtx, IsWorker: true, BlockDeadline: time.Now().Add(time.Minute)}
+	pevm2 := NewPEVM(false, 2, 32, log.New("module", "test-para"), env2, newMockContractsApp())
+	result2, err2 := pevm2.Run(txs, false)
+	require.Nil(t, err2)
+	require.NotNil(t, result2)
+
+	// 5. Compare results
+	require.Equal(t, result1.GasUsed, result2.GasUsed, "Gas used should be equal")
+	res1Root := types.DeriveSha(result1.Receipts, trie.NewStackTrie(nil))
+	res2Root := types.DeriveSha(result2.Receipts, trie.NewStackTrie(nil))
+	require.Equal(t, res1Root, res2Root, "Receipt roots should be equal")
+	require.True(t, env1.StateDB.(*mock.MockStateDB).Equal(env2.StateDB.(*mock.MockStateDB)), "StateDBs should be equal")
+
+	// 6. Verify final contract balance
+	finalContractBalance := statedb2.GetBalance(contractAddr)
+	require.Equal(t, 0, fundAmount.Cmp(finalContractBalance), "Contract balance should be equal to the funded amount")
+}
+
+func TestDeadline(t *testing.T) {
+	// Test parallel mode
+	{
+		accounts := prepareAccounts(100)
+		txs := prepareTransactions(100, accounts, big.NewInt(100))
+		initialState := prepareStateDB(accounts, big.NewInt(10000000000))
+		// Create a second, identical state DB for comparison after the run.
+		comparisonState := prepareStateDB(accounts, big.NewInt(10000000000))
+
+		env := &Env{
+			Header:        prepareHeader(70),
+			StateDB:       initialState,
+			ChainConfig:   params.TestChainConfig,
+			VMConfig:      vm.Config{},
+			ChainContext:  newChainContext(),
+			IsWorker:      true,
+			BlockDeadline: time.Now().Add(-1 * time.Millisecond),
+		}
+
+		pevmPara := NewPEVM(false, 4, 32, log.New("module", "test"), env, newMockContractsApp())
+		resultPara, errPara := pevmPara.Run(txs, false)
+		require.NoError(t, errPara, "Error should be nil on deadline occupy")
+		require.NotNil(t, resultPara, "Result should be not nil on deadline occupy")
+		require.True(t, resultPara.Timeout, "Timeout should be true on deadline")
+		// Verify state was not mutated by comparing to the pristine comparison state.
+		require.True(t, comparisonState.(*mock.MockStateDB).Equal(env.StateDB.(*mock.MockStateDB)), "StateDB should not be modified on deadline error")
+	}
+
+	// Test sequential mode
+	{
+		accounts := prepareAccounts(100)
+		txs := prepareTransactions(100, accounts, big.NewInt(100))
+		initialState := prepareStateDB(accounts, big.NewInt(10000000000))
+		comparisonState := prepareStateDB(accounts, big.NewInt(10000000000))
+
+		envSeq := &Env{
+			Header:        prepareHeader(70),
+			StateDB:       initialState,
+			ChainConfig:   params.TestChainConfig,
+			VMConfig:      vm.Config{},
+			ChainContext:  newChainContext(),
+			IsWorker:      true,
+			BlockDeadline: time.Now().Add(-1 * time.Millisecond),
+		}
+		pevmSeq := NewPEVM(true, 4, 32, log.New("module", "test"), envSeq, newMockContractsApp())
+		resultSeq, errSeq := pevmSeq.Run(txs, false)
+		require.NoError(t, errSeq, "Error should be nil on deadline occupy")
+		require.NotNil(t, resultSeq, "Result should be not nil on deadline error in sequential mode")
+		require.True(t, resultSeq.Timeout, "Timeout should be true on deadline")
+		require.True(t, comparisonState.(*mock.MockStateDB).Equal(envSeq.StateDB.(*mock.MockStateDB)), "StateDB should not be modified on deadline error in sequential mode")
+	}
 }
 
 func TestERC20(t *testing.T) {
