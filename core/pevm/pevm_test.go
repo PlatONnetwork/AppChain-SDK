@@ -538,6 +538,103 @@ func TestDeadline(t *testing.T) {
 	}
 }
 
+func TestPrecompiledContracts(t *testing.T) {
+	// 1. Setup
+	accounts := prepareAccounts(1)
+	initialBalance := new(big.Int).Mul(big.NewInt(10000), big.NewInt(params.LAT))
+	statedb1 := prepareStateDB(accounts, initialBalance)
+	statedb2 := prepareStateDB(accounts, initialBalance)
+	header := prepareHeader(90)
+	chainCtx := newChainContext()
+	vmCfg := vm.Config{}
+
+	// 2. Create 10 transactions that call different precompiled contracts
+	txs := make(types.Transactions, 10)
+	caller := accounts[0]
+
+	// Precompiled contract addresses
+	// Using simpler contracts that are less sensitive to input format
+	sha256Addr := common.BytesToAddress([]byte{2})
+	ripemd160Addr := common.BytesToAddress([]byte{3})
+	identityAddr := common.BytesToAddress([]byte{4})
+
+	// Create transactions for different precompiled contracts
+	inputs := [][]byte{
+		[]byte("Hello, World!"),
+		[]byte("Test input 1"),
+		[]byte("Test input 2"),
+		[]byte("Another test"),
+		[]byte("More testing"),
+		[]byte(""),
+		[]byte("Yet another input"),
+		[]byte("Different data"),
+		[]byte("More data"),
+		[]byte("Final test input"),
+	}
+
+	// Alternate between the three precompiled contracts
+	addresses := []common.Address{sha256Addr, ripemd160Addr, identityAddr}
+
+	for i, input := range inputs {
+		txs[i], _ = types.SignNewTx(caller.privateKey, types.NewEIP155Signer(params.TestChainConfig.ChainID), &types.LegacyTx{
+			Nonce:    uint64(i),
+			To:       &addresses[i%3], // Cycle through the three contracts
+			Value:    big.NewInt(0),
+			Gas:      100000,
+			GasPrice: big.NewInt(5000),
+			Data:     input,
+		})
+	}
+
+	// 3. Run sequential
+	env1 := &Env{
+		Header:        header,
+		StateDB:       statedb1,
+		ChainConfig:   params.TestChainConfig,
+		VMConfig:      vmCfg,
+		ChainContext:  chainCtx,
+		IsWorker:      true,
+		BlockDeadline: time.Now().Add(time.Minute),
+	}
+	pevm1 := NewPEVM(true, 4, 32, log.New("module", "test-seq"), env1, newMockContractsApp())
+	result1, err1 := pevm1.Run(txs, false)
+	require.Nil(t, err1)
+	require.NotNil(t, result1)
+	require.Len(t, result1.Receipts, 10)
+
+	// 4. Run parallel
+	env2 := &Env{
+		Header:        header,
+		StateDB:       statedb2,
+		ChainConfig:   params.TestChainConfig,
+		VMConfig:      vmCfg,
+		ChainContext:  chainCtx,
+		IsWorker:      true,
+		BlockDeadline: time.Now().Add(time.Minute),
+	}
+	pevm2 := NewPEVM(false, 4, 32, log.New("module", "test-para"), env2, newMockContractsApp())
+	result2, err2 := pevm2.Run(txs, false)
+	require.Nil(t, err2)
+	require.NotNil(t, result2)
+	require.Len(t, result2.Receipts, 10)
+
+	// 5. Compare results
+	require.Equal(t, result1.GasUsed, result2.GasUsed, "Gas used should be equal")
+	res1Root := types.DeriveSha(result1.Receipts, trie.NewStackTrie(nil))
+	res2Root := types.DeriveSha(result2.Receipts, trie.NewStackTrie(nil))
+	require.Equal(t, res1Root, res2Root, "Receipt roots should be equal")
+	require.True(t, env1.StateDB.(*mock.MockStateDB).Equal(env2.StateDB.(*mock.MockStateDB)), "StateDBs should be equal")
+
+	// 6. Verify transaction statuses
+	for i, receipt := range result2.Receipts {
+		// All transactions should succeed
+		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status,
+			"Transaction %d should succeed", i)
+		require.Equal(t, result1.Receipts[i].Status, receipt.Status,
+			"Transaction %d status should match between sequential and parallel execution", i)
+	}
+}
+
 func TestERC20(t *testing.T) {
 	// 1. Setup
 	accounts := prepareAccounts(10)
