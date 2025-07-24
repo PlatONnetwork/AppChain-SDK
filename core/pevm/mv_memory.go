@@ -433,36 +433,32 @@ func (m *MvMemory) Record(txVersion *TxVersion, readSet *ReadSet, writeSet Write
 	newWrites := oldWrites[:0]
 
 	wroteNewLocation := false
-	foundInWriteSet := false
 
+	// Process old writes - keep those that are in the new write set, delete others
 	for _, loc := range oldWrites {
 		if _, found := writeSet.Find(loc); found {
 			newWrites = append(newWrites, loc)
 		} else {
+			// Delete from write history if not in new write set
 			if wh := m.data.Get(loc); wh != nil {
 				wh.Delete(txVersion.TxIdx)
 			}
 		}
 	}
 
-	// Create a map to store WriteHistory instances for each location
-	writeHistories := make(map[MemoryLocationHash]*WriteHistory)
-
-	// First, get or create all the WriteHistory instances
-	for h, _ := range writeSet {
-		if _, ok := writeHistories[h]; !ok {
-			writeHistories[h] = m.data.GetOrCreate(h)
-		}
-	}
-
-	// Now, iterate through the writeSet and insert the entries
+	// Process new writes
 	for h, value := range writeSet {
-		wh := writeHistories[h]
+		// Get or create WriteHistory for this location
+		wh := m.data.GetOrCreate(h)
+
+		// Create and insert the new entry
 		entry := getItem()
 		entry.TxIdx = txVersion.TxIdx
 		entry.Entry = NewDataEntry(txVersion.TxIncarnation, value)
 		wh.ReplaceOrInsert(entry)
 
+		// Check if we're writing to a new location
+		foundInWriteSet := false
 		for _, existing := range newWrites {
 			if existing == h {
 				foundInWriteSet = true
@@ -506,18 +502,24 @@ func (m *MvMemory) ValidateReadLocations(txIdx int32) bool {
 	return valid
 }
 
+// prefetchWriteHistories attempts to preload write history data into CPU cache
+// Note: This is a simplified implementation - in practice, real prefetching would
+// require more sophisticated techniques or be handled by the runtime
 func (m *MvMemory) prefetchWriteHistories(locs []MemoryLocationHash) {
+	// Simply access the items to potentially load them into cache
+	// In a production implementation, this might use runtime.Prefetch or similar
 	for _, loc := range locs {
 		if wh := m.data.Get(loc); wh != nil {
-			_ = wh.items
+			// Accessing the length forces loading the slice header
+			_ = len(wh.items)
 		}
 	}
 }
 
 func (m *MvMemory) validateLocation(txIdx int32, loc MemoryLocationHash, origins *ReadOrigins) bool {
-	valid := true
 	wh := m.data.Get(loc)
 	if wh == nil {
+		// If no write history exists, check if the last origin is Storage
 		_, ok := origins.Last().(*Storage)
 		return origins.Len() == 1 && ok
 	}
@@ -525,23 +527,29 @@ func (m *MvMemory) validateLocation(txIdx int32, loc MemoryLocationHash, origins
 	it := wh.AscendRange(txIdx)
 	defer it.Release()
 
+	valid := true
 	origins.Range(func(priorOrigin ReadOrigin) bool {
-		if po, ok := priorOrigin.(*Memory); ok {
+		switch po := priorOrigin.(type) {
+		case *Memory:
+			// For Memory origin, check if the entry matches
 			entry := it.NextBack()
 			if entry == nil {
 				valid = false
 				return false
 			}
+
 			if de, ok := entry.Entry.(*DataEntry); ok {
 				if po.Version.TxIdx != entry.TxIdx || de.TxIncarnation != po.Version.TxIncarnation {
 					valid = false
 					return false
 				}
 			} else {
+				// Entry is not a DataEntry, validation fails
 				valid = false
 				return false
 			}
-		} else if _, ok := priorOrigin.(*Storage); ok {
+		case *Storage:
+			// For Storage origin, ensure there are no more entries
 			if it.NextBack() != nil {
 				valid = false
 				return false
@@ -549,6 +557,7 @@ func (m *MvMemory) validateLocation(txIdx int32, loc MemoryLocationHash, origins
 		}
 		return true
 	})
+
 	return valid
 }
 
