@@ -38,14 +38,15 @@ func main() {
 			datadir = absdatadir
 		}
 
-		dbfile := filepath.Join(datadir, "sdk")
+		sdkdir := filepath.Join(datadir, "sdk")
+		dbfile := filepath.Join(sdkdir, "store")
 		store, err := storage.NewStorage(dbfile, 256, 512, "sdk")
 		if err != nil {
 			log.Crit("failed to new storage", "err", err)
 		}
 
 		election := NewElection()
-		benchmarkModule := benchmark.NewModule(ctx, store)
+		benchmarkModule := benchmark.NewModule(ctx, store, sdkdir)
 		nonTxPoolModule := nontxpool.NewModule(ctx)
 		asyncBlockModule := asyncblock.NewModule(ctx)
 		consensusNetworkModule := xconsensus.NewModule(ctx)

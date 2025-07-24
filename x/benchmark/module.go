@@ -16,6 +16,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"gopkg.in/urfave/cli.v1"
 	"math/big"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -84,7 +85,7 @@ type Module struct {
 	stopC           chan struct{}
 }
 
-func NewModule(ctx *cli.Context, store store.Store) *Module {
+func NewModule(ctx *cli.Context, store store.Store, datadir string) *Module {
 	m := &Module{
 		logger:       log.New("module", ModuleName),
 		db:           NewDB(store),
@@ -93,6 +94,11 @@ func NewModule(ctx *cli.Context, store store.Store) *Module {
 		readyCh:      make(chan struct{}),
 		pendingLimit: ctx.GlobalUint64(PendingLimitFlag.Name),
 	}
+	var err error
+	if m.mmapTxFile, err = NewMmapTxFile(filepath.Join(datadir, "benchmarktxs")); err != nil {
+		m.logger.Crit("Create mmap file failed", "err", err)
+	}
+
 	m.initAccount()
 	return m
 }
@@ -111,7 +117,6 @@ func (m *Module) Init(ctx sdk.InitContext) error {
 		return err
 	}
 	m.signer = types.NewLondonSigner(chainId)
-	m.mmapTxFile, err = NewMmapTxFile("")
 	if err != nil {
 		return err
 	}
