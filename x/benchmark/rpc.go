@@ -57,15 +57,12 @@ func (r *RPC) Status() (*Status, error) {
 	now := time.Now().Unix()
 	r.m.Lock()
 	defer r.m.Unlock()
-	total := 0
-	for _, v := range r.m.txCache {
-		total += len(v)
-	}
+
 	tps := float64(r.m.confirm.Load()) / float64(now-r.m.Statistics.start.Unix())
 	return &Status{
 		Sent:              r.m.send.Load(),
 		Tps:               tps,
-		CacheTx:           total,
+		CacheTx:           int(r.m.cache.Load()),
 		RawTxPercent:      r.m.rawTxPercent,
 		ContractTxPercent: r.m.contractTxPercent,
 	}, nil

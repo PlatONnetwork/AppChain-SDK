@@ -40,8 +40,9 @@ func AddBenchmarkFlags(app *cli.App) {
 }
 
 type Account struct {
-	key  *ecdsa.PrivateKey
-	addr common.Address
+	key   *ecdsa.PrivateKey
+	addr  common.Address
+	nonce *uint64
 }
 
 type TxPool interface {
@@ -60,6 +61,7 @@ type Params struct {
 }
 type Statistics struct {
 	start   time.Time
+	cache   atomic.Uint64
 	send    atomic.Uint64
 	confirm atomic.Uint64
 }
@@ -75,10 +77,11 @@ type Module struct {
 	txCache         map[common.Address][]*types.Transaction
 	sent            sync.Map //map[common.Hash]uint64
 	signer          types.Signer
-
-	txPool   TxPool
-	starting atomic.Bool
-	stopC    chan struct{}
+	mmapTxFile      *MmapTxFile
+	readyCh         chan struct{}
+	txPool          TxPool
+	starting        atomic.Bool
+	stopC           chan struct{}
 }
 
 func NewModule(ctx *cli.Context, store store.Store) *Module {
@@ -87,6 +90,7 @@ func NewModule(ctx *cli.Context, store store.Store) *Module {
 		db:           NewDB(store),
 		txCache:      make(map[common.Address][]*types.Transaction),
 		stopC:        make(chan struct{}),
+		readyCh:      make(chan struct{}),
 		pendingLimit: ctx.GlobalUint64(PendingLimitFlag.Name),
 	}
 	m.initAccount()
@@ -107,6 +111,10 @@ func (m *Module) Init(ctx sdk.InitContext) error {
 		return err
 	}
 	m.signer = types.NewLondonSigner(chainId)
+	m.mmapTxFile, err = NewMmapTxFile("")
+	if err != nil {
+		return err
+	}
 	return nil
 }
 func (m *Module) initAccount() error {
@@ -160,54 +168,74 @@ func (m *Module) createTransactions(amount uint64) error {
 	contractStartIndex := rawEndIndex
 	contractEndIndex := m.endIndex + 1
 	sum := uint64(0)
+	txsCache := make(map[common.Address][]*types.Transaction)
 	m.logger.Debug("create tx", "rawStartIndex", rawStartIndex, "rawEndIndex", rawEndIndex, "contractStartIndex", contractStartIndex, "contractEndIndex", contractEndIndex, "amount", amount)
 	for amount > sum {
 		for i := rawStartIndex; i < rawEndIndex && amount > sum; i, sum = i+1, sum+1 {
 			m.Lock()
 			k := m.keys[i]
-			txs := m.txCache[k.addr]
+			txs := txsCache[k.addr]
 			nonce := uint64(0)
-			if len(txs) == 0 {
+			if k.nonce == nil {
 				nonce = m.txPool.Nonce(k.addr)
 				m.logger.Debug("create tx", "address", k.addr, "nonce", nonce)
 			} else {
-				nonce = txs[len(txs)-1].Nonce() + 1
+				nonce = *k.nonce + 1
 			}
+			k.nonce = &nonce
+			m.keys[i] = k
 			tx, err := createRawTransfer(m.signer, k.key, GenRecipient(uint64(i)), nonce)
 			if err != nil {
 				m.Unlock()
 				return err
 			}
-			types.Sender(m.signer, tx)
+			tx.CacheFromAddr(m.signer, k.addr)
 			txs = append(txs, tx)
-			m.txCache[k.addr] = txs
+			txsCache[k.addr] = txs
+			m.cache.Add(1)
+
 			m.Unlock()
 		}
 
 		for i := contractStartIndex; i < contractEndIndex && amount > sum; i, sum = i+1, sum+1 {
 			m.Lock()
 			k := m.keys[i]
-			txs := m.txCache[k.addr]
+			txs := txsCache[k.addr]
 			nonce := uint64(0)
-			if len(txs) == 0 {
+			if k.nonce == nil {
 				nonce = m.txPool.Nonce(k.addr)
 			} else {
-				nonce = txs[len(txs)-1].Nonce() + 1
+				nonce = *k.nonce + 1
 			}
+			k.nonce = &nonce
+			m.keys[i] = k
 			tx, err := createTokenTransfer(m.signer, k.key, GenContract(uint64(i)), GenRecipient(uint64(i)), nonce)
 			if err != nil {
 				m.Unlock()
 				return err
 			}
-			types.Sender(m.signer, tx)
+			tx.CacheFromAddr(m.signer, k.addr)
 			txs = append(txs, tx)
-			m.txCache[k.addr] = txs
+			txsCache[k.addr] = txs
+			m.cache.Add(1)
 			m.Unlock()
 		}
 	}
-	for k, v := range m.txCache {
-		m.logger.Debug("create tx result", "address", k, "len", len(v), "nonce", v[0].Nonce())
+	for len(txsCache) != 0 {
+		for k, v := range txsCache {
+			end := 100
+			if len(v) < 100 {
+				end = len(v)
+			}
+			m.mmapTxFile.WriteTxs(k, v[:end])
+			txsCache[k] = v[end:]
+			if len(v[end:]) == 0 {
+				delete(txsCache, k)
+			}
+		}
 	}
+	m.mmapTxFile.UnMmap()
+	m.mmapTxFile.Mmap()
 	return nil
 }
 
@@ -222,6 +250,7 @@ func (m *Module) start(amount uint64, txsPerAccount int, sendTxPool bool) error 
 	}
 	m.starting.Store(true)
 	m.Statistics.start = time.Now()
+	go m.decodeTxLoop(amount)
 	if m.sendTxPool {
 		go m.sendLoop(amount)
 	}
@@ -235,11 +264,47 @@ func (m *Module) stop() error {
 	}
 	return nil
 }
+func (m *Module) decodeTxLoop(amount uint64) {
+	sum := uint64(0)
+	start := time.Now()
+	m.logger.Debug("Start decode Tx")
+	for m.starting.Load() {
+		addr, txs, err := m.mmapTxFile.ReadTxs()
+		if err != nil {
+			m.logger.Error("Read txs failed", "err", err)
+			return
+		}
+		for _, tx := range txs {
+			tx.CacheFromAddr(m.signer, addr)
+		}
+		m.Lock()
+		cache := m.txCache[addr]
+		cache = append(cache, txs...)
+		m.txCache[addr] = cache
+		m.Unlock()
+		sum += uint64(len(txs))
+		if sum > amount {
+			sum = 0
+			m.logger.Debug("Had ready txs, send ready signal", "cost", time.Since(start))
+			m.readyCh <- struct{}{}
+			start = time.Now()
+		}
+	}
+	m.logger.Debug("Stop decode Tx")
+
+}
+func (m *Module) readeReady() {
+	select {
+	case <-m.readyCh:
+	default:
+	}
+}
 
 func (m *Module) SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions, remote map[common.Address]types.Transactions) (types.Transactions, error) {
 	m.logger.Debug("benchmark sort txs", "local", len(local), "remote", len(remote), "number", ctx.Header().Number)
 	lastSortTxBlock := m.lastSortTxBlock
 	m.lastSortTxBlock = ctx.Header().Number.Uint64()
+	m.readeReady()
 	if m.starting.Load() {
 		m.Lock()
 		defer m.Unlock()
@@ -334,6 +399,7 @@ func (m *Module) sendLoop(amount uint64) {
 	for {
 		select {
 		case <-tick.C:
+			m.readeReady()
 			if !m.starting.Load() {
 				continue
 			}
