@@ -323,7 +323,9 @@ func (e *PEVM) applyTransactions(txs coretypes.Transactions) (*PEVMResult, error
 
 func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVMResult, error) {
 	if len(txs) == 0 {
-		return &PEVMResult{}, nil
+		return &PEVMResult{
+			GasUsed: e.cumulativeGasUsed,
+		}, nil
 	}
 
 	begin := time.Now()
@@ -408,7 +410,7 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 	} else {
 		executionResults, err := e.parallelExecuteBatch(txs, isSysTxs)
 		if err != nil {
-			e.logger.Error("parallel execute failed",
+			e.logger.Error("Parallel execute failed",
 				"number", e.env.Header.Number,
 				"hash", e.env.Header.Hash(),
 				"err", err)
@@ -424,9 +426,6 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 		pevmResult.Transactions = append(pevmResult.Transactions, txs...)
 		pevmResult.GasUsed = e.cumulativeGasUsed
 		e.txCount += len(txs)
-		e.logger.Info("parallel execute success",
-			"number", e.env.Header.Number,
-			"hash", e.env.Header.Hash())
 	}
 
 	e.logger.Info("Parallel execute finish",
