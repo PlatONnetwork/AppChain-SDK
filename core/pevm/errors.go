@@ -53,11 +53,13 @@ func (e InconsistentReadError) Is(rhl error) bool {
 }
 
 type InvalidNonceError struct {
-	TxIdx int32
+	TxIdx    int32
+	TxNonce  uint64
+	CurNonce uint64
 }
 
 func (e InvalidNonceError) Error() string {
-	return fmt.Sprintf("Tx %d has invalid nonce", e.TxIdx)
+	return fmt.Sprintf("Tx %d has invalid nonce(txNonce: %d, curNonce: %d)", e.TxIdx, e.TxNonce, e.CurNonce)
 }
 
 func (e InvalidNonceError) Is(rhl error) bool {

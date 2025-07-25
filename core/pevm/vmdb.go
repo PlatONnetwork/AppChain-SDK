@@ -8,6 +8,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	coretypes "github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
+	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 )
 
@@ -302,7 +303,10 @@ func (db *VmDB) getAccountBasic(addr common.Address) *AccountBase {
 		if db.txIdx > 0 {
 			db.abortErr = BlockingError{Addr: addr, TxIdx: db.txIdx - 1}
 		} else {
-			db.abortErr = InvalidNonceError{db.txIdx}
+			log.Error("Get account basic: invalid nonce", "txIdx", db.txIdx, "txHash", db.tx.Hash(),
+				"from", db.fromAddr.Hex(), "txNonce", db.tx.Nonce(), "curNonce", finalAccount.Nonce,
+				"nonceAddition", nonceAddtion)
+			db.abortErr = InvalidNonceError{db.txIdx, db.tx.Nonce(), finalAccount.Nonce}
 		}
 		return nil
 	}
