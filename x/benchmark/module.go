@@ -34,7 +34,7 @@ var (
 		Name:  "benchmark.pendinglimit",
 		Usage: "How many transactions are packaged after sending a transaction",
 	}
-	TxFileFlag = cli.Uint64Flag{
+	TxFileFlag = cli.StringFlag{
 		Name:  "benchmark.txfile",
 		Usage: "Transaction file",
 	}
