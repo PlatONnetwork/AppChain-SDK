@@ -34,10 +34,16 @@ var (
 		Name:  "benchmark.pendinglimit",
 		Usage: "How many transactions are packaged after sending a transaction",
 	}
+	TxFileFlag = cli.Uint64Flag{
+		Name:  "benchmark.txfile",
+		Usage: "Transaction file",
+	}
 )
 
 func AddBenchmarkFlags(app *cli.App) {
 	app.Flags = append(app.Flags, PendingLimitFlag)
+	app.Flags = append(app.Flags, TxFileFlag)
+
 }
 
 type Account struct {
@@ -95,7 +101,13 @@ func NewModule(ctx *cli.Context, store store.Store, datadir string) *Module {
 		pendingLimit: ctx.GlobalUint64(PendingLimitFlag.Name),
 	}
 	var err error
-	if m.mmapTxFile, err = NewMmapTxFile(filepath.Join(datadir, "benchmarktxs")); err != nil {
+	txFile := ctx.GlobalString(TxFileFlag.Name)
+	create := false
+	if len(txFile) == 0 {
+		txFile = filepath.Join(datadir, "benchmarktxs")
+		create = true
+	}
+	if m.mmapTxFile, err = NewMmapTxFile(txFile, create); err != nil {
 		m.logger.Crit("Create mmap file failed", "err", err)
 	}
 
@@ -239,8 +251,6 @@ func (m *Module) createTransactions(amount uint64) error {
 			}
 		}
 	}
-	m.mmapTxFile.UnMmap()
-	m.mmapTxFile.Mmap()
 	return nil
 }
 
@@ -255,6 +265,8 @@ func (m *Module) start(amount uint64, txsPerAccount int, sendTxPool bool) error 
 	}
 	m.starting.Store(true)
 	m.Statistics.start = time.Now()
+	m.mmapTxFile.UnMmap()
+	m.mmapTxFile.Mmap()
 	go m.decodeTxLoop(amount)
 	if m.sendTxPool {
 		go m.sendLoop(amount)

@@ -16,13 +16,19 @@ type MmapTxFile struct {
 	offset   int
 }
 
-func NewMmapTxFile(fileName string) (*MmapTxFile, error) {
+func NewMmapTxFile(fileName string, create bool) (*MmapTxFile, error) {
 	var file *os.File
 	var err error
 	if len(fileName) == 0 {
-		file, err = os.CreateTemp("", "benchmarktx")
+		file, err = os.CreateTemp("", "benchmarktxs")
 	} else {
-		file, err = os.Create(fileName)
+		flag := os.O_RDWR
+		if create {
+			flag = flag | os.O_CREATE | os.O_TRUNC
+		} else {
+			flag = flag | os.O_APPEND
+		}
+		file, err = os.OpenFile(fileName, flag, 0666)
 	}
 	if err != nil {
 		return nil, err
