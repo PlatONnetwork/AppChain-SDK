@@ -216,6 +216,9 @@ func (b *BlockStateCache) IsSplit(num uint64) bool {
 func (b *BlockStateCache) AddSplit(num uint64) {
 	b.splitBlock.Store(num, struct{}{})
 }
+func (b *BlockStateCache) RemoteSplit(num uint64) {
+	b.splitBlock.Delete(num)
+}
 func (b *BlockStateCache) AddFinishExecutor(executor *EntryExecutor) {
 	b.blocks.Store(executor.block.Header().SealHash(), executor)
 }

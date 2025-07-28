@@ -23,13 +23,8 @@ type TransactionsPacket struct {
 }
 
 type NonTxPoolP2P struct {
-	p2p     *sdkp2p.Protocol
-	checkTx func(transaction *types.Transaction) error
-	// Remote 交易过滤
-
-	// todo 加入速率限制
-	forwardRateLimit uint64
-
+	p2p            *sdkp2p.Protocol
+	checkTx        func(transaction *types.Transaction) error
 	forwardTxCache *ForwardCache
 
 	txNotify chan<- *TransactionsPacket

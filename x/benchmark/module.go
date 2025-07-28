@@ -4,7 +4,6 @@ import (
 	"crypto/ecdsa"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/store"
 	"github.com/PlatONnetwork/AppChain-SDK/x/benchmark/contracts"
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -29,11 +28,8 @@ const (
 )
 
 var (
-	Deployer         = common.BigToAddress(big.NewInt(1))
-	PendingLimitFlag = cli.Uint64Flag{
-		Name:  "benchmark.pendinglimit",
-		Usage: "How many transactions are packaged after sending a transaction",
-	}
+	Deployer = common.BigToAddress(big.NewInt(1))
+
 	TxFileFlag = cli.StringFlag{
 		Name:  "benchmark.txfile",
 		Usage: "Transaction file",
@@ -41,7 +37,6 @@ var (
 )
 
 func AddBenchmarkFlags(app *cli.App) {
-	app.Flags = append(app.Flags, PendingLimitFlag)
 	app.Flags = append(app.Flags, TxFileFlag)
 
 }
@@ -55,6 +50,11 @@ type Account struct {
 type TxPool interface {
 	Nonce(addr common.Address) uint64
 	AddLocal(tx *types.Transaction) error
+}
+
+type TxPoolModule interface {
+	AddLocalBatch(addr common.Address, txs []*types.Transaction)
+	Pending(getNonce func(addr common.Address) uint64, limit int, txsPerAccount int) types.Transactions
 }
 
 type Params struct {
@@ -76,7 +76,6 @@ type Module struct {
 	Params
 	Statistics
 	sync.Mutex
-	pendingLimit    uint64
 	lastSortTxBlock uint64
 	logger          log.Logger
 	db              *DB
@@ -86,19 +85,20 @@ type Module struct {
 	signer          types.Signer
 	mmapTxFile      *MmapTxFile
 	readyCh         chan struct{}
+	txPoolModule    TxPoolModule
 	txPool          TxPool
 	starting        atomic.Bool
 	stopC           chan struct{}
 }
 
-func NewModule(ctx *cli.Context, store store.Store, datadir string) *Module {
+func NewModule(ctx *cli.Context, store store.Store, txPoolModule TxPoolModule, datadir string) *Module {
 	m := &Module{
 		logger:       log.New("module", ModuleName),
 		db:           NewDB(store),
+		txPoolModule: txPoolModule,
 		txCache:      make(map[common.Address][]*types.Transaction),
 		stopC:        make(chan struct{}),
 		readyCh:      make(chan struct{}),
-		pendingLimit: ctx.GlobalUint64(PendingLimitFlag.Name),
 	}
 	var err error
 	txFile := ctx.GlobalString(TxFileFlag.Name)
@@ -168,7 +168,6 @@ func (m *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *param
 	return nil
 }
 func (m *Module) APIs() []rpc.API {
-	fmt.Println("benchmark rpc")
 	return []rpc.API{
 		rpc.API{
 			Namespace: "benchmark",
@@ -294,11 +293,16 @@ func (m *Module) decodeTxLoop(amount uint64) {
 		for _, tx := range txs {
 			tx.CacheFromAddr(m.signer, addr)
 		}
-		m.Lock()
-		cache := m.txCache[addr]
-		cache = append(cache, txs...)
-		m.txCache[addr] = cache
-		m.Unlock()
+		if m.sendTxPool {
+			m.Lock()
+			cache := m.txCache[addr]
+			cache = append(cache, txs...)
+			m.txCache[addr] = cache
+			m.Unlock()
+		} else {
+			m.send.Add(uint64(len(txs)))
+			m.txPoolModule.AddLocalBatch(addr, txs)
+		}
 		sum += uint64(len(txs))
 		if sum > amount {
 			sum = 0
@@ -316,66 +320,14 @@ func (m *Module) readeReady() {
 	default:
 	}
 }
-
 func (m *Module) SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions, remote map[common.Address]types.Transactions) (types.Transactions, error) {
-	m.logger.Debug("benchmark sort txs", "local", len(local), "remote", len(remote), "number", ctx.Header().Number)
-	lastSortTxBlock := m.lastSortTxBlock
-	m.lastSortTxBlock = ctx.Header().Number.Uint64()
-	m.readeReady()
-	if m.starting.Load() {
-		m.Lock()
-		defer m.Unlock()
-		var txs []types.Transactions
-		sum := 0
-		for k, v := range m.txCache {
-			if len(v) == 0 {
-				continue
-			}
-			nonce := ctx.StateDB().GetNonce(k)
-			start := int(nonce - v[0].Nonce())
-			end := start + m.txsPerAccount
-			if end > len(v) {
-				end = len(v)
-			}
-			if sum+end-start > m.amount {
-				end = start + m.amount - sum
-			}
-			m.logger.Debug("Sort Txs", "address", k, "len", len(v), "nonce", nonce, "firstNonce", v[0].Nonce(), "start", start, "end", end, "amount", m.amount, "txsPerAccount", m.txsPerAccount, "sum", sum)
-			txs = append(txs, v[start:end])
-
-			sum += end - start
-			m.send.Add(uint64(end - start))
-			if sum >= m.amount {
-				break
-			}
-			if lastSortTxBlock+1 < ctx.Header().Number.Uint64() && start > 0 {
-				//ensure v is never empty
-				m.txCache[k] = v[start-1:]
-			}
-		}
-		res := make(types.Transactions, 0, sum)
-		for _, s := range txs {
-			res = append(res, s...)
-		}
-
-		return res, nil
-	}
-	if m.send.Load() >= m.pendingLimit {
-		allTxs := make(types.Transactions, 0)
-		for _, txs := range local {
-			allTxs = append(allTxs, txs...)
-		}
-		for _, txs := range remote {
-			allTxs = append(allTxs, txs...)
-		}
-		return allTxs, nil
-	} else {
-		return make(types.Transactions, 0), nil
-	}
-
+	return m.txPoolModule.Pending(func(addr common.Address) uint64 {
+		return ctx.StateDB().GetNonce(addr)
+	}, m.amount, m.txsPerAccount), nil
 }
 func (m *Module) AddTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions) (map[common.Address]types.Transactions, error) {
-
+	m.logger.Debug("Read ready signal")
+	m.readeReady()
 	if !m.sendTxPool {
 		//
 	}

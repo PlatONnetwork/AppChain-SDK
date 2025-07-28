@@ -11,6 +11,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/p2p"
 	"github.com/PlatONnetwork/PlatON-Go/p2p/enode"
+	"github.com/PlatONnetwork/PlatON-Go/rpc"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"gopkg.in/urfave/cli.v1"
 	"math/rand"
@@ -118,18 +119,36 @@ func (c *ConsensusState) ValidatorsNodeId() map[string]struct{} {
 	return ids
 }
 
+type Module struct {
+	sync.Mutex
+	logger  log.Logger
+	conf    *NonTxPoolConfig
+	queue   *TxQueue
+	statedb sdk.StateDBReader
+	signer  types.Signer
+
+	txpool sdk.TxPool
+	cs     ConsensusState
+	*NonTxPoolP2P
+
+	localPending  map[common.Address][]*types.Transaction
+	remotePending map[common.Address][]*types.Transaction
+
+	txsSub     event.Subscription    // Subscription for new transaction event
+	localtxCh  chan core.NewTxsEvent // Channel to receive new transactions event
+	remoteTxCh chan *TransactionsPacket
+
+	txBroadcast chan []*types.Transaction // Channel used to queue transaction propagation requests
+
+}
+
 func NewModule(ctx *cli.Context) *Module {
 	logger := log.New("module", ModuleName)
-	txsCacheSize := ctx.GlobalInt(TxsCacheSizeFlag.Name)
-	broadcastInterval := ctx.GlobalInt(BroadcastIntervalFlag.Name)
-	logger.Debug("Get params", "TxsCacheSize", txsCacheSize, "BroadcastInterval", broadcastInterval)
+	conf := InitConfig(ctx)
 	m := &Module{
-		logger: logger,
-
-		txsCacheSize:      txsCacheSize,
-		broadcastInterval: time.Duration(broadcastInterval) * time.Millisecond,
-		remoteTxCh:        make(chan *TransactionsPacket, txChanSize),
-		txsCache:          make([]*types.Transaction, 0),
+		logger:     logger,
+		conf:       conf,
+		remoteTxCh: make(chan *TransactionsPacket, txChanSize),
 
 		txBroadcast: make(chan []*types.Transaction),
 	}
@@ -141,28 +160,6 @@ func NewModule(ctx *cli.Context) *Module {
 
 	return m
 }
-
-type Module struct {
-	logger log.Logger
-
-	txsCacheSize      int
-	broadcastInterval time.Duration
-	signer            types.Signer
-
-	txpool sdk.TxPool
-	cs     ConsensusState
-	*NonTxPoolP2P
-
-	txsCache []*types.Transaction
-
-	txsSub     event.Subscription    // Subscription for new transaction event
-	localtxCh  chan core.NewTxsEvent // Channel to receive new transactions event
-	remoteTxCh chan *TransactionsPacket
-
-	txBroadcast chan []*types.Transaction // Channel used to queue transaction propagation requests
-
-}
-
 func (m *Module) Name() string {
 	return ModuleName
 }
@@ -179,7 +176,7 @@ func (m *Module) Init(ctx sdk.InitContext) error {
 		return err
 	}
 	m.signer = types.NewLondonSigner(chainID)
-
+	m.queue = NewTxQueue(m.signer, m.conf.TxQueueConfig)
 	id := enode.PubkeyToIDV4(&ctx.NodeKey().PublicKey)
 	m.cs = ConsensusState{Self: id}
 
@@ -196,47 +193,45 @@ func (m *Module) Init(ctx sdk.InitContext) error {
 	}
 	return nil
 }
+func (m *Module) SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions, remote map[common.Address]types.Transactions) (types.Transactions, error) {
+	return m.queue.Pending(func(addr common.Address) uint64 {
+		return ctx.StateDB().GetNonce(addr)
+	}, m.conf.PendingLimit, m.conf.TxsPerAccount), nil
+}
 
+func (m *Module) Pending(getNonce func(addr common.Address) uint64, limit int, txsPerAccount int) types.Transactions {
+	return m.queue.Pending(getNonce, limit, txsPerAccount)
+}
 func (m *Module) txLoop(ctx context.Context) {
 
-	timer := time.NewTimer(m.broadcastInterval)
-
+	timer := time.NewTimer(m.conf.BroadcastInterval)
+	txsCache := make([]*types.Transaction, 0)
+	sendFlag := false
 	for {
-		select {
-		// 来自本地的交易
-		case ev := <-m.localtxCh:
-			if m.cs.IsLeader() {
-				continue
+		if len(txsCache) > m.conf.TxsCacheSize || (sendFlag && len(txsCache) > 0) {
+			if m.conf.EnableBroadcast {
+				m.txBroadcast <- txsCache
 			}
-			m.txsCache = append(m.txsCache, ev.Txs...)
-			if len(ev.Txs) > m.txsCacheSize {
-				m.txBroadcast <- m.txsCache
-				m.txsCache = make([]*types.Transaction, 0)
-				timer.Reset(m.broadcastInterval)
+			txsCache = make([]*types.Transaction, 0)
+			sendFlag = false
+			timer.Reset(m.conf.BroadcastInterval)
+		}
+		select {
+		case ev := <-m.localtxCh:
+			m.queue.addLocal(ev.Txs)
+			if m.cs.IsLeader() {
+				txsCache = append(txsCache, ev.Txs...)
 			}
 
 		case ev := <-m.remoteTxCh:
 			if m.cs.IsLeader() {
 				m.logger.Debug("I'm leader, add remote txs to the txpool", "account", len(ev.txs))
-				for _, tx := range ev.txs {
-					if err := m.txpool.AddRemote(tx); err != nil {
-						m.logger.Warn("Add remote tx failed", "err", err, "tx", tx.Hash())
-					}
-				}
+				m.queue.AddRemote(ev.txs)
 			} else {
-				m.txsCache = append(m.txsCache, ev.txs...)
-				if len(ev.txs) > m.txsCacheSize {
-					m.txBroadcast <- m.txsCache
-					m.txsCache = make([]*types.Transaction, 0)
-					timer.Reset(m.broadcastInterval)
-				}
+				txsCache = append(txsCache, ev.txs...)
 			}
 		case <-timer.C:
-			if len(m.txsCache) > 0 {
-				m.txBroadcast <- m.txsCache
-				m.txsCache = make([]*types.Transaction, 0)
-			}
-			timer.Reset(m.broadcastInterval)
+			sendFlag = true
 		case <-m.txsSub.Err():
 			return
 		case <-ctx.Done():
@@ -246,6 +241,9 @@ func (m *Module) txLoop(ctx context.Context) {
 }
 
 func (m *Module) sendTx(txs []*types.Transaction) {
+	if !m.conf.EnableBroadcast {
+		return
+	}
 	//选择leader转发交易
 	var sendPeer sdkp2p.Peer
 	peers := m.NonTxPoolP2P.p2p.Peers()
@@ -294,26 +292,49 @@ func (m *Module) ViewChange(ctx sdk.ConsensusContext, validators []*cbfttypes.Va
 	m.logger.Info("View change", "proposer", ctx.IsProposer(), "epoch", ctx.Epoch(), "view", ctx.View(), "leader", leader)
 	if !ctx.IsProposer() {
 		go func() {
-			txs := m.txpool.RemoteTxs()
-			m.logger.Debug("I'm not a leader, try to remove remote txs", "accounts", len(txs))
-			for _, transactions := range txs {
-				for _, transaction := range transactions {
-					m.txpool.RemoveTx(transaction.Hash(), false)
-				}
-			}
+			m.logger.Debug("I'm not a leader, try to remove remote txs")
+			m.queue.CleanRemote()
 
-			localTxs := m.txpool.LocalTxs()
-			m.logger.Debug("I'm not a leader, try to send local tx", "accounts", len(localTxs))
-
-			for _, transactions := range localTxs {
+			m.logger.Debug("I'm not a leader, try to send local tx")
+			m.queue.Locals(func(transactions []*types.Transaction) {
 				m.sendTx(transactions)
-			}
+			})
 		}()
 	}
 }
 
+func (m *Module) OnCommit(ctx sdk.ConsensusContext, block *types.Block) error {
+	m.Lock()
+	defer m.Unlock()
+	m.statedb = ctx.StateDB()
+	m.queue.Reset(func(addr common.Address) uint64 {
+		return ctx.StateDB().GetNonce(addr)
+	})
+	return nil
+}
+
+func (m *Module) AddLocalBatch(addr common.Address, txs []*types.Transaction) {
+	m.queue.AddLocalBatch(addr, txs)
+}
+func (m *Module) APIs() []rpc.API {
+	return []rpc.API{
+		rpc.API{
+			Namespace: "nontxpool",
+			Version:   "1",
+			Service:   NewRPC(m),
+			Public:    true,
+		},
+	}
+}
 func (m *Module) Protocols() []p2p.Protocol {
 	return m.p2p.Protocol()
+}
+func (m *Module) PendingNonce(addr common.Address) uint64 {
+	nonce, err := m.queue.PendingNonce(addr)
+	if err != nil {
+		nonce = m.statedb.GetNonce(addr)
+	}
+	return nonce
 }
 
 // broadcastTransactions is a write loop that schedules transaction broadcasts
