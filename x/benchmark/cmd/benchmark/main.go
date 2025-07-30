@@ -46,8 +46,9 @@ func main() {
 		}
 
 		election := NewElection()
-		benchmarkModule := benchmark.NewModule(ctx, store, sdkdir)
 		nonTxPoolModule := nontxpool.NewModule(ctx)
+		benchmarkModule := benchmark.NewModule(ctx, store, nonTxPoolModule, sdkdir)
+
 		asyncBlockModule := asyncblock.NewModule(ctx)
 		consensusNetworkModule := xconsensus.NewModule(ctx)
 		manager := module.NewManager(election, benchmarkModule, nonTxPoolModule, consensusNetworkModule, asyncBlockModule)

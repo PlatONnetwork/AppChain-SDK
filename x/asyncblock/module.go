@@ -271,7 +271,7 @@ func (m *Module) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackA
 		return allTxs, allReceipts, err
 	}
 	if len(sysTxs) > 0 {
-		m.logger.Debug("add system transactions", "sysTxs", len(sysTxs))
+		m.logger.Debug("Add system transactions", "sysTxs", len(sysTxs))
 		result, err := pevm.Run(sysTxs, true)
 		if err != nil {
 			m.logger.Error("Failed to execute system transactions",
@@ -349,6 +349,18 @@ func (m *Module) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackA
 				break
 			}
 		}
+	} else if len(sortedTxs) > 0 {
+		result, err := pevm.Run(sortedTxs, false)
+		if err != nil {
+			m.logger.Error("Failed to execute sorted transactions",
+				"blockNumber", ctx.Header().Number,
+				"parentHash", ctx.Header().ParentHash,
+				"err", err)
+			return allTxs, allReceipts, err
+		}
+		allTxs = append(allTxs, result.Transactions...)
+		allReceipts = append(allReceipts, result.Receipts...)
+		usedGas = result.GasUsed
 	}
 	// NOTE: need set gas used to header
 	ctx.Header().GasUsed = usedGas
@@ -365,6 +377,10 @@ func (m *Module) ViewChange(ctx sdk.ConsensusContext, validators []*cbfttypes.Va
 	m.cs.Update(ctx.Epoch(), ctx.View(), validators, int(ctx.View())%len(validators))
 	m.p2p.Update(validators)
 	go m.cleanState(ctx.Epoch(), ctx.View())
+}
+func (m *Module) OnCommit(ctx sdk.ConsensusContext, block *types.Block) error {
+	m.bsc.RemoteSplit(block.NumberU64())
+	return nil
 }
 func (m *Module) Protocols() []p2p.Protocol {
 	return m.p2p.Protocols()
