@@ -174,6 +174,7 @@ func (t *TxQueue) Pending(getNonce func(addr common.Address) uint64, limit int, 
 	var txs []types.Transactions
 	sum := 0
 	getTxs := func(txsList map[common.Address][]*types.Transaction) {
+		t.logger.Debug("Pending Txs", "len", len(txsList))
 		for k, v := range txsList {
 			if len(v) == 0 {
 				continue
@@ -182,7 +183,8 @@ func (t *TxQueue) Pending(getNonce func(addr common.Address) uint64, limit int, 
 				break
 			}
 			nonce := getNonce(k)
-			if nonce > v[0].Nonce() {
+			if nonce < v[0].Nonce() {
+				t.logger.Debug("Nonce too high", "nonce", nonce, "firstNonce", v[0].Nonce())
 				continue
 			}
 			start := int(nonce - v[0].Nonce())
