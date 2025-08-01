@@ -372,6 +372,35 @@ func (m *Module) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackA
 		"elapsed", time.Since(begin))
 	return allTxs, allReceipts, nil
 }
+func (m *Module) ExecuteTxs(ctx sdk.WorkerContext, cApp sdk.ContractsApp, txs types.Transactions) (types.Receipts, uint64, error) {
+	var (
+		header = ctx.Header()
+		now    = time.Now()
+		pevm   = pevm.NewPEVM(
+			m.forceSequential,
+			m.concurrencyLevel,
+			m.txsBatch,
+			m.logger,
+			&pevm.Env{
+				Header:        ctx.Header(),
+				StateDB:       ctx.StateDB(),
+				ChainConfig:   ctx.ChainConfig(),
+				ChainContext:  ctx.Backend().ChainContext(),
+				VMConfig:      *ctx.VMConfig(),
+				IsWorker:      ctx.IsWorker(),
+				BlockDeadline: ctx.BlockDeadline(),
+			}, cApp)
+	)
+
+	result, err := pevm.Run(txs, false)
+	m.logger.Info("Execute transactions finished",
+		"blockNumber", header.Number,
+		"blockHash", header.Hash(),
+		"count", len(txs),
+		"err", err,
+		"elapsed", time.Since(now))
+	return result.Receipts, result.GasUsed, err
+}
 
 func (m *Module) ViewChange(ctx sdk.ConsensusContext, validators []*cbfttypes.ValidateNode) {
 	m.cs.Update(ctx.Epoch(), ctx.View(), validators, int(ctx.View())%len(validators))

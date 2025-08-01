@@ -577,14 +577,14 @@ func (m *Manager) OnCommit(ctx sdk.ConsensusContext, block *types.Block) error {
 func (m *Manager) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *params.ChainConfig, data map[string]json.RawMessage) error {
 	log.Debug("Init blockchain state from genesis.json")
 	for _, moduleName := range m.OrderGenesis {
-		if data[moduleName] == nil {
-			continue
-		}
 
 		mod := m.Modules[moduleName]
 		if module, ok := mod.(GenesisModule); ok {
 			log.Debug("Running initialization for module ", "module", moduleName)
-
+			conf := data[moduleName]
+			if conf == nil {
+				conf = json.RawMessage("{}")
+			}
 			if err := module.InitGenesis(ctx, db, chainConfig, data[moduleName]); err != nil {
 				return err
 			}

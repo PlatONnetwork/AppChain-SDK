@@ -2,6 +2,9 @@ package main
 
 import (
 	"fmt"
+	"github.com/PlatONnetwork/AppChain-SDK/x/asyncblock"
+	"github.com/PlatONnetwork/AppChain-SDK/x/benchmark"
+	"github.com/PlatONnetwork/AppChain-SDK/x/nontxpool"
 	"os"
 
 	"github.com/PlatONnetwork/AppChain-SDK/utils"
@@ -24,6 +27,9 @@ func main() {
 	statesync.AddModuleInitFlags(cliApp)
 	miner.AddModuleInitFlags(cliApp)
 	utils.AddModuleInitFlags(cliApp)
+	benchmark.AddBenchmarkFlags(cliApp)
+	nontxpool.AddNonTxPoolFlags(cliApp)
+	asyncblock.AddAsyncBlockFlags(cliApp)
 	app.InitApp(cliApp, func(ctx *cli.Context) sdk.App {
 		simApp, err := NewSimApp(ctx)
 		//simApp, err := NewConsensusApp(ctx)

@@ -89,7 +89,7 @@ func (g *Module) InitGenesis(ctx sdk.Context, db sdk.StateDB, chainConfig *param
 	db.SetNonce(constants.GovAddress, 1)
 	var params GenesisParams
 	if err := json.Unmarshal(raw, &params); nil != err {
-		log.Error("Failed UnmarshalJSON RewardNetworkParams", "error", err)
+		log.Error("Failed UnmarshalJSON Gov Params", "error", err)
 		return err
 	}
 	evm := vm.NewEVM(vm.BlockContext{GasLimit: math.MaxUint64, BlockNumber: big.NewInt(0)}, vm.TxContext{}, db, chainConfig, vm.Config{}, nil)

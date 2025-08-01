@@ -6,13 +6,15 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/store/storage"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/x"
+	"github.com/PlatONnetwork/AppChain-SDK/x/asyncblock"
+	"github.com/PlatONnetwork/AppChain-SDK/x/benchmark"
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint"
-	xconsensus "github.com/PlatONnetwork/AppChain-SDK/x/consensus"
+	"github.com/PlatONnetwork/AppChain-SDK/x/consensus"
 	"github.com/PlatONnetwork/AppChain-SDK/x/deposit"
 	"github.com/PlatONnetwork/AppChain-SDK/x/extravote"
 	"github.com/PlatONnetwork/AppChain-SDK/x/gov"
 	"github.com/PlatONnetwork/AppChain-SDK/x/l1"
-	"github.com/PlatONnetwork/AppChain-SDK/x/miner"
+	"github.com/PlatONnetwork/AppChain-SDK/x/nontxpool"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward"
 	"github.com/PlatONnetwork/AppChain-SDK/x/stage"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking"
@@ -59,8 +61,10 @@ type SimApp struct {
 	upgrade            *upgrade.Module
 	voteToken          *votetoken.Module
 	gov                *gov.Module
-	miner              *miner.Module
-	consensusNetwork   *xconsensus.ConsensusNetworkModule
+	miner              *asyncblock.Module
+	nonTxPool          *nontxpool.Module
+	benchmark          *benchmark.Module
+	consensusNetwork   *consensus.Module
 	manager            *module.Manager
 }
 
@@ -77,7 +81,8 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		datadir = absdatadir
 	}
 
-	dbfile := filepath.Join(datadir, "sdk")
+	sdkdir := filepath.Join(datadir, "sdk")
+	dbfile := filepath.Join(sdkdir, "store")
 	store, err := storage.NewStorage(dbfile, 256, 512, "sdk")
 	if err != nil {
 		log.Error("failed to new storage", "err", err)
@@ -127,11 +132,13 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 
 	app.voteToken, _ = votetoken.NewModule()
 	app.gov, _ = gov.NewModule(ctx)
-	app.miner, _ = miner.NewModule(ctx)
 	tm := testmod.NewModule()
 	tc := testcontract.NewModule()
-	app.consensusNetwork = xconsensus.NewModule(ctx)
+	app.nonTxPool = nontxpool.NewModule(ctx)
+	app.benchmark = benchmark.NewModule(ctx, store, app.nonTxPool, sdkdir)
 
+	app.miner = asyncblock.NewModule(ctx)
+	app.consensusNetwork = consensus.NewModule(ctx)
 	manager := module.NewManager(
 		app.stateSync,
 		app.stateEvent,
@@ -149,6 +156,8 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		app.gov,
 		app.miner,
 		app.voteToken,
+		app.benchmark,
+		app.nonTxPool,
 		app.consensusNetwork,
 		tm, tc)
 	manager.SetElection(app.staking.Name())
@@ -168,6 +177,9 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		app.upgrade.Name(),
 		app.gov.Name(),
 		app.consensusNetwork.Name(),
+		app.nonTxPool.Name(),
+		app.miner.Name(),
+		app.benchmark.Name(),
 	)
 
 	manager.SetOrderGenesis(
@@ -182,6 +194,9 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		app.upgrade.Name(),
 		app.voteToken.Name(),
 		app.gov.Name(),
+		app.nonTxPool.Name(),
+		app.miner.Name(),
+		app.benchmark.Name(),
 		tm.Name(),
 		tc.Name(),
 	)
@@ -190,6 +205,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 	manager.SetTxExecutor(app.miner.Name())
 
 	manager.SetModuleValidChecker(app.upgrade.IsModuleValid)
+	manager.SetConsensusNetwork(app.consensusNetwork.Name())
 
 	manager.RegisterUpgradeHandler(app.upgrade)
 	app.upgrade.SetIsContractModule(manager.IsContractModule)
