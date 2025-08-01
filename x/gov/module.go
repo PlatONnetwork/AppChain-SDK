@@ -106,7 +106,7 @@ func (g *Module) AddTxs(ctx sdk.WorkerContext, local map[common.Address]types.Tr
 	nonce := common2.EnableNonce(local[from], func() uint64 {
 		return ctx.StateDB().GetNonce(from)
 	})
-	caller, err := g.newGovCallContract(ctx, ctx.Header())
+	caller, err := g.newGovCallContract(ctx, ctx.ParentBlock().Header())
 	if err != nil {
 		return nil, err
 	}

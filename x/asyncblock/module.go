@@ -102,6 +102,7 @@ func (m *Module) Finalize(executor *EntryExecutor) error {
 		return err
 	}
 	executor.block = block
+	core.CommitDB(executor.statedb)
 	m.Lock()
 	defer m.Unlock()
 	m.logger.Info("Add finish executor", "number", block.NumberU64())
