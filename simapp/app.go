@@ -202,7 +202,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 	)
 	manager.SetTxFiller(app.miner.Name())
 	manager.SetTxExecutor(app.miner.Name())
-
+	manager.SetBlockExecutor(app.miner.Name())
 	manager.SetModuleValidChecker(app.upgrade.IsModuleValid)
 	manager.SetConsensusNetwork(app.consensusNetwork.Name())
 
@@ -239,7 +239,6 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 	app.SetSortTxser(app.SortTxs)
 	app.SetTxFiller(app.FillTransactions)
 	app.SetTxExecutor(app.ExecuteTxs)
-
 	return app, nil
 }
 
