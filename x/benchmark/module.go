@@ -321,8 +321,9 @@ func (m *Module) readeReady() {
 	}
 }
 func (m *Module) SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions, remote map[common.Address]types.Transactions) (types.Transactions, error) {
+	statedb := ctx.StateDB()
 	return m.txPoolModule.Pending(func(addr common.Address) uint64 {
-		return ctx.StateDB().GetNonce(addr)
+		return statedb.GetNonce(addr)
 	}, m.amount, m.txsPerAccount), nil
 }
 func (m *Module) AddTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions) (map[common.Address]types.Transactions, error) {

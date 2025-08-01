@@ -127,7 +127,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 	}
 
 	app.extraVote = extravote.NewExtraVote(store, []extravote.ExtraVerifier{app.stateSync, app.checkpoint})
-
+	app.extraVote.AddEnableVerifiers(app.stateSync.Name(), app.checkpoint.Name())
 	app.upgrade = upgrade.NewModule(store)
 
 	app.voteToken, _ = votetoken.NewModule()
@@ -200,7 +200,6 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		tm.Name(),
 		tc.Name(),
 	)
-
 	manager.SetTxFiller(app.miner.Name())
 	manager.SetTxExecutor(app.miner.Name())
 

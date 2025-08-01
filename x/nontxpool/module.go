@@ -194,8 +194,9 @@ func (m *Module) Init(ctx sdk.InitContext) error {
 	return nil
 }
 func (m *Module) SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions, remote map[common.Address]types.Transactions) (types.Transactions, error) {
+	statedb := ctx.StateDB()
 	return m.queue.Pending(func(addr common.Address) uint64 {
-		return ctx.StateDB().GetNonce(addr)
+		return statedb.GetNonce(addr)
 	}, m.conf.PendingLimit, m.conf.TxsPerAccount), nil
 }
 
