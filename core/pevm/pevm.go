@@ -569,16 +569,15 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 						return false
 					}
 				}
-
-				statedb.SetBalance(addr, balance)
-				if nonce > 0 {
-					statedb.SetNonce(addr, nonce)
-				}
 				// End writeHistory.Ascend
 				return true
 			})
 			if abortErr != nil {
 				return false
+			}
+			statedb.SetBalance(addr, balance)
+			if nonce > 0 {
+				statedb.SetNonce(addr, nonce)
 			}
 		}
 		// End mvMomeory.ConsumeLazyAddresses()
@@ -593,21 +592,23 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 			if committedLocations[locationHash] {
 				continue
 			}
+
+			var account *AccountBase
 			writeHistory.Ascend(func(d *item) bool {
 				if entry, ok := d.Entry.(*DataEntry); ok {
 					switch entry.Value.(type) {
 					case *Basic:
 						basic := entry.Value.(*Basic)
-						account := basic.Account
-						if account.Suicided == nil || !(*account.Suicided) {
+						account = basic.Account
+						suicided := false
+						if account.Suicided != nil {
+							suicided = *account.Suicided
+						}
+						if !suicided {
 							if account.NewCode {
 								statedb.CreateAccount(account.Addr)
 								statedb.SetCode(account.Addr, account.Code)
 							}
-							if account.Nonce > 0 {
-								statedb.SetNonce(account.Addr, account.Nonce)
-							}
-							statedb.SetBalance(account.Addr, account.Balance)
 						} else {
 							statedb.Suicide(account.Addr)
 						}
@@ -618,6 +619,15 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 				}
 				return true
 			})
+
+			// `writeHistory.Ascend` iterate `item` over ascend sort, so the last one
+			// `item` is the newest account, has the latest nonce and balance.
+			if account != nil {
+				if account.Nonce > 0 {
+					statedb.SetNonce(account.Addr, account.Nonce)
+				}
+				statedb.SetBalance(account.Addr, account.Balance)
+			}
 		}
 	}
 	return executionResults, nil
