@@ -2,6 +2,9 @@ package baseapp
 
 import (
 	"encoding/json"
+	"math/big"
+	"time"
+
 	"github.com/PlatONnetwork/AppChain-SDK/store"
 	sdktypes "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
@@ -14,8 +17,6 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/rpc"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
-	"math/big"
-	"time"
 )
 
 const (
@@ -325,14 +326,14 @@ func (app *BaseApp) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallba
 	if app.txFiller != nil {
 		return app.txFiller(ctx, cb)
 	}
-	return nil, nil, nil
+	return app.manager.FillTransactions(ctx, cb)
 }
 
 func (app *BaseApp) ExecuteTxs(ctx sdk.WorkerContext, cApp sdk.ContractsApp, txs types.Transactions) (types.Receipts, uint64, error) {
 	if app.txExecutor != nil {
 		return app.txExecutor(ctx, cApp, txs)
 	}
-	return nil, 0, nil
+	return app.manager.ExecuteTxs(ctx, cApp, txs)
 }
 func (app *BaseApp) CreateConsensusNetworkEngine(ctx sdk.ConsensusNetworkContext) (sdk.ConsensusNetworkEngine, error) {
 	return app.manager.CreateConsensusNetworkEngine(ctx)
