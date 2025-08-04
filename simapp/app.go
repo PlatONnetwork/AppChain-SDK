@@ -165,7 +165,13 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 	manager.SetOrderTransaction(app.stateSync.Name(), app.vrf.Name(), app.staking.Name(), app.gov.Name())
 	manager.SetOrderBeginBlocker(app.upgrade.Name(), app.stage.Name(), app.staking.Name(), app.reward.Name(), tm.Name())
 	manager.SetOrderEndBlocker(app.upgrade.Name(), app.stage.Name(), app.vrf.Name(), app.staking.Name(), app.reward.Name())
-	manager.SetOrderBlockCommitter(app.staking.Name(), app.stateEvent.Name(), app.checkpoint.Name())
+	manager.SetOrderBlockCommitter(app.staking.Name(),
+		app.stateEvent.Name(),
+		app.checkpoint.Name(),
+		app.consensusNetwork.Name(),
+		app.nonTxPool.Name(),
+		app.miner.Name(),
+		app.benchmark.Name())
 
 	manager.SetOrderInit(
 		app.stateSync.Name(),
@@ -200,6 +206,8 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		tm.Name(),
 		tc.Name(),
 	)
+	manager.SetWorker(app.benchmark.Name())
+
 	manager.SetTxFiller(app.miner.Name())
 	manager.SetTxExecutor(app.miner.Name())
 	manager.SetBlockExecutor(app.miner.Name())
