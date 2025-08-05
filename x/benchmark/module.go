@@ -16,7 +16,6 @@ import (
 	"gopkg.in/urfave/cli.v1"
 	"math/big"
 	"path/filepath"
-	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
