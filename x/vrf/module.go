@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/protocols"
 	"math/big"
 	"time"
 
@@ -149,36 +150,38 @@ func (v *VRFModule) AddTxs(ctx sdk.WorkerContext, local map[basecommon.Address]t
 	v.logger.Debug("create pushNonceAndProof tx", "blockNumber", blockNumber, "start", basecommon.Millis(start), "end", basecommon.Millis(end), "duration", end.Sub(start), "txHash", pushNonceAndProofTx.Hash().Hex(), "from", from.Hex())
 	return local, nil
 }
-
-func (v *VRFModule) EndBlock(ctx sdk.WorkerContext) error {
+func (v *VRFModule) ExtendData(ctx sdk.ConsensusContext) []byte {
+	return nil
+}
+func (v *VRFModule) VerifyExtendData(ctx sdk.ConsensusContext, data []byte) error {
 	header := ctx.Header()
 
 	// not worker validator
-	if !ctx.IsWorker() {
-		currentBlock := header.Number.Uint64()
+	currentBlock := header.Number.Uint64()
 
-		// get nonceAndProof by block (After the `pushNonceAndProof` transaction was executed)
-		nonceAndProof, err := vrfwrap.GetCurrentNonceAndProof(ctx.StateDB(), v.Address(), currentBlock)
-		if nil != err {
-			return fmt.Errorf("can not get current nonceAndProof, %s", err)
-		}
-
-		// Extract the validator public key of the build block based on the signature in the block header
-		sign := header.Signature()
-		sealhash := header.SealHash().Bytes()
-		pk, err := crypto.SigToPub(sealhash, sign)
-		if err != nil {
-			return fmt.Errorf("can not handle sigToPub, %s", err)
-		}
-
-		// verify nonce and
-		if err := v.VerifyVrf(ctx, currentBlock, nonceAndProof, pk); nil != err {
-			return fmt.Errorf("can not verify vrf nonce and proof, %s", err)
-		}
+	// get nonceAndProof by block (After the `pushNonceAndProof` transaction was executed)
+	nonceAndProof, err := vrfwrap.GetCurrentNonceAndProof(ctx.StateDB(), v.Address(), currentBlock)
+	if nil != err {
+		return fmt.Errorf("can not get current nonceAndProof, %s", err)
 	}
+
+	// Extract the validator public key of the build block based on the signature in the block header
+	sign := header.Signature()
+	sealhash := header.SealHash().Bytes()
+	pk, err := crypto.SigToPub(sealhash, sign)
+	if err != nil {
+		return fmt.Errorf("can not handle sigToPub, %s", err)
+	}
+
+	// verify nonce and
+	if err := v.VerifyVrf(ctx.StateDB(), currentBlock, nonceAndProof, pk); nil != err {
+		return fmt.Errorf("can not verify vrf nonce and proof, %s", err)
+	}
+
 	return nil
 }
-
+func (v *VRFModule) PrepareQC(ctx sdk.ConsensusContext, block *protocols.PrepareBlock, votes map[uint32]*protocols.PrepareVote) {
+}
 func (v *VRFModule) GenerateNonceAndProof(ctx sdk.WorkerContext, blockNumber uint64) ([]byte, error) {
 	start := time.Now()
 	nonceAndProof, err := vrfwrap.GenerateNonceAndProof(ctx.StateDB(), v.Address(), blockNumber, v.nodePrivateKey)
@@ -192,9 +195,9 @@ func (v *VRFModule) GenerateNonceAndProof(ctx sdk.WorkerContext, blockNumber uin
 	return nonceAndProof, nil
 }
 
-func (v *VRFModule) VerifyVrf(ctx sdk.WorkerContext, blockNumber uint64, nonceAndProof []byte, key *ecdsa.PublicKey) error {
+func (v *VRFModule) VerifyVrf(statedb sdk.StateDBReader, blockNumber uint64, nonceAndProof []byte, key *ecdsa.PublicKey) error {
 
-	previousNonce, err := vrfwrap.GetPreviousNonce(ctx.StateDB(), v.Address(), blockNumber)
+	previousNonce, err := vrfwrap.GetPreviousNonce(statedb, v.Address(), blockNumber)
 	if nil != err {
 		v.logger.Error("Failed to get previous vrf nonce", "blockNumber", blockNumber, "error", err)
 		return err

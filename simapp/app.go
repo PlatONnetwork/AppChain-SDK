@@ -128,8 +128,8 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		return nil, err
 	}
 
-	app.extraVote = extravote.NewExtraVote(store, []extravote.ExtraVerifier{app.stateSync, app.checkpoint})
-	app.extraVote.AddEnableVerifiers(app.stateSync.Name(), app.checkpoint.Name())
+	app.extraVote = extravote.NewExtraVote(store, []extravote.ExtraVerifier{app.stateSync, app.checkpoint, app.vrf})
+	app.extraVote.AddEnableVerifiers(app.stateSync.Name(), app.checkpoint.Name(), app.vrf.Name())
 	app.upgrade = upgrade.NewModule(store)
 
 	app.voteToken, _ = votetoken.NewModule()
