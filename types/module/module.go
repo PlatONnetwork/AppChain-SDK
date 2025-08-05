@@ -14,6 +14,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/rpc"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"sort"
+	"sync"
 	"time"
 )
 
@@ -186,6 +187,7 @@ type RegistryModule interface {
 }
 
 type Manager struct {
+	sync.Mutex
 	Modules             map[string]Module
 	ConsensusExtend     string
 	Election            string
@@ -204,9 +206,9 @@ type Manager struct {
 	OrderBlocker        []string
 	OrderTransaction    []string
 
-	moduleValidChecker ModuleValidChecker
-	initValidNumberMap ValidNumberMap
-	checkForgotten     bool
+	moduleValidChecker     ModuleValidChecker
+	contractValidNumberMap ValidNumberMap
+	checkForgotten         bool
 }
 
 func NewManager(modules ...Module) *Manager {
@@ -217,16 +219,16 @@ func NewManager(modules ...Module) *Manager {
 		moduleStr = append(moduleStr, module.Name())
 	}
 	return &Manager{
-		Modules:             moduleMap,
-		OrderInit:           moduleStr,
-		OrderTxPool:         moduleStr,
-		OrderBlockCommitter: moduleStr,
-		OrderGenesis:        moduleStr,
-		OrderBeginBlocker:   moduleStr,
-		OrderEndBlocker:     moduleStr,
-		OrderBlocker:        moduleStr,
-		OrderTransaction:    moduleStr,
-		initValidNumberMap:  ValidNumberMap{},
+		Modules:                moduleMap,
+		OrderInit:              moduleStr,
+		OrderTxPool:            moduleStr,
+		OrderBlockCommitter:    moduleStr,
+		OrderGenesis:           moduleStr,
+		OrderBeginBlocker:      moduleStr,
+		OrderEndBlocker:        moduleStr,
+		OrderBlocker:           moduleStr,
+		OrderTransaction:       moduleStr,
+		contractValidNumberMap: ValidNumberMap{},
 	}
 }
 
@@ -375,10 +377,18 @@ func (m *Manager) InitChain(ctx sdk.InitContext) error {
 }
 
 func (m *Manager) Contracts(statedb sdk.StateDBReader, blockNumber uint64) []sdk.SDKContract {
+	m.Lock()
+	defer m.Unlock()
 	contracts := make([]sdk.SDKContract, 0)
-	for _, mod := range m.Modules {
+	for name, mod := range m.Modules {
 		if module, ok := mod.(ContractModule); ok {
-			if module.ContractCreateBlockNumber(statedb) <= blockNumber {
+			var number = uint64(0)
+			var ok bool
+			if number, ok = m.contractValidNumberMap[name]; !ok {
+				number = module.ContractCreateBlockNumber(statedb)
+				m.contractValidNumberMap[name] = number
+			}
+			if number <= blockNumber {
 				contracts = append(contracts, module)
 			}
 		}
