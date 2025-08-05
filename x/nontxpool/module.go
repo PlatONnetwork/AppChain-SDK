@@ -313,7 +313,9 @@ func (m *Module) OnCommit(ctx sdk.ConsensusContext, block *types.Block) error {
 	})
 	return nil
 }
-
+func (m *Module) Total() uint64 {
+	return m.queue.Total()
+}
 func (m *Module) AddLocalBatch(addr common.Address, txs []*types.Transaction) {
 	m.queue.AddLocalBatch(addr, txs)
 }

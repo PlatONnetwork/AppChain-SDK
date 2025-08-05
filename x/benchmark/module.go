@@ -16,6 +16,7 @@ import (
 	"gopkg.in/urfave/cli.v1"
 	"math/big"
 	"path/filepath"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -55,6 +56,7 @@ type TxPool interface {
 type TxPoolModule interface {
 	AddLocalBatch(addr common.Address, txs []*types.Transaction)
 	Pending(getNonce func(addr common.Address) uint64, limit int, txsPerAccount int) types.Transactions
+	Total() uint64
 }
 
 type Params struct {
@@ -304,9 +306,9 @@ func (m *Module) decodeTxLoop(amount uint64) {
 			m.txPoolModule.AddLocalBatch(addr, txs)
 		}
 		sum += uint64(len(txs))
-		if sum > amount {
+		if sum >= amount {
+			m.logger.Debug("Had ready txs, send ready signal", "cost", time.Since(start), "sum", sum, "amount", amount)
 			sum = 0
-			m.logger.Debug("Had ready txs, send ready signal", "cost", time.Since(start))
 			m.readyCh <- struct{}{}
 			start = time.Now()
 		}
@@ -328,7 +330,9 @@ func (m *Module) SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.T
 }
 func (m *Module) AddTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions) (map[common.Address]types.Transactions, error) {
 	m.logger.Debug("Read ready signal")
-	m.readeReady()
+	if m.txPoolModule.Total() < uint64(m.amount*2) {
+		m.readeReady()
+	}
 	if !m.sendTxPool {
 		//
 	}

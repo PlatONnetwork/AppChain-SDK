@@ -39,6 +39,11 @@ func (t *TxQueue) Remote(addr common.Address) bool {
 	defer t.Unlock()
 	return t.remoteTxsList[addr] != nil
 }
+func (t *TxQueue) Total() uint64 {
+	t.Lock()
+	defer t.Unlock()
+	return t.counter
+}
 func (t *TxQueue) truncate() {
 	for t.counter > t.conf.GlobalTxCount && len(t.remoteTxsList) != 0 {
 		for addr, v := range t.remoteTxsList {
@@ -188,6 +193,10 @@ func (t *TxQueue) Pending(getNonce func(addr common.Address) uint64, limit int, 
 				continue
 			}
 			start := int(nonce - v[0].Nonce())
+			if start > len(v) {
+				t.logger.Debug("Nonce too high", "nonce", nonce, "firstNonce", v[0].Nonce(), "len", len(v))
+				continue
+			}
 			end := start + txsPerAccount
 			if end > len(v) {
 				end = len(v)
