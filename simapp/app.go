@@ -161,6 +161,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		app.benchmark,
 		app.nonTxPool,
 		app.consensusNetwork,
+		app.blockTime,
 		tm, tc)
 	manager.SetElection(app.staking.Name())
 	manager.SetConsensusExtend(app.extraVote.Name())
@@ -205,7 +206,6 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		app.nonTxPool.Name(),
 		app.miner.Name(),
 		app.benchmark.Name(),
-		app.blockTime.Name(),
 		tm.Name(),
 		tc.Name(),
 	)
