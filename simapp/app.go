@@ -8,6 +8,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x"
 	"github.com/PlatONnetwork/AppChain-SDK/x/asyncblock"
 	"github.com/PlatONnetwork/AppChain-SDK/x/benchmark"
+	"github.com/PlatONnetwork/AppChain-SDK/x/blocktime"
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint"
 	"github.com/PlatONnetwork/AppChain-SDK/x/consensus"
 	"github.com/PlatONnetwork/AppChain-SDK/x/deposit"
@@ -65,6 +66,7 @@ type SimApp struct {
 	nonTxPool          *nontxpool.Module
 	benchmark          *benchmark.Module
 	consensusNetwork   *consensus.Module
+	blockTime          *blocktime.Module
 	manager            *module.Manager
 }
 
@@ -136,7 +138,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 	tc := testcontract.NewModule()
 	app.nonTxPool = nontxpool.NewModule(ctx)
 	app.benchmark = benchmark.NewModule(ctx, store, app.nonTxPool, sdkdir)
-
+	app.blockTime = blocktime.NewModule(ctx)
 	app.miner = asyncblock.NewModule(ctx)
 	app.consensusNetwork = consensus.NewModule(ctx)
 	manager := module.NewManager(
@@ -210,6 +212,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 
 	manager.SetTxFiller(app.miner.Name())
 	manager.SetTxExecutor(app.miner.Name())
+	manager.SetConsensusBlockTime(app.blockTime.Name())
 	manager.SetBlockExecutor(app.miner.Name())
 	manager.SetModuleValidChecker(app.upgrade.IsModuleValid)
 	manager.SetConsensusNetwork(app.consensusNetwork.Name())

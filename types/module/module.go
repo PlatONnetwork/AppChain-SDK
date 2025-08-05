@@ -29,6 +29,11 @@ type ModuleVersion struct {
 	Version uint64
 }
 
+type contractCache struct {
+	blockNumber uint64
+	contracts   []sdk.SDKContract
+}
+
 type ModuleVersionList []ModuleVersion
 
 func (vm VersionMap) AsSliceSorted() ModuleVersionList {
@@ -208,6 +213,7 @@ type Manager struct {
 
 	moduleValidChecker     ModuleValidChecker
 	contractValidNumberMap ValidNumberMap
+	contractCache          *contractCache
 	checkForgotten         bool
 }
 
@@ -379,7 +385,10 @@ func (m *Manager) InitChain(ctx sdk.InitContext) error {
 func (m *Manager) Contracts(statedb sdk.StateDBReader, blockNumber uint64) []sdk.SDKContract {
 	m.Lock()
 	defer m.Unlock()
-	contracts := make([]sdk.SDKContract, 0)
+	if m.contractCache != nil && m.contractCache.blockNumber == blockNumber {
+		return m.contractCache.contracts
+	}
+	contracts := make([]sdk.SDKContract, 0, len(m.contractValidNumberMap))
 	for name, mod := range m.Modules {
 		if module, ok := mod.(ContractModule); ok {
 			var number = uint64(0)
@@ -392,6 +401,10 @@ func (m *Manager) Contracts(statedb sdk.StateDBReader, blockNumber uint64) []sdk
 				contracts = append(contracts, module)
 			}
 		}
+	}
+	m.contractCache = &contractCache{
+		blockNumber: blockNumber,
+		contracts:   contracts,
 	}
 	return contracts
 }

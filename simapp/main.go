@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/x/asyncblock"
 	"github.com/PlatONnetwork/AppChain-SDK/x/benchmark"
+	"github.com/PlatONnetwork/AppChain-SDK/x/blocktime"
 	"github.com/PlatONnetwork/AppChain-SDK/x/nontxpool"
 	"os"
 
@@ -30,6 +31,7 @@ func main() {
 	benchmark.AddBenchmarkFlags(cliApp)
 	nontxpool.AddNonTxPoolFlags(cliApp)
 	asyncblock.AddAsyncBlockFlags(cliApp)
+	blocktime.AddBlockTimeFlags(cliApp)
 	app.InitApp(cliApp, func(ctx *cli.Context) sdk.App {
 		simApp, err := NewSimApp(ctx)
 		//simApp, err := NewConsensusApp(ctx)
