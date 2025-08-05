@@ -315,7 +315,7 @@ func (m *Module) decodeTxLoop(amount uint64) {
 	m.logger.Debug("Stop decode Tx")
 
 }
-func (m *Module) readeReady() {
+func (m *Module) readReady() {
 	select {
 	case <-m.readyCh:
 	default:
@@ -329,8 +329,8 @@ func (m *Module) SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.T
 }
 func (m *Module) AddTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions) (map[common.Address]types.Transactions, error) {
 	m.logger.Debug("Read ready signal")
-	if m.txPoolModule.Total() < uint64(m.amount*2) {
-		m.readeReady()
+	if m.txPoolModule.Total() < uint64(m.amount*6) {
+		m.readReady()
 	}
 	if !m.sendTxPool {
 		//
@@ -372,7 +372,7 @@ func (m *Module) sendLoop(amount uint64) {
 	for {
 		select {
 		case <-tick.C:
-			m.readeReady()
+			m.readReady()
 			if !m.starting.Load() {
 				continue
 			}
