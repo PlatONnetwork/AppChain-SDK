@@ -37,7 +37,7 @@ func (m *Module) CalcBlockDeadline(ctx sdk.ConsensusBlockTimeContext, timePoint 
 }
 func (m *Module) CalcNextBlockTime(ctx sdk.ConsensusBlockTimeContext, blockTime time.Time) time.Time {
 	if m.nextBlockTime < ctx.ProduceInterval() {
-		blockTime.Add(m.nextBlockTime)
+		return blockTime.Add(m.nextBlockTime)
 	}
 	return blockTime.Add(ctx.ProduceInterval())
 }
