@@ -11,13 +11,15 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint/types"
 )
 
+const ModuleName = "checkpoint"
+
 type Storage struct {
 	kv store.KVStore
 }
 
 func NewStorage(store store.Store) *Storage {
 	return &Storage{
-		kv: store.GetKVStore(types.ModuleName),
+		kv: store.GetKVStore(ModuleName),
 	}
 }
 

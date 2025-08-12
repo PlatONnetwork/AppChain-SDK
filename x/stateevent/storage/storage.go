@@ -7,13 +7,15 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/stateevent/types"
 )
 
+const ModuleName = "eventState"
+
 type Storage struct {
 	store store.KVStore
 }
 
 func NewStorage(store store.Store) *Storage {
 	return &Storage{
-		store: store.GetKVStore(types.ModuleName),
+		store: store.GetKVStore(ModuleName),
 	}
 }
 

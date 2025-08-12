@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	deploytools "github.com/PlatONnetwork/AppChain-SDK/tools/deploy"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/flags"
 	"github.com/PlatONnetwork/AppChain-SDK/x/benchmark"
 	"github.com/PlatONnetwork/PlatON-Go/log"
@@ -78,12 +79,12 @@ var (
 		Action: Generate,
 		Flags: []cli.Flag{
 			hostsFlag,
-			ansibleDirFlag,
-			userFlag,
-			passwordFlag,
+			deploytools.OutputFlag,
+			deploytools.AnsibleDirFlag,
 			binFlag,
-			verbosityFlag,
-			txCountFlag,
+			passwordFlag,
+			userFlag,
+			deploytools.StartArgsFlag,
 			extraArgsFlag,
 		},
 		CustomHelpTemplate: flags.CommandHelpTemplate,
@@ -91,14 +92,14 @@ var (
 )
 
 func main() {
-	app := cli.NewApp()
-	app.HideVersion = true
+	app := deploytools.CreateApp()
 	app.Commands = []cli.Command{
 		GenTxCommand,
 		StartCommand,
 		StopCommand,
 		StatusCommand,
 		ReportCommand,
+		deploytools.CreateAnsibleCommand,
 		GenerateCommand,
 	}
 	if err := app.Run(os.Args); err != nil {

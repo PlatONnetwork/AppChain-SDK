@@ -26,6 +26,7 @@ import (
 )
 
 const ModuleVersion uint64 = 0
+const ModuleName = "checkpoint"
 
 var (
 	_ module.Module     = (*Module)(nil)
@@ -65,7 +66,7 @@ func NewModule(
 	m := &Module{
 		keystoreFile: cliCtx.GlobalString(KeystoreFlag.Name),
 		passwordFile: cliCtx.GlobalString(PasswordFlag.Name),
-		logger:       log.New("module", types.ModuleName),
+		logger:       log.New("module", ModuleName),
 		store:        storage.NewStorage(store),
 		staking:      staking,
 		txRelayer:    txRelayer,
@@ -86,7 +87,7 @@ func NewModule(
 }
 
 func (m *Module) Name() string {
-	return types.ModuleName
+	return ModuleName
 }
 
 func (m *Module) Version() uint64 {
@@ -112,7 +113,7 @@ func (m *Module) Init(ctx sdk.InitContext) error {
 func (m *Module) APIs() []rpc.API {
 	return []rpc.API{
 		{
-			Namespace: types.ModuleName,
+			Namespace: ModuleName,
 			Version:   "1.0",
 			Service:   NewRpcService(m),
 			Public:    true,

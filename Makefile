@@ -6,6 +6,7 @@ all:tools simapp example
 tools:tools.bin
 simapp:
 	go build -o $(GOBIN)/simapp $(ROOT)/simapp
+	go build -o $(GOBIN)/simapp_client $(ROOT)/simapp/cmd/client
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/simapp\" to launch simapp."
 example:

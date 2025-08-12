@@ -15,8 +15,13 @@ cd x/benchmark && make
 
 ### ansible 工程
 
+
 ```shell
-cp -rf benchmark/ansible ~/tmp/ansible 
+mkdir  output
+```
+
+```shell
+./client createansible
 ```
 
 ### 生成节点文件
@@ -25,11 +30,11 @@ cp -rf benchmark/ansible ~/tmp/ansible
 ```shell
 ./client --hosts "127.0.0.1,127.0.0.2" --ansible_dir ~/tmp/ansible --user sdk --password 123123 --bin benchmark
 ```
-分别生成 ~/tmp/ansible/inventories/hosts.yml ，~/tmp/ansible/playbooks/vars/env.yml配置。在~/tmp/ansible/playbooks/files 生成分发到各个节点的数据
+分别生成 output/ansible/inventories/hosts.yml ，output/ansible/playbooks/vars/env.yml配置。在output/ansible/playbooks/files 生成分发到各个节点的数据
 
 
 ### ansible 部署节点
-切换到 ~/tmp/ansible
+切换到 output/ansible
 
 ```shell
 ansible-playbook -i inventories/hosts.yml playbooks/deploy.yml
@@ -54,6 +59,8 @@ ansible-playbook -i inventories/hosts.yml playbooks/command.yml --extra-vars "cm
 export BENCHMARK_URLS=http://192.168.21.17:8801
 //压测地址数
 export BENCHMARK_ADDRS=10
+//每个账户每次区块最多发送笔数
+export BENCHMARK_TXSPERACCOUNT=100
 //转账交易占生成交易的比例，0-100
 export BENCHMARK_RAWTX=0
 //生成压测交易数量

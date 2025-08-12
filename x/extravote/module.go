@@ -18,6 +18,7 @@ const (
 	ExtraVoteDatabase = "extraVote"
 
 	ModuleVersion uint64 = 0
+	ModuleName           = "extraVote"
 )
 
 type ExtraVerifier interface {
@@ -41,7 +42,7 @@ func NewExtraVote(store store.Store, ms []ExtraVerifier) *ExtraVote {
 }
 
 func (e *ExtraVote) Name() string {
-	return "extraVote"
+	return ModuleName
 }
 
 func (e *ExtraVote) Version() uint64 {

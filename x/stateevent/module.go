@@ -7,7 +7,6 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/store"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/x/stateevent/storage"
-	"github.com/PlatONnetwork/AppChain-SDK/x/stateevent/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	ctypes "github.com/PlatONnetwork/PlatON-Go/consensus/cbft/types"
 	coretypes "github.com/PlatONnetwork/PlatON-Go/core/types"
@@ -16,6 +15,7 @@ import (
 )
 
 const ModuleVersion uint64 = 0
+const ModuleName = "eventState"
 
 var (
 	_ module.Module               = (*Module)(nil)
@@ -44,7 +44,7 @@ type Module struct {
 
 func NewModule(kvStore store.Store) *Module {
 	return &Module{
-		logger:      log.New("module", types.ModuleName),
+		logger:      log.New("module", ModuleName),
 		store:       storage.NewStorage(kvStore),
 		subscribers: make(map[uint64]EventSubscriber),
 		allFilters:  make(map[common.Address]map[common.Hash][]uint64, 0),
@@ -52,7 +52,7 @@ func NewModule(kvStore store.Store) *Module {
 }
 
 func (m *Module) Name() string {
-	return types.ModuleName
+	return ModuleName
 }
 
 func (m *Module) Version() uint64 {
