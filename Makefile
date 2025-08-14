@@ -9,6 +9,8 @@ simapp:
 	go build -o $(GOBIN)/simapp_client $(ROOT)/simapp/cmd/client
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/simapp\" to launch simapp."
+	@echo "Run \"$(GOBIN)/simapp_client\" to launch simapp_client."
+
 example:
 	make -f example/Makefile GOBIN=$(ROOT)/example/build/bin ROOT=$(ROOT)/example
 
