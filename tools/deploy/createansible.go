@@ -19,6 +19,8 @@ var (
 			OutputFlag,
 			AnsibleDirFlag,
 			RemoteAnsibleDirFlag,
+			ForceFlag,
+			LocalFlag,
 		},
 		CustomHelpTemplate: flags.CommandHelpTemplate,
 	}
@@ -28,6 +30,9 @@ func createAnsible(ctx *cli.Context) error {
 	output := ctx.String(OutputFlag.Name)
 	name := ctx.String(AnsibleDirFlag.Name)
 	ansibleDir := filepath.Join(output, name)
+	if ctx.Bool(ForceFlag.Name) {
+		os.RemoveAll(ansibleDir)
+	}
 	if err := os.Mkdir(ansibleDir, 0755); err != nil {
 		log.Error("Create dir failed", "path", ansibleDir, "err", err)
 		return err
@@ -47,8 +52,11 @@ func createAnsible(ctx *cli.Context) error {
 		log.Error("Write file failed", "path", file, "err", err)
 	}
 	buffer := new(bytes.Buffer)
-
-	tmpl := template.Must(template.New("").Parse(commandScript))
+	script := commandScript
+	if ctx.Bool(LocalFlag.Name) {
+		script = localCommandScript
+	}
+	tmpl := template.Must(template.New("").Parse(script))
 
 	if err := tmpl.Execute(buffer, &ScriptParams{
 		Dir: ctx.String(RemoteAnsibleDirFlag.Name),
@@ -61,7 +69,11 @@ func createAnsible(ctx *cli.Context) error {
 		log.Error("Write file failed", "path", file, "err", err)
 	}
 	buffer.Reset()
-	tmpl = template.Must(template.New("").Parse(deployScript))
+	script = deployScript
+	if ctx.Bool(LocalFlag.Name) {
+		script = localDeployScript
+	}
+	tmpl = template.Must(template.New("").Parse(script))
 
 	if err := tmpl.Execute(buffer, &ScriptParams{
 		Dir: ctx.String(RemoteAnsibleDirFlag.Name),

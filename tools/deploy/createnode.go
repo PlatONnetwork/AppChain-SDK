@@ -26,6 +26,7 @@ var (
 			NodeRpcPortFlag,
 			NodeP2pPortFlag,
 			NodePortIncFlag,
+			LocalFlag,
 		},
 		CustomHelpTemplate: flags.CommandHelpTemplate,
 	}
@@ -41,6 +42,9 @@ func CreateNodeExtra(ctx *cli.Context, extra func(*Node) (*Node, error)) error {
 	p2pPort := ctx.Int(NodeP2pPortFlag.Name)
 	rpcPort := ctx.Int(NodeRpcPortFlag.Name)
 	increment := ctx.Bool(NodePortIncFlag.Name)
+	if ctx.Bool(LocalFlag.Name) {
+		increment = true
+	}
 	var conf NodeConfig
 	genNode := func(host string, genesis bool) *Node {
 		nodeAddress, nodePrivateKey, nodePubKey := genNodeKey()

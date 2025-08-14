@@ -32,6 +32,7 @@ var (
 			StartArgsFlag,
 			UsernameFlag,
 			PasswordFlag,
+			LocalFlag,
 		},
 		CustomHelpTemplate: flags.CommandHelpTemplate,
 	}
@@ -55,7 +56,7 @@ func CreateAnsibleNodeExtra(ctx *cli.Context, extraFunc ExtraFunc) error {
 	os.Mkdir(filesDir, 0755)
 	varsDir := filepath.Join(ansibleDir, "playbooks", "vars")
 	os.Mkdir(varsDir, 0755)
-	if err := GenerateAnsible(username, password, ansibleDir, nodeConfig.Nodes); err != nil {
+	if err := GenerateAnsible(ctx.Bool(LocalFlag.Name), username, password, ansibleDir, nodeConfig.Nodes); err != nil {
 		return err
 	}
 	genesisJson, err := os.ReadFile(filepath.Join(outputDir, ctx.String(GenesisFileFlag.Name)))
@@ -76,7 +77,6 @@ func GenerateNodes(accs []*Node, pprof, http int, baseArgs, filesDir, genesis, b
 			log.Error("mkdir failed", "path", nodeDir)
 			return err
 		}
-		fmt.Println(nodeDir)
 
 		log.Debug("Create node dir", "dir", nodeDir)
 		if err = CopyFile(binary, filepath.Join(nodeDir, "node")); err != nil {
@@ -153,7 +153,7 @@ func convertIP(ty int, ip string) string {
 	}
 	return ""
 }
-func GenerateAnsible(username, password, ansibleDir string, accs []*Node) error {
+func GenerateAnsible(local bool, username, password, ansibleDir string, accs []*Node) error {
 	hosts := make(map[string]Host)
 	var envConfig EnvConfig
 	for i, acc := range accs {
@@ -178,13 +178,15 @@ func GenerateAnsible(username, password, ansibleDir string, accs []*Node) error 
 			},
 		},
 	}
-	hostsData, err := yaml.Marshal(hc)
-	if err != nil {
-		return err
-	}
-	if err = os.WriteFile(filepath.Join(ansibleDir, "inventories", "hosts.yml"), []byte(hostsData), 0755); err != nil {
-		log.Error("Write hosts.yml failed", "err", err)
-		return err
+	if !local {
+		hostsData, err := yaml.Marshal(hc)
+		if err != nil {
+			return err
+		}
+		if err = os.WriteFile(filepath.Join(ansibleDir, "inventories", "hosts.yml"), []byte(hostsData), 0755); err != nil {
+			log.Error("Write hosts.yml failed", "err", err)
+			return err
+		}
 	}
 
 	envData, err := yaml.Marshal(envConfig)

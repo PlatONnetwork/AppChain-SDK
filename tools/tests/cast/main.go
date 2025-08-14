@@ -5,21 +5,25 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/flags"
+	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
 	"github.com/PlatONnetwork/PlatON-Go/cmd/utils"
+	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"gopkg.in/urfave/cli.v1"
 	"strings"
 )
 
 var (
 	Command = cli.Command{
-		Action:      utils.MigrateFlags(run),
-		Name:        "cast",
-		Usage:       "cast",
-		ArgsUsage:   "",
-		Subcommands: []cli.Command{},
+		Action:    utils.MigrateFlags(run),
+		Name:      "cast",
+		Usage:     "cast",
+		ArgsUsage: "",
+		Subcommands: []cli.Command{
+			ExitHelperCommand,
+		},
 		Flags: []cli.Flag{
-			flags.RPCFlags,
+			flags.AppchainRPCFlag,
 			flags.KeyFlags,
 			flags.ModuleFlags,
 			flags.AbiFileFlags,
@@ -28,6 +32,8 @@ var (
 			flags.TypeFlags,
 			flags.StartFlags,
 			flags.EndFlags,
+			flags.GasLimitFlags,
+			flags.GasPriceFlags,
 		},
 		Category:           "CAST COMMANDS",
 		Description:        ``,
@@ -58,7 +64,20 @@ func run(ctx *cli.Context) error {
 		}
 		_, err = WaitTx(client, tx.Hash())
 		if err != nil {
-			fmt.Println("send failed", tx.Hash())
+			chainid, _ := client.ChainID(context.Background())
+			_, err := client.CallContract(context.Background(), platon.CallMsg{
+				From:       tx.FromAddr(types.NewLondonSigner(chainid)),
+				To:         tx.To(),
+				Gas:        tx.Gas(),
+				GasPrice:   tx.GasPrice(),
+				GasFeeCap:  tx.GasFeeCap(),
+				GasTipCap:  tx.GasTipCap(),
+				Value:      tx.Value(),
+				Data:       tx.Data(),
+				AccessList: tx.AccessList(),
+			}, nil)
+
+			fmt.Println("send failed", tx.Hash(), "err", err)
 			return err
 		}
 		fmt.Println("send success", tx.Hash())
@@ -113,8 +132,20 @@ func run(ctx *cli.Context) error {
 		}
 		fmt.Println(string(result))
 	case "abi":
+		fmt.Println("methods:")
 		for _, method := range moduleAbi.Methods {
-			fmt.Println("  ", method.Sig)
+			rawAux := []string{}
+			for _, i := range method.Inputs.TupleElems() {
+				name := i.Elem.Format(false) + " " + i.Name
+
+				rawAux = append(rawAux, name)
+			}
+			outputs := []string{}
+			for _, i := range method.Outputs.TupleElems() {
+				name := i.Elem.Format(false)
+				rawAux = append(outputs, name)
+			}
+			fmt.Println("  ", fmt.Sprintf("%s(%s)(%s)", method.Name, strings.Join(rawAux, ","), strings.Join(outputs, ",")))
 		}
 
 		fmt.Println("events:")

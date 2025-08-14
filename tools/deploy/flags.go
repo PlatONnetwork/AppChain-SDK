@@ -70,6 +70,16 @@ var (
 		EnvVar: "REMOTE_ANSIBLE_DIR",
 		Value:  "~/opt",
 	}
+	ForceFlag = cli.BoolFlag{
+		Name:   "force",
+		Usage:  "Force to clean dir",
+		EnvVar: "FORCE",
+	}
+	LocalFlag = cli.BoolFlag{
+		Name:   "local",
+		Usage:  "create local ansible",
+		EnvVar: "LOCAL",
+	}
 
 	BinFlag = cli.StringFlag{
 		Name:   "bin",

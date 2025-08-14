@@ -116,3 +116,68 @@ pipelining = False
 [privilege_escalation]
 become = False
 become_ask_pass = False`
+
+var localCommandScript = `---
+- name: Execute script on local server
+  hosts: localhost
+  gather_facts: no
+  vars_files: "vars/env.yml"
+
+  tasks:
+    - name: Ensure script exists on remote
+      loop: "{{ "{{node_folders}}" }}" 
+      vars:
+        current_item: "{{ "{{item}}" }}"
+      stat:
+        path: {{.Dir}}/{{ "{{current_item.local}}" }}/{{ "{{cmd}}" }}.sh
+      register: script_stat
+
+    - name: Execute command local server
+      loop: "{{ "{{node_folders}}" }}"
+      vars:
+        current_item: "{{ "{{item}}" }}"
+      command: "/bin/bash ./{{ "{{cmd}}" }}.sh"
+      args:
+        chdir: "{{.Dir}}/{{ "{{current_item.local}}" }}"
+      register: script_output
+
+    - name: print result
+      debug:
+        msg: "{{ "{{item.stdout}}" }}"
+      loop: "{{ "{{script_output.results}}" }}"
+      when: item.stdout is defined
+`
+var localDeployScript = `---
+- name: Deploy node folders to local server
+  hosts: localhost
+  gather_facts: no
+  vars_files: "vars/env.yml"
+
+  tasks:
+    - name: Ensure {{.Dir}} directory exists on remote
+      delegate_to: localhost
+      run_once: yes
+      file:
+        path: {{.Dir}}
+        state: directory
+        mode: '0755'
+
+
+    - name: Remove directory if exists (simplified)
+      delegate_to: localhost
+      run_once: yes
+      loop: "{{ "{{node_folders}}" }}"
+      vars:
+        current_item: "{{ "{{item}}" }}"
+      file:
+        path: "{{.Dir}}/{{ "{{current_item.local}}" }}"
+        state: absent
+
+    - name: Copy folders to local server
+      delegate_to: localhost
+      run_once: yes
+      loop: "{{ "{{node_folders}}" }}"
+      vars:
+        current_item: "{{ "{{item}}" }}"
+      command: "cp -rf {{ "{{playbook_dir}}" }}/files/{{ "{{current_item.local}}" }} {{.Dir}}/{{ "{{current_item.local}}" }}"
+      changed_when: false`

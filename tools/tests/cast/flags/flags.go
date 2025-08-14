@@ -3,9 +3,14 @@ package flags
 import "gopkg.in/urfave/cli.v1"
 
 var (
-	RPCFlags = cli.StringFlag{
-		Name:   "rpc",
+	RootchainRPCFlags = cli.StringFlag{
+		Name:   "rootchainrpc",
 		Usage:  "rpc url",
+		EnvVar: "ROOTCHAIN_RPC_URL",
+	}
+	AppchainRPCFlag = cli.StringFlag{
+		Name:   "rpc",
+		Usage:  "AppChain RPC endpoint",
 		EnvVar: "SDK_RPC_URL",
 	}
 	RoundFlags = cli.Uint64Flag{
@@ -88,15 +93,3 @@ OPTIONS:
    {{end}}{{end}}
 `
 )
-
-var DefaultFlag = []cli.Flag{
-	RPCFlags,
-	KeyFlags,
-	AddressFlags,
-	ModuleFlags,
-	MethodFlags,
-	TypeFlags,
-	NonceFlags,
-	GasLimitFlags,
-	GasPriceFlags,
-}

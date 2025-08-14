@@ -2,7 +2,6 @@ package cast
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/flags"
 	platon "github.com/PlatONnetwork/PlatON-Go"
@@ -11,6 +10,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
 	"github.com/PlatONnetwork/PlatON-Go/ethclient"
+	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/umbracle/ethgo"
 	ethabi "github.com/umbracle/ethgo/abi"
 	"gopkg.in/urfave/cli.v1"
@@ -21,30 +21,16 @@ import (
 )
 
 func FindMethodArgs(ctx *cli.Context) (string, []string, error) {
-	args := ctx.Args()
-	return "", args, nil
-	for i, arg := range args {
-		if arg == "--method" {
-			method := args[i+1]
-			var inputs []string
-			if len(args) > i+2 {
-				inputs = args[i+2:]
-
-				return method, inputs, nil
-			}
-		}
-	}
-	return "", nil, errors.New("not found method")
+	return "", ctx.Args(), nil
 }
 
 func InitGlobal(ctx *cli.Context) (*ethclient.Client, common.Address, *bind.TransactOpts, error) {
-	url := ctx.String(flags.RPCFlags.Name)
+	url := ctx.String(flags.AppchainRPCFlag.Name)
 	cli, err := ethclient.Dial(url)
 	if err != nil {
 		return nil, common.Address{}, nil, err
 	}
-	address := ctx.String(flags.AddressFlags.Name)
-	stakeAddr := common.HexToAddress(address)
+	address := common.HexToAddress(ctx.String(flags.AddressFlags.Name))
 	var opt *bind.TransactOpts
 	if ctx.String(flags.TypeFlags.Name) == "send" {
 		key, err := crypto.HexToECDSA(ctx.String(flags.KeyFlags.Name))
@@ -56,27 +42,33 @@ func InitGlobal(ctx *cli.Context) (*ethclient.Client, common.Address, *bind.Tran
 			return nil, common.Address{}, nil, err
 		}
 		opt, err = bind.NewKeyedTransactorWithChainID(key, chainId)
+		log.Debug("Chainid", "value", chainId)
 		if err != nil {
 			return nil, common.Address{}, nil, err
 		}
-		opt.GasLimit = flags.GasLimitFlags.Value
 		if ctx.IsSet(flags.GasLimitFlags.Name) {
 			opt.GasLimit = ctx.Uint64(flags.GasLimitFlags.Name)
+			log.Debug("GasLimit", "value", opt.GasLimit)
 		}
 		opt.GasPrice = new(big.Int).SetUint64(flags.GasPriceFlags.Value)
 		if ctx.IsSet(flags.GasPriceFlags.Name) {
 			opt.GasPrice = new(big.Int).SetUint64(ctx.Uint64(flags.GasPriceFlags.Name))
+			log.Debug("GasPrice", "value", opt.GasPrice)
 		}
 		if ctx.IsSet(flags.NonceFlags.Name) {
 			opt.Nonce = new(big.Int).SetUint64(ctx.Uint64(flags.NonceFlags.Name))
+			log.Debug("Nonce", "value", opt.Nonce)
+
 		}
 	}
-	return cli, stakeAddr, opt, nil
+	log.Debug("Init args", "contractAddress", address.Hex(), "url", url)
+	return cli, address, opt, nil
 }
 
 func GetAbi(ctx *cli.Context) (*ethabi.ABI, error) {
 	module := ctx.String(flags.ModuleFlags.Name)
 	fileName := ctx.String(flags.AbiFileFlags.Name)
+	log.Debug("Get abi", "module", module, "fileName", fileName)
 	abiJson := ""
 	if fileName == "" {
 		abiJson = Modules[module]
@@ -97,6 +89,7 @@ func GetAbi(ctx *cli.Context) (*ethabi.ABI, error) {
 }
 
 func FilterLog(abi *ethabi.ABI, method string, inputs []string, to common.Address, cli *ethclient.Client, opt *bind.FilterOpts) ([]map[string]interface{}, error) {
+	log.Debug("Filterlog", "method", method, "inputs", inputs, "to", to.Hex(), "start", opt.Start, "end", opt.End)
 	event, ok := abi.Events[method]
 	if !ok {
 		return nil, fmt.Errorf("event not found:%s", method)
@@ -182,7 +175,8 @@ func makeTopic(t *ethabi.Type, input string) (common.Hash, error) {
 	return common.BytesToHash(hash.Bytes()), nil
 }
 
-func Send(abi *ethabi.ABI, methodName string, inputs []string, to common.Address, cli *ethclient.Client, opt *bind.TransactOpts) (*types.Transaction, error) {
+func Send(abi *ethabi.ABI, methodName string, inputs interface{}, to common.Address, cli *ethclient.Client, opt *bind.TransactOpts) (*types.Transaction, error) {
+	log.Debug("Send", "method", methodName, "inputs", inputs, "to", to.Hex())
 	method := abi.GetMethod(methodName)
 	if method == nil {
 		return nil, fmt.Errorf("method not found:%s", methodName)
@@ -201,11 +195,14 @@ func Send(abi *ethabi.ABI, methodName string, inputs []string, to common.Address
 	}
 	err = cli.SendTransaction(context.Background(), signedTx)
 	if err != nil {
+		fmt.Println("send failed", err, signedTx.Gas(), signedTx.GasPrice())
 		return nil, err
 	}
 	return signedTx, nil
 }
-func Call(abi *ethabi.ABI, methodName string, inputs []string, to common.Address, cli *ethclient.Client, opt *bind.CallOpts) (string, error) {
+func Call(abi *ethabi.ABI, methodName string, inputs interface{}, to common.Address, cli *ethclient.Client, opt *bind.CallOpts) (string, error) {
+	log.Debug("Call", "method", methodName, "inputs", inputs, "to", to.Hex())
+
 	method := abi.GetMethod(methodName)
 	if method == nil {
 		return "", fmt.Errorf("method not found:%s", methodName)
@@ -294,7 +291,7 @@ func ensureContext(ctx context.Context) context.Context {
 	return ctx
 }
 func WaitTx(client *ethclient.Client, hash common.Hash) (*types.Receipt, error) {
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 10; i++ {
 		receipt, _ := client.TransactionReceipt(context.Background(), hash)
 		if receipt != nil {
 			return receipt, nil
