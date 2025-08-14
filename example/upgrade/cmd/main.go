@@ -11,6 +11,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/example/oracle"
 	"github.com/PlatONnetwork/AppChain-SDK/example/oracle/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/flags"
+	"github.com/PlatONnetwork/AppChain-SDK/x/consensus"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
@@ -115,12 +116,15 @@ func Server(ctx *cli.Context) error {
 	extraVote := extravote.NewExtraVote(store, []extravote.ExtraVerifier{oracleModule})
 	oracleModule.SetExtraVote(extraVote)
 	vals := election.NewModule()
+	network := consensus.NewModule(ctx)
+
 	upgradeModule := upgrade.NewModule(store)
 	nodeModule := examplenode.NewModule()
-	manager := module.NewManager(vals, extraVote, upgradeModule, oracleModule, nodeModule)
+	manager := module.NewManager(vals, extraVote, upgradeModule, oracleModule, nodeModule, network)
 	manager.SetElection(vals.Name())
 	manager.SetOrderGenesis(vals.Name(), extraVote.Name(), upgradeModule.Name())
 	manager.SetConsensusExtend(extraVote.Name())
+	manager.SetConsensusNetwork(network.Name())
 	manager.RegisterUpgradeHandler(upgradeModule)
 	manager.SetModuleValidChecker(upgradeModule.IsModuleValid)
 	upgradeModule.SetIsContractModule(manager.IsContractModule)

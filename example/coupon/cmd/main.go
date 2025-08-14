@@ -10,6 +10,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/testutil"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/flags"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
+	"github.com/PlatONnetwork/AppChain-SDK/x/consensus"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
@@ -61,11 +62,12 @@ func Server(ctx *cli.Context) error {
 	couponModule := coupon.Module{}
 
 	vals, _ := testutil.NewValidator(testutil.DefaultAccount[0:1])
-
-	manager := module.NewManager(vals, &couponModule)
+	network := consensus.NewModule(ctx)
+	manager := module.NewManager(vals, &couponModule, network)
 	manager.SetElection(vals.Name())
 	manager.SetOrderGenesis(couponModule.Name())
 	manager.SetWorker(couponModule.Name())
+	manager.SetConsensusNetwork(network.Name())
 	app := testutil.NewApp(manager)
 	config := coupon.GenesisConfig{
 		Name:   "Coupon",

@@ -9,6 +9,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/testutil"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/flags"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
+	"github.com/PlatONnetwork/AppChain-SDK/x/consensus"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
@@ -59,10 +60,11 @@ func Server(ctx *cli.Context) error {
 	blacklistModule := blacklist.Module{}
 
 	vals, _ := testutil.NewValidator(testutil.DefaultAccount[0:1])
-
-	manager := module.NewManager(vals, &blacklistModule)
+	network := consensus.NewModule(ctx)
+	manager := module.NewManager(vals, &blacklistModule, network)
 	manager.SetElection(vals.Name())
 	manager.SetOrderTxPool(blacklistModule.Name())
+	manager.SetConsensusNetwork(network.Name())
 	app := testutil.NewApp(manager)
 
 	var stack []*node.Node
@@ -75,7 +77,7 @@ func Server(ctx *cli.Context) error {
 		common2.UserAddrs); err != nil {
 		return err
 	}
-
+	types.HttpEthCompatible = true
 	stack[0].Config().HTTPModules = append(stack[0].Config().HTTPModules, "blacklist")
 
 	stack[0].Start()

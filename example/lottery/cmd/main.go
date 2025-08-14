@@ -10,6 +10,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/testutil"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/flags"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
+	"github.com/PlatONnetwork/AppChain-SDK/x/consensus"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
@@ -54,10 +55,13 @@ var (
 func Server(ctx *cli.Context) error {
 	lotteryModule := lottery.NewModule(testutil.DefaultAccount[0].NodePrivateKey())
 	vals, _ := testutil.NewValidator(testutil.DefaultAccount[0:1])
+	network := consensus.NewModule(ctx)
+
 	vals.SetCoinbase(testutil.DefaultAccount[0].NodePrivateKey())
-	manager := module.NewManager(vals, lotteryModule)
+	manager := module.NewManager(vals, lotteryModule, network)
 	manager.SetElection(vals.Name())
 	manager.SetOrderGenesis(lotteryModule.Name())
+	manager.SetConsensusNetwork(network.Name())
 	app := testutil.NewApp(manager)
 	config := lottery.GenesisConfig{
 		Name:   "Token",

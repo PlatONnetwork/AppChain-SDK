@@ -11,6 +11,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/testutil"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/flags"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
+	"github.com/PlatONnetwork/AppChain-SDK/x/consensus"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
@@ -105,9 +106,11 @@ func main() {
 
 func Server(ctx *cli.Context) error {
 	vals := election.NewModule()
-	manager := module.NewManager(vals)
+	network := consensus.NewModule(ctx)
+	manager := module.NewManager(vals, network)
 	manager.SetElection(vals.Name())
 	manager.SetOrderGenesis(vals.Name())
+	manager.SetConsensusNetwork(network.Name())
 	app := testutil.NewApp(manager)
 	nodeNumber := ctx.Int(nodeFlag.Name) - 1
 	testutil.InitLog(log.LvlDebug)

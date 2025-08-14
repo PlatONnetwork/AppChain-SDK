@@ -10,6 +10,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/store/memorydb"
 	"github.com/PlatONnetwork/AppChain-SDK/testutil"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
+	"github.com/PlatONnetwork/AppChain-SDK/x/consensus"
 	"github.com/PlatONnetwork/AppChain-SDK/x/extravote"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
 	"github.com/PlatONnetwork/PlatON-Go/ethclient"
@@ -52,10 +53,13 @@ func Server(ctx *cli.Context) error {
 	extraVote := extravote.NewExtraVote(store, []extravote.ExtraVerifier{oracleModule})
 	extraVote.AddEnableVerifiers(oracleModule.Name())
 	vals := election.NewModule()
-	manager := module.NewManager(oracleModule, vals, extraVote)
+	network := consensus.NewModule(ctx)
+
+	manager := module.NewManager(oracleModule, vals, extraVote, network)
 	manager.SetElection(vals.Name())
 	manager.SetOrderGenesis(vals.Name(), extraVote.Name(), oracleModule.Name())
 	manager.SetConsensusExtend(extraVote.Name())
+	manager.SetConsensusNetwork(network.Name())
 	app := testutil.NewApp(manager)
 
 	config := election.GenesisConfig{
