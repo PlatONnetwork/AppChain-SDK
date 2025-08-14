@@ -407,12 +407,12 @@ func (e *EntryExecutor) AddEntry(entry *Entry) {
 	if entry.EntryNumber == 0 {
 		e.logger = log.New("module", ModuleName, "epoch", entry.Epoch, "view", entry.View, "number", entry.BlockNumber)
 	}
+	e.epoch = entry.Epoch
+	e.view = entry.View
 	e.entryList.AddEntry(entry)
 	if entry.EntryNumber == 0 {
 		e.parentSealHash = entry.ParentSealHash
 		e.header = *entry.Header
-		e.epoch = entry.Epoch
-		e.view = entry.View
 	}
 
 }
