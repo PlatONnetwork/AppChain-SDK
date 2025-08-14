@@ -1,0 +1,2 @@
+{"address":"lat1rlgneg5ve3prupt9l57fkeqc0tv34e7kj4dc89","crypto":{"cipher":"aes-128-ctr","ciphertext":"d46467348910dbbecec8625301f54a7510515246fe5e4597ee171bb47383068b","cipherparams":{"iv":"ac40b756523f1627e8a5aebb3d304367"},"kdf":"scrypt","kdfparams":{"dklen":32,"n":262144,"p":1,"r":8,"salt":"83ad3594c1aa4bcf3e222d915d9641278bc1ea7b9b48454bccb05c087b22bf18"},"mac":"aac95a67d74a872dce6b177d01534db17ddd8541c5027bee4bad46b1ec057d37"},"id":"6901e80b-8247-4e56-95d0-2a9236108a0d","version":3}
+

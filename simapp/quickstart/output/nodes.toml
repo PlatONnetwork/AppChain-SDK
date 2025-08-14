@@ -1,0 +1,38 @@
+[[nodes]]
+# Is it a genesis node
+genesis = true
+# IP
+ip = '127.0.0.1'
+# Pprof port
+pprof_port = 7701
+# P2p port
+p2p_port = 18001
+# Rpc port
+rpc_port = 8801
+# Address of node
+node_address = '0xCD714D9e0adF428f22BF9E02fA03D28A52Ccc7dc'
+# Private key of node
+node_private_key = '527f4716987ebb86de379d9421f71c1b0ec781c474777106b968629d88d0b404'
+# Public key of node
+node_public_key = '813de56a4fccb466adf19e0ea9431bc0f753ec976be3ddd2fb9355a5d6dbe7d44a8a4abe3458d1a5bca8759d08ba2f1312838aeb683a372619772f1045a4fbcb'
+# Bls private key for consensus
+bls_private_key = '5bf511141cedef4add2422d8a72f45524c931ad663a7225fb33fe9065a733094'
+# Bls public key for consensus
+bls_public_key = 'adddacdf9919f25b3030e39e22fda61b5cf922d605443893b5168895f55d0bfb8fb00ff44423dcd66ce005ef5927fac6'
+# Bls public key for root chain contract
+bls_uncompressed_key = '0dddacdf9919f25b3030e39e22fda61b5cf922d605443893b5168895f55d0bfb8fb00ff44423dcd66ce005ef5927fac60e36e58cde3290f055a0467a0448d2bb7d4d29b28960b591cb7b755469f27d5c85fbd04cc89adb7f63dda12f77dd8470'
+
+# Extra Parameters
+[nodes.extra]
+# Checkpoint keystore address, send a checkpoint tx to rootchain
+checkpoint_keystore_address = '0x8a0f3F8389F79a05Dd03027dE0Bcbb06cADB3F9c'
+# Checkpoint keystore, send a checkpoint tx to rootchain
+checkpoint_keystore = "{\"address\":\"lat13g8nlquf77dqthgrqf77p09mqm9dk0uu0vd46c\",\"crypto\":{\"cipher\":\"aes-128-ctr\",\"ciphertext\":\"9d6f1f9c2aebe429befd8594ef341bf87153de2e64354ce8eef9796397cc0069\",\"cipherparams\":{\"iv\":\"6f86cf9308ec18b3442e44e539eae2bc\"},\"kdf\":\"scrypt\",\"kdfparams\":{\"dklen\":32,\"n\":262144,\"p\":1,\"r\":8,\"salt\":\"b154766da229a01f5dc95f6bcca752a115ac6be25aa3d749f0ad457f118dfdce\"},\"mac\":\"fd8cfb20196cf0e0fd08fe49834f18dc5225a2584365fd5de47b13b5e1f3feda\"},\"id\":\"548ca807-b642-4870-b240-281c0d545c45\",\"version\":3}\n"
+# Checkpoint keystore password
+checkpoint_keystore_password = '123456'
+# Layer2 keystore address, send a checkpoint tx to rootchain
+l2_keystore_address = '0x1FD13cA28ccc423e0565fD3C9b64187ad91Ae7D6'
+# Layer2 keystore, send a checkpoint tx to rootchain
+l2_keystore = "{\"address\":\"lat1rlgneg5ve3prupt9l57fkeqc0tv34e7kj4dc89\",\"crypto\":{\"cipher\":\"aes-128-ctr\",\"ciphertext\":\"d46467348910dbbecec8625301f54a7510515246fe5e4597ee171bb47383068b\",\"cipherparams\":{\"iv\":\"ac40b756523f1627e8a5aebb3d304367\"},\"kdf\":\"scrypt\",\"kdfparams\":{\"dklen\":32,\"n\":262144,\"p\":1,\"r\":8,\"salt\":\"83ad3594c1aa4bcf3e222d915d9641278bc1ea7b9b48454bccb05c087b22bf18\"},\"mac\":\"aac95a67d74a872dce6b177d01534db17ddd8541c5027bee4bad46b1ec057d37\"},\"id\":\"6901e80b-8247-4e56-95d0-2a9236108a0d\",\"version\":3}\n\n"
+# Layer2 keystore, send a internal tx to layer2
+l2_keystore_password = '123456'

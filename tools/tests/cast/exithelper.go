@@ -83,7 +83,7 @@ func exitHelper(ctx *cli.Context) error {
 	}
 	bytes, _ := json.MarshalIndent(tx, " ", " ")
 	fmt.Println("transaction:", string(bytes))
-	receipt, err := rootCli.TransactionReceipt(context.Background(), tx.Hash())
+	receipt, err := WaitTx(rootCli, tx.Hash())
 	if err != nil {
 		return err
 	}

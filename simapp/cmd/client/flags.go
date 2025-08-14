@@ -53,13 +53,13 @@ var (
 		Name:   "childchainid",
 		EnvVar: "CHILDCHAINID",
 		Usage:  "Child chainid",
-		Value:  123083,
+		Value:  123,
 	}
 	RootChainIdFlag = cli.Uint64Flag{
 		Name:   "rootchainid",
 		EnvVar: "ROOTCHAINID",
 		Usage:  "Root chainid",
-		Value:  101,
+		Value:  123083,
 	}
 	StakeOwnerFlag = cli.StringFlag{
 		Name:   "stakeowner",

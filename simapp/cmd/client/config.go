@@ -13,6 +13,7 @@ type TemplateConfig struct {
 }
 
 type ChildChainContractConfig struct {
+	TokenAddr             string `toml:"token" comment:"Child chain token address"`
 	GenesisValidatorOwner string `toml:"genesis_validator_owner" comment:"Child chain genesis validator owner"`
 	GenesisStakeAmount    string `toml:"genesis_stake_amount" comment:"Child chain stake amount"`
 	GenesisCommissionRate string `toml:"genesis_commission_rate" comment:"Child chain commission rate"`

@@ -173,6 +173,7 @@ func deployChildChain(ctx *cli.Context) error {
 		return err
 	}
 	data, err := toml.Marshal(&ChildChainContractConfig{
+		TokenAddr:             token.Hex(),
 		GenesisValidatorOwner: ctx.String(StakeOwnerFlag.Name),
 		GenesisStakeAmount:    ctx.String(StakeAmountFlag.Name),
 		GenesisCommissionRate: ctx.String(CommissionRateFlag.Name),
