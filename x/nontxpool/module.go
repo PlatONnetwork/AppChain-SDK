@@ -201,6 +201,7 @@ func (m *Module) SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.T
 }
 
 func (m *Module) Pending(getNonce func(addr common.Address) uint64, limit int, txsPerAccount int) types.Transactions {
+	m.logger.Debug("Pending", "limit", limit, "txsPerAccount", txsPerAccount)
 	return m.queue.Pending(getNonce, limit, txsPerAccount)
 }
 func (m *Module) txLoop(ctx context.Context) {

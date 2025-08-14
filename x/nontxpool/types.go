@@ -94,6 +94,7 @@ func (t *TxQueue) addLocal(txs []*types.Transaction) {
 	for _, tx := range txs {
 		from := tx.FromAddr(t.signer)
 		if pendingNonce, err := t.pendingNonce(from); err == nil && pendingNonce != tx.Nonce() {
+			t.logger.Debug("Add local tx failed, nonce doesn't match", "from", from.Hex(), "pending", pendingNonce, "tx", tx.Nonce())
 			continue
 		}
 		t.addLocalTxs(from, tx)
@@ -185,6 +186,7 @@ func (t *TxQueue) Pending(getNonce func(addr common.Address) uint64, limit int, 
 				continue
 			}
 			if sum >= limit {
+				t.logger.Debug("Enough Txs", "address", k, "len", len(v), "limit", limit, "txsPerAccount", txsPerAccount, "sum", sum)
 				break
 			}
 			nonce := getNonce(k)

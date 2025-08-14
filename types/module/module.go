@@ -413,6 +413,7 @@ func (m *Manager) APIs() []rpc.API {
 	apis := make([]rpc.API, 0)
 	for _, mod := range m.Modules {
 		if module, ok := mod.(RpcModule); ok {
+			log.Debug("Load rpc module", "module", module.Name())
 			apis = append(apis, module.APIs()...)
 		}
 	}

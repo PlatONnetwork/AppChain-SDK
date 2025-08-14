@@ -282,6 +282,10 @@ func (m *Module) stop() error {
 	return nil
 }
 func (m *Module) decodeTxLoop(amount uint64) {
+	if m.mmapTxFile == nil {
+		m.logger.Info("Mmap unmmap, stop decode tx")
+		return
+	}
 	sum := uint64(0)
 	start := time.Now()
 	m.logger.Debug("Start decode Tx")
@@ -323,6 +327,11 @@ func (m *Module) readReady() {
 }
 func (m *Module) SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions, remote map[common.Address]types.Transactions) (types.Transactions, error) {
 	statedb := ctx.StateDB()
+	if !m.starting.Load() {
+		return m.txPoolModule.Pending(func(addr common.Address) uint64 {
+			return statedb.GetNonce(addr)
+		}, 10, 10), nil
+	}
 	return m.txPoolModule.Pending(func(addr common.Address) uint64 {
 		return statedb.GetNonce(addr)
 	}, m.amount, m.txsPerAccount), nil
