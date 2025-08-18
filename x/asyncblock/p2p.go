@@ -1,7 +1,9 @@
 package asyncblock
 
 import (
+	"encoding/hex"
 	"errors"
+	"fmt"
 	sdkp2p "github.com/PlatONnetwork/AppChain-SDK/p2p"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/cbfttypes"
@@ -68,7 +70,8 @@ func (e *Entry) VerifySign(pubKey *bls.PublicKey) error {
 		return err
 	}
 	if !sig.Verify(pubKey, string(buf)) {
-		return errors.New("verify signature failed")
+		pubKey.Serialize()
+		return errors.New(fmt.Sprintf("verify signature failed, pubkey:%s,msg:%s", hex.EncodeToString(pubKey.Serialize()), hex.EncodeToString(buf)))
 	}
 	return nil
 }

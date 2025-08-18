@@ -19,9 +19,9 @@ const (
 )
 
 var (
-	_ module.Module               = (*Module)(nil)
-	_ module.FillTransationModule = (*Module)(nil)
-	_ module.TxExecutorModule     = (*Module)(nil)
+	_ module.Module                 = (*Module)(nil)
+	_ module.FillTransactionsModule = (*Module)(nil)
+	_ module.TxExecutorModule       = (*Module)(nil)
 )
 
 type Module struct {

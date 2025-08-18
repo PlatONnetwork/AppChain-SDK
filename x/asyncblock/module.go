@@ -437,7 +437,7 @@ func (m *Module) executeLoop() {
 }
 
 func (m *Module) handleEntry(peer sdkp2p.Peer, msg *EntryMsg) error {
-	m.logger.Debug("handle receive entry ", "epoch", msg.Epoch, "view", msg.View, "blockNumber", msg.BlockNumber, "entryNumber", msg.EntryNumber)
+	m.logger.Debug("Handle receive entry ", "epoch", msg.Epoch, "view", msg.View, "blockNumber", msg.BlockNumber, "entryNumber", msg.EntryNumber)
 	//verify signature
 	if err := m.cs.VerifyEntry(&msg.Entry); err != nil {
 		m.logger.Error("Verify entry failed", "err", err)

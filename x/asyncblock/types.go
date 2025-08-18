@@ -56,7 +56,6 @@ func (c *ConsensusState) Update(epoch, viewNumber uint64, validator []*cbfttypes
 }
 
 func (c *ConsensusState) VerifyEntry(entry *Entry) error {
-	return nil
 	c.Lock()
 	defer c.Unlock()
 	if entry.Epoch == c.Epoch && (entry.View == c.ViewNumber) {

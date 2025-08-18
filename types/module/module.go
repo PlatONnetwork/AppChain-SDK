@@ -169,7 +169,7 @@ type TransactionModule interface {
 	AddTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions) (map[common.Address]types.Transactions, error)
 }
 
-type FillTransationModule interface {
+type FillTransactionsModule interface {
 	Module
 	FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackApp) (types.Transactions, types.Receipts, error)
 }
@@ -282,7 +282,7 @@ func (m *Manager) SetWorker(moduleName string) {
 
 func (m *Manager) SetTxFiller(moduleName string) {
 	mod := m.Modules[moduleName]
-	if _, has := mod.(FillTransationModule); !has {
+	if _, has := mod.(FillTransactionsModule); !has {
 		panic(fmt.Sprintf("FillTransactionModule %s missing", moduleName))
 	}
 	m.TxFiller = moduleName
@@ -688,7 +688,7 @@ func (m *Manager) SortTxs(ctx sdk.WorkerContext, local, remote map[common.Addres
 
 func (m *Manager) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackApp) (types.Transactions, types.Receipts, error) {
 	isValid := m.isModuleValid(ctx.StateDB(), m.TxFiller, ctx.Header().Number.Uint64())
-	if module, ok := m.Modules[m.TxFiller].(FillTransationModule); ok && isValid {
+	if module, ok := m.Modules[m.TxFiller].(FillTransactionsModule); ok && isValid {
 		return module.FillTransactions(ctx, cb)
 	}
 	return nil, nil, nil
