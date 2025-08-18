@@ -12,12 +12,14 @@ const (
 )
 
 type Module struct {
-	nextBlockTime time.Duration
+	nextBlockTime          time.Duration
+	blockProductionTimeout time.Duration
 }
 
 func NewModule(ctx *cli.Context) *Module {
 	return &Module{
-		nextBlockTime: time.Duration(ctx.GlobalUint64(NextBlockTimeFlag.Name)) * time.Millisecond,
+		nextBlockTime:          time.Duration(ctx.GlobalUint64(NextBlockTimeFlag.Name)) * time.Millisecond,
+		blockProductionTimeout: time.Duration(ctx.GlobalUint64(BlockProductionTimeoutFlag.Name)) * time.Millisecond,
 	}
 }
 
@@ -30,8 +32,12 @@ func (m *Module) Version() uint64 {
 }
 
 func (m *Module) CalcBlockDeadline(ctx sdk.ConsensusBlockTimeContext, timePoint time.Time) time.Time {
-	if ctx.Deadline().Sub(timePoint) > ctx.ProduceInterval() {
-		return timePoint.Add(ctx.ProduceInterval())
+	blockTimeout := m.blockProductionTimeout
+	if blockTimeout > ctx.ProduceInterval() {
+		blockTimeout = ctx.ProduceInterval()
+	}
+	if ctx.Deadline().Sub(timePoint) > blockTimeout {
+		return timePoint.Add(blockTimeout)
 	}
 	return ctx.Deadline()
 }
