@@ -233,6 +233,10 @@ func (m *Module) ExecuteBlock(ctx sdk.BlockExecutorContext, block *types.Block, 
 		m.logger.Warn("Finalize block failed", "err", err)
 		return nil, nil, err
 	}
+	if err := m.chain.ValidateBlock().ValidateState(block, statedb, receipts, result.GasUsed); err != nil {
+		m.logger.Error("Validate state failed", "err", err)
+		return nil, nil, err
+	}
 	return statedb, result.Receipts, nil
 }
 
