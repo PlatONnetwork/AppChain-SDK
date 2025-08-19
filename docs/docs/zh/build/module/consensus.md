@@ -195,3 +195,48 @@ func (m *Module) OnCommit(ctx sdk.ConsensusContext, block *coretypes.Block) erro
 	return nil
 }
 ```
+
+## ConsensusBlockTime
+
+!!! info "CalcBlockDeadline"
+
+    `CalcBlockDeadline(ctx sdk.ConsensusBlockTimeContext, timePoint time.Time) time.Time`
+
+    参数：
+
+    - **ctx** AppChain SDK consensus context.
+    - **timePoint** 当前时间点。
+
+    返回值：
+
+    - 当前出块的打包交易截至时间。
+
+    `CalcNextBlockTime(ctx sdk.ConsensusBlockTimeContext, blockTime time.Time) time.Time`
+    
+        参数：
+    
+        - **ctx** AppChain SDK consensus context.
+        - **blockTime** 最新区块的出块时间。
+    
+        返回值：
+    
+        - 下一个区块的开始时间。
+
+使用参考[BlockTime 模块](../x/blocktime.md)
+
+## ConsensusNetworkModule
+
+!!! info "CreateConsensusNetworkEngine"
+
+    `CreateConsensusNetworkEngine(ctx sdk.ConsensusNetworkContext) (sdk.ConsensusNetworkEngine, error)`
+
+    参数：
+
+    - **ctx** AppChain SDK consensus network context.
+
+    返回值：
+
+    - 共识网络引擎。
+    - 错误
+
+使用参考[ConsensusNetwork 模块](../x/consensus.md)

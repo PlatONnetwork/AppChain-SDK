@@ -2,11 +2,17 @@
 
 ## 简介
 
-Worker扩展主要是对区块打包流程进行扩展。为开发者提供两个接口`WorkerModule`和`TransactionModule`，分别用在以下场景：
+Worker扩展主要是对区块打包流程进行扩展。为开发者提供两个接口`WorkerModule`、`TransactionModule`、`FillTransactionsModule`、`TxExecutorModule`、`BlockExecutorModule`，分别用在以下场景：
 
 - 排序交易，改变交易的执行顺序。
 
 - 增加交易，且增加的交易优先打包，保证打包成功。
+
+- 对打包交易进行全流程控制，包括添加交易、排序、执行
+
+- 自定义交易执行器
+
+- 自定义区块执行器
 
 ## WorkerModule
 
@@ -84,3 +90,54 @@ func (s *StateSync) AddTxs(ctx sdk.WorkerContext, local map[common.Address]types
 	return local, nil
 }
 ```
+
+
+## FillTransactionsModule
+
+!!! info "FillTransactions"
+
+    `FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackApp) (types.Transactions, types.Receipts, error)`
+
+    参数：
+
+    - **ctx** AppChain SDK worker context.
+    - **cb** 包含WorkerExtendApp,vm.ContractsApp 用于扩展模块对交易进行处理。
+
+    返回值：
+
+    - 打包的交易。
+    - 执行的交易回执。
+    - 错误
+
+## TxExecutorModule
+
+!!! info "ExecuteTxs"
+
+    `ExecuteTxs(ctx sdk.WorkerContext, cApp sdk.ContractsApp, txs types.Transactions) (types.Receipts, uint64, error)`
+
+    参数：
+
+    - **ctx** AppChain SDK worker context.
+    - **cApp** 合约扩展。
+    - **txs** 待执行交易
+
+    返回值：
+
+    - 执行的交易回执。
+    - 执行交易数量
+    - 错误
+
+## BlockExecutorModule
+
+!!! info "CreateBlockExecutor"
+
+    `CreateBlockExecutor(ctx sdk.BlockchainContext) (sdk.BlockExecutor, error)`
+
+    参数：
+
+    - **ctx** AppChain SDK blockchain context.
+
+    返回值：
+
+    - 执行的交易执行器。
+    - 错误
