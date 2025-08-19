@@ -40,7 +40,7 @@ var (
 	}
 )
 
-func AddNonTxPoolFlags(app *cli.App) {
+func AddModuleInitFlags(app *cli.App) {
 	app.Flags = append(app.Flags, TxsCacheSizeFlag)
 	app.Flags = append(app.Flags, BroadcastIntervalFlag)
 	app.Flags = append(app.Flags, ValidateTxFlag)

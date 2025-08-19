@@ -39,7 +39,7 @@ var (
 	}
 )
 
-func AddAsyncBlockFlags(app *cli.App) {
+func AddModuleInitFlags(app *cli.App) {
 	app.Flags = append(app.Flags, ConcurrencyLevelFlag)
 	app.Flags = append(app.Flags, ForceSequentialFlag)
 	app.Flags = append(app.Flags, TxsBatchFlag)

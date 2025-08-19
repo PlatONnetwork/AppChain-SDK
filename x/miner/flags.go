@@ -14,7 +14,7 @@ var (
 	}
 	TxsBatchFlag = cli.IntFlag{
 		Name:  "miner.txs_batch",
-		Usage: "Number of transactions for a batch to parallel exectue",
+		Usage: "Number of transactions for a batch to parallel execute",
 		Value: 64,
 	}
 )

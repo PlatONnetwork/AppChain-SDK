@@ -15,7 +15,7 @@ var (
 	}
 )
 
-func AddBlockTimeFlags(app *cli.App) {
+func AddModuleInitFlags(app *cli.App) {
 	app.Flags = append(app.Flags, NextBlockTimeFlag)
 	app.Flags = append(app.Flags, BlockProductionTimeoutFlag)
 }
