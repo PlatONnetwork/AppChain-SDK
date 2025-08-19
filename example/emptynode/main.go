@@ -7,7 +7,7 @@ import (
 	common2 "github.com/PlatONnetwork/AppChain-SDK/example/common"
 	"github.com/PlatONnetwork/AppChain-SDK/testutil"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
-	"github.com/PlatONnetwork/AppChain-SDK/x/consensus"
+	"github.com/PlatONnetwork/AppChain-SDK/x/consensusnetwork"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/node"
@@ -78,7 +78,7 @@ func Server(ctx *cli.Context) error {
 	account := testutil.DefaultAccount[0:1]
 
 	vals, _ := testutil.NewValidator(account)
-	network := consensus.NewModule(ctx)
+	network := consensusnetwork.NewModule(ctx)
 	manager := module.NewManager(vals, &blacklistModule, network)
 	manager.SetElection(vals.Name())
 	manager.SetOrderTxPool(blacklistModule.Name())

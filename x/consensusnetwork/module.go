@@ -1,4 +1,4 @@
-package consensus
+package consensusnetwork
 
 import (
 	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/protocols"
@@ -10,7 +10,7 @@ import (
 
 	"gopkg.in/urfave/cli.v1"
 
-	"github.com/PlatONnetwork/AppChain-SDK/x/consensus/network"
+	"github.com/PlatONnetwork/AppChain-SDK/x/consensusnetwork/network"
 	ctypes "github.com/PlatONnetwork/PlatON-Go/consensus/cbft/types"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/p2p"
