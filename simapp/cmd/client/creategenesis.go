@@ -9,7 +9,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/benchmark"
 	"github.com/PlatONnetwork/AppChain-SDK/x/blocktime"
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint"
-	"github.com/PlatONnetwork/AppChain-SDK/x/consensus"
+	"github.com/PlatONnetwork/AppChain-SDK/x/consensusnetwork"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/deposit"
 	"github.com/PlatONnetwork/AppChain-SDK/x/extravote"
