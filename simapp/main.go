@@ -29,9 +29,9 @@ func main() {
 	miner.AddModuleInitFlags(cliApp)
 	utils.AddModuleInitFlags(cliApp)
 	benchmark.AddBenchmarkFlags(cliApp)
-	nontxpool.AddNonTxPoolFlags(cliApp)
-	asyncblock.AddAsyncBlockFlags(cliApp)
-	blocktime.AddBlockTimeFlags(cliApp)
+	nontxpool.AddModuleInitFlags(cliApp)
+	asyncblock.AddModuleInitFlags(cliApp)
+	blocktime.AddModuleInitFlags(cliApp)
 	app.InitApp(cliApp, func(ctx *cli.Context) sdk.App {
 		simApp, err := NewSimApp(ctx)
 		//simApp, err := NewConsensusApp(ctx)

@@ -10,7 +10,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/benchmark"
 	"github.com/PlatONnetwork/AppChain-SDK/x/blocktime"
 	"github.com/PlatONnetwork/AppChain-SDK/x/checkpoint"
-	"github.com/PlatONnetwork/AppChain-SDK/x/consensus"
+	"github.com/PlatONnetwork/AppChain-SDK/x/consensusnetwork"
 	"github.com/PlatONnetwork/AppChain-SDK/x/deposit"
 	"github.com/PlatONnetwork/AppChain-SDK/x/extravote"
 	"github.com/PlatONnetwork/AppChain-SDK/x/gov"
@@ -65,7 +65,7 @@ type SimApp struct {
 	miner              *asyncblock.Module
 	nonTxPool          *nontxpool.Module
 	benchmark          *benchmark.Module
-	consensusNetwork   *consensus.Module
+	consensusNetwork   *consensusnetwork.Module
 	blockTime          *blocktime.Module
 	manager            *module.Manager
 }
@@ -140,7 +140,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 	app.benchmark = benchmark.NewModule(ctx, store, app.nonTxPool, sdkdir)
 	app.blockTime = blocktime.NewModule(ctx)
 	app.miner = asyncblock.NewModule(ctx)
-	app.consensusNetwork = consensus.NewModule(ctx)
+	app.consensusNetwork = consensusnetwork.NewModule(ctx)
 	manager := module.NewManager(
 		app.stateSync,
 		app.stateEvent,

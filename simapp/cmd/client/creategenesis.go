@@ -209,7 +209,7 @@ func createEmptyModuleGenesis(genesis *core.Genesis) {
 		benchmark.ModuleName,
 		blocktime.ModuleName,
 		checkpoint.ModuleName,
-		consensus.ModuleName,
+		consensusnetwork.ModuleName,
 		deposit.ModuleName,
 		stateevent.ModuleName,
 		extravote.ModuleName,

@@ -9,7 +9,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/testutil"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/flags"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
-	"github.com/PlatONnetwork/AppChain-SDK/x/consensus"
+	"github.com/PlatONnetwork/AppChain-SDK/x/consensusnetwork"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
@@ -60,7 +60,7 @@ func Server(ctx *cli.Context) error {
 	blacklistModule := blacklist.Module{}
 
 	vals, _ := testutil.NewValidator(testutil.DefaultAccount[0:1])
-	network := consensus.NewModule(ctx)
+	network := consensusnetwork.NewModule(ctx)
 	manager := module.NewManager(vals, &blacklistModule, network)
 	manager.SetElection(vals.Name())
 	manager.SetOrderTxPool(blacklistModule.Name())
