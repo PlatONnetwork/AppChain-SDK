@@ -329,6 +329,8 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 	}
 
 	begin := time.Now()
+	// Cache contract modules
+	e.cApp.Contracts(e.env.StateDB, e.env.Header.Number.Uint64())
 
 	var pevmResult PEVMResult
 	if e.env.IsWorker {
