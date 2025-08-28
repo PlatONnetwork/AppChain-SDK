@@ -105,7 +105,7 @@ func createnode(ctx *cli.Context) error {
 }
 
 func createkey(passphrase string) (string, string) {
-	privateKey, _ := crypto.GenerateKey()
+	privateKey, _ := ecdsa.GenerateKey(crypto.S256(), deploytools.EcdsaRand)
 	UUID, err := uuid.NewRandom()
 	if err != nil {
 		utils.Fatalf("Failed to generate random uuid: %v", err)

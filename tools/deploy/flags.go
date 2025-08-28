@@ -27,6 +27,12 @@ var (
 		EnvVar: "NODE_CONFIG_FILE",
 		Value:  "nodes.toml",
 	}
+	RandSeedFlag = cli.Uint64Flag{
+		Name:   "randseed",
+		Usage:  "As a randomly generated starting auto-increment seed for private key generation: if it is 0, use the cryptographic library; if it is non-zero, use auto-increment numbers to fill the random seed, achieving the same private key multiple times for testing purposes.",
+		EnvVar: "RAND_SEED",
+		Value:  1000000001,
+	}
 	NodePProfPortFlag = cli.IntFlag{
 		Name:   "nodepprofport",
 		Usage:  "Chain pprof port",

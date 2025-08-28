@@ -38,6 +38,7 @@ type Module struct {
 	bsc                 *BlockStateCache
 	computerSender      *ComputeSender
 	stateComputeSender  *ComputeSender
+	epochViewBlockMap   *EpochViewBlockMap
 	signer              types.Signer
 	stateChangeCh       chan struct{}
 	entrySizeLimit      int
@@ -55,6 +56,7 @@ func NewModule(ctx *cli.Context) *Module {
 		stateComputeSender: NewComputeSender(ctx.GlobalInt(ComputeSenderThreadFlag.Name), "exe"),
 
 		stateChangeCh:       make(chan struct{}, 10),
+		epochViewBlockMap:   NewEpochViewBlockMap(),
 		entrySizeLimit:      ctx.GlobalInt(EntrySizeFlag.Name),
 		splitEntryThreshold: ctx.GlobalInt(SplitThresholdFlag.Name),
 		concurrencyLevel:    ctx.GlobalInt(ConcurrencyLevelFlag.Name),
@@ -410,6 +412,7 @@ func (m *Module) ExecuteTxs(ctx sdk.WorkerContext, cApp sdk.ContractsApp, txs ty
 func (m *Module) ViewChange(ctx sdk.ConsensusContext, validators []*cbfttypes.ValidateNode) {
 	m.cs.Update(ctx.Epoch(), ctx.View(), validators, int(ctx.View())%len(validators))
 	m.p2p.Update(validators)
+	m.epochViewBlockMap.RemoveEpoch(ctx.Epoch())
 	go m.cleanState(ctx.Epoch(), ctx.View())
 }
 func (m *Module) OnCommit(ctx sdk.ConsensusContext, block *types.Block) error {
@@ -423,7 +426,12 @@ func (m *Module) Protocols() []p2p.Protocol {
 func (m *Module) cleanState(epoch, view uint64) {
 	m.logger.Debug("Clean state", "epoch", epoch, "view", view)
 	m.bsc.Clean(epoch, view)
-	//todo clean blockstate
+	entryMsgList := m.epochViewBlockMap.GetOrderedEntryMsgList(epoch, view)
+	for _, msgList := range entryMsgList {
+		for _, msg := range msgList.GetOrderedAllEntries() {
+			m.handleEntry(nil, msg)
+		}
+	}
 }
 func (m *Module) executeLoop() {
 	tick := time.Tick(time.Second)
@@ -441,6 +449,13 @@ func (m *Module) executeLoop() {
 }
 
 func (m *Module) handleEntry(peer sdkp2p.Peer, msg *EntryMsg) error {
+	epoch, _ := m.cs.EpochView()
+	if msg.Epoch > epoch {
+		if msg.Epoch == epoch+1 {
+			m.epochViewBlockMap.AddOrReplaceEntry(msg)
+		}
+		return nil
+	}
 	m.logger.Debug("Handle receive entry ", "epoch", msg.Epoch, "view", msg.View, "blockNumber", msg.BlockNumber, "entryNumber", msg.EntryNumber)
 	//verify signature
 	if err := m.cs.VerifyEntry(&msg.Entry); err != nil {

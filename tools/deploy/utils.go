@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"crypto/ecdsa"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -57,4 +58,33 @@ func MustStringToDecimal(s string) *big.Int {
 		log.Crit("Decode decimal failed", "value", s)
 	}
 	return n
+}
+
+type Reader struct {
+	data []byte
+	num  uint64
+}
+
+func NewReader(seed uint64) *Reader {
+	return &Reader{num: seed}
+}
+
+func (r *Reader) Init() {
+	r.add()
+}
+func (r *Reader) Read(p []byte) (n int, err error) {
+	if len(p) > 1 {
+		r.add()
+	}
+	for i := 0; i < len(p); i++ {
+		p[i] = r.data[i]
+	}
+	return len(p), nil
+}
+
+func (r *Reader) add() {
+	data := make([]byte, 32, 32)
+	binary.BigEndian.PutUint64(data, r.num)
+	r.data = data
+	r.num++
 }

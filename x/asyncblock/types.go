@@ -621,3 +621,167 @@ func (c *ComputeSender) loop() {
 func (c *ComputeSender) Stop() {
 	close(c.cancelCh)
 }
+
+type EntryMsgList struct {
+	blockNumber uint64
+	Entries     map[uint32]*EntryMsg // Map for fast lookup and replacement
+	mu          sync.RWMutex         // RWMutex for thread safety
+}
+
+func NewEntryMsgList(blockNumber uint64) *EntryMsgList {
+	return &EntryMsgList{
+		blockNumber: blockNumber,
+		Entries:     make(map[uint32]*EntryMsg),
+	}
+}
+
+// AddOrReplaceEntry adds a new entry or replaces an existing one with the same ID
+func (el *EntryMsgList) AddOrReplaceEntry(entry *EntryMsg) {
+	el.mu.Lock()
+	defer el.mu.Unlock()
+	el.Entries[entry.EntryNumber] = entry
+}
+
+// RemoveEntry removes an entry by its ID
+func (el *EntryMsgList) RemoveEntry(entryID uint32) {
+	el.mu.Lock()
+	defer el.mu.Unlock()
+	delete(el.Entries, entryID)
+}
+
+// GetEntry retrieves an entry by its ID, returns the entry and a boolean indicating if it was found
+func (el *EntryMsgList) GetEntry(entryID uint32) (*EntryMsg, bool) {
+	el.mu.RLock()
+	defer el.mu.RUnlock()
+	entry, exists := el.Entries[entryID]
+	return entry, exists
+}
+
+// GetAllEntries returns all entries in the list as a slice
+func (el *EntryMsgList) GetOrderedAllEntries() []*EntryMsg {
+	el.mu.RLock()
+	defer el.mu.RUnlock()
+	entries := make([]*EntryMsg, 0, len(el.Entries))
+	for _, entry := range el.Entries {
+		entries = append(entries, entry)
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].EntryNumber < entries[j].EntryNumber
+	})
+	return entries
+}
+
+// GetEntriesCount returns the number of entries in the list
+func (el *EntryMsgList) GetEntriesCount() int {
+	el.mu.RLock()
+	defer el.mu.RUnlock()
+	return len(el.Entries)
+}
+
+// EpochViewBlockMap manages a three-level nested map structure
+// epoch -> viewNumber -> blockNumber -> *EntryMsgList
+type EpochViewBlockMap struct {
+	data map[uint64]map[uint64]map[uint64]*EntryMsgList
+	mu   sync.RWMutex
+}
+
+// NewEpochViewBlockMap creates a new empty EpochViewBlockMap
+func NewEpochViewBlockMap() *EpochViewBlockMap {
+	return &EpochViewBlockMap{
+		data: make(map[uint64]map[uint64]map[uint64]*EntryMsgList),
+	}
+}
+
+// AddOrReplaceEntry adds or replaces an entry at the specified location (epoch, viewNumber, blockNumber)
+func (m *EpochViewBlockMap) AddOrReplaceEntry(entry *EntryMsg) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	epoch, viewNumber, blockNumber := entry.Epoch, entry.View, entry.BlockNumber
+	// Ensure all levels of the nested map exist
+	if _, exists := m.data[epoch]; !exists {
+		m.data[epoch] = make(map[uint64]map[uint64]*EntryMsgList)
+	}
+	if _, exists := m.data[epoch][viewNumber]; !exists {
+		m.data[epoch][viewNumber] = make(map[uint64]*EntryMsgList)
+	}
+	if _, exists := m.data[epoch][viewNumber][blockNumber]; !exists {
+		m.data[epoch][viewNumber][blockNumber] = NewEntryMsgList(entry.BlockNumber)
+	}
+
+	// Add or replace the entry
+	m.data[epoch][viewNumber][blockNumber].AddOrReplaceEntry(entry)
+}
+
+func (m *EpochViewBlockMap) GetOrderedEntryMsgList(epoch, viewNumber uint64) []*EntryMsgList {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var msg []*EntryMsgList
+	if epochMap, exists := m.data[epoch]; exists {
+		if viewMap, exists := epochMap[viewNumber]; exists {
+			for _, entryMsgList := range viewMap {
+				msg = append(msg, entryMsgList)
+			}
+		}
+	}
+	if len(msg) != 0 {
+		sort.Slice(msg, func(i, j int) bool {
+			return msg[i].blockNumber < msg[i].blockNumber
+		})
+	}
+	return msg
+}
+
+// GetEntryMsgList retrieves the EntryMsgList at the specified location
+// Returns the EntryMsgList and a boolean indicating if it was found
+func (m *EpochViewBlockMap) GetEntryMsgList(epoch, viewNumber uint64, blockNumber uint64) (*EntryMsgList, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if epochMap, exists := m.data[epoch]; exists {
+		if viewMap, exists := epochMap[viewNumber]; exists {
+			if entryMsgList, exists := viewMap[blockNumber]; exists {
+				return entryMsgList, true
+			}
+		}
+	}
+	return nil, false
+}
+
+// GetEntry retrieves a specific entry by its ID at the specified location
+// Returns the entry and a boolean indicating if it was found
+func (m *EpochViewBlockMap) GetEntry(epoch, viewNumber uint64, blockNumber uint64, entryID uint32) (*EntryMsg, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if epochMap, exists := m.data[epoch]; exists {
+		if viewMap, exists := epochMap[viewNumber]; exists {
+			if entryMsgList, exists := viewMap[blockNumber]; exists {
+				return entryMsgList.GetEntry(entryID)
+			}
+		}
+	}
+	return nil, false
+}
+
+// RemoveEpoch removes the entire epoch mapping
+func (m *EpochViewBlockMap) RemoveEpoch(epoch uint64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for e := range m.data {
+		if e < epoch {
+			delete(m.data, e)
+		}
+	}
+}
+
+// GetAllEpochs returns all epoch values in the map
+func (m *EpochViewBlockMap) GetAllEpochs() []uint64 {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	epochs := make([]uint64, 0, len(m.data))
+	for epoch := range m.data {
+		epochs = append(epochs, epoch)
+	}
+	return epochs
+}
