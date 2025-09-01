@@ -43,18 +43,15 @@ func rawSend(ctx *cli.Context) error {
 	client, err := ethclient.Dial(url)
 	to := common.HexToAddress(ctx.String(ToFlag.Name))
 	value, _ := new(big.Int).SetString(ctx.String(ValueFlag.Name), 10)
-	fmt.Println("11111")
 	key, err := crypto.HexToECDSA(ctx.String(flags.KeyFlags.Name))
 	if err != nil {
 		return err
 	}
-	fmt.Println("11111")
 	addr := crypto.PubkeyToAddress(key.PublicKey)
 	chainId, err := client.ChainID(context.Background())
 	if err != nil {
 		return err
 	}
-	fmt.Println("11111")
 	nonce, _ := client.PendingNonceAt(context.Background(), addr)
 	gasPrice := big.NewInt(0).SetUint64(ctx.Uint64(flags.GasPriceFlags.Name))
 	if gasPrice.Uint64() == 0 {
@@ -63,7 +60,6 @@ func rawSend(ctx *cli.Context) error {
 			return err
 		}
 	}
-	fmt.Println("11111")
 	gasLimit := ctx.Uint64(flags.GasLimitFlags.Name)
 	tx := types.NewTx(&types.LegacyTx{
 		Nonce:    nonce,
