@@ -449,6 +449,38 @@ func (db *VmDB) GetRefund() uint64 {
 }
 
 func (db *VmDB) GetCommittedState(addr common.Address, key []byte) []byte {
+	if db.txIdx > 0 {
+		var (
+			val []byte
+			got bool
+		)
+		locationHash := StateLoc(addr, key)
+		if wh := db.vm.mvMemory.data.Get(locationHash); wh != nil {
+			wh.ScanHistory(db.txIdx, func(entry *item) bool {
+				switch entry.Entry.(type) {
+				case *DataEntry:
+					de := entry.Entry.(*DataEntry)
+					val = de.Value.(*State).Value
+					db.setReadState(addr, key, val)
+					got = true
+					return false
+				case *EstimateMarker:
+					// Here `GetState` should be throw the same error, so discard
+					// abort error in this case.
+					got = true
+					return false
+				default:
+					// Here `GetState` should be throw the same error, so discard
+					// abort error in this case.
+					got = true
+					return false
+				}
+			})
+		}
+		if got {
+			return val
+		}
+	}
 	return db.vm.statedb.GetCommittedState(addr, key)
 }
 
