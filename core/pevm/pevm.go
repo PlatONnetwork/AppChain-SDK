@@ -429,6 +429,7 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 		pevmResult.GasUsed = e.cumulativeGasUsed
 		e.txCount += len(txs)
 	}
+	e.env.StateDB.Finalise(true)
 
 	e.logger.Info("Parallel execute finish",
 		"number", e.env.Header.Number,
