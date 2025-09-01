@@ -9,7 +9,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/x/asyncblock"
 	"github.com/PlatONnetwork/AppChain-SDK/x/benchmark"
-	xconsensus "github.com/PlatONnetwork/AppChain-SDK/x/consensus"
+	xconsensus "github.com/PlatONnetwork/AppChain-SDK/x/consensusnetwork"
 	"github.com/PlatONnetwork/PlatON-Go/node"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 	"gopkg.in/urfave/cli.v1"

@@ -7,7 +7,7 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
 	"github.com/PlatONnetwork/AppChain-SDK/x/asyncblock"
 	"github.com/PlatONnetwork/AppChain-SDK/x/benchmark"
-	xconsensus "github.com/PlatONnetwork/AppChain-SDK/x/consensus"
+	xconsensus "github.com/PlatONnetwork/AppChain-SDK/x/consensusnetwork"
 	"github.com/PlatONnetwork/AppChain-SDK/x/nontxpool"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/node"
@@ -23,8 +23,8 @@ import (
 func main() {
 	cliApp := cli.NewApp()
 	benchmark.AddBenchmarkFlags(cliApp)
-	nontxpool.AddNonTxPoolFlags(cliApp)
-	asyncblock.AddAsyncBlockFlags(cliApp)
+	nontxpool.AddModuleInitFlags(cliApp)
+	asyncblock.AddModuleInitFlags(cliApp)
 	app.InitApp(cliApp, func(ctx *cli.Context) sdk.App {
 		datadir := node.DefaultDataDir()
 		if ctx.GlobalIsSet(cmdutils.DataDirFlag.Name) {

@@ -1,6 +1,8 @@
 package deploy
 
 import (
+	"crypto/ecdsa"
+	"crypto/rand"
 	"encoding/hex"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/flags"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
@@ -14,6 +16,8 @@ import (
 )
 
 var (
+	EcdsaRand         = rand.Reader
+	BlsRand           = rand.Reader
 	CreateNodeCommand = cli.Command{
 		Name:   "createnode",
 		Action: createNode,
@@ -26,6 +30,7 @@ var (
 			NodeRpcPortFlag,
 			NodeP2pPortFlag,
 			NodePortIncFlag,
+			RandSeedFlag,
 			LocalFlag,
 		},
 		CustomHelpTemplate: flags.CommandHelpTemplate,
@@ -36,6 +41,8 @@ func createNode(ctx *cli.Context) error {
 	return CreateNodeExtra(ctx, nil)
 }
 func CreateNodeExtra(ctx *cli.Context, extra func(*Node) (*Node, error)) error {
+	seed := ctx.Uint64(RandSeedFlag.Name)
+	initRandSeed(seed)
 	genesisHosts := strings.Split(ctx.String(GenesisNodeFlag.Name), ",")
 	normalHosts := strings.Split(ctx.String(NormalNodeFlag.Name), ",")
 	pprofPort := ctx.Int(NodePProfPortFlag.Name)
@@ -97,9 +104,18 @@ func CreateNodeExtra(ctx *cli.Context, extra func(*Node) (*Node, error)) error {
 
 	return nil
 }
-
+func initRandSeed(seed uint64) {
+	if seed != 0 {
+		reader := NewReader(seed)
+		reader.Init()
+		EcdsaRand = reader
+		reader = NewReader(seed)
+		reader.Init()
+		BlsRand = reader
+	}
+}
 func genNodeKey() (string, string, string) {
-	privateKey, err := crypto.GenerateKey()
+	privateKey, err := ecdsa.GenerateKey(crypto.S256(), EcdsaRand)
 	if err != nil {
 		panic(err)
 	}
@@ -108,7 +124,7 @@ func genNodeKey() (string, string, string) {
 
 func genBlskey() (string, string, string) {
 	var privateKey bls.SecretKey
-	privateKey.SetByCSPRNG()
+	privateKey.SetByRand(BlsRand)
 	pubKey := privateKey.GetPublicKey()
 	return hex.EncodeToString(privateKey.Serialize()), hex.EncodeToString(pubKey.Serialize()), hex.EncodeToString(pubKey.SerializeUncompressed())
 
