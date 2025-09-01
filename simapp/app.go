@@ -192,6 +192,7 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 	)
 
 	manager.SetOrderGenesis(
+		app.voteToken.Name(),
 		app.l1.Name(),
 		app.stage.Name(),
 		app.vrf.Name(),
@@ -201,7 +202,6 @@ func NewSimApp(ctx *cli.Context) (*SimApp, error) {
 		app.l2StateSender.Name(),
 		app.stateSync.Name(),
 		app.upgrade.Name(),
-		app.voteToken.Name(),
 		app.gov.Name(),
 		app.nonTxPool.Name(),
 		app.miner.Name(),

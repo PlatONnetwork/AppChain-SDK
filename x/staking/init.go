@@ -2,14 +2,19 @@ package staking
 
 import (
 	"fmt"
+	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/config"
 	stakingdb "github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
+	"github.com/PlatONnetwork/AppChain-SDK/x/votetoken"
+	"github.com/PlatONnetwork/AppChain-SDK/x/votetoken/contracts/erc20vote"
 	"github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
+	"math"
 	"math/big"
 )
 
@@ -50,7 +55,8 @@ func initValidatorGenesisPriority(statedb sdk.StateDB, addr common.Address) erro
 }
 
 func initValidators(statedb sdk.StateDB, addr common.Address, chainConfig *params.ChainConfig, configParams *config.StakeNetworkParams) error {
-
+	evm := vm.NewEVM(vm.BlockContext{GasLimit: math.MaxUint64, BlockNumber: big.NewInt(0)}, vm.TxContext{}, statedb, chainConfig, vm.Config{}, nil)
+	vote, _ := erc20vote.NewERC20Vote(evm, sdkcontracts.NewContract(&StakeModule{}, &votetoken.Module{}), false)
 	if err := initValidatorGenesisPriority(statedb, addr); nil != err {
 		return err
 	}
@@ -91,6 +97,9 @@ func initValidators(statedb sdk.StateDB, addr common.Address, chainConfig *param
 			initialNode.BlsPubKey.Serialize(), initialNode.Node.IDv0(), configParams.GenesisCommissionRate, 1, stakeIndex)
 		if err := stakingdb.SetValidator(statedb, addr, validatorAddr, validator); nil != err {
 			return fmt.Errorf("set validator info '%s' %s", validatorAddr, err)
+		}
+		if err := vote.Mint(configParams.GenesisValidatorOwner, new(big.Int).Add(genesisStakeAmount, genesisDelegateAmount)); err != nil {
+			return fmt.Errorf("mint vote token failed '%s' %s", validatorAddr, err)
 		}
 
 		if err := stakingdb.SetValidatorPriority(statedb, addr, validatorAddr, 1, stakeIndex, genesisStakeAmount); nil != err {

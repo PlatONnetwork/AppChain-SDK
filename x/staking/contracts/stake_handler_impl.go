@@ -221,6 +221,8 @@ func (c *StakeHandler) OnStateReceive(id *big.Int, sender common.Address, data [
 	}
 
 	if c.contract.Caller() != constants.StateSyncAddress || sender != rootchainStakeManagerAddress {
+		log.Error("Invalid sender", "caller", c.contract.Caller().Hex(), "address", constants.StateSyncAddress.Hex(),
+			"sender", sender.Hex(), "rootchain", rootchainStakeManagerAddress.Hex())
 		return typesdk.NewRevertError("StakeHandler: INVALID_SENDER")
 	}
 	if bytes.Compare(data[:METHODID_SIZE], STAKE_SIG.Bytes()) == 0 {
@@ -266,7 +268,7 @@ func (c *StakeHandler) Slash() error {
 			return err
 		}
 		slashingValidatorAddrCache[validatorAddr] = struct{}{}
-		c.burnVoteToken(validatorAddr, validator.StakeAmount)
+		c.burnVoteToken(validator.Owner, validator.StakeAmount)
 	}
 	// ###### NOTE: ######
 	// remove validator from epoch validators
@@ -366,7 +368,7 @@ func (c *StakeHandler) Unstake(validatorAddr common.Address, amount *big.Int) er
 	if err := c.unStake(validatorAddr, amount); nil != err {
 		return err
 	}
-	c.burnVoteToken(validatorAddr, amount)
+
 	if err := c.registerStakeWithdrawal(validatorAddr, amount, true); nil != err {
 		return err
 	}
@@ -422,7 +424,7 @@ func (c *StakeHandler) WithdrawUnstake(validatorAddr common.Address) error {
 	if nil != err {
 		log.Error("Failed to withdraw unstake", "validatorAddr", validatorAddr.Hex(),
 			"currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber, "amount", amount, "error", err)
-		return typesdk.NewRevertError("StakeHandler: CAN NOT UPDATE STAKE WITHDRAW PENDDING HEAD")
+		return typesdk.NewRevertError("StakeHandler: CAN NOT UPDATE STAKE WITHDRAW PENDING HEAD")
 	}
 
 	if amount.Cmp(common.Big0) == 0 {
@@ -451,14 +453,14 @@ func (c *StakeHandler) WithdrawUnstake(validatorAddr common.Address) error {
 }
 
 func (c *StakeHandler) mintVoteToken(account common.Address, amount *big.Int) {
-	log.Debug("mint vote token", "account", account.Hex(), "amount", amount)
+	log.Debug("Mint vote token", "account", account.Hex(), "amount", amount)
 	caller, err := erc20vote.NewERC20VoteCaller(c.evm, c.contract, constants.VoteTokenAddress)
 	contracts.Require(err == nil, "StakeHandler: CREATE VOTE CALLER FAILED")
 	contracts.Require(caller.Mint(account, amount) == nil, "StakeHandler: MINT VOTE TOKEN FAILED")
 }
 
 func (c *StakeHandler) burnVoteToken(account common.Address, amount *big.Int) {
-	log.Debug("burn vote token", "account", account.Hex(), "amount", amount)
+	log.Debug("Burn vote token", "account", account.Hex(), "amount", amount)
 	caller, err := erc20vote.NewERC20VoteCaller(c.evm, c.contract, constants.VoteTokenAddress)
 	contracts.Require(err == nil, "StakeHandler: CREATE VOTE CALLER FAILED")
 	contracts.Require(caller.Burn(account, amount) == nil, "StakeHandler: BURN VOTE TOKEN FAILED")

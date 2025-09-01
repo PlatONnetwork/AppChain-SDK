@@ -86,15 +86,18 @@ func (m *Module) Subscribe(subscriber EventSubscriber) {
 	m.subscriberIDCounter++
 	subscriberID := m.subscriberIDCounter
 	m.subscribers[subscriberID] = subscriber
+	m.logger.Debug("Subscribe state event", "id", subscriberID)
 
 	for address, filters := range subscriber.GetLogFilters() {
 		existingAddressFilters, exist := m.allFilters[address]
 		if !exist {
 			existingAddressFilters = make(map[common.Hash][]uint64, 0)
 			m.allFilters[address] = existingAddressFilters
+			m.logger.Debug("Subscribe success", "address", address.Hex())
 		}
 
 		for _, f := range filters {
+			m.logger.Debug("Subscribe success", "address", address.Hex(), "topic", f.Hex())
 			existingAddressFilters[f] = append(existingAddressFilters[f], subscriberID)
 		}
 	}
@@ -137,6 +140,7 @@ func (m *Module) getEventsFromBlocksRange(ctx sdk.ConsensusContext, from, to uin
 }
 
 func (m *Module) getEventsFromReceipts(ctx sdk.ConsensusContext, blockHeader *coretypes.Header, qc *ctypes.QuorumCert, receipts coretypes.Receipts) error {
+	m.logger.Debug("Get event", "number", qc.BlockNumber, "receipts", receipts.Len(), "filters", len(m.allFilters))
 	for _, receipt := range receipts {
 		if receipt.Status != coretypes.ReceiptStatusSuccessful {
 			continue
@@ -147,7 +151,7 @@ func (m *Module) getEventsFromReceipts(ctx sdk.ConsensusContext, blockHeader *co
 			if !isRelevantLog {
 				continue
 			}
-
+			m.logger.Debug("Find relevant log", "address", log.Address.Hex(), "event", log.Topics[0].Hex())
 			for logFilter, subscribers := range logFilters {
 				if log.Topics[0] == logFilter {
 					for _, subscriber := range subscribers {

@@ -222,7 +222,7 @@ var (
 	GenesisStakeWithdrawalWaitPeriodFlag = cli.Uint64Flag{
 		Name:   "stake.stakewithdrawalwaitperiod",
 		Usage:  "Stake params stakeWithdrawalWaitPeriod",
-		EnvVar: "STAKE_EPOCH_SIZE",
+		EnvVar: "STAKE_WITHDRAWAL_WAIT_PERIOD",
 		Value:  20,
 	}
 	GenesisStakeDelegateWithdrawalWaitPeriodFlag = cli.Uint64Flag{
@@ -300,7 +300,7 @@ var (
 		Name:   "votetoken.owner",
 		Usage:  "VoteToken params owner",
 		EnvVar: "VOTETOKEN_OWNER",
-		Value:  "0x0000000000000000000000000000000000000065",
+		Value:  "0x1000000000000000000000000000000000000005",
 	}
 	GenesisGovNameFlag = cli.StringFlag{
 		Name:   "gov.name",

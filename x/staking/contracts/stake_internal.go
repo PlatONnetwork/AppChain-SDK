@@ -228,7 +228,7 @@ func (c *StakeHandler) stake(validatorAddr, owner common.Address, amount *big.In
 		log.Error("Failed to set validator stake", "validatorAddr", validatorAddr.Hex(), "error", err)
 		return typesdk.NewRevertError("StakeHandler: STAKE FAILED")
 	}
-	c.mintVoteToken(validatorAddr, amount)
+	c.mintVoteToken(owner, amount)
 	if err := c.addLogStakeAddedEvent(validatorAddr, amount); nil != err {
 		return err
 	}
@@ -270,7 +270,7 @@ func (c *StakeHandler) addStake(validatorAddr common.Address, amount *big.Int) e
 		// update validator priority
 		validator.AddStakeAmount(amount)
 
-		c.mintVoteToken(validatorAddr, amount)
+		c.mintVoteToken(validator.Owner, amount)
 		if err := c.updateValidatorByPriority(validatorAddr, validator); nil != err {
 			log.Error("Failed to add validator stake amount", "validatorAddr", validatorAddr.Hex(), "error", err)
 			return typesdk.NewRevertError("StakeHandler: ADD STAKE FAILED")
@@ -329,7 +329,7 @@ func (c *StakeHandler) unStake(validatorAddr common.Address, amount *big.Int) er
 			return typesdk.NewRevertError("StakeHandler: can not update validator priority")
 		}
 	}
-
+	c.burnVoteToken(validator.Owner, amount)
 	return nil
 }
 

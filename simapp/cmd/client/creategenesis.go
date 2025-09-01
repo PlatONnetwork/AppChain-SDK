@@ -139,7 +139,7 @@ func createGenesis(ctx *cli.Context) error {
 		ChainID:        big.NewInt(ctx.Int64(RootChainIdFlag.Name)),
 		StateSender:    deploytools.MustStringToAddress(childContractConfig.StateSenderAddr),
 		Checkpoint:     deploytools.MustStringToAddress(childContractConfig.CheckpointManagerAddr),
-		StakeManager:   deploytools.MustStringToAddress(childContractConfig.StakeManagerAddr),
+		StakeManager:   deploytools.MustStringToAddress(childContractConfig.ChildChainManagerAddr),
 		DepositManager: deploytools.MustStringToAddress(childContractConfig.DepositManagerAddr),
 	})
 	genesis.Config.Modules[stage.ModuleName] = marshal(config.StageNetworkParams{

@@ -778,7 +778,7 @@ func ApplyStakeWithdrawable(db sdk.StateDB, addr, validatorAddr common.Address, 
 		amount = new(big.Int).Add(amount, indexItem.Amount)
 
 		// remove item
-		if indexEpoch != uint64(0) { // not as haed
+		if indexEpoch != uint64(0) { // not as head
 			removeStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch)
 		}
 
