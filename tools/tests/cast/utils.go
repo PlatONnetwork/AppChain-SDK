@@ -2,6 +2,7 @@ package cast
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/PlatONnetwork/AppChain-SDK/tools/tests/cast/flags"
 	platon "github.com/PlatONnetwork/PlatON-Go"
@@ -20,8 +21,26 @@ import (
 	"time"
 )
 
-func FindMethodArgs(ctx *cli.Context) (string, []string, error) {
-	return "", ctx.Args(), nil
+func FindMethodArgs(ctx *cli.Context) (string, []interface{}, error) {
+	var args []interface{}
+	for i, arg := range ctx.Args() {
+		if len(arg) != 0 && arg[0] == byte('{') && json.Valid([]byte(arg)) {
+			var argMap map[string]interface{}
+			if err := json.Unmarshal([]byte(arg), &argMap); err != nil {
+				return "", nil, fmt.Errorf("decode args [%d][%s] failed: %s", i, arg, err.Error())
+			}
+			args = append(args, argMap)
+		} else if len(arg) != 0 && arg[0] == byte('[') && json.Valid([]byte(arg)) {
+			var argSlice []string
+			if err := json.Unmarshal([]byte(arg), &argSlice); err != nil {
+				return "", nil, fmt.Errorf("decode args [%d][%s] failed: %s", i, arg, err.Error())
+			}
+			args = append(args, argSlice)
+		} else {
+			args = append(args, arg)
+		}
+	}
+	return "", args, nil
 }
 
 func InitGlobal(ctx *cli.Context) (*ethclient.Client, common.Address, *bind.TransactOpts, error) {
@@ -88,7 +107,7 @@ func GetAbi(ctx *cli.Context) (*ethabi.ABI, error) {
 	return abi, err
 }
 
-func FilterLog(abi *ethabi.ABI, method string, inputs []string, to common.Address, cli *ethclient.Client, opt *bind.FilterOpts) ([]map[string]interface{}, error) {
+func FilterLog(abi *ethabi.ABI, method string, inputs []interface{}, to common.Address, cli *ethclient.Client, opt *bind.FilterOpts) ([]map[string]interface{}, error) {
 	log.Debug("Filterlog", "method", method, "inputs", inputs, "to", to.Hex(), "start", opt.Start, "end", opt.End)
 	event, ok := abi.Events[method]
 	if !ok {
@@ -137,7 +156,7 @@ func FilterLog(abi *ethabi.ABI, method string, inputs []string, to common.Addres
 	}
 	return res, nil
 }
-func MakeTopics(event *ethabi.Event, inputs []string) ([][]common.Hash, error) {
+func MakeTopics(event *ethabi.Event, inputs []interface{}) ([][]common.Hash, error) {
 	name := []common.Hash{common.BytesToHash(event.ID().Bytes())}
 	res := [][]common.Hash{name}
 	for i, elem := range event.Inputs.TupleElems() {
@@ -155,17 +174,19 @@ func MakeTopics(event *ethabi.Event, inputs []string) ([][]common.Hash, error) {
 	return res, nil
 }
 
-func makeTopic(t *ethabi.Type, input string) (common.Hash, error) {
+func makeTopic(t *ethabi.Type, input interface{}) (common.Hash, error) {
 	var hash ethgo.Hash
 	var err error
 	switch t.Kind() {
 	case ethabi.KindBool:
-		if strings.ToLower(input) == "true" {
-			hash, err = ethabi.EncodeTopic(t, true)
-		} else {
-			hash, err = ethabi.EncodeTopic(t, false)
+		switch v := input.(type) {
+		case string:
+			if strings.ToLower(v) == "true" {
+				hash, err = ethabi.EncodeTopic(t, true)
+			} else {
+				hash, err = ethabi.EncodeTopic(t, false)
+			}
 		}
-
 	default:
 		hash, err = ethabi.EncodeTopic(t, input)
 	}

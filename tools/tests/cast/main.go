@@ -21,6 +21,7 @@ var (
 		ArgsUsage: "",
 		Subcommands: []cli.Command{
 			ExitHelperCommand,
+			RawSendCommand,
 		},
 		Flags: []cli.Flag{
 			flags.AppchainRPCFlag,
