@@ -2,10 +2,11 @@ package db
 
 import (
 	"errors"
+	"math/big"
+
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/types"
 	"github.com/PlatONnetwork/PlatON-Go/common/math"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
-	"math/big"
 
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
@@ -213,6 +214,7 @@ func GetEpochDelegationRewardPerShareItem(db sdk.StateDBReader, addr, validatorA
 	return nil
 }
 
+// update
 func SetEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr basecommon.Address, stakeEpoch, rewardEpoch uint64, item *types.EpochDelegationRewardPerShareItem) error {
 	value, err := rlp.EncodeToBytes(item)
 	if nil != err {

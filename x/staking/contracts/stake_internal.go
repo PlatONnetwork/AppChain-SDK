@@ -3,6 +3,8 @@ package contracts
 import (
 	"encoding/hex"
 	"fmt"
+	"math/big"
+
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/config"
@@ -16,7 +18,6 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/p2p/enode"
 	"github.com/umbracle/ethgo"
 	"github.com/umbracle/ethgo/abi"
-	"math/big"
 )
 
 const (
@@ -403,6 +404,10 @@ func (c *StakeHandler) delegate(validatorAddr, delegatorAddr common.Address, amo
 			// update delegation
 			delegation.UpdateEpoch(currentEpoch)
 			delegation.IncrementAmount(amount)
+			log.Debug("update delegation on StakeHandler.delegate()", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
+				"stakeEpoch", stakeEpoch, "currentEpoch", currentEpoch, "delegationEpoch", delegation.Epoch, "delegationAmount", delegation.Amount,
+				"blockNumber", c.evm.Context.BlockNumber)
+
 		} else {
 			delegation = types.NewDelegation(currentEpoch, amount)
 
@@ -422,6 +427,9 @@ func (c *StakeHandler) delegate(validatorAddr, delegatorAddr common.Address, amo
 
 		// update validator priority
 		validator.AddDelegateAmount(amount)
+		log.Debug("update validator on StakeHandler.delegate()", "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "currentEpoch", currentEpoch,
+			"validator.DelegateAmount", validator.DelegateAmount, "blockNumber", c.evm.Context.BlockNumber)
+
 		if err = c.updateValidatorByPriority(validatorAddr, validator); nil != err {
 			log.Error("Failed to add validator delegate amount", "validatorAddr", validatorAddr.Hex(), "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber, "error", err)
 			return typesdk.NewRevertError("StakeHandler: ADD DELEGATE AMOUNT OF VALIDATOR FAILED")
