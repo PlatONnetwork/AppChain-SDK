@@ -291,7 +291,7 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 	delegatorAddr := c.contract.Caller()
 
 	epochs, _ := c.getValidatorDelegationRcPendingAndEpoch(validatorAddr, math.MaxUint64)
-
+	origin := new(big.Int).SetBytes(amount.Bytes())
 	paid := common.Big0
 
 	validator := c.getValidator(validatorAddr)
@@ -352,7 +352,7 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 			}
 		}
 	}
-	c.burnVoteToken(delegatorAddr, amount)
+	c.burnVoteToken(delegatorAddr, origin)
 	if err := c.registerDelegateWithdrawal(delegatorAddr, validatorAddr, paid, true); nil != err {
 		return err
 	}
