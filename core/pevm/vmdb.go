@@ -19,17 +19,19 @@ var (
 	vmdbPool = sync.Pool{
 		New: func() interface{} {
 			return &VmDB{
-				readSet:      NewReadSet(),
-				readAccounts: make(map[common.Address]*AccountBase, 3),
-				dirties:      make(map[common.Address]struct{}, 3),
-				states:       make(map[common.Address]map[string][]byte, 3),
-				readStates:   make(map[common.Address]map[string][]byte, 3),
-				addBalances:  make(map[common.Address]*big.Int, 3),
-				subBalances:  make(map[common.Address]*big.Int, 3),
-				readCodeHash: make(map[common.Address]common.Hash, 1),
-				refund:       0,
-				logs:         make(map[common.Hash][]*coretypes.Log, 0),
-				accessList:   newAccessList(),
+				readSet:             NewReadSet(),
+				readAccounts:        make(map[common.Address]*AccountBase, 3),
+				dirties:             make(map[common.Address]struct{}, 3),
+				states:              make(map[common.Address]map[string][]byte, 3),
+				readStates:          make(map[common.Address]map[string][]byte, 3),
+				addBalances:         make(map[common.Address]*big.Int, 3),
+				subBalances:         make(map[common.Address]*big.Int, 3),
+				readCodeHash:        make(map[common.Address]common.Hash, 1),
+				refund:              0,
+				logs:                make(map[common.Hash][]*coretypes.Log, 0),
+				accessList:          newAccessList(),
+				snapshotAddBalances: make(map[common.Address]*big.Int, 3),
+				snapshotSubBalances: make(map[common.Address]*big.Int, 3),
 			}
 		},
 	}
@@ -79,6 +81,9 @@ type VmDB struct {
 	logSize    uint
 	accessList *accessList
 
+	snapshotAddBalances map[common.Address]*big.Int
+	snapshotSubBalances map[common.Address]*big.Int
+
 	abortErr error
 }
 
@@ -89,24 +94,26 @@ func NewVmDB(
 	fromAddr common.Address,
 	fromHash, toHash MemoryLocationHash) *VmDB {
 	db := &VmDB{
-		vm:           vm,
-		txIdx:        txIdx,
-		tx:           tx,
-		fromAddr:     fromAddr,
-		toAddr:       common.ZeroAddr,
-		fromHash:     fromHash,
-		toHash:       toHash,
-		readSet:      NewReadSet(),
-		readAccounts: make(map[common.Address]*AccountBase, 3),
-		dirties:      make(map[common.Address]struct{}, 3),
-		states:       make(map[common.Address]map[string][]byte, 3),
-		readStates:   make(map[common.Address]map[string][]byte, 3),
-		addBalances:  make(map[common.Address]*big.Int, 3),
-		subBalances:  make(map[common.Address]*big.Int, 3),
-		readCodeHash: make(map[common.Address]common.Hash, 1),
-		refund:       0,
-		logs:         make(map[common.Hash][]*coretypes.Log, 0),
-		accessList:   newAccessList(),
+		vm:                  vm,
+		txIdx:               txIdx,
+		tx:                  tx,
+		fromAddr:            fromAddr,
+		toAddr:              common.ZeroAddr,
+		fromHash:            fromHash,
+		toHash:              toHash,
+		readSet:             NewReadSet(),
+		readAccounts:        make(map[common.Address]*AccountBase, 3),
+		dirties:             make(map[common.Address]struct{}, 3),
+		states:              make(map[common.Address]map[string][]byte, 3),
+		readStates:          make(map[common.Address]map[string][]byte, 3),
+		addBalances:         make(map[common.Address]*big.Int, 3),
+		subBalances:         make(map[common.Address]*big.Int, 3),
+		readCodeHash:        make(map[common.Address]common.Hash, 1),
+		refund:              0,
+		logs:                make(map[common.Hash][]*coretypes.Log, 0),
+		accessList:          newAccessList(),
+		snapshotAddBalances: make(map[common.Address]*big.Int, 3),
+		snapshotSubBalances: make(map[common.Address]*big.Int, 3),
 	}
 	if tx.To() != nil {
 		db.toAddr = *tx.To()
@@ -169,6 +176,12 @@ func (db *VmDB) reset() {
 	}
 	for k, _ := range db.logs {
 		delete(db.logs, k)
+	}
+	for k, _ := range db.snapshotAddBalances {
+		delete(db.snapshotAddBalances, k)
+	}
+	for k, _ := range db.snapshotSubBalances {
+		delete(db.snapshotSubBalances, k)
 	}
 	db.logSize = 0
 	db.refund = 0
@@ -779,8 +792,45 @@ func (db *VmDB) AddSlotToAccessList(addr common.Address, slot common.Hash) {
 	db.accessList.AddSlot(addr, slot)
 }
 
-func (db *VmDB) RevertToSnapshot(int)                                     { panic("not implement") }
-func (db *VmDB) Snapshot() int                                            { panic("not implement") }
+func (db *VmDB) RevertToSnapshot(int) {
+	db.refund = 0
+	for k, _ := range db.dirties {
+		delete(db.dirties, k)
+	}
+	for k, _ := range db.states {
+		delete(db.states, k)
+	}
+	for k, _ := range db.logs {
+		delete(db.logs, k)
+	}
+	for k, _ := range db.addBalances {
+		delete(db.addBalances, k)
+	}
+	for k, _ := range db.subBalances {
+		delete(db.subBalances, k)
+	}
+
+	for k, v := range db.snapshotAddBalances {
+		db.addBalances[k] = new(big.Int).Set(v)
+		delete(db.snapshotAddBalances, k)
+	}
+
+	for k, v := range db.snapshotSubBalances {
+		db.subBalances[k] = new(big.Int).Set(v)
+		delete(db.snapshotSubBalances, k)
+	}
+}
+
+func (db *VmDB) Snapshot() int {
+	for k, v := range db.addBalances {
+		db.snapshotAddBalances[k] = new(big.Int).Set(v)
+	}
+	for k, v := range db.subBalances {
+		db.snapshotSubBalances[k] = new(big.Int).Set(v)
+	}
+	return 0
+}
+
 func (db *VmDB) ForEachStorage(common.Address, func([]byte, []byte) bool) { panic("not implement") }
 func (db *VmDB) MigrateStorage(common.Address, common.Address)            { panic("not implement") }
 
