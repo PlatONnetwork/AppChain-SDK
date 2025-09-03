@@ -3,6 +3,7 @@ package contracts
 import (
 	"bytes"
 	"errors"
+
 	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
@@ -319,6 +320,8 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 			// remove the delegation by stakeEpoch when:
 			// 1. had not withdrawable undelegate amount
 			c.removeDelegation(delegatorAddr, validatorAddr, stakeEpoch)
+			log.Debug("remove delegation on StakeHandler.Undelegate()", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
+				"stakeEpoch", stakeEpoch, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
 
 			// decrement validator-delegator-rc
 			if err := c.releaseValidatorDelegationRcItem(validatorAddr, stakeEpoch, 1); nil != err {
@@ -336,6 +339,10 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 					"stakeEpoch", stakeEpoch, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber, "error", err)
 				return typesdk.NewRevertError("StakeHandler: SET DELEGATION FAILED")
 			}
+			log.Debug("update delegation on StakeHandler.Undelegate()", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
+				"stakeEpoch", stakeEpoch, "currentEpoch", c.getCurrentEpoch(), "delegationEpoch", delegation.Epoch, "delegationAmount", delegation.Amount,
+				"blockNumber", c.evm.Context.BlockNumber)
+
 			use = amount
 		}
 
@@ -346,6 +353,10 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 		if validator.IsValid() && validator.Epoch == stakeEpoch {
 
 			validator.SubDelegateAmount(use)
+
+			log.Debug("update validator on StakeHandler.Undelegate()", "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "currentEpoch", c.getCurrentEpoch(),
+				"validator.DelegateAmount", validator.DelegateAmount, "blockNumber", c.evm.Context.BlockNumber)
+
 			if err := c.updateValidatorByPriority(validatorAddr, validator); nil != err {
 				log.Error("Failed to update validator priority", "validatorAddr", validatorAddr.Hex(), "error", err)
 				return typesdk.NewRevertError("StakeHandler: SUB DELEGATE AMOUNT OF VALIDATOR FAILED")
@@ -359,7 +370,7 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 	if err := c.addLogUnDelegatedEvent(delegatorAddr, validatorAddr, paid); nil != err {
 		return err
 	}
-	log.Info("Undelegate for", "delegator", delegatorAddr.Hex(), "validator", validatorAddr.Hex(), "expect amount", amount, "use amount", paid, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
+	log.Info("Undelegate for", "delegator", delegatorAddr.Hex(), "validator", validatorAddr.Hex(), "expect amount", origin, "use amount", paid, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }
 
