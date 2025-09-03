@@ -1,19 +1,22 @@
 package types
 
 import (
-	"github.com/PlatONnetwork/PlatON-Go/common"
 	"math/big"
+
+	"github.com/PlatONnetwork/PlatON-Go/common"
 )
 
 type Delegation struct {
-	Epoch  uint64 // delegate epoch
-	Amount *big.Int
+	Epoch          uint64 // delegate epoch
+	PreEpochAmount *big.Int
+	Amount         *big.Int
 }
 
 func NewDelegation(epoch uint64, amount *big.Int) *Delegation {
 	return &Delegation{
-		Epoch:  epoch,
-		Amount: amount,
+		Epoch:          epoch,
+		PreEpochAmount: common.Big0,
+		Amount:         amount,
 	}
 }
 
@@ -31,6 +34,10 @@ func (d *Delegation) DecrementAmount(amount *big.Int) {
 	} else {
 		d.Amount = new(big.Int).Sub(d.Amount, amount)
 	}
+}
+
+func (d *Delegation) SnapPreEpochAmount() {
+	d.PreEpochAmount = new(big.Int).SetBytes(d.Amount.Bytes())
 }
 
 func (d *Delegation) IsEmpty() bool {

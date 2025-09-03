@@ -1,8 +1,9 @@
 package types
 
 import (
-	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"math/big"
+
+	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 )
 
 type EpochDelegationRewardPerShareItem struct {
@@ -104,16 +105,18 @@ func (queue EpochDelegationRewardPerShareWithEpochQueue) IsNotEmpty() bool {
 // ------
 
 type DelegationSnapshot struct {
-	StakeEpoch    uint64 // stake epoch
-	DelegateEpoch uint64 // delegate epoch (Update the value when withdraw delegation rewards or when the delegated amount changes)
-	Amount        *big.Int
+	StakeEpoch     uint64   // stake epoch
+	DelegateEpoch  uint64   // delegate epoch (Update the value when withdraw delegation rewards or when the delegated amount changes)
+	PreEpochAmount *big.Int // total delegate amounts on pre epoch
+	Amount         *big.Int
 }
 
-func NewDelegationSnapshot(stakeEpoch, delegateEpoch uint64, amount *big.Int) *DelegationSnapshot {
+func NewDelegationSnapshot(stakeEpoch, delegateEpoch uint64, preEpochAmount, amount *big.Int) *DelegationSnapshot {
 	return &DelegationSnapshot{
-		StakeEpoch:    stakeEpoch,
-		DelegateEpoch: delegateEpoch,
-		Amount:        amount,
+		StakeEpoch:     stakeEpoch,
+		DelegateEpoch:  delegateEpoch,
+		PreEpochAmount: preEpochAmount,
+		Amount:         amount,
 	}
 }
 

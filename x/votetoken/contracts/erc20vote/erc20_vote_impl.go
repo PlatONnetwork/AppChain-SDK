@@ -2,6 +2,9 @@ package erc20vote
 
 import (
 	"errors"
+	"math/big"
+	"strings"
+
 	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/core/contracts/db/container"
 	"github.com/PlatONnetwork/AppChain-SDK/core/contracts/ecdsa"
@@ -19,8 +22,6 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/crypto"
 	"github.com/PlatONnetwork/PlatON-Go/event"
 	abi2 "github.com/umbracle/ethgo/abi"
-	"math/big"
-	"strings"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.

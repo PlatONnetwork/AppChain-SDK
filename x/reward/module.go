@@ -226,7 +226,7 @@ func (r *RewardModule) handleEpochReward(stateDB sdk.StateDB, blockNumber uint64
 				r.stakeModule.GetValidatorStakeEpoch(stateDB, validatorAddr), currentEpoch,
 				realDelegateEpochReward, perShareDelegatorEpochReward); nil != err {
 
-				r.logger.Error("Set epoch  delegation reward for per share", "currentEpoch", currentEpoch, "error", err)
+				r.logger.Error("Set epoch delegation reward for per share", "currentEpoch", currentEpoch, "error", err)
 				return err
 			}
 		}
@@ -247,11 +247,11 @@ func (r *RewardModule) handleEpochReward(stateDB sdk.StateDB, blockNumber uint64
 }
 
 func (r *RewardModule) getDelegateSnapshot(stateDB sdk.StateDBReader, delegatorAddr, validatorAddr basecommon.Address, stakeEpoch uint64) *types.DelegationSnapshot {
-	delegateEpoch, delegateAmount := r.stakeModule.GetDelegationFlatten(stateDB, delegatorAddr, validatorAddr, stakeEpoch)
+	delegateEpoch, preEpochDelegateAmount, delegateAmount := r.stakeModule.GetDelegationFlatten(stateDB, delegatorAddr, validatorAddr, stakeEpoch)
 	if delegateEpoch == 0 && delegateAmount == basecommon.Big0 {
 		return nil
 	}
-	return types.NewDelegationSnapshot(stakeEpoch, delegateEpoch, delegateAmount)
+	return types.NewDelegationSnapshot(stakeEpoch, delegateEpoch, preEpochDelegateAmount, delegateAmount)
 }
 
 func (r *RewardModule) getEpochDelegationRewardQueue(stateDB sdk.StateDBReader, validatorAddr basecommon.Address, stakeEpoch, fromRewardEpoch, toRewardEpoch uint64) types.EpochDelegationRewardPerShareWithEpochQueue {
@@ -346,7 +346,7 @@ func (r *RewardModule) UpdateDelegationRewards(stateDB sdk.StateDB, delegatorAdd
 	}
 
 	for _, snap := range delegateRewardSnapshotQueue {
-		if err := r.aggregationEpochDelegationRewards(stateDB, delegatorAddr, validatorAddr, snap.Delegation.StakeEpoch, snap.Delegation.Amount, snap.RewardQueue); nil != err {
+		if err := r.aggregationEpochDelegationRewards(stateDB, delegatorAddr, validatorAddr, snap.Delegation.StakeEpoch, snap.Delegation.PreEpochAmount, snap.RewardQueue); nil != err {
 			r.logger.Error("Failed to aggregate epoch delegation rewards", "currentEpoch", currentEpoch, "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "stakeEpoch", snap.Delegation.StakeEpoch, "error", err)
 			return err
 		}
@@ -376,7 +376,7 @@ func (r *RewardModule) UpdateDelegationRewardsByStakeEpoch(stateDB sdk.StateDB, 
 		return nil
 	}
 
-	if err := r.aggregationEpochDelegationRewards(stateDB, delegatorAddr, validatorAddr, stakeEpoch, delegation.Amount, rewardQueue); nil != err {
+	if err := r.aggregationEpochDelegationRewards(stateDB, delegatorAddr, validatorAddr, stakeEpoch, delegation.PreEpochAmount, rewardQueue); nil != err {
 		r.logger.Error("Failed to aggregate epoch delegation rewards", "currentEpoch", currentEpoch, "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "error", err)
 		return err
 	}

@@ -2,11 +2,12 @@ package contracts
 
 import (
 	"bytes"
+	"math/big"
+
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	db "github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
-	"math/big"
 )
 
 // ------------------------------------------------------ db methods ------------------------------------------------------
@@ -138,7 +139,13 @@ func (c *StakeHandler) incrementDelegation(delegatorAddr, validatorAddr common.A
 	var build bool
 
 	if nil != del {
-		del.UpdateEpoch(delegateEpoch)
+		switch {
+		case del.Epoch > delegateEpoch:
+			return false, db.ErrInvalidValue
+		case del.Epoch < delegateEpoch:
+			del.UpdateEpoch(delegateEpoch)
+			del.SnapPreEpochAmount()
+		}
 		del.IncrementAmount(amount)
 	} else {
 		del = types.NewDelegation(delegateEpoch, amount)
@@ -152,7 +159,13 @@ func (c *StakeHandler) decrementDelegation(delegatorAddr, validatorAddr common.A
 	if nil == del {
 		return false, db.ErrNotFound
 	}
-	del.UpdateEpoch(delegateEpoch)
+	switch {
+	case del.Epoch > delegateEpoch:
+		return false, db.ErrInvalidValue
+	case del.Epoch < delegateEpoch:
+		del.UpdateEpoch(delegateEpoch)
+		del.SnapPreEpochAmount()
+	}
 	del.DecrementAmount(amount)
 
 	var remove bool

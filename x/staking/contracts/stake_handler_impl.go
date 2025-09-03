@@ -291,6 +291,7 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 
 	delegatorAddr := c.contract.Caller()
 
+	currentEpoch := c.getCurrentEpoch()
 	epochs, _ := c.getValidatorDelegationRcPendingAndEpoch(validatorAddr, math.MaxUint64)
 	origin := new(big.Int).SetBytes(amount.Bytes())
 	paid := common.Big0
@@ -310,8 +311,8 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 		// NOTE:
 		// Priority must be given to settling commission rewards before proceeding with the `withdraw` operation.
 		if err := c.rewardModule.UpdateDelegationRewardsByStakeEpoch(c.evm.StateDB, delegatorAddr, validatorAddr, stakeEpoch); nil != err {
-			log.Error("Failed to update delegation rewards by stakeEpoch", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
-				"stakeEpoch", stakeEpoch, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber, "error", err)
+			log.Error("Failed to update delegation rewards by stakeEpoch on StakeHandler.Undelegate()", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
+				"stakeEpoch", stakeEpoch, "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber, "error", err)
 			return typesdk.NewRevertError("StakeHandler: UPDATE DELEGATION REWARDS BY STAKE EPOCH FAILED")
 		}
 
@@ -321,26 +322,29 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 			// 1. had not withdrawable undelegate amount
 			c.removeDelegation(delegatorAddr, validatorAddr, stakeEpoch)
 			log.Debug("remove delegation on StakeHandler.Undelegate()", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
-				"stakeEpoch", stakeEpoch, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
+				"stakeEpoch", stakeEpoch, "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber)
 
 			// decrement validator-delegator-rc
 			if err := c.releaseValidatorDelegationRcItem(validatorAddr, stakeEpoch, 1); nil != err {
-				log.Error("Failed to release validatorDelegation rc", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
-					"stakeEpoch", stakeEpoch, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber, "error", err)
+				log.Error("Failed to release validatorDelegation rc on StakeHandler.Undelegate()", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
+					"stakeEpoch", stakeEpoch, "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber, "error", err)
 				return typesdk.NewRevertError("StakeHandler: RELEASE VALIDATOR DELEGATION RC FAILED")
 			}
 			use = delegation.Amount
 		} else {
 			// update delegation with new epoch and new amount
-			delegation.UpdateEpoch(c.getCurrentEpoch())
+			if delegation.Epoch < currentEpoch {
+				delegation.UpdateEpoch(currentEpoch)
+				delegation.SnapPreEpochAmount()
+			}
 			delegation.DecrementAmount(amount)
 			if err := c.setDelegation(delegatorAddr, validatorAddr, stakeEpoch, delegation); nil != err {
-				log.Error("Failed to set delegation", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
-					"stakeEpoch", stakeEpoch, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber, "error", err)
+				log.Error("Failed to update delegation on StakeHandler.Undelegate()", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
+					"stakeEpoch", stakeEpoch, "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber, "error", err)
 				return typesdk.NewRevertError("StakeHandler: SET DELEGATION FAILED")
 			}
 			log.Debug("update delegation on StakeHandler.Undelegate()", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
-				"stakeEpoch", stakeEpoch, "currentEpoch", c.getCurrentEpoch(), "delegationEpoch", delegation.Epoch, "delegationAmount", delegation.Amount,
+				"stakeEpoch", stakeEpoch, "currentEpoch", currentEpoch, "delegationEpoch", delegation.Epoch, "delegationAmount", delegation.Amount,
 				"blockNumber", c.evm.Context.BlockNumber)
 
 			use = amount
@@ -354,11 +358,11 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 
 			validator.SubDelegateAmount(use)
 
-			log.Debug("update validator on StakeHandler.Undelegate()", "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "currentEpoch", c.getCurrentEpoch(),
+			log.Debug("update validator on StakeHandler.Undelegate()", "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "currentEpoch", currentEpoch,
 				"validator.DelegateAmount", validator.DelegateAmount, "blockNumber", c.evm.Context.BlockNumber)
 
 			if err := c.updateValidatorByPriority(validatorAddr, validator); nil != err {
-				log.Error("Failed to update validator priority", "validatorAddr", validatorAddr.Hex(), "error", err)
+				log.Error("Failed to update validator priority on StakeHandler.Undelegate()", "validatorAddr", validatorAddr.Hex(), "error", err)
 				return typesdk.NewRevertError("StakeHandler: SUB DELEGATE AMOUNT OF VALIDATOR FAILED")
 			}
 		}
@@ -370,7 +374,7 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 	if err := c.addLogUnDelegatedEvent(delegatorAddr, validatorAddr, paid); nil != err {
 		return err
 	}
-	log.Info("Undelegate for", "delegator", delegatorAddr.Hex(), "validator", validatorAddr.Hex(), "expect amount", origin, "use amount", paid, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
+	log.Info("Undelegate for", "delegator", delegatorAddr.Hex(), "validator", validatorAddr.Hex(), "expect amount", origin, "use amount", paid, "currentEpoch", currentEpoch, "blockNumber", c.evm.Context.BlockNumber)
 	return nil
 }
 

@@ -784,12 +784,12 @@ func (s *StakeModule) GetEpochByValidatorDelegationRcPending(stateDB sdk.StateDB
 	epochs, _ := db.GetValidatorDelegationRcPendingAndEpoch(stateDB, s.Address(), validatorAddr, math.MaxUint64)
 	return epochs
 }
-func (s *StakeModule) GetDelegationFlatten(stateDB sdk.StateDBReader, delegatorAddr, validatorAddr basecommon.Address, stakeEpoch uint64) (uint64, *big.Int) {
+func (s *StakeModule) GetDelegationFlatten(stateDB sdk.StateDBReader, delegatorAddr, validatorAddr basecommon.Address, stakeEpoch uint64) (uint64, *big.Int, *big.Int) {
 	delegation := db.GetDelegation(stateDB, s.Address(), delegatorAddr, validatorAddr, stakeEpoch)
 	if delegation.IsEmpty() {
-		return 0, basecommon.Big0
+		return 0, basecommon.Big0, basecommon.Big0
 	}
-	return delegation.Epoch, delegation.Amount
+	return delegation.Epoch, delegation.PreEpochAmount, delegation.Amount
 }
 func (s *StakeModule) UpdateDelegationEpoch(stateDB sdk.StateDB, delegatorAddr, validatorAddr basecommon.Address, stakeEpoch, delegateEpoch uint64) error {
 	delegation := db.GetDelegation(stateDB, s.Address(), delegatorAddr, validatorAddr, stakeEpoch)
@@ -803,6 +803,7 @@ func (s *StakeModule) UpdateDelegationEpoch(stateDB sdk.StateDB, delegatorAddr, 
 		return fmt.Errorf("new delegate epoch not greater than old, old epoch: %d, new epoch: %d", delegation.Epoch, delegateEpoch)
 	}
 	delegation.UpdateEpoch(delegateEpoch)
+	delegation.SnapPreEpochAmount()
 	return db.SetDelegation(stateDB, s.Address(), delegatorAddr, validatorAddr, stakeEpoch, delegation)
 }
 

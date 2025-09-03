@@ -4,6 +4,8 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	"math/big"
+
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/stage/types"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
@@ -11,7 +13,6 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/p2p/enode"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
-	"math/big"
 )
 
 var (
@@ -807,12 +808,12 @@ func (stake *MockStakeModule) GetEpochByValidatorDelegationRcPending(statedb sdk
 	}
 	return queue
 }
-func (stake *MockStakeModule) GetDelegationFlatten(statedb sdk.StateDBReader, delegatorAddr, validatorAddr common.Address, stakeEpoch uint64) (uint64, *big.Int) {
+func (stake *MockStakeModule) GetDelegationFlatten(statedb sdk.StateDBReader, delegatorAddr, validatorAddr common.Address, stakeEpoch uint64) (uint64, *big.Int, *big.Int) {
 	delegation := stake.getDelegation(delegatorAddr, validatorAddr, stakeEpoch)
 	if delegation.IsEmpty() {
-		return 0, common.Big0
+		return 0, common.Big0, common.Big0
 	}
-	return delegation.Epoch, delegation.Amount
+	return delegation.Epoch, delegation.PreEpochAmount, delegation.Amount
 }
 func (stake *MockStakeModule) UpdateDelegationEpoch(statedb sdk.StateDB, delegatorAddr, validatorAddr common.Address, stakeEpoch, delegateEpoch uint64) error {
 	delegation := stake.getDelegation(delegatorAddr, validatorAddr, stakeEpoch)
@@ -1010,14 +1011,16 @@ func (queue MockValidatorSnapshotQueue) IsNotEmpty() bool {
 }
 
 type MockDelegation struct {
-	Epoch  uint64 // delegate epoch
-	Amount *big.Int
+	Epoch          uint64 // delegate epoch
+	PreEpochAmount *big.Int
+	Amount         *big.Int
 }
 
 func NewMockDelegation(epoch uint64, amount *big.Int) *MockDelegation {
 	return &MockDelegation{
-		Epoch:  epoch,
-		Amount: amount,
+		Epoch:          epoch,
+		PreEpochAmount: common.Big0,
+		Amount:         amount,
 	}
 }
 func (item *MockDelegation) IsEmpty() bool {
