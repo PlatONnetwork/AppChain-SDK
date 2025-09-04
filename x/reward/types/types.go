@@ -3,7 +3,6 @@ package types
 import (
 	"math/big"
 
-	"github.com/PlatONnetwork/PlatON-Go/common"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 )
 
@@ -127,16 +126,6 @@ func (d *DelegationSnapshot) IsEmpty() bool {
 
 func (d *DelegationSnapshot) IsNotEmpty() bool {
 	return !d.IsEmpty()
-}
-
-func (d *DelegationSnapshot) CalculateDelegateShares(currentEpoch uint64) *big.Int {
-	if currentEpoch == d.DelegateEpoch+1 {
-		return d.PreEpochAmount
-	} else if currentEpoch > d.DelegateEpoch+1 {
-		return d.Amount
-	} else {
-		return common.Big0
-	}
 }
 
 type DelegationRewardSnapshot struct {
