@@ -47,3 +47,13 @@ func (d *Delegation) IsEmpty() bool {
 func (d *Delegation) IsNotEmpty() bool {
 	return !d.IsEmpty()
 }
+
+func (d *Delegation) CalculateDelegateShares(currentEpoch uint64) *big.Int {
+	if currentEpoch == d.Epoch+1 {
+		return d.PreEpochAmount
+	} else if currentEpoch > d.Epoch+1 {
+		return d.Amount
+	} else {
+		return common.Big0
+	}
+}
