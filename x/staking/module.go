@@ -763,14 +763,14 @@ func (s *StakeModule) GetValidatorStakeEpoch(stateDB sdk.StateDBReader, validato
 func (s *StakeModule) GetValidatorStakeAmount(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) *big.Int {
 	validator := db.GetValidator(stateDB, s.Address(), validatorAddr)
 	if validator.IsEmpty() {
-		return basecommon.Big0
+		return big.NewInt(0)
 	}
 	return validator.StakeAmount
 }
 func (s *StakeModule) GetValidatorDelegateAmount(stateDB sdk.StateDBReader, validatorAddr basecommon.Address) *big.Int {
 	validator := db.GetValidator(stateDB, s.Address(), validatorAddr)
 	if validator.IsEmpty() {
-		return basecommon.Big0
+		return big.NewInt(0)
 	}
 	return validator.DelegateAmount
 }
@@ -787,7 +787,7 @@ func (s *StakeModule) GetEpochByValidatorDelegationRcPending(stateDB sdk.StateDB
 func (s *StakeModule) GetDelegationFlatten(stateDB sdk.StateDBReader, delegatorAddr, validatorAddr basecommon.Address, stakeEpoch uint64) (uint64, *big.Int, *big.Int) {
 	delegation := db.GetDelegation(stateDB, s.Address(), delegatorAddr, validatorAddr, stakeEpoch)
 	if delegation.IsEmpty() {
-		return 0, basecommon.Big0, basecommon.Big0
+		return 0, big.NewInt(0), big.NewInt(0)
 	}
 	return delegation.Epoch, delegation.PreEpochAmount, delegation.Amount
 }

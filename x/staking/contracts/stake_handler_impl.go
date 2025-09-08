@@ -294,7 +294,7 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 	currentEpoch := c.getCurrentEpoch()
 	epochs, _ := c.getValidatorDelegationRcPendingAndEpoch(validatorAddr, math.MaxUint64)
 	origin := new(big.Int).SetBytes(amount.Bytes())
-	paid := common.Big0
+	paid := big.NewInt(0)
 
 	validator := c.getValidator(validatorAddr)
 	for _, stakeEpoch := range epochs {
@@ -316,7 +316,7 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 			return typesdk.NewRevertError("StakeHandler: UPDATE DELEGATION REWARDS BY STAKE EPOCH FAILED")
 		}
 
-		use := common.Big0
+		use := big.NewInt(0)
 		if delegation.Amount.Cmp(amount) <= 0 {
 			// remove the delegation by stakeEpoch when:
 			// 1. had not withdrawable undelegate amount

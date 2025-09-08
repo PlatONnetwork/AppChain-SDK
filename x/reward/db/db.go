@@ -102,7 +102,7 @@ func SetRewardPerBlock(db sdk.StateDB, addr basecommon.Address, value *big.Int) 
 func GetRewardPerBlock(db sdk.StateDBReader, addr basecommon.Address) *big.Int {
 	value := db.GetState(addr, EncodeRewardPerBlock())
 	if len(value) == 0 {
-		return basecommon.Big0
+		return big.NewInt(0)
 	}
 	return new(big.Int).SetBytes(value)
 }
@@ -113,7 +113,7 @@ func SetRewardPerEpoch(db sdk.StateDB, addr basecommon.Address, value *big.Int) 
 func GetRewardPerEpoch(db sdk.StateDBReader, addr basecommon.Address) *big.Int {
 	value := db.GetState(addr, EncodeRewardPerEpoch())
 	if len(value) == 0 {
-		return basecommon.Big0
+		return big.NewInt(0)
 	}
 	return new(big.Int).SetBytes(value)
 }
@@ -122,7 +122,7 @@ func GetRewardPerEpoch(db sdk.StateDBReader, addr basecommon.Address) *big.Int {
 
 func GetPaidRewardPerEpoch(db sdk.StateDBReader, addr basecommon.Address, epoch uint64) *big.Int {
 	value := db.GetState(addr, encodePaidRewardPerEpochKey(epoch))
-	number := basecommon.Big0
+	number := big.NewInt(0)
 	if len(value) != 0 {
 		number = new(big.Int).SetBytes(value)
 	}
@@ -154,7 +154,7 @@ func DecrementPendingValidatorReward(db sdk.StateDB, addr, validatorAddr basecom
 
 func GetPendingValidatorReward(db sdk.StateDBReader, addr, validatorAddr basecommon.Address) *big.Int {
 	value := db.GetState(addr, encodePendingValidatorRewardKey(validatorAddr))
-	number := basecommon.Big0
+	number := big.NewInt(0)
 	if len(value) != 0 {
 		number = new(big.Int).SetBytes(value)
 	}
@@ -180,7 +180,7 @@ func DecrementPendingDelegatorReward(db sdk.StateDB, addr basecommon.Address, de
 
 func GetPendingDelegatorReward(db sdk.StateDBReader, addr basecommon.Address, delegatorAddr, validatorAddr basecommon.Address) *big.Int {
 	value := db.GetState(addr, encodePendingDelegatorRewardKey(delegatorAddr, validatorAddr))
-	number := basecommon.Big0
+	number := big.NewInt(0)
 	if len(value) != 0 {
 		number = new(big.Int).SetBytes(value)
 	}
@@ -266,9 +266,9 @@ func AppendEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr
 		preEpoch := uint64(0)
 		// tail -> head -> epoch -> tail -> head
 
-		preItem := types.NewEpochDelegationRewardPerShareItem(indexEpoch, rewardEpoch, basecommon.Big0, basecommon.Big0) // head
-		epochItem := types.NewEpochDelegationRewardPerShareItem(preEpoch, indexEpoch, totalReward, perShareReward)       // item
-		indexItem = types.NewEpochDelegationRewardPerShareItem(rewardEpoch, preEpoch, basecommon.Big0, basecommon.Big0)  // tail
+		preItem := types.NewEpochDelegationRewardPerShareItem(indexEpoch, rewardEpoch, big.NewInt(0), big.NewInt(0)) // head
+		epochItem := types.NewEpochDelegationRewardPerShareItem(preEpoch, indexEpoch, totalReward, perShareReward)   // item
+		indexItem = types.NewEpochDelegationRewardPerShareItem(rewardEpoch, preEpoch, big.NewInt(0), big.NewInt(0))  // tail
 
 		if err := SetEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, preEpoch, preItem); nil != err {
 			return err

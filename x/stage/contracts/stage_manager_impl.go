@@ -2,6 +2,9 @@ package contracts
 
 import (
 	"errors"
+	"math/big"
+	"strings"
+
 	"github.com/PlatONnetwork/AppChain-SDK/core/contracts"
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	platon "github.com/PlatONnetwork/PlatON-Go"
@@ -11,8 +14,6 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/event"
-	"math/big"
-	"strings"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -126,6 +127,6 @@ func (c *StageManager) GetPeriodEdges(periodType uint8, start *big.Int, size *bi
 	case 2: // epoch
 		return c.getPeriodEdgesForEpoch(start.Uint64(), size.Uint64())
 	default:
-		return common.Big0, nil, nil, typesdk.NewRevertError("StageManager: UNKNOWN PERIOD TYPE")
+		return big.NewInt(0), nil, nil, typesdk.NewRevertError("StageManager: UNKNOWN PERIOD TYPE")
 	}
 }

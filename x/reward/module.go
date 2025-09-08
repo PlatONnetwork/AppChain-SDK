@@ -14,7 +14,6 @@ import (
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/contracts"
 	rewarddb "github.com/PlatONnetwork/AppChain-SDK/x/reward/db"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/types"
-	"github.com/PlatONnetwork/PlatON-Go/common"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	coretypes "github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
@@ -150,7 +149,8 @@ func (r *RewardModule) handleBlocksRewardForPreviousRound(stateDB sdk.StateDB, b
 	handleRound := currentRound - 1
 	previousRoundValidatorIds := r.stakeModule.GetRoundValidatorIds(stateDB, handleRound)
 
-	totalPaidReward := basecommon.Big0
+	totalPaidReward := big.NewInt(0)
+
 	for _, validatorAddr := range previousRoundValidatorIds {
 
 		numberOfBlocks := r.stakeModule.GetNumberOfBlocksForRoundValidator(stateDB, validatorAddr, handleRound)
@@ -194,9 +194,9 @@ func (r *RewardModule) handleEpochReward(stateDB sdk.StateDB, blockNumber uint64
 		delegateAmount := epochDelegateAmountQueue[i]
 		commissionRate := commissionRateQueue[i]
 
-		realDelegateEpochReward := basecommon.Big0
-		realValidatorEpochReward := basecommon.Big0
-		perShareDelegatorEpochReward := basecommon.Big0
+		realDelegateEpochReward := big.NewInt(0)
+		realValidatorEpochReward := big.NewInt(0)
+		perShareDelegatorEpochReward := big.NewInt(0)
 
 		totalShares := new(big.Int).Add(stakeAmount, delegateAmount)
 		// #### NOTE ####
@@ -249,7 +249,7 @@ func (r *RewardModule) handleEpochReward(stateDB sdk.StateDB, blockNumber uint64
 
 func (r *RewardModule) getDelegateSnapshot(stateDB sdk.StateDBReader, delegatorAddr, validatorAddr basecommon.Address, stakeEpoch uint64) *types.DelegationSnapshot {
 	delegateEpoch, preEpochDelegateAmount, delegateAmount := r.stakeModule.GetDelegationFlatten(stateDB, delegatorAddr, validatorAddr, stakeEpoch)
-	if delegateEpoch == 0 && delegateAmount == basecommon.Big0 {
+	if delegateEpoch == 0 && delegateAmount.Cmp(basecommon.Big0) == 0 {
 		return nil
 	}
 	return types.NewDelegationSnapshot(stakeEpoch, delegateEpoch, preEpochDelegateAmount, delegateAmount)
@@ -272,11 +272,11 @@ func (r *RewardModule) getEpochDelegationRewardQueue(stateDB sdk.StateDBReader, 
 
 func (r *RewardModule) aggregationEpochDelegationRewards(stateDB sdk.StateDB, delegatorAddr, validatorAddr basecommon.Address, stakeEpoch uint64, delegateSnap *types.DelegationSnapshot, rewardQueue types.EpochDelegationRewardPerShareWithEpochQueue) error {
 
-	totalRewards := basecommon.Big0
+	totalRewards := big.NewInt(0)
 
 	for i, item := range rewardQueue {
 
-		delegateAmount := common.Big0
+		delegateAmount := big.NewInt(0)
 		if delegateSnap.DelegateEpoch == item.RewardEpoch {
 			delegateAmount = delegateSnap.PreEpochAmount
 		} else if delegateSnap.DelegateEpoch < item.RewardEpoch {

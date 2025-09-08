@@ -225,7 +225,7 @@ func (c *StakeHandler) stake(validatorAddr, owner common.Address, amount *big.In
 
 	stakeIndex := c.incrementValidatorNonce()
 
-	if err := c.setValidatorByPriority(validatorAddr, types.NewValidator(owner, amount, common.Big0, blsKey, pubKey, commissionRate, c.getCurrentEpoch(), stakeIndex)); nil != err {
+	if err := c.setValidatorByPriority(validatorAddr, types.NewValidator(owner, amount, big.NewInt(0), blsKey, pubKey, commissionRate, c.getCurrentEpoch(), stakeIndex)); nil != err {
 		log.Error("Failed to set validator stake", "validatorAddr", validatorAddr.Hex(), "error", err)
 		return typesdk.NewRevertError("StakeHandler: STAKE FAILED")
 	}

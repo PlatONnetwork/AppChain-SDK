@@ -1,14 +1,15 @@
 package db
 
 import (
+	"math/big"
+	"testing"
+
 	"github.com/PlatONnetwork/AppChain-SDK/x/constants"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/common/math"
 	"github.com/PlatONnetwork/PlatON-Go/common/mock"
 	"github.com/stretchr/testify/assert"
-	"math/big"
-	"testing"
 )
 
 func Test_RegisterDelegateWithdrawal(t *testing.T) {
@@ -29,7 +30,7 @@ func Test_RegisterDelegateWithdrawal(t *testing.T) {
 
 	withdrawableAmount := GetDelegateWithdrawable(statedb, constants.StakeHandlerAddress, delegatorAddr, validatorAddr, currentEpoch)
 	//t.Log("withdrawableAmount:", withdrawableAmount)
-	assert.Equal(t, withdrawableAmount, common.Big0)
+	assert.Equal(t, withdrawableAmount, big.NewInt(0))
 
 	withdrawalPendingAmount := GetDelegateWithdrawalPending(statedb, constants.StakeHandlerAddress, delegatorAddr, validatorAddr, currentEpoch)
 	//t.Log("withdrawalPendingAmount:", withdrawalPendingAmount)
@@ -84,7 +85,7 @@ func Test_IncrementNumberOfBlocksForRoundValidator(t *testing.T) {
 
 	roundValidatorQueue := types.NewValidatorSharesSnapshotQueue(0)
 	for i, validatorAddr := range validatorAddrQueue {
-		snap := types.NewValidatorSharesSnapshot(validatorAddr, 1, uint64(i+1), 100, common.Big0, common.Big0)
+		snap := types.NewValidatorSharesSnapshot(validatorAddr, 1, uint64(i+1), 100, big.NewInt(0), big.NewInt(0))
 		roundValidatorQueue = append(roundValidatorQueue, snap)
 	}
 

@@ -2,9 +2,10 @@ package db
 
 import (
 	"errors"
+	"math/big"
+
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
-	"math/big"
 )
 
 var (
@@ -31,7 +32,7 @@ func IncrementCounter(db sdk.StateDB, addr common.Address) *big.Int {
 func GetCounter(db sdk.StateDBReader, addr common.Address) *big.Int {
 	value := db.GetState(addr, l2StateSenderCounterKey)
 	if len(value) == 0 {
-		return common.Big0
+		return big.NewInt(0)
 	}
 	return new(big.Int).SetBytes(value)
 }

@@ -3,13 +3,14 @@ package db
 import (
 	"bytes"
 	"errors"
+	"math/big"
+
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/common/math"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
-	"math/big"
 )
 
 var (
@@ -603,9 +604,9 @@ func AppendStakeWithdrawal(db sdk.StateDB, addr, validatorAddr common.Address, e
 		preEpoch := uint64(0)
 		// tail -> head -> epoch -> tail -> head
 
-		preItem := types.NewStakeWithdrawalItem(indexEpoch, epoch, common.Big0) // head
-		epochItem := types.NewStakeWithdrawalItem(preEpoch, indexEpoch, amount) // item
-		indexItem = types.NewStakeWithdrawalItem(epoch, preEpoch, common.Big0)  // tail
+		preItem := types.NewStakeWithdrawalItem(indexEpoch, epoch, big.NewInt(0)) // head
+		epochItem := types.NewStakeWithdrawalItem(preEpoch, indexEpoch, amount)   // item
+		indexItem = types.NewStakeWithdrawalItem(epoch, preEpoch, big.NewInt(0))  // tail
 
 		if err := SetStakeWithdrawalQueueItem(db, addr, validatorAddr, preEpoch, preItem); nil != err {
 			return err
@@ -700,7 +701,7 @@ func AppendStakeWithdrawal(db sdk.StateDB, addr, validatorAddr common.Address, e
 
 func GetStakeWithdrawal(db sdk.StateDBReader, addr, validatorAddr common.Address) *big.Int {
 
-	amount := common.Big0
+	amount := big.NewInt(0)
 
 	indexEpoch := uint64(0)
 	indexItem := GetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch)
@@ -718,7 +719,7 @@ func GetStakeWithdrawalByEpoch(db sdk.StateDBReader, addr, validatorAddr common.
 	if nil != item {
 		return item.Amount
 	}
-	return common.Big0
+	return big.NewInt(0)
 }
 
 func GetStakeWithdrawalLastEpoch(db sdk.StateDBReader, addr, validatorAddr common.Address) uint64 {
@@ -737,7 +738,7 @@ func GetStakeWithdrawalLastEpoch(db sdk.StateDBReader, addr, validatorAddr commo
 // Total of all rewards until epoch
 func GetStakeWithdrawable(db sdk.StateDBReader, addr, validatorAddr common.Address, epoch uint64) *big.Int {
 
-	amount := common.Big0
+	amount := big.NewInt(0)
 
 	indexEpoch := uint64(0)
 	indexItem := GetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch)
@@ -761,7 +762,7 @@ func GetStakeWithdrawable(db sdk.StateDBReader, addr, validatorAddr common.Addre
 
 func ApplyStakeWithdrawable(db sdk.StateDB, addr, validatorAddr common.Address, epoch uint64) (*big.Int, error) {
 
-	amount := common.Big0
+	amount := big.NewInt(0)
 
 	indexEpoch := uint64(0)
 	indexItem := GetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch)
@@ -794,7 +795,7 @@ func ApplyStakeWithdrawable(db sdk.StateDB, addr, validatorAddr common.Address, 
 		head := GetStakeWithdrawalQueueItem(db, addr, validatorAddr, uint64(0))
 		head.UpdateNextEpoch(indexEpoch)
 		if err := SetStakeWithdrawalQueueItem(db, addr, validatorAddr, uint64(0), head); nil != err { // update head
-			return common.Big0, err
+			return big.NewInt(0), err
 		}
 	}
 
@@ -824,7 +825,7 @@ func CleanStakeWithdrawable(db sdk.StateDB, addr, validatorAddr common.Address) 
 // Total of all rewards since epoch
 func GetStakeWithdrawalPending(db sdk.StateDBReader, addr, validatorAddr common.Address, epoch uint64) *big.Int {
 
-	amount := common.Big0
+	amount := big.NewInt(0)
 
 	indexEpoch := uint64(math.MaxUint64)
 	indexItem := GetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch)
@@ -886,9 +887,9 @@ func AppendDelegateWithdrawal(db sdk.StateDB, addr common.Address, delegatorAddr
 		preEpoch := uint64(0)
 		// tail -> head -> epoch -> tail -> head
 
-		preItem := types.NewDelegateWithdrawalItem(indexEpoch, epoch, common.Big0) // head
-		epochItem := types.NewDelegateWithdrawalItem(preEpoch, indexEpoch, amount) // item
-		indexItem = types.NewDelegateWithdrawalItem(epoch, preEpoch, common.Big0)  // tail
+		preItem := types.NewDelegateWithdrawalItem(indexEpoch, epoch, big.NewInt(0)) // head
+		epochItem := types.NewDelegateWithdrawalItem(preEpoch, indexEpoch, amount)   // item
+		indexItem = types.NewDelegateWithdrawalItem(epoch, preEpoch, big.NewInt(0))  // tail
 
 		if err := setDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, preEpoch, preItem); nil != err {
 			return err
@@ -982,7 +983,7 @@ func AppendDelegateWithdrawal(db sdk.StateDB, addr common.Address, delegatorAddr
 }
 
 func GetDelegateWithdrawal(db sdk.StateDBReader, addr common.Address, delegatorAddr, validatorAddr common.Address) *big.Int {
-	amount := common.Big0
+	amount := big.NewInt(0)
 
 	indexEpoch := uint64(0)
 	indexItem := getDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, indexEpoch)
@@ -1000,12 +1001,12 @@ func GetDelegateWithdrawalByEpoch(db sdk.StateDBReader, addr common.Address, del
 	if nil != item {
 		return item.Amount
 	}
-	return common.Big0
+	return big.NewInt(0)
 }
 
 // Total of all rewards until epoch
 func GetDelegateWithdrawable(db sdk.StateDBReader, addr common.Address, delegatorAddr, validatorAddr common.Address, epoch uint64) *big.Int {
-	amount := common.Big0
+	amount := big.NewInt(0)
 
 	indexEpoch := uint64(0)
 	indexItem := getDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, indexEpoch)
@@ -1029,7 +1030,7 @@ func GetDelegateWithdrawable(db sdk.StateDBReader, addr common.Address, delegato
 
 func ApplyDelegateWithdrawable(db sdk.StateDB, addr common.Address, delegatorAddr, validatorAddr common.Address, epoch uint64) (*big.Int, error) {
 
-	amount := common.Big0
+	amount := big.NewInt(0)
 
 	indexEpoch := uint64(0)
 	indexItem := getDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, indexEpoch)
@@ -1062,7 +1063,7 @@ func ApplyDelegateWithdrawable(db sdk.StateDB, addr common.Address, delegatorAdd
 		head := getDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, uint64(0))
 		head.UpdateNextEpoch(indexEpoch)
 		if err := setDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, uint64(0), head); nil != err {
-			return common.Big0, err
+			return big.NewInt(0), err
 		}
 	}
 
@@ -1071,7 +1072,7 @@ func ApplyDelegateWithdrawable(db sdk.StateDB, addr common.Address, delegatorAdd
 
 // Total of all rewards since epoch
 func GetDelegateWithdrawalPending(db sdk.StateDBReader, addr common.Address, delegatorAddr, validatorAddr common.Address, epoch uint64) *big.Int {
-	amount := common.Big0
+	amount := big.NewInt(0)
 
 	indexEpoch := uint64(math.MaxUint64)
 	indexItem := getDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, indexEpoch)
