@@ -2,13 +2,14 @@ package contracts
 
 import (
 	"fmt"
-	"github.com/PlatONnetwork/PlatON-Go/common"
-	"github.com/status-im/keycard-go/hexutils"
-	"github.com/test-go/testify/assert"
 	"math/big"
 	"math/rand"
 	"testing"
 	"time"
+
+	"github.com/PlatONnetwork/PlatON-Go/common"
+	"github.com/status-im/keycard-go/hexutils"
+	"github.com/test-go/testify/assert"
 )
 
 func Test_StakeFor(t *testing.T) {
@@ -34,7 +35,7 @@ func Test_StakeFor(t *testing.T) {
 		assert.Equal(t, item.Owner, validator.Owner, fmt.Sprintf("mismatching owner, expect: %s, actual: %s", item.Owner.Hex(), validator.Owner.Hex()))
 		assert.Equal(t, item.StakeAmount, validator.StakeAmount, fmt.Sprintf("mismatching stakeAmount, expect: %d, actual: %d", item.StakeAmount, validator.StakeAmount))
 		assert.Equal(t, item.CommissionRate, validator.CommissionRate, fmt.Sprintf("mismatching commissionRate, expect: %d, actual: %d", item.CommissionRate, validator.CommissionRate))
-		assert.Equal(t, common.Big0, validator.Status, fmt.Sprintf("mismatching status, expect: %d, actual: %d", common.Big0, validator.Status))
+		assert.Equal(t, big.NewInt(0), validator.Status, fmt.Sprintf("mismatching status, expect: %d, actual: %d", big.NewInt(0), validator.Status))
 		assert.Equal(t, epoch, validator.Epoch.Uint64(), fmt.Sprintf("mismatching epoch, expect: %d, actual: %d", epoch, validator.Epoch))
 		assert.Equal(t, uint64(i), validator.StakeIndex.Uint64(), fmt.Sprintf("mismatching stakeIndex, expect: %d, actual: %d", i, validator.StakeIndex))
 		assert.Equal(t, item.PubKey, validator.PubKey, fmt.Sprintf("mismatching pubKey, expect: %s, actual: %s", hexutils.BytesToHex(item.PubKey), hexutils.BytesToHex(validator.PubKey)))
@@ -135,7 +136,7 @@ func Test_Delegate(t *testing.T) {
 
 		oldDelegateAmount := validatorDelegateAmountCache[validatorAddr]
 
-		allDelegatorAmount := common.Big0
+		allDelegatorAmount := big.NewInt(0)
 
 		for _, delegator := range delegatorArr {
 			allDelegatorAmount = new(big.Int).Add(allDelegatorAmount, delegateDataCache[delegator].Amount)

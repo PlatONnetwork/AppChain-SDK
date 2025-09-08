@@ -36,7 +36,7 @@ func (item *EpochDelegationRewardPerShareItem) IsZeroTotalReward() bool {
 
 func (item *EpochDelegationRewardPerShareItem) DecrementTotalReward(amount *big.Int) {
 	if item.TotalReward.Cmp(amount) < 0 {
-		item.TotalReward = basecommon.Big0
+		item.TotalReward = big.NewInt(0)
 	} else {
 		item.TotalReward = new(big.Int).Sub(item.TotalReward, amount)
 	}

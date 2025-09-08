@@ -768,14 +768,14 @@ func (stake *MockStakeModule) GetValidatorStakeEpoch(statedb sdk.StateDBReader, 
 func (stake *MockStakeModule) GetValidatorStakeAmount(statedb sdk.StateDBReader, validatorAddr common.Address) *big.Int {
 	validator := stake.getValidator(validatorAddr)
 	if validator.IsEmpty() {
-		return common.Big0
+		return big.NewInt(0)
 	}
 	return validator.StakeAmount
 }
 func (stake *MockStakeModule) GetValidatorDelegateAmount(statedb sdk.StateDBReader, validatorAddr common.Address) *big.Int {
 	validator := stake.getValidator(validatorAddr)
 	if validator.IsEmpty() {
-		return common.Big0
+		return big.NewInt(0)
 	}
 	return validator.DelegateAmount
 }
@@ -811,7 +811,7 @@ func (stake *MockStakeModule) GetEpochByValidatorDelegationRcPending(statedb sdk
 func (stake *MockStakeModule) GetDelegationFlatten(statedb sdk.StateDBReader, delegatorAddr, validatorAddr common.Address, stakeEpoch uint64) (uint64, *big.Int, *big.Int) {
 	delegation := stake.getDelegation(delegatorAddr, validatorAddr, stakeEpoch)
 	if delegation.IsEmpty() {
-		return 0, common.Big0, common.Big0
+		return 0, big.NewInt(0), big.NewInt(0)
 	}
 	return delegation.Epoch, delegation.PreEpochAmount, delegation.Amount
 }
@@ -1019,7 +1019,7 @@ type MockDelegation struct {
 func NewMockDelegation(epoch uint64, amount *big.Int) *MockDelegation {
 	return &MockDelegation{
 		Epoch:          epoch,
-		PreEpochAmount: common.Big0,
+		PreEpochAmount: big.NewInt(0),
 		Amount:         amount,
 	}
 }

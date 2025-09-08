@@ -3,15 +3,16 @@ package wrap
 import (
 	"fmt"
 
+	"math/big"
+	"math/rand"
+	"sort"
+	"strconv"
+
 	staketypes "github.com/PlatONnetwork/AppChain-SDK/x/staking/types"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/common/math"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
-	"math/big"
-	"math/rand"
-	"sort"
-	"strconv"
 )
 
 const (
@@ -68,8 +69,8 @@ func electionWithProbability(validatorSnapshotQueue staketypes.ValidatorSortSnap
 	if currentVRFNonce == common.ZeroHash || len(historyVRFNonceQueue) == 0 || len(validatorSnapshotQueue) != len(historyVRFNonceQueue) {
 		return nil, fmt.Errorf("invalid params")
 	}
-	totalWeights := common.Big0
-	totalSqrtWeights := common.Big0
+	totalWeights := big.NewInt(0)
+	totalSqrtWeights := big.NewInt(0)
 	svqueue := make(sortValidatorQueue, 0)
 	for _, snap := range validatorSnapshotQueue {
 

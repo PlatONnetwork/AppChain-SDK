@@ -1,10 +1,10 @@
 package contracts
 
 import (
+	"math/big"
+
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/x/stage/db"
-	"github.com/PlatONnetwork/PlatON-Go/common"
-	"math/big"
 )
 
 func (c *StageManager) getRoundByBlockNumber(blockNumber uint64) (uint64, error) {
@@ -52,7 +52,7 @@ func (c *StageManager) getPeriodEdgesForRound(start, size uint64) (*big.Int, []*
 	indexs, queue := db.GetRoundQueueAndIndexSince(c.evm.StateDB, c.contract.Address(), start, size)
 
 	if len(queue) == 0 {
-		return common.Big0, nil, nil, nil
+		return big.NewInt(0), nil, nil, nil
 	}
 	periodEdges := make([]PeriodEdge, len(queue))
 	rounds := make([]*big.Int, len(queue))
@@ -74,7 +74,7 @@ func (c *StageManager) getPeriodEdgesForEpoch(start, size uint64) (*big.Int, []*
 	indexs, queue := db.GetEpochQueueAndIndexSince(c.evm.StateDB, c.contract.Address(), start, size)
 
 	if len(queue) == 0 {
-		return common.Big0, nil, nil, nil
+		return big.NewInt(0), nil, nil, nil
 	}
 	periodEdges := make([]PeriodEdge, len(queue))
 	epochs := make([]*big.Int, len(queue))

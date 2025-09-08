@@ -2,6 +2,9 @@ package staking
 
 import (
 	"fmt"
+	"math"
+	"math/big"
+
 	sdkcontracts "github.com/PlatONnetwork/AppChain-SDK/contracts"
 	"github.com/PlatONnetwork/AppChain-SDK/x/staking/config"
 	stakingdb "github.com/PlatONnetwork/AppChain-SDK/x/staking/db"
@@ -14,8 +17,6 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/params"
 	"github.com/PlatONnetwork/PlatON-Go/rlp"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
-	"math"
-	"math/big"
 )
 
 func initStakeConfigParams(statedb sdk.StateDB, addr common.Address, configParams *config.StakeNetworkParams) {
@@ -74,7 +75,7 @@ func initValidators(statedb sdk.StateDB, addr common.Address, chainConfig *param
 	validatorShareSnapshotQueue := types.NewValidatorSharesSnapshotQueue(0)
 
 	genesisStakeAmount := new(big.Int).SetUint64(configParams.GenesisStakeAmount)
-	genesisDelegateAmount := common.Big0
+	genesisDelegateAmount := big.NewInt(0)
 
 	cache := make(map[common.Address]struct{}, 0)
 	for index := uint64(0); index < genesisValidatorQueueSize; index++ {

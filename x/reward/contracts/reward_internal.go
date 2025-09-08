@@ -1,12 +1,13 @@
 package contracts
 
 import (
+	"math/big"
+
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
 	"github.com/PlatONnetwork/AppChain-SDK/x/reward/db"
 	rewardtypes "github.com/PlatONnetwork/AppChain-SDK/x/reward/types"
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/log"
-	"math/big"
 )
 
 // internal
@@ -35,14 +36,14 @@ func (c *RewardManager) withdrawDelegationRewards(delegatorAddr, validatorAddr b
 	if rewards.Cmp(basecommon.Big0) == 0 {
 		log.Error("has no delegation rewards", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(),
 			"rewards", rewards, "currentEpoch", c.stageModule.GetCurrentEpoch(c.evm.StateDB), "blockNumber", c.evm.Context.BlockNumber)
-		return basecommon.Big0, typesdk.NewRevertError("RewardManager: HAS NO DELEGATION REWARDS")
+		return big.NewInt(0), typesdk.NewRevertError("RewardManager: HAS NO DELEGATION REWARDS")
 	}
 
 	// check reward pool balance
 	rewardPoolBalance := c.evm.StateDB.GetBalance(c.contract.Address())
 	if rewardPoolBalance.Cmp(basecommon.Big0) == 0 || rewardPoolBalance.Cmp(rewards) < 0 {
 		log.Error("insufficient balance on reward pool", "will withdraw delegate reward", rewards, "reward pool balance", rewardPoolBalance)
-		return basecommon.Big0, typesdk.NewRevertError("RewardManager: insufficient balance on reward pool")
+		return big.NewInt(0), typesdk.NewRevertError("RewardManager: insufficient balance on reward pool")
 	}
 
 	// decrement pending delegator rewards
@@ -62,14 +63,14 @@ func (c *RewardManager) withdrawValidatorRewrads(owner, validatorAddr basecommon
 	if rewards.Cmp(basecommon.Big0) == 0 {
 		log.Error("has no validator rewards", "validatorAddr", validatorAddr.Hex(),
 			"rewards", rewards, "currentEpoch", c.stageModule.GetCurrentEpoch(c.evm.StateDB), "blockNumber", c.evm.Context.BlockNumber)
-		return basecommon.Big0, typesdk.NewRevertError("RewardManager: HAS NO VALIDATOR REWARDS")
+		return big.NewInt(0), typesdk.NewRevertError("RewardManager: HAS NO VALIDATOR REWARDS")
 	}
 
 	// check reward pool balance
 	rewardPoolBalance := c.evm.StateDB.GetBalance(c.contract.Address())
 	if rewardPoolBalance.Cmp(basecommon.Big0) == 0 || rewardPoolBalance.Cmp(rewards) < 0 {
 		log.Error("insufficient balance on reward pool", "will withdraw validator reward", rewards, "reward pool balance", rewardPoolBalance)
-		return basecommon.Big0, typesdk.NewRevertError("RewardManager: insufficient balance on reward pool")
+		return big.NewInt(0), typesdk.NewRevertError("RewardManager: insufficient balance on reward pool")
 	}
 
 	// decrement pending validator rewards
