@@ -129,6 +129,9 @@ func (r *router) SendMessage(m *types.MsgPackage) {
 		//	r.unregister(m.PeerID())
 		//}
 		peer.Send(m)
+	} else {
+		log.Debug("Send message failed", "targetPeer", m.PeerID(), "type", reflect.TypeOf(m.Message()),
+			"msgHash", m.Message().MsgHash(), "BHash", m.Message().BHash(), "msg", m.Message().String(), "err", err)
 	}
 }
 

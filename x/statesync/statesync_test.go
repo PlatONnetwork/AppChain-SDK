@@ -14,6 +14,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/consensus/cbft/utils"
 	"github.com/PlatONnetwork/PlatON-Go/core"
 	"github.com/PlatONnetwork/PlatON-Go/core/rawdb"
+	coresdk "github.com/PlatONnetwork/PlatON-Go/core/sdk"
 	"github.com/PlatONnetwork/PlatON-Go/core/state"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
@@ -27,6 +28,7 @@ import (
 	"gopkg.in/urfave/cli.v1"
 	"math/big"
 	"testing"
+	"time"
 )
 
 var (
@@ -71,9 +73,8 @@ func TestFlow(t *testing.T) {
 		backend: ctx.backend,
 		header:  &types.Header{},
 	}
-	local, remote := stateSync.AddTxs(wctx, make(map[common.Address]types.Transactions), make(map[common.Address]types.Transactions))
+	local, _ := stateSync.AddTxs(wctx, make(map[common.Address]types.Transactions))
 	assert.Equal(t, 1, len(local))
-	assert.Equal(t, 0, len(remote))
 }
 
 func GenTree(extraData []byte) ([][]byte, *merkle.MerkleTree) {
@@ -99,6 +100,26 @@ func newStateSync(ctx *cli.Context, store store.Store, extraDb *extravote.ExtraV
 type WorkContext struct {
 	backend sdk.Backend
 	header  *types.Header
+}
+
+func (w WorkContext) ParentBlock() *types.Block {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (w WorkContext) ChainConfig() *params.ChainConfig {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (w WorkContext) VMConfig() *vm.Config {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (w WorkContext) BlockDeadline() time.Time {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (w WorkContext) Context() context.Context {
@@ -180,6 +201,31 @@ func (c ConsensusContext) NumberValidators(epoch uint64) int {
 
 type testBackend struct {
 	statedb *state.StateDB
+}
+
+func (t testBackend) ChainConfig() *params.ChainConfig {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (t testBackend) TxPool() coresdk.TxPool {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (t testBackend) GetEVMWithState(msg coresdk.Message, header *types.Header, state types.StateDB) (*vm.EVM, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (t testBackend) ChainContext() coresdk.ChainContext {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (t testBackend) SetNoTxBroadcast(enable bool) {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (t testBackend) ChainId() (*big.Int, error) {
@@ -266,12 +312,12 @@ func (t testBackend) StateAt(root common.Hash) (sdk.StateDBReader, error) {
 	panic("implement me")
 }
 
-func (t testBackend) GetEVMCommit(msg sdk.Message, blockHash common.Hash) (*vm.EVM, func() error, error) {
+func (t testBackend) GetEVMCommit(msg coresdk.Message, blockHash common.Hash) (*vm.EVM, func() error, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (t testBackend) GetEVM(msg sdk.Message, header *types.Header) (*vm.EVM, func() error, error) {
+func (t testBackend) GetEVM(msg coresdk.Message, header *types.Header) (*vm.EVM, func() error, error) {
 	return newEVM(t.statedb, vm.Config{}, vm.TxContext{}, nil), nil, nil
 }
 

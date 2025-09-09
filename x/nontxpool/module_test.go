@@ -6,7 +6,7 @@ import (
 	"flag"
 	"github.com/PlatONnetwork/AppChain-SDK/testutil"
 	"github.com/PlatONnetwork/AppChain-SDK/types/module"
-	xconsensus "github.com/PlatONnetwork/AppChain-SDK/x/consensus"
+	xconsensus "github.com/PlatONnetwork/AppChain-SDK/x/consensusnetwork"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	crypto "github.com/PlatONnetwork/PlatON-Go/crypto"
@@ -74,7 +74,7 @@ func TestTxPoolPending(t *testing.T) {
 	var mockModules []*MockModule
 	flags := &flag.FlagSet{}
 	cliApp := cli.NewApp()
-	AddNonTxPoolFlags(cliApp)
+	AddModuleInitFlags(cliApp)
 	for i := 0; i < 1; i++ {
 		vals, _ := testutil.NewValidator(testutil.DefaultAccount[0:1])
 		consensusNetworkModule := xconsensus.NewModule(nil)

@@ -108,8 +108,12 @@ func (s *EventProofDB) InsertProof(epoch, view uint64, index uint32, start, end 
 	if err != nil {
 		return err
 	}
-	s.db.Set(encodeStartEndRoot(start, end), value)
-	s.db.Set(encodeEpochViewIndexHash(epoch, view, index), tree.Hash().Bytes())
+	if err := batch.Put(encodeStartEndRoot(start, end), value); err != nil {
+		return err
+	}
+	if err := batch.Put(encodeEpochViewIndexHash(epoch, view, index), tree.Hash().Bytes()); err != nil {
+		return err
+	}
 	for k, v := range leave {
 		proof, err := tree.GenerateProof(v.Bytes())
 		if err != nil {
@@ -119,9 +123,13 @@ func (s *EventProofDB) InsertProof(epoch, view uint64, index uint32, start, end 
 		if err != nil {
 			return err
 		}
-		s.db.Set(encodeHashId(tree.Hash(), k), value)
+		if err := batch.Put(encodeHashId(tree.Hash(), k), value); err != nil {
+			return err
+		}
 		if batch.ValueSize() > batchSize {
-			batch.Write()
+			if err := batch.Write(); err != nil {
+				return err
+			}
 		}
 	}
 	return batch.Write()
