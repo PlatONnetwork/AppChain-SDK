@@ -305,16 +305,18 @@ func (r *RewardModule) aggregationEpochDelegationRewards(stateDB sdk.StateDB, de
 					err, item.RewardEpoch, delegateSnap.DelegateEpoch, item.Data.TotalReward, item.Data.PerShareReward, len(rewardQueue), i)
 			}
 
-			r.logger.Debug("remove epochDelegationRewardPerShareItem", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "rewardEopch", item.RewardEpoch,
+			r.logger.Debug("remove epochDelegationRewardPerShareItem(RewardDatabase)", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "rewardEopch", item.RewardEpoch,
 				"snapDelegateEpoch", delegateSnap.DelegateEpoch, "totalReward", item.Data.TotalReward, "perShareReward", item.Data.PerShareReward, "rewardQueueSize", len(rewardQueue), "rewardItemIndex", i)
 		} else { // update rewardItem
+
+			ib, _ := json.Marshal(item)
 			if err := rewarddb.SetEpochDelegationRewardPerShareItem(stateDB, r.Address(), validatorAddr, stakeEpoch, item.RewardEpoch, item.Data); nil != err {
 				return fmt.Errorf("can not update rewardItem, %s , rewardEopch %d, snapDelegateEpoch %d, totalReward %d, perShareReward %d, rewardQueueSize %d, rewardItemIndex %d",
 					err, item.RewardEpoch, delegateSnap.DelegateEpoch, item.Data.TotalReward, item.Data.PerShareReward, len(rewardQueue), i)
 			}
 
-			r.logger.Debug("update epochDelegationRewardPerShareItem", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "rewardEopch", item.RewardEpoch,
-				"snapDelegateEpoch", delegateSnap.DelegateEpoch, "totalReward", item.Data.TotalReward, "perShareReward", item.Data.PerShareReward, "rewardQueueSize", len(rewardQueue), "rewardItemIndex", i)
+			r.logger.Debug("update epochDelegationRewardPerShareItem(RewardDatabase)", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "rewardEopch", item.RewardEpoch,
+				"snapDelegateEpoch", delegateSnap.DelegateEpoch, "totalReward", item.Data.TotalReward, "perShareReward", item.Data.PerShareReward, "rewardQueueSize", len(rewardQueue), "rewardItemIndex", i, "item", string(ib))
 		}
 
 		totalRewards = new(big.Int).Add(totalRewards, shareReward)
