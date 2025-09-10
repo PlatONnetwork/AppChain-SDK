@@ -10,7 +10,11 @@ import (
 
 	basecommon "github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
+
+	"github.com/PlatONnetwork/PlatON-Go/log"
 )
+
+var rdblog = log.New("module", "RewardDatabase")
 
 var (
 	ErrStoreFailed  = errors.New("store failed")
@@ -233,6 +237,9 @@ func RemoveEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr
 	pre := GetEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, item.PreRewardEpoch)
 	next := GetEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, item.NextRewardEpoch)
 
+	rdblog.Debug("Call RemoveEpochDelegationRewardPerShareItem", "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "rewardEpoch", rewardEpoch,
+		"PreRewardEpoch", item.PreRewardEpoch, "NextRewardEpoch", item.NextRewardEpoch, "preIsNil", pre.IsEmpty(), "nextIsNil", next.IsEmpty())
+
 	// remove the last one   tail -> head -> lastone(remove) -> tail -> head
 	if pre.PreRewardEpoch == math.MaxUint64 && next.NextRewardEpoch == 0 {
 		removeEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, item.PreRewardEpoch)
@@ -280,6 +287,9 @@ func AppendEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr
 			return err
 		}
 
+		rdblog.Debug("Call AppendEpochDelegationRewardPerShareItem (first)", "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "rewardEpoch", rewardEpoch,
+			"PreRewardEpoch", epochItem.PreRewardEpoch, "NextRewardEpoch", epochItem.NextRewardEpoch, "preIsNil", preItem.IsEmpty(), "nextIsNil", indexItem.IsEmpty())
+
 		return nil
 	}
 
@@ -294,6 +304,9 @@ func AppendEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr
 			if err := SetEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, indexEpoch, indexItem); nil != err {
 				return err
 			}
+			rdblog.Debug("Call AppendEpochDelegationRewardPerShareItem (update)", "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "rewardEpoch", rewardEpoch,
+				"PreRewardEpoch", indexItem.PreRewardEpoch, "NextRewardEpoch", indexItem.NextRewardEpoch)
+
 			break
 		} else if indexEpoch < rewardEpoch {
 			// pre -> index -> epoch -> next... -> tail(max)
@@ -314,6 +327,9 @@ func AppendEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr
 			if err := SetEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, epochItem.NextRewardEpoch, nextItem); nil != err {
 				return err
 			}
+
+			rdblog.Debug("Call AppendEpochDelegationRewardPerShareItem (append tail)", "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "rewardEpoch", rewardEpoch,
+				"PreRewardEpoch", epochItem.PreRewardEpoch, "NextRewardEpoch", epochItem.NextRewardEpoch)
 
 			break
 
@@ -342,6 +358,8 @@ func AppendEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr
 					return err
 				}
 
+				rdblog.Debug("Call AppendEpochDelegationRewardPerShareItem (insert head)", "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "rewardEpoch", rewardEpoch,
+					"PreRewardEpoch", epochItem.PreRewardEpoch, "NextRewardEpoch", epochItem.NextRewardEpoch)
 				break
 
 			}
