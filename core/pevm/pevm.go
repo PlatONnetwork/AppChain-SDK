@@ -135,6 +135,7 @@ type PEVM struct {
 
 	cumulativeGasUsed uint64
 	txCount           int
+	exceedingGasLimit bool
 
 	// Use in paralle execution
 	abortReason AbortReason
@@ -322,7 +323,7 @@ func (e *PEVM) applyTransactions(txs coretypes.Transactions) (*PEVMResult, error
 }
 
 func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVMResult, error) {
-	if len(txs) == 0 {
+	if len(txs) == 0 || (e.env.IsWorker && e.exceedingGasLimit) {
 		return &PEVMResult{
 			GasUsed: e.cumulativeGasUsed,
 		}, nil
@@ -338,28 +339,55 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 			timestamp        int64 = int64(e.env.Header.Time)
 			blockDeadline          = e.env.BlockDeadline
 			batch                  = e.txsBatch
+			snapshot               = e.env.StateDB.Snapshot()
 			executionResults *ExecutionResults
 			err              error
 		)
 		if isSysTxs || len(txs) <= batch {
-			executionResults, err = e.parallelExecuteBatch(txs, isSysTxs)
-			if err != nil {
-				return &pevmResult, err
+			now := time.Now()
+			if !isSysTxs && blockDeadline.Before(time.Now()) {
+				e.logger.Warn("interrupt current ex-executing",
+					"blockNumber", e.env.Header.Number,
+					"parentHash", e.env.Header.ParentHash,
+					"now", now.UnixMilli(),
+					"timestamp", timestamp,
+					"deadlineDuration", blockDeadline.Sub(time.UnixMilli(timestamp)))
+				pevmResult.Timeout = true
+				pevmResult.GasUsed = e.cumulativeGasUsed
+			} else {
+				cumlativeGasUsed := e.cumulativeGasUsed
+				executionResults, err = e.parallelExecuteBatch(txs, isSysTxs)
+				if err != nil {
+					return &pevmResult, err
+				}
+				receipts := make(coretypes.Receipts, 0, len(txs))
+				executionResults.Range(func(_ int, result *ExecutionResult) {
+					receipt := result.receipt
+					e.cumulativeGasUsed += receipt.GasUsed
+					receipt.CumulativeGasUsed = e.cumulativeGasUsed
+					receipt.TransactionIndex += uint(e.txCount)
+					receipts = append(receipts, receipt)
+				})
+				if e.cumulativeGasUsed > e.env.Header.GasLimit {
+					e.logger.Warn("Gas usage exceeding the limit",
+						"blockNumber", e.env.Header.Number,
+						"parentHash", e.env.Header.ParentHash,
+						"gasUsed", e.cumulativeGasUsed,
+						"gasLimit", e.env.Header.GasLimit)
+					e.exceedingGasLimit = true
+					e.cumulativeGasUsed = cumlativeGasUsed
+					e.env.StateDB.RevertToSnapshot(snapshot)
+					pevmResult.GasUsed = e.cumulativeGasUsed
+				} else {
+					pevmResult.Transactions = append(pevmResult.Transactions, txs...)
+					pevmResult.Receipts = append(pevmResult.Receipts, receipts...)
+					pevmResult.GasUsed = e.cumulativeGasUsed
+					e.txCount += len(txs)
+				}
 			}
-			executionResults.Range(func(_ int, result *ExecutionResult) {
-				receipt := result.receipt
-				e.cumulativeGasUsed += receipt.GasUsed
-				receipt.CumulativeGasUsed = e.cumulativeGasUsed
-				receipt.TransactionIndex += uint(e.txCount)
-				pevmResult.Receipts = append(pevmResult.Receipts, receipt)
-			})
-			pevmResult.Transactions = append(pevmResult.Transactions, txs...)
-			pevmResult.GasUsed = e.cumulativeGasUsed
-			e.txCount += len(txs)
 		} else {
 			peeker := NewTxsPeeker(txs, e.signer)
 			execTxs := peeker.Peeks(batch)
-			minBatchGas := uint64(batch) * params.TxGas
 			for len(execTxs) > 0 {
 				now := time.Now()
 				if blockDeadline.Before(time.Now()) {
@@ -374,23 +402,12 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 					break
 				}
 
-				if (e.cumulativeGasUsed >= e.env.Header.GasLimit) ||
-					(e.env.Header.GasLimit-e.cumulativeGasUsed) <= minBatchGas {
-					e.logger.Warn("interrupt current ex-executing",
-						"blockNumber", e.env.Header.Number,
-						"parentHash", e.env.Header.ParentHash,
-						"gasLimit", e.env.Header.GasLimit,
-						"cumulativeGasUsed", e.cumulativeGasUsed,
-						"minBatchGas", minBatchGas,
-					)
-					pevmResult.GasUsed = e.cumulativeGasUsed
-					break
-				}
-
+				cumulativeGasUsed := e.cumulativeGasUsed
 				executionResults, err = e.parallelExecuteBatch(execTxs, isSysTxs)
 				if err != nil {
 					return &pevmResult, err
 				}
+				receipts := make(coretypes.Receipts, 0, len(execTxs))
 				executionResults.Range(func(i int, result *ExecutionResult) {
 					if result == nil || result.receipt == nil {
 						panic(fmt.Sprintf("empty result(index: %d, txCount: %d, count: %d)",
@@ -400,12 +417,25 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 					e.cumulativeGasUsed += receipt.GasUsed
 					receipt.CumulativeGasUsed = e.cumulativeGasUsed
 					receipt.TransactionIndex += uint(e.txCount)
-					pevmResult.Receipts = append(pevmResult.Receipts, receipt)
+					receipts = append(receipts, receipt)
 				})
-				pevmResult.Transactions = append(pevmResult.Transactions, execTxs...)
-				pevmResult.GasUsed = e.cumulativeGasUsed
-				e.txCount += len(execTxs)
-
+				if e.cumulativeGasUsed > e.env.Header.GasLimit {
+					e.logger.Warn("Gas usage exceeding the limit",
+						"blockNumber", e.env.Header.Number,
+						"parentHash", e.env.Header.ParentHash,
+						"gasUsed", e.cumulativeGasUsed,
+						"gasLimit", e.env.Header.GasLimit)
+					e.exceedingGasLimit = true
+					e.cumulativeGasUsed = cumulativeGasUsed
+					e.env.StateDB.RevertToSnapshot(snapshot)
+					pevmResult.GasUsed = e.cumulativeGasUsed
+					break
+				} else {
+					pevmResult.Transactions = append(pevmResult.Transactions, execTxs...)
+					pevmResult.Receipts = append(pevmResult.Receipts, receipts...)
+					pevmResult.GasUsed = e.cumulativeGasUsed
+					e.txCount += len(execTxs)
+				}
 				execTxs = peeker.Peeks(batch)
 			}
 		}
@@ -439,6 +469,7 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 		"isWorker", e.env.IsWorker,
 		"gasLimit", e.env.Header.GasLimit,
 		"cumulativeGasUsed", e.cumulativeGasUsed,
+		"exceedingGasLimit", e.exceedingGasLimit,
 		"timeout", pevmResult.Timeout,
 		"elapsed", time.Since(begin))
 	return &pevmResult, nil
