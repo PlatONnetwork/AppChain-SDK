@@ -238,8 +238,21 @@ func RemoveEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr
 	pre := GetEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, item.PreRewardEpoch)
 	next := GetEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, item.NextRewardEpoch)
 
+	ib, _ := json.Marshal(item)
 	rdblog.Debug("Call RemoveEpochDelegationRewardPerShareItem", "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "rewardEpoch", rewardEpoch,
-		"PreRewardEpoch", item.PreRewardEpoch, "NextRewardEpoch", item.NextRewardEpoch, "preIsNil", pre.IsEmpty(), "nextIsNil", next.IsEmpty())
+		"item", string(ib), "preIsNil", pre.IsEmpty(), "nextIsNil", next.IsEmpty())
+
+	if pre.IsNotEmpty() {
+		pb, _ := json.Marshal(pre)
+		rdblog.Debug("Call RemoveEpochDelegationRewardPerShareItem(preIsNotEmpty)", "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "rewardEpoch", rewardEpoch,
+			"preEpoch", item.PreRewardEpoch, "pre", string(pb))
+	}
+
+	if next.IsNotEmpty() {
+		nb, _ := json.Marshal(next)
+		rdblog.Debug("Call RemoveEpochDelegationRewardPerShareItem(nextIsNotEmpty)", "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "rewardEpoch", rewardEpoch,
+			"nextEpoch", item.NextRewardEpoch, "next", string(nb))
+	}
 
 	// remove the last one   tail -> head -> lastone(remove) -> tail -> head
 	if pre.PreRewardEpoch == math.MaxUint64 && next.NextRewardEpoch == 0 {

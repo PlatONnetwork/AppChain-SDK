@@ -274,6 +274,10 @@ func (r *RewardModule) aggregationEpochDelegationRewards(stateDB sdk.StateDB, de
 
 	totalRewards := big.NewInt(0)
 
+	qb, _ := json.Marshal(rewardQueue)
+	r.logger.Debug("aggregation epochDelegationRewardPerShareItem(RewardDatabase)", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch,
+		"rewardQueue", string(qb))
+
 	for i, item := range rewardQueue {
 
 		delegateAmount := big.NewInt(0)
