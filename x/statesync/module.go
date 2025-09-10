@@ -202,10 +202,7 @@ func (s *StateSync) AddTxs(ctx sdk.WorkerContext, local map[common.Address]types
 	nonce := common2.EnableNonce(local[from], func() uint64 {
 		return ctx.StateDB().GetNonce(from)
 	})
-	if err != nil {
-		s.logger.Warn("Get pool nonce failed", "nonce", nonce, "err", err)
-		return local, nil
-	}
+
 	cmtx, err := s.addCommitTx(ctx, receiver, nonce)
 	if err == nil {
 		if local[from] == nil {
@@ -213,6 +210,8 @@ func (s *StateSync) AddTxs(ctx sdk.WorkerContext, local map[common.Address]types
 		}
 		local[from] = append(local[from], cmtx)
 		nonce += 1
+	} else {
+		s.logger.Warn("Get commit tx failed", "err", err)
 	}
 	//创建 event proof
 	exTxs, err := s.addExecutedTx(ctx, receiver, nonce)
@@ -237,7 +236,7 @@ func (s *StateSync) addCommitTx(ctx sdk.WorkerContext, receiver *contracts.State
 	if syncId.Cmp(big.NewInt(0)) != 0 {
 		commitment, err := receiver.GetCommitmentByStateSyncId(syncId)
 		if err != nil {
-			s.logger.Warn("Get commitment state sync id failed", "err", err)
+			s.logger.Warn("Get commitment state sync id failed", "syncid", syncId, "err", err)
 			return nil, err
 		}
 		start = new(big.Int).Add(commitment.EndId, big.NewInt(1))
@@ -267,7 +266,7 @@ func (s *StateSync) addCommitTx(ctx sdk.WorkerContext, receiver *contracts.State
 		s.logger.Warn("Extra get proof failed", "qc", qc, "err", err)
 		return nil, err
 	}
-
+	s.logger.Debug("Create commit tx", "epoch", qc.Epoch, "view", qc.ViewNumber, "blockIndex", qc.BlockIndex, "match", match)
 	cmtx, err := s.createCommitTx(ctx, match, index, qc, voteProof, nonce)
 	if err != nil {
 		s.logger.Warn("Create commit tx failed", "err", err)
@@ -290,6 +289,8 @@ func (s *StateSync) addExecutedTx(ctx sdk.WorkerContext, receiver *contracts.Sta
 		return nil, errors.New("contract commitment is empty")
 	}
 	eventId := new(big.Int).Add(executedId, big.NewInt(1))
+	s.logger.Debug("Get contract state", "syncId", syncId, "executedId", executedId, "nextEventId", eventId)
+
 	commitment, err := receiver.GetCommitmentByStateSyncId(eventId)
 	if err != nil {
 		s.logger.Warn("Get commitment state sync id failed", "err", err)
@@ -307,10 +308,10 @@ func (s *StateSync) addExecutedTx(ctx sdk.WorkerContext, receiver *contracts.Sta
 			s.logger.Warn("Get proof failed", "root", commitment.Root, "eventid", eventId, "err", err)
 			break
 		}
+		s.logger.Debug("Get executed event", "eventId", eventId)
 		events = append(events, event)
 		proofs = append(proofs, proof)
 		eventId = eventId.Add(eventId, big.NewInt(1))
-		s.logger.Debug("Get executed event", "eventid", eventId)
 	}
 	exTxs, err := s.createExecuteTxs(ctx, proofs, events, nonce)
 	if err != nil {

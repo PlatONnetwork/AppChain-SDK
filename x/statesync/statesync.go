@@ -150,7 +150,7 @@ func (s *StateSync) GenProof(epoch, view uint64, index uint32, start, end *big.I
 		s.logger.Warn("Insert proof failed", "err", err)
 		return common.Hash{}, err
 	}
-	s.logger.Debug("Gen proof success", "start", start, "end", end)
+	s.logger.Debug("Gen proof success", "epoch", epoch, "view", view, "index", index, "start", start, "end", end)
 
 	return trie.Hash(), nil
 }

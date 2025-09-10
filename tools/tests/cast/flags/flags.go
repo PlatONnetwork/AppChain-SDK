@@ -60,6 +60,10 @@ var (
 		Name:  "address",
 		Usage: "contract address",
 	}
+	FromFlags = cli.StringFlag{
+		Name:  "from",
+		Usage: "from address, if call contract",
+	}
 	TypeFlags = cli.StringFlag{
 		Name:  "type",
 		Usage: "send,call,logs,abi",

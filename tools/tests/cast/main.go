@@ -8,6 +8,7 @@ import (
 	platon "github.com/PlatONnetwork/PlatON-Go"
 	"github.com/PlatONnetwork/PlatON-Go/accounts/abi/bind"
 	"github.com/PlatONnetwork/PlatON-Go/cmd/utils"
+	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"gopkg.in/urfave/cli.v1"
 	"strings"
@@ -31,6 +32,7 @@ var (
 			flags.AddressFlags,
 			flags.MethodFlags,
 			flags.TypeFlags,
+			flags.FromFlags,
 			flags.StartFlags,
 			flags.EndFlags,
 			flags.GasLimitFlags,
@@ -64,7 +66,7 @@ func run(ctx *cli.Context) error {
 			return err
 		}
 		_, err = WaitTx(client, tx.Hash())
-		if err != nil {
+		callFunc := func() {
 			chainid, _ := client.ChainID(context.Background())
 			_, err := client.CallContract(context.Background(), platon.CallMsg{
 				From:       tx.FromAddr(types.NewLondonSigner(chainid)),
@@ -79,6 +81,9 @@ func run(ctx *cli.Context) error {
 			}, nil)
 
 			fmt.Println("send failed", tx.Hash(), "err", err)
+		}
+		if err != nil {
+			callFunc()
 			return err
 		}
 		fmt.Println("send success", tx.Hash())
@@ -92,6 +97,10 @@ func run(ctx *cli.Context) error {
 		if err != nil {
 			return err
 		}
+		if receipt.Status == 0 {
+			callFunc()
+			return fmt.Errorf("receipt status is failed")
+		}
 		bytes, _ = json.MarshalIndent(receipt, " ", " ")
 
 		fmt.Println("receipt:", string(bytes))
@@ -101,7 +110,9 @@ func run(ctx *cli.Context) error {
 		if err != nil {
 			return err
 		}
-		result, err := Call(moduleAbi, method, inputs, addr, client, &bind.CallOpts{})
+		result, err := Call(moduleAbi, method, inputs, addr, client, &bind.CallOpts{
+			From: common.HexToAddress(ctx.String(flags.FromFlags.Name)),
+		})
 		if err != nil {
 			return err
 		}
