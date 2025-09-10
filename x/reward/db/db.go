@@ -1,6 +1,7 @@
 package db
 
 import (
+	"encoding/json"
 	"errors"
 	"math/big"
 
@@ -246,8 +247,12 @@ func RemoveEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr
 		removeEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, item.PreRewardEpoch)
 		removeEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, item.NextRewardEpoch)
 
+		pb, _ := json.Marshal(pre)
+		ib, _ := json.Marshal(item)
+		nb, _ := json.Marshal(next)
+
 		rdblog.Debug("Call RemoveEpochDelegationRewardPerShareItem(remove hl)", "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "rewardEpoch", rewardEpoch,
-			"PreRewardEpoch", item.PreRewardEpoch, "NextRewardEpoch", item.NextRewardEpoch, "prePre", pre.PreRewardEpoch, "nextNext", next.NextRewardEpoch)
+			"item", string(ib), "preEpoch", item.PreRewardEpoch, "pre", string(pb), "nextEpoch", item.NextRewardEpoch, "next", string(nb))
 
 	} else {
 		pre.UpdateNextRewardEpoch(item.NextRewardEpoch)
@@ -258,8 +263,13 @@ func RemoveEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr
 		if err := SetEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, item.NextRewardEpoch, next); nil != err {
 			return err
 		}
+
+		pb, _ := json.Marshal(pre)
+		ib, _ := json.Marshal(item)
+		nb, _ := json.Marshal(next)
+
 		rdblog.Debug("Call RemoveEpochDelegationRewardPerShareItem(update hl)", "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "rewardEpoch", rewardEpoch,
-			"PreRewardEpoch", item.PreRewardEpoch, "NextRewardEpoch", item.NextRewardEpoch, "preNext", pre.NextRewardEpoch, "nextPre", next.PreRewardEpoch)
+			"item", string(ib), "preEpoch", item.PreRewardEpoch, "pre", string(pb), "nextEpoch", item.NextRewardEpoch, "next", string(nb))
 	}
 	removeEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, rewardEpoch)
 	return nil
@@ -294,8 +304,12 @@ func AppendEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr
 			return err
 		}
 
+		pb, _ := json.Marshal(preItem)
+		ib, _ := json.Marshal(epochItem)
+		nb, _ := json.Marshal(indexItem)
+
 		rdblog.Debug("Call AppendEpochDelegationRewardPerShareItem (first)", "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "rewardEpoch", rewardEpoch,
-			"PreRewardEpoch", epochItem.PreRewardEpoch, "NextRewardEpoch", epochItem.NextRewardEpoch, "preIsNil", preItem.IsEmpty(), "nextIsNil", indexItem.IsEmpty())
+			"item", string(ib), "preEpoch", preEpoch, "pre", string(pb), "nextEpoch", indexEpoch, "next", string(nb))
 
 		return nil
 	}
@@ -311,8 +325,10 @@ func AppendEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr
 			if err := SetEpochDelegationRewardPerShareItem(db, addr, validatorAddr, stakeEpoch, indexEpoch, indexItem); nil != err {
 				return err
 			}
+
+			ib, _ := json.Marshal(indexItem)
 			rdblog.Debug("Call AppendEpochDelegationRewardPerShareItem (update)", "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "rewardEpoch", rewardEpoch,
-				"PreRewardEpoch", indexItem.PreRewardEpoch, "NextRewardEpoch", indexItem.NextRewardEpoch)
+				"item", string(ib))
 
 			break
 		} else if indexEpoch < rewardEpoch {
@@ -335,8 +351,12 @@ func AppendEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr
 				return err
 			}
 
+			pb, _ := json.Marshal(indexItem)
+			ib, _ := json.Marshal(epochItem)
+			nb, _ := json.Marshal(nextItem)
+
 			rdblog.Debug("Call AppendEpochDelegationRewardPerShareItem (append tail)", "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "rewardEpoch", rewardEpoch,
-				"PreRewardEpoch", epochItem.PreRewardEpoch, "NextRewardEpoch", epochItem.NextRewardEpoch)
+				"item", string(ib), "preEpoch", indexEpoch, "pre", string(pb), "nextEpoch", epochItem.NextRewardEpoch, "next", string(nb))
 
 			break
 
@@ -365,8 +385,12 @@ func AppendEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr
 					return err
 				}
 
+				pb, _ := json.Marshal(preItem)
+				ib, _ := json.Marshal(epochItem)
+				nb, _ := json.Marshal(indexItem)
+
 				rdblog.Debug("Call AppendEpochDelegationRewardPerShareItem (insert head)", "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "rewardEpoch", rewardEpoch,
-					"PreRewardEpoch", epochItem.PreRewardEpoch, "NextRewardEpoch", epochItem.NextRewardEpoch)
+					"item", string(ib), "preEpoch", epochItem.PreRewardEpoch, "pre", string(pb), "nextEpoch", indexEpoch, "next", string(nb))
 				break
 
 			}
