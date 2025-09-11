@@ -330,7 +330,7 @@ func (m *Module) SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.T
 	if !m.starting.Load() {
 		return m.txPoolModule.Pending(func(addr common.Address) uint64 {
 			return statedb.GetNonce(addr)
-		}, 10, 10), nil
+		}, 20000, 200), nil
 	}
 	return m.txPoolModule.Pending(func(addr common.Address) uint64 {
 		return statedb.GetNonce(addr)
