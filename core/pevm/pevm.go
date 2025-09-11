@@ -11,6 +11,7 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core"
 	coresdk "github.com/PlatONnetwork/PlatON-Go/core/sdk"
+	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	coretypes "github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/log"
@@ -195,6 +196,9 @@ func (e *PEVM) applyTransaction(tx *coretypes.Transaction) (*coretypes.Receipt, 
 			"blockNumber", header.Number,
 			"parentHash", header.ParentHash,
 			"txHash", tx.Hash(),
+			"gasLimit", header.GasLimit,
+			"gasUsed", e.cumulativeGasUsed,
+			"gpGas", e.gp.Gas(),
 			"err", err)
 	}
 	return receipt, err
@@ -336,6 +340,8 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 	var pevmResult PEVMResult
 	if e.env.IsWorker {
 		var (
+			gasLimit               = e.env.Header.GasLimit
+			maxTxGas               = findMaxTxGas(txs)
 			timestamp        int64 = int64(e.env.Header.Time)
 			blockDeadline          = e.env.BlockDeadline
 			batch                  = e.txsBatch
@@ -356,6 +362,7 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 				pevmResult.GasUsed = e.cumulativeGasUsed
 			} else {
 				cumlativeGasUsed := e.cumulativeGasUsed
+				maxTxGas := findMaxTxGas(txs)
 				executionResults, err = e.parallelExecuteBatch(txs, isSysTxs)
 				if err != nil {
 					return &pevmResult, err
@@ -368,12 +375,14 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 					receipt.TransactionIndex += uint(e.txCount)
 					receipts = append(receipts, receipt)
 				})
-				if e.cumulativeGasUsed > e.env.Header.GasLimit {
+				if e.cumulativeGasUsed > gasLimit || (gasLimit-e.cumulativeGasUsed) < maxTxGas {
 					e.logger.Warn("Gas usage exceeding the limit",
 						"blockNumber", e.env.Header.Number,
 						"parentHash", e.env.Header.ParentHash,
 						"gasUsed", e.cumulativeGasUsed,
-						"gasLimit", e.env.Header.GasLimit)
+						"gasLimit", gasLimit,
+						"maxTxGas", maxTxGas,
+					)
 					e.exceedingGasLimit = true
 					e.cumulativeGasUsed = cumlativeGasUsed
 					e.env.StateDB.RevertToSnapshot(snapshot)
@@ -419,12 +428,14 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 					receipt.TransactionIndex += uint(e.txCount)
 					receipts = append(receipts, receipt)
 				})
-				if e.cumulativeGasUsed > e.env.Header.GasLimit {
+				if e.cumulativeGasUsed > gasLimit || (gasLimit-e.cumulativeGasUsed) < maxTxGas {
 					e.logger.Warn("Gas usage exceeding the limit",
 						"blockNumber", e.env.Header.Number,
 						"parentHash", e.env.Header.ParentHash,
 						"gasUsed", e.cumulativeGasUsed,
-						"gasLimit", e.env.Header.GasLimit)
+						"gasLimit", e.env.Header.GasLimit,
+						"maxTxGas", maxTxGas,
+					)
 					e.exceedingGasLimit = true
 					e.cumulativeGasUsed = cumulativeGasUsed
 					e.env.StateDB.RevertToSnapshot(snapshot)
@@ -705,4 +716,14 @@ func (e *PEVM) tryValidate(mvMemory *MvMemory, scheduler *Scheduler, txVersion T
 		mvMemory.ConvertWritesToEstimate(txVersion.TxIdx)
 	}
 	return scheduler.FinishValidation(txVersion, aborted)
+}
+
+func findMaxTxGas(txs types.Transactions) uint64 {
+	var maxGas uint64
+	for _, tx := range txs {
+		if tx.Gas() > maxGas {
+			maxGas = tx.Gas()
+		}
+	}
+	return maxGas
 }
