@@ -287,6 +287,11 @@ func (m *Module) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackA
 				"err", err)
 			return allTxs, allReceipts, err
 		}
+		if result.Timeout || len(sysTxs) != len(result.Transactions) {
+			m.logger.Error("Failed to execute system transactions",
+				"timeout", result.Timeout, "partialSuccess", len(sysTxs) != len(result.Transactions))
+			return nil, nil, fmt.Errorf("system transactions failed")
+		}
 		allTxs = append(allTxs, result.Transactions...)
 		allReceipts = append(allReceipts, result.Receipts...)
 		usedGas = result.GasUsed
@@ -315,7 +320,8 @@ func (m *Module) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackA
 			if end > len(sortedTxs) {
 				end = len(sortedTxs)
 			}
-			result, err := pevm.Run(sortedTxs[index:end], false)
+			pendingTxs := sortedTxs[index:end]
+			result, err := pevm.Run(pendingTxs, false)
 			if err != nil {
 				m.logger.Error("Failed to execute sorted transactions",
 					"blockNumber", ctx.Header().Number,
@@ -343,7 +349,7 @@ func (m *Module) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackA
 				entry.Transactions = allTxs[0:len(allTxs)]
 				entry.Header = ctx.Header()
 			}
-			if end == sortedTxs.Len() || result.Timeout {
+			if end == sortedTxs.Len() || result.Timeout || len(pendingTxs) != len(result.Transactions) {
 				entry.Ending = 1
 			}
 			entryNumber++
@@ -351,8 +357,8 @@ func (m *Module) FillTransactions(ctx sdk.WorkerContext, cb sdk.TxApplyCallbackA
 			m.p2p.BroadcastEntry(&EntryMsg{Entry: entry})
 			log.Info("Broadcast fill", "blockNumber", entry.BlockNumber, "entryNumber", entry.EntryNumber)
 			index = end
-			if result.Timeout {
-				m.logger.Warn("Fill transaction timeout", "blockNumber", entry.BlockNumber, "entryNumber", entry.EntryNumber)
+			if entry.Ending == 1 {
+				m.logger.Warn("Fill transaction finish", "blockNumber", entry.BlockNumber, "entryNumber", entry.EntryNumber, "timeout", result.Timeout, "partialSuccess", len(pendingTxs) != len(result.Transactions))
 				break
 			}
 		}
