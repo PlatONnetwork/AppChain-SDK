@@ -87,7 +87,7 @@ func (t *TxQueue) AddLocalBatch(addr common.Address, txs []*types.Transaction) {
 
 func (t *TxQueue) AddLocal(txs []*types.Transaction) {
 	t.Lock()
-	t.Unlock()
+	defer t.Unlock()
 	t.addLocal(txs)
 }
 func (t *TxQueue) addLocal(txs []*types.Transaction) {
