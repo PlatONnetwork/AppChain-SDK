@@ -25,6 +25,7 @@ var (
 	ErrExist        = errors.New("already exist")
 	ErrMisMatching  = errors.New("mismatching")
 	ErrInvalidValue = errors.New("invalid value")
+	ErrBadStoreData = errors.New("bad store data")
 )
 
 // Will be governed in the future
@@ -252,6 +253,11 @@ func RemoveEpochDelegationRewardPerShareItem(db sdk.StateDB, addr, validatorAddr
 		nb, _ := json.Marshal(next)
 		rdblog.Debug("Call RemoveEpochDelegationRewardPerShareItem(nextIsNotEmpty)", "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "rewardEpoch", rewardEpoch,
 			"nextEpoch", item.NextRewardEpoch, "next", string(nb))
+	}
+
+	// invalid data
+	if pre.IsEmpty() || next.IsEmpty() {
+		return ErrBadStoreData
 	}
 
 	// remove the last one   tail -> head -> lastone(remove) -> tail -> head

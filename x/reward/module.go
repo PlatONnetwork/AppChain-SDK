@@ -270,13 +270,22 @@ func (r *RewardModule) getEpochDelegationRewardQueue(stateDB sdk.StateDBReader, 
 	return queue
 }
 
-func (r *RewardModule) aggregationEpochDelegationRewards(stateDB sdk.StateDB, delegatorAddr, validatorAddr basecommon.Address, stakeEpoch uint64, delegateSnap *types.DelegationSnapshot, rewardQueue types.EpochDelegationRewardPerShareWithEpochQueue) error {
+func (r *RewardModule) aggregationEpochDelegationRewards(stateDB sdk.StateDB, delegatorAddr, validatorAddr basecommon.Address, currentEpoch, stakeEpoch uint64, delegateSnap *types.DelegationSnapshot, rewardQueue types.EpochDelegationRewardPerShareWithEpochQueue) error {
 
 	totalRewards := big.NewInt(0)
 
 	qb, _ := json.Marshal(rewardQueue)
-	r.logger.Debug("aggregation epochDelegationRewardPerShareItem(RewardDatabase)", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch,
+	r.logger.Debug("aggregation epochDelegationRewardPerShareItem(RewardDatabase)", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "currentEpoch", currentEpoch, "stakeEpoch", stakeEpoch,
 		"rewardQueue", string(qb))
+
+	if delegateSnap.DelegateEpoch == currentEpoch {
+		r.logger.Warn("aggregation epochDelegationRewardPerShareItem(RewardDatabase), the delegation of the current epoch cannot be calculated for rewards", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "currentEpoch", currentEpoch, "stakeEpoch", stakeEpoch,
+			"snapDelegateEpoch", delegateSnap.DelegateEpoch, "rewardQueueSize", len(rewardQueue))
+		return nil
+	}
+	if delegateSnap.DelegateEpoch > currentEpoch {
+		return fmt.Errorf("invalid delegation (future delegation), currentEpoch %d, snapDelegateEpoch %d, rewardQueueSize %d", currentEpoch, delegateSnap.DelegateEpoch, len(rewardQueue))
+	}
 
 	for i, item := range rewardQueue {
 
@@ -289,34 +298,60 @@ func (r *RewardModule) aggregationEpochDelegationRewards(stateDB sdk.StateDB, de
 			return fmt.Errorf("invalid rewardItem, rewardEopch %d, snapDelegateEpoch %d, totalReward %d, perShareReward %d, rewardQueueSize %d, rewardItemIndex %d",
 				item.RewardEpoch, delegateSnap.DelegateEpoch, item.Data.TotalReward, item.Data.PerShareReward, len(rewardQueue), i)
 		}
-		r.logger.Debug("aggregation epochDelegationRewardPerShareItem", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "rewardEopch", item.RewardEpoch,
-			"snapDelegateEpoch", delegateSnap.DelegateEpoch, "totalReward", item.Data.TotalReward, "perShareReward", item.Data.PerShareReward, "rewardQueueSize", len(rewardQueue), "rewardItemIndex", i, "delegateAmount", delegateAmount)
+
+		if delegateAmount.Cmp(basecommon.Big0) == 0 {
+			r.logger.Warn("aggregation epochDelegationRewardPerShareItem(RewardDatabase), delegateAmount is zero", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "currentEpoch", currentEpoch, "stakeEpoch", stakeEpoch, "rewardEopch", item.RewardEpoch,
+				"snapDelegateEpoch", delegateSnap.DelegateEpoch, "totalReward", item.Data.TotalReward, "perShareReward", item.Data.PerShareReward, "rewardQueueSize", len(rewardQueue), "rewardItemIndex", i, "delegateAmount", delegateAmount)
+			continue
+		}
 
 		shareReward := new(big.Int).Mul(item.Data.PerShareReward, delegateAmount)
+
+		r.logger.Debug("aggregation epochDelegationRewardPerShareItem(RewardDatabase)", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "currentEpoch", currentEpoch, "stakeEpoch", stakeEpoch, "rewardEopch", item.RewardEpoch,
+			"snapDelegateEpoch", delegateSnap.DelegateEpoch, "totalReward", item.Data.TotalReward, "perShareReward", item.Data.PerShareReward, "rewardQueueSize", len(rewardQueue), "rewardItemIndex", i,
+			"delegateAmount", delegateAmount, "shareReward", shareReward)
+
 		if item.Data.TotalReward.Cmp(shareReward) < 0 {
-			return fmt.Errorf("totalReward insufficient, rewardEopch %d, snapDelegateEpoch %d, totalReward %d, perShareReward %d, delegateAmount %d, rewardQueueSize %d, rewardItemIndex %d",
-				item.RewardEpoch, delegateSnap.DelegateEpoch, item.Data.TotalReward, item.Data.PerShareReward, delegateAmount, len(rewardQueue), i)
+			return fmt.Errorf("totalReward insufficient, rewardEopch %d, snapDelegateEpoch %d, totalReward %d, perShareReward %d, delegateAmount %d, shareReward %d, rewardQueueSize %d, rewardItemIndex %d",
+				item.RewardEpoch, delegateSnap.DelegateEpoch, item.Data.TotalReward, item.Data.PerShareReward, delegateAmount, shareReward, len(rewardQueue), i)
 		}
 		// update epoch delegation reward item
-		item.Data.TotalReward = new(big.Int).Sub(item.Data.TotalReward, shareReward)
-		if item.Data.TotalReward.Cmp(basecommon.Big0) == 0 { // release rewardItem
+		remainTotalReward := new(big.Int).Sub(item.Data.TotalReward, shareReward)
+		if remainTotalReward.Cmp(basecommon.Big0) == 0 { // release rewardItem
 			if err := rewarddb.RemoveEpochDelegationRewardPerShareItem(stateDB, r.Address(), validatorAddr, stakeEpoch, item.RewardEpoch); nil != err {
-				return fmt.Errorf("can not remove rewardItem, %s , rewardEopch %d, snapDelegateEpoch %d, totalReward %d, perShareReward %d, rewardQueueSize %d, rewardItemIndex %d",
-					err, item.RewardEpoch, delegateSnap.DelegateEpoch, item.Data.TotalReward, item.Data.PerShareReward, len(rewardQueue), i)
+				return fmt.Errorf("can not remove rewardItem, %s , rewardEopch %d, snapDelegateEpoch %d, totalReward %d, remainTotalReward %d, perShareReward %d, delegateAmount %d, shareReward %d, rewardQueueSize %d, rewardItemIndex %d",
+					err, item.RewardEpoch, delegateSnap.DelegateEpoch, item.Data.TotalReward, remainTotalReward, item.Data.PerShareReward, delegateAmount, shareReward, len(rewardQueue), i)
 			}
 
-			r.logger.Debug("remove epochDelegationRewardPerShareItem(RewardDatabase)", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "rewardEopch", item.RewardEpoch,
-				"snapDelegateEpoch", delegateSnap.DelegateEpoch, "totalReward", item.Data.TotalReward, "perShareReward", item.Data.PerShareReward, "rewardQueueSize", len(rewardQueue), "rewardItemIndex", i)
+			r.logger.Debug("remove epochDelegationRewardPerShareItem(RewardDatabase)", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "currentEpoch", currentEpoch, "stakeEpoch", stakeEpoch, "rewardEopch", item.RewardEpoch,
+				"snapDelegateEpoch", delegateSnap.DelegateEpoch, "totalReward", item.Data.TotalReward, "remainTotalReward", remainTotalReward, "perShareReward", item.Data.PerShareReward, "delegateAmount", delegateAmount, "shareReward", shareReward,
+				"rewardQueueSize", len(rewardQueue), "rewardItemIndex", i)
 		} else { // update rewardItem
+			// #NOTE:
+			// The update here cannot directly use the data item in the queue,
+			// because the pointer of the bidirectional linked list may have been changed in `RemoveEpochDelegationRewardPerShareItem`.
+			// The latest data should be found to update `item.TotalReward`.
 
-			ib, _ := json.Marshal(item)
-			if err := rewarddb.SetEpochDelegationRewardPerShareItem(stateDB, r.Address(), validatorAddr, stakeEpoch, item.RewardEpoch, item.Data); nil != err {
-				return fmt.Errorf("can not update rewardItem, %s , rewardEopch %d, snapDelegateEpoch %d, totalReward %d, perShareReward %d, rewardQueueSize %d, rewardItemIndex %d",
-					err, item.RewardEpoch, delegateSnap.DelegateEpoch, item.Data.TotalReward, item.Data.PerShareReward, len(rewardQueue), i)
+			dbItem := rewarddb.GetEpochDelegationRewardPerShareItem(stateDB, r.Address(), validatorAddr, stakeEpoch, item.RewardEpoch)
+			if dbItem.IsEmpty() {
+				return fmt.Errorf("not found rewardItem in database for updata, stakeEpoch %d, rewardEopch %d, snapDelegateEpoch %d, rewardQueueSize %d, rewardItemIndex %d",
+					stakeEpoch, item.RewardEpoch, delegateSnap.DelegateEpoch, len(rewardQueue), i)
+			}
+			if dbItem.IsZeroTotalReward() {
+				return fmt.Errorf("zero totalReward rewardItem in database for updata, stakeEpoch %d, rewardEopch %d, snapDelegateEpoch %d, rewardQueueSize %d, rewardItemIndex %d",
+					stakeEpoch, item.RewardEpoch, delegateSnap.DelegateEpoch, len(rewardQueue), i)
+			}
+			// update dbItem totalReward
+			dbItem.TotalReward = remainTotalReward
+			ib, _ := json.Marshal(dbItem)
+			if err := rewarddb.SetEpochDelegationRewardPerShareItem(stateDB, r.Address(), validatorAddr, stakeEpoch, item.RewardEpoch, dbItem); nil != err {
+				return fmt.Errorf("can not update rewardItem, %s , rewardEopch %d, snapDelegateEpoch %d, totalReward %d, remainTotalReward %d, perShareReward %d, delegateAmount %d, shareReward %d, rewardQueueSize %d, rewardItemIndex %d",
+					err, item.RewardEpoch, delegateSnap.DelegateEpoch, item.Data.TotalReward, remainTotalReward, item.Data.PerShareReward, delegateAmount, shareReward, len(rewardQueue), i)
 			}
 
-			r.logger.Debug("update epochDelegationRewardPerShareItem(RewardDatabase)", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "rewardEopch", item.RewardEpoch,
-				"snapDelegateEpoch", delegateSnap.DelegateEpoch, "totalReward", item.Data.TotalReward, "perShareReward", item.Data.PerShareReward, "rewardQueueSize", len(rewardQueue), "rewardItemIndex", i, "item", string(ib))
+			r.logger.Debug("update epochDelegationRewardPerShareItem(RewardDatabase)", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "currentEpoch", currentEpoch, "stakeEpoch", stakeEpoch, "rewardEopch", item.RewardEpoch,
+				"snapDelegateEpoch", delegateSnap.DelegateEpoch, "totalReward", item.Data.TotalReward, "remainTotalReward", remainTotalReward, "perShareReward", item.Data.PerShareReward, "delegateAmount", delegateAmount, "shareReward", shareReward,
+				"rewardQueueSize", len(rewardQueue), "rewardItemIndex", i, "dbItem", string(ib))
 		}
 
 		totalRewards = new(big.Int).Add(totalRewards, shareReward)
@@ -327,7 +362,7 @@ func (r *RewardModule) aggregationEpochDelegationRewards(stateDB sdk.StateDB, de
 	if totalRewards.Cmp(basecommon.Big0) != 0 {
 		rewarddb.IncrementPendingDelegatorReward(stateDB, r.Address(), delegatorAddr, validatorAddr, totalRewards)
 
-		r.logger.Debug("increment pendingDelegatorReward", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "totalRewards", totalRewards, "rewardQueueSize", len(rewardQueue))
+		r.logger.Debug("increment pendingDelegatorReward", "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "currentEpoch", currentEpoch, "totalRewards", totalRewards, "rewardQueueSize", len(rewardQueue))
 	}
 	return nil
 }
@@ -362,7 +397,7 @@ func (r *RewardModule) UpdateDelegationRewards(stateDB sdk.StateDB, delegatorAdd
 	}
 
 	for _, snap := range delegateRewardSnapshotQueue {
-		if err := r.aggregationEpochDelegationRewards(stateDB, delegatorAddr, validatorAddr, snap.Delegation.StakeEpoch, snap.Delegation, snap.RewardQueue); nil != err {
+		if err := r.aggregationEpochDelegationRewards(stateDB, delegatorAddr, validatorAddr, currentEpoch, snap.Delegation.StakeEpoch, snap.Delegation, snap.RewardQueue); nil != err {
 			r.logger.Error("Failed to aggregate epoch delegation rewards", "currentEpoch", currentEpoch, "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "stakeEpoch", snap.Delegation.StakeEpoch, "error", err)
 			return err
 		}
@@ -392,7 +427,7 @@ func (r *RewardModule) UpdateDelegationRewardsByStakeEpoch(stateDB sdk.StateDB, 
 		return nil
 	}
 
-	if err := r.aggregationEpochDelegationRewards(stateDB, delegatorAddr, validatorAddr, stakeEpoch, delegation, rewardQueue); nil != err {
+	if err := r.aggregationEpochDelegationRewards(stateDB, delegatorAddr, validatorAddr, currentEpoch, stakeEpoch, delegation, rewardQueue); nil != err {
 		r.logger.Error("Failed to aggregate epoch delegation rewards", "currentEpoch", currentEpoch, "delegatorAddr", delegatorAddr.Hex(), "validatorAddr", validatorAddr.Hex(), "stakeEpoch", stakeEpoch, "error", err)
 		return err
 	}
