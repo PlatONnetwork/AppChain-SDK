@@ -90,7 +90,7 @@ deploy(){
 }
 
 
-get_config_value2() {
+printConfig() {
     for key in "${!childchainContracts[@]}"; do
         echo "$key: ${childchainContracts[$key]}"
     done

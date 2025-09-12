@@ -6,7 +6,7 @@ decodeNodesToml(){
     
 CONFIG_FILE=$1
 if [[ ! -f "$CONFIG_FILE" ]]; then
-    echo "错误: 文件 $CONFIG_FILE 不存在"
+    echo "Error: The file $CONFIG_FILE does not exist."
     exit 1
 fi
 local -n node_map="$2"
