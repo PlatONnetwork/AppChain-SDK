@@ -1,3 +1,11 @@
+# Generate
+
+
+```shell
+./generate.sh  --stakeamount {stakeAmount}
+```
+Generate the private keys required for the nodes, with stakeAmount indicating how many tokens the node will stake.
+
 # Staking Script
 Simple staking and unstaking script
 
