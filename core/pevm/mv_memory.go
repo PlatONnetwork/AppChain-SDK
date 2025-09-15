@@ -447,27 +447,27 @@ func (m *MvMemory) Record(txVersion *TxVersion, readSet *ReadSet, writeSet Write
 	}
 
 	// Process new writes
-	for h, value := range writeSet {
+	for _, val := range writeSet {
 		// Get or create WriteHistory for this location
-		wh := m.data.GetOrCreate(h)
+		wh := m.data.GetOrCreate(val.Hash)
 
 		// Create and insert the new entry
 		entry := getItem()
 		entry.TxIdx = txVersion.TxIdx
-		entry.Entry = NewDataEntry(txVersion.TxIncarnation, value)
+		entry.Entry = NewDataEntry(txVersion.TxIncarnation, val.Value)
 		wh.ReplaceOrInsert(entry)
 
 		// Check if we're writing to a new location
 		foundInWriteSet := false
 		for _, existing := range newWrites {
-			if existing == h {
+			if existing == val.Hash {
 				foundInWriteSet = true
 				break
 			}
 		}
 
 		if !foundInWriteSet {
-			newWrites = append(newWrites, h)
+			newWrites = append(newWrites, val.Hash)
 			wroteNewLocation = true
 		}
 	}
