@@ -128,3 +128,17 @@ checkNumber() {
         exit
     fi
 }
+
+bech32Decode(){
+    addr=$1
+    result=$($node keytool updateaddress $addr)
+    
+    local address=$(echo "$result" | grep -i "hex:" | awk '{print $2}')
+    
+    if [ -n "$address" ]; then
+        echo "$address"
+    else
+        error "error: Hex value not found"
+        exit 1
+    fi
+}
