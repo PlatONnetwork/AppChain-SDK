@@ -49,7 +49,7 @@ l1Stake(){
 	checkTx $node $rootchainurl $hash
 
 	ENV_L1_STAKING_HASH=$hash
-    local idhex=$($node attach $rootchainurl --exec "platon.getTransactionReceipt(\"$hash\").logs[1].topics[1]")
+    local idhex=$($node attach $rootchainurl --exec "platon.getTransactionReceipt(\"$hash\").logs[1].topics[3]")
 	ENV_L1_STAKING_ID=$(hexToInt "$idhex")
 	debug "l1 staking id:$ENV_L1_STAKING_ID"
 }
@@ -105,6 +105,7 @@ l2Unstake(){
     debug "prepare unstake:$validatoraddr $unamount"
     local receiptLog=$($tools cast --module l2.staking --address $l2staking --rpc $childchainurl --key $userkey --type send --method unstake $validatoraddr $unamount)
     hash=$(getReceiptHash "$receiptLog")
+    checkTxHash $hash
 	debug "l2 unstake hash:$hash"
 	checkTx $node $childchainurl $hash
     ENV_L2_UNSTAKE_HASH=$hash

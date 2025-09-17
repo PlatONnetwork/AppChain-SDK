@@ -20,12 +20,12 @@ genNodeKey(){
         nodeDir=$defaultNodeDir
     fi
     result=$($node keytool genkeypair)
-    address=$(echo "$result" | grep -oP 'Address:\s*\K[0-9a-f]+')
+    address=$(echo "$result" | grep -oP 'Address:\s*\K[0-9a-zA-Z]+')
     privateKey=$(echo "$result" | grep -oP 'PrivateKey:\s*\K[0-9a-f]+')  
     publicKey=$(echo "$result" | grep -oP 'PublicKey\s*:\s*\K[0-9a-f]+')
-    echo $address > "$nodeDir/nodeaddr"
-    echo $privateKey > "$nodeDir/nodekey"
-    echo $publicKey > "$nodeDir/nodepub"
+    echo -n $address > "$nodeDir/nodeaddr"
+    echo -n $privateKey > "$nodeDir/nodekey"
+    echo -n $publicKey > "$nodeDir/nodepub"
     debug "generate node key success"
 
 }
@@ -38,8 +38,8 @@ genBlsKey(){
     result=$($node keytool genblskeypair)
     privateKey=$(echo "$result" | grep -oP 'PrivateKey:\s*\K[0-9a-f]+')  
     publicKey=$(echo "$result" | grep -oP 'PublicKey\s*:\s*\K[0-9a-f]+')
-    echo $privateKey > "$nodeDir/blskey"
-    echo $publicKey > "$nodeDir/blspub"
+    echo -n $privateKey > "$nodeDir/blskey"
+    echo -n $publicKey > "$nodeDir/blspub"
     debug "generate bls key success"
 }
 parseAddressWithSed() {
@@ -61,7 +61,7 @@ genKeyfile(){
     local passwordFile=$3
     rm -f $keyfile
     result=$(echo -e "$password\n$password" | $node keytool generate $keyfile)
-    echo $password > "$passwordFile"
+    echo -n $password > "$passwordFile"
     debug "generate $keyfile, $passwordFile success"
 }
 genL1CheckpointKey(){

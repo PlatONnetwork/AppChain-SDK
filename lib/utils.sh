@@ -3,6 +3,10 @@
 getReceiptHash(){
     log=$1
     local hash=$(echo "$log" | grep -o '"hash": "[^"]*"' | awk -F'"' '{print $4}')
+    if [[ -z "$hash" ]]; then
+        debug "get hash failed:origin:$log"
+        exit
+    fi
     echo $hash
 }
 
@@ -40,7 +44,7 @@ checkTx(){
 	if [ $status == "\"0x0\"" ];then
 		debug "transaction receipt is failed:$hash"
 		exit
-	else
+	else if [ $status == "\"0x1\"" ]
 		debug "transaction receipt is success:$hash"
 	fi
 }
