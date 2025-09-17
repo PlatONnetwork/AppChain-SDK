@@ -179,8 +179,8 @@ cleanFiles(){
 # Enhanced parsing with getopt (GNU version)
 parseArgsWithGetopt() {
     # Define options
-    local options="o:s:n:h"
-    local long_options="owner:,stakeamount:,nodedir:,help"
+    local options="o:s:n:h:c"
+    local long_options="owner:,stakeamount:,nodedir:,clean,help"
     
     # Parse arguments
     local parsed_args
@@ -217,7 +217,6 @@ parseArgsWithGetopt() {
                 clean=true
                 shift
                 ;;
-                ;;
             --)
                 shift
                 remaining_args=("$@")
@@ -236,7 +235,7 @@ parseArgsWithGetopt() {
     fi
 
     
-    if [ -z "$stakeAmount" ]; then
+    if [ "$help" = false && -z "$stakeAmount" ]; then
         echo "Error: --stakeamount is required" >&2
         exit 1
     fi    
@@ -258,7 +257,7 @@ Examples:
 EOF
 }
 gen(){
-    if [[ "$clean" = "true" ]]
+    if [[ "$clean" = "true" ]];then
         cleanFiles
         return
     fi
