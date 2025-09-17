@@ -49,7 +49,7 @@ l1Stake(){
 	checkTx $node $rootchainurl $hash
 
 	ENV_L1_STAKING_HASH=$hash
-    local idhex=$($node attach $rootchainurl --exec "platon.getTransactionReceipt(\"$hash\").logs[1].topics[3]")
+    local idhex=$($node attach $rootchainurl --exec "platon.getTransactionReceipt(\"$hash\").logs[3].topics[1]")
 	ENV_L1_STAKING_ID=$(hexToInt "$idhex")
 	debug "l1 staking id:$ENV_L1_STAKING_ID"
 }
