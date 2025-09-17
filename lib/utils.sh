@@ -44,8 +44,11 @@ checkTx(){
 	if [ $status == "\"0x0\"" ];then
 		debug "transaction receipt is failed:$hash"
 		exit
-	else if [ $status == "\"0x1\"" ]
-		debug "transaction receipt is success:$hash"
+    elif [ $status == "\"0x1\"" ];then
+            debug "transaction receipt is success:$hash"
+    else
+            debug "unknown status:$status"
+
 	fi
 }
 checkTxHash() {  
