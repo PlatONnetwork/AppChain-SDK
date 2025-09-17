@@ -8,7 +8,7 @@ envfile="${PROJECT_ROOT}/config/env"
 node=../../node
 defaultNodeDir=../..
 defaultPassword="123456"
-
+clean=
 owner=
 stakeAmount=
 l1checkpointAddr=
@@ -153,8 +153,28 @@ genValidatorStakeFor(){
     replaceEnvContent $envfile "validator" $validator
 }
 
+cleanFiles(){
+    local nodeDir=$1
+    if [[ "$1" == "" ]];then
+        nodeDir=$defaultNodeDir
+    fi
+    variables=(
+        "blskey"
+        "blspub" 
+        "l1checkpointsender.json"
+        "l1checkpointsender_password"
+        "l2txsender.json"
+        "l2txsender_password"
+        "nodeaddr"
+        "nodekey"
+        "nodepub"
+    )
+    for var in "${variables[@]}"; do
+        debug "rm $nodeDir/$var"
+        rm -f $nodeDir/$var
+    done
+}
 
-#!/bin/bash
 
 # Enhanced parsing with getopt (GNU version)
 parseArgsWithGetopt() {
@@ -172,6 +192,7 @@ parseArgsWithGetopt() {
     
     owner=""
     local help=false
+    clean=false
     local remaining_args=()
     
     while true; do
@@ -191,6 +212,11 @@ parseArgsWithGetopt() {
             -h|--help)
                 help=true
                 shift
+                ;;
+            -c|--clean)
+                clean=true
+                shift
+                ;;
                 ;;
             --)
                 shift
@@ -224,6 +250,7 @@ Options:
   -o, --owner ADDRESS   Owner address (default:\$user)
   -s, --stakeamount AMOUNT         validator stake amount (required)
   -n, --nodedir DIRECTORY   node directory(default ../../)
+  -c, --clean clean file(blskey blspub l1checkpointsender.json l1checkpointsender_password l2txsender.json l2txsender_password nodeaddr nodekey nodepub)
   -h, --help            Show this help message
 
 Examples:
@@ -231,6 +258,10 @@ Examples:
 EOF
 }
 gen(){
+    if [[ "$clean" = "true" ]]
+        cleanFiles
+        return
+    fi
     genNodeKey
     genBlsKey
     genL1CheckpointKey
