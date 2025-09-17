@@ -4,7 +4,9 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"github.com/PlatONnetwork/PlatON-Go/log"
 	"math/big"
+	"runtime/debug"
 	"strings"
 
 	typesdk "github.com/PlatONnetwork/AppChain-SDK/types"
@@ -58,6 +60,7 @@ var (
 func (c *Upgrade) Run(input []byte) (ret []byte, err error) {
 	defer func() {
 		if r := recover(); r != nil {
+			log.Trace(string(debug.Stack()))
 			switch e := r.(type) {
 			case error:
 				if r, ok := e.(*typesdk.RevertError); ok {
@@ -85,7 +88,11 @@ func (c *Upgrade) Run(input []byte) (ret []byte, err error) {
 		}
 		return nil, errors.New("methods not found")
 	}
-	return entry(input[4:])
+	ret, err = entry(input[4:])
+	if err != nil {
+		log.Trace("Execute failed", "err", err)
+	}
+	return ret, err
 }
 
 func (c *Upgrade) initABI() {

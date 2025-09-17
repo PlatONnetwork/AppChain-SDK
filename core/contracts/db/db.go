@@ -41,7 +41,7 @@ func (s *Store) SetValueDecoder(decoder StoreValueDecoder) {
 func SetState(store *Store, key any, value any) error {
 	keyBuf, err := store.KeyEncoder.EncodeKey(store.Prefix, key)
 	if err != nil {
-		return nil
+		return err
 	}
 	var valBuf []byte
 	if !IsEmpty(value) {
