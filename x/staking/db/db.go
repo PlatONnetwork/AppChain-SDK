@@ -664,7 +664,7 @@ func AppendStakeWithdrawal(db sdk.StateDB, addr, validatorAddr common.Address, e
 				// head < epoch < index < ... < tail
 
 				pre := GetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexItem.PreEpoch) // head
-				epochItem := types.NewStakeWithdrawalItem(indexItem.PreEpoch, epoch, amount)
+				epochItem := types.NewStakeWithdrawalItem(indexItem.PreEpoch, indexEpoch, amount)
 
 				pre.UpdateNextEpoch(epoch)
 				indexItem.UpdatePreEpoch(epoch)
@@ -716,7 +716,7 @@ func GetStakeWithdrawal(db sdk.StateDBReader, addr, validatorAddr common.Address
 
 func GetStakeWithdrawalByEpoch(db sdk.StateDBReader, addr, validatorAddr common.Address, epoch uint64) *big.Int {
 	item := GetStakeWithdrawalQueueItem(db, addr, validatorAddr, epoch)
-	if nil != item {
+	if item.IsNotEmpty() {
 		return item.Amount
 	}
 	return big.NewInt(0)
@@ -771,6 +771,7 @@ func ApplyStakeWithdrawable(db sdk.StateDB, addr, validatorAddr common.Address, 
 	if indexItem.IsEmpty() {
 		return amount, nil
 	}
+	// range from head to tail
 	for indexItem.NextEpoch != uint64(0) { // not sa tail
 
 		if indexEpoch > epoch {
@@ -792,9 +793,15 @@ func ApplyStakeWithdrawable(db sdk.StateDB, addr, validatorAddr common.Address, 
 		removeStakeWithdrawalQueueItem(db, addr, validatorAddr, 0)
 		removeStakeWithdrawalQueueItem(db, addr, validatorAddr, math.MaxUint64)
 	} else { // update start index
+		// head -> index -> next -> tail
 		head := GetStakeWithdrawalQueueItem(db, addr, validatorAddr, uint64(0))
 		head.UpdateNextEpoch(indexEpoch)
 		if err := SetStakeWithdrawalQueueItem(db, addr, validatorAddr, uint64(0), head); nil != err { // update head
+			return big.NewInt(0), err
+		}
+		// update the index Item.preEpoch -> head
+		indexItem.UpdatePreEpoch(uint64(0))
+		if err := SetStakeWithdrawalQueueItem(db, addr, validatorAddr, indexEpoch, indexItem); nil != err { // update index
 			return big.NewInt(0), err
 		}
 	}
@@ -947,7 +954,7 @@ func AppendDelegateWithdrawal(db sdk.StateDB, addr common.Address, delegatorAddr
 				// head < epoch < index < ... < tail
 
 				pre := getDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, indexItem.PreEpoch) // head
-				epochItem := types.NewDelegateWithdrawalItem(indexItem.PreEpoch, epoch, amount)
+				epochItem := types.NewDelegateWithdrawalItem(indexItem.PreEpoch, indexEpoch, amount)
 
 				pre.UpdateNextEpoch(epoch)
 				indexItem.UpdatePreEpoch(epoch)
@@ -998,7 +1005,7 @@ func GetDelegateWithdrawal(db sdk.StateDBReader, addr common.Address, delegatorA
 
 func GetDelegateWithdrawalByEpoch(db sdk.StateDBReader, addr common.Address, delegatorAddr, validatorAddr common.Address, epoch uint64) *big.Int {
 	item := getDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, epoch)
-	if nil != item {
+	if item.IsNotEmpty() {
 		return item.Amount
 	}
 	return big.NewInt(0)
@@ -1015,7 +1022,7 @@ func GetDelegateWithdrawable(db sdk.StateDBReader, addr common.Address, delegato
 	if indexItem.IsEmpty() {
 		return amount
 	}
-
+	// range from head to tail
 	for indexItem.NextEpoch != uint64(0) {
 
 		if indexEpoch > epoch {
@@ -1039,7 +1046,8 @@ func ApplyDelegateWithdrawable(db sdk.StateDB, addr common.Address, delegatorAdd
 	if indexItem.IsEmpty() {
 		return amount, nil
 	}
-	for indexItem.NextEpoch != uint64(0) {
+	// range from head to tail
+	for indexItem.NextEpoch != uint64(0) { // not sa tail
 
 		if indexEpoch > epoch {
 			break
@@ -1047,7 +1055,7 @@ func ApplyDelegateWithdrawable(db sdk.StateDB, addr common.Address, delegatorAdd
 		amount = new(big.Int).Add(amount, indexItem.Amount)
 
 		// remove item
-		if indexEpoch != uint64(0) {
+		if indexEpoch != uint64(0) { // not as head
 			removeDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, indexEpoch)
 		}
 
@@ -1056,13 +1064,19 @@ func ApplyDelegateWithdrawable(db sdk.StateDB, addr common.Address, delegatorAdd
 	}
 
 	// remove head and tail
-	if indexItem.NextEpoch == uint64(0) {
+	if indexItem.NextEpoch == uint64(0) { // as tail
 		removeDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, 0)
 		removeDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, math.MaxUint64)
 	} else { // update start index
+		// head -> index -> next -> tail
 		head := getDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, uint64(0))
 		head.UpdateNextEpoch(indexEpoch)
-		if err := setDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, uint64(0), head); nil != err {
+		if err := setDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, uint64(0), head); nil != err { // update head
+			return big.NewInt(0), err
+		}
+		// update the index Item.preEpoch -> head
+		indexItem.UpdatePreEpoch(uint64(0))
+		if err := setDelegateWithdrawalQueueItem(db, addr, delegatorAddr, validatorAddr, indexEpoch, indexItem); nil != err { // update index
 			return big.NewInt(0), err
 		}
 	}
@@ -1194,7 +1208,7 @@ func AppendValidatorDelegationRc(db sdk.StateDB, addr, validatorAddr common.Addr
 				// head < epoch < index < ... < tail
 
 				preItem := getValidatorDelegationRcItem(db, addr, validatorAddr, indexItem.PreStakeEpoch) // head
-				epochItem := types.NewValidatorDelegationRcItem(indexItem.PreStakeEpoch, epoch, rc)
+				epochItem := types.NewValidatorDelegationRcItem(indexItem.PreStakeEpoch, indexEpoch, rc)
 
 				preItem.UpdateNextStakeEpoch(epoch)
 				indexItem.UpdatePreStakeEpoch(epoch)
@@ -1303,7 +1317,7 @@ func removeValidatorDelegationRcItem(db sdk.StateDB, addr, validatorAddr common.
 
 func ReleaseValidatorDelegationRcItem(db sdk.StateDB, addr, validatorAddr common.Address, stakeEpoch, decrement uint64) error {
 	item := getValidatorDelegationRcItem(db, addr, validatorAddr, stakeEpoch)
-	if nil == item {
+	if item.IsEmpty() {
 		return ErrNotFound
 	}
 
@@ -1339,7 +1353,7 @@ func ReleaseValidatorDelegationRcItem(db sdk.StateDB, addr, validatorAddr common
 
 func GetValidatorDelegationRc(db sdk.StateDBReader, addr, validatorAddr common.Address, stakeEpoch uint64) uint64 {
 	item := getValidatorDelegationRcItem(db, addr, validatorAddr, stakeEpoch)
-	if nil == item {
+	if item.IsEmpty() {
 		return 0
 	}
 	return item.Rc
