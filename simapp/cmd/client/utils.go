@@ -55,14 +55,35 @@ func deploy(fn func() (common.Address, *types.Transaction, error), client *ethcl
 	log.Debug(fmt.Sprintf("Deploy %s", msg), "tx", tx.Hash().Hex())
 	receipt := waitTx(client, tx.Hash())
 	if receipt == nil || receipt.Status == 0x00 {
-
-		log.Error(fmt.Sprintf("Deploy %s", msg), "reason", "receipt is nil or status is false")
+		reason := "receipt is nil"
+		if receipt.Status == 0x00 {
+			err := callTx(client, tx)
+			if err != nil {
+				reason = err.Error()
+			}
+		}
+		log.Error(fmt.Sprintf("Deploy %s", msg), "reason", reason)
 		return common.Address{}, fmt.Errorf("Deploy %s failed, receipt is nil or status is false", msg)
 	}
 	log.Debug(fmt.Sprintf("Deploy %s success", msg), "addr", addr.Hex())
 	return addr, nil
 }
 
+func callTx(client *ethclient.Client, tx *types.Transaction) error {
+	chainid, _ := client.ChainID(context.Background())
+	_, err := client.CallContract(context.Background(), platon.CallMsg{
+		From:       tx.FromAddr(types.NewLondonSigner(chainid)),
+		To:         tx.To(),
+		Gas:        tx.Gas(),
+		GasPrice:   tx.GasPrice(),
+		GasFeeCap:  tx.GasFeeCap(),
+		GasTipCap:  tx.GasTipCap(),
+		Value:      tx.Value(),
+		Data:       tx.Data(),
+		AccessList: tx.AccessList(),
+	}, nil)
+	return err
+}
 func send(fn func() (*types.Transaction, error), client *ethclient.Client, msg string) (*types.Receipt, error) {
 	tx, err := fn()
 	if err != nil {
@@ -74,18 +95,7 @@ func send(fn func() (*types.Transaction, error), client *ethclient.Client, msg s
 		return nil, fmt.Errorf("Send %s failed, receipt is nil", msg)
 	}
 	if receipt.Status == 0x00 {
-		chainid, _ := client.ChainID(context.Background())
-		_, err := client.CallContract(context.Background(), platon.CallMsg{
-			From:       tx.FromAddr(types.NewLondonSigner(chainid)),
-			To:         tx.To(),
-			Gas:        tx.Gas(),
-			GasPrice:   tx.GasPrice(),
-			GasFeeCap:  tx.GasFeeCap(),
-			GasTipCap:  tx.GasTipCap(),
-			Value:      tx.Value(),
-			Data:       tx.Data(),
-			AccessList: tx.AccessList(),
-		}, nil)
+		err = callTx(client, tx)
 		log.Debug(fmt.Sprintf("Send %s failed", msg), "err", err)
 		return nil, err
 	}
