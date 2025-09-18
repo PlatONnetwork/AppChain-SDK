@@ -40,15 +40,14 @@ checkTx(){
 	local url=$2
 	local hash=$3
 	local status=$($node attach $url --exec "platon.getTransactionReceipt(\"$hash\").status")
-	echo "status:$status"
 	if [ $status == "\"0x0\"" ];then
 		debug "transaction receipt is failed:$hash"
 		exit
     elif [ $status == "\"0x1\"" ];then
-            debug "transaction receipt is success:$hash"
+        debug "transaction receipt is success:$hash"
     else
-            debug "unknown status:$status"
-
+        debug "unknown status:$status"
+        exit
 	fi
 }
 checkTxHash() {  

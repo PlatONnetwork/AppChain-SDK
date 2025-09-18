@@ -103,7 +103,7 @@ l2Unstake(){
         fi
     fi
     debug "prepare unstake:$validatoraddr $unamount"
-    local receiptLog=$($tools cast --module l2.staking --address $l2staking --rpc $childchainurl --key $userkey --type send --method unstake $validatoraddr $unamount)
+    local receiptLog=$($tools cast --module l2.staking --address $l2staking --rpc $childchainurl --gas-limit $gaslimit --key $userkey --type send --method unstake $validatoraddr $unamount)
     hash=$(getReceiptHash "$receiptLog")
     checkTxHash $hash
 	debug "l2 unstake hash:$hash"

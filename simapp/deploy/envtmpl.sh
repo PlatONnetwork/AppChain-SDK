@@ -15,6 +15,7 @@ declare -A ENV_TEMPLATE=(
     ["l2deposit"]="0x1000000000000000000000000000000000000007"
     ["l2votetoken"]="0x100000000000000000000000000000000000000B"
     ["validator"]=""
+    ["gaslimit"]="300000"
 )
 ENV_TEMPLATE_KEY=(userkey rootchainurl childchainurl user token l1staking l1depositmanager l1exithelper l2statesender l2statesync l2staking l2deposit l2votetoken validatoraddr validator)
 genEnv(){
