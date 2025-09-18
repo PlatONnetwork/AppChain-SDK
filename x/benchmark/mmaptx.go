@@ -38,6 +38,12 @@ func NewMmapTxFile(fileName string, create bool) (*MmapTxFile, error) {
 		file: file,
 	}, nil
 }
+func (m *MmapTxFile) Truncate() error {
+	if m.mmapFile != nil {
+		return errors.New("had mmap")
+	}
+	return m.file.Truncate(0)
+}
 func (m *MmapTxFile) Mmap() error {
 	if m.mmapFile != nil {
 		return errors.New("had mmap")
