@@ -231,9 +231,9 @@ func (c *ERC20Vote) writeCheckpoint(ckpts *container.Array[Checkpoint], op func(
 	newWeight := op(oldWeight, delta)
 	if pos > 0 && oldCheckpoint.FromBlock == c.evm.Context.BlockNumber.Uint64() {
 		oldCheckpoint.Votes = newWeight
-		ckpts.Replace(pos-1, oldCheckpoint)
+		ckpts.MustReplace(pos-1, oldCheckpoint)
 	} else {
-		ckpts.Push(Checkpoint{
+		ckpts.MustPush(Checkpoint{
 			FromBlock: c.evm.Context.BlockNumber.Uint64(),
 			Votes:     newWeight,
 		})
@@ -334,5 +334,7 @@ func add(b *big.Int, b2 *big.Int) *big.Int {
 	return new(big.Int).Add(b, b2)
 }
 func sub(b *big.Int, b2 *big.Int) *big.Int {
+	contracts.Require(b.Cmp(b2) >= 0, "illegal sub")
+
 	return new(big.Int).Sub(b, b2)
 }

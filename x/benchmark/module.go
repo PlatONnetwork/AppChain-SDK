@@ -90,6 +90,7 @@ type Module struct {
 	txPool          TxPool
 	starting        atomic.Bool
 	stopC           chan struct{}
+	wg              sync.WaitGroup
 }
 
 func NewModule(ctx *cli.Context, store store.Store, txPoolModule TxPoolModule, datadir string) *Module {
@@ -98,8 +99,8 @@ func NewModule(ctx *cli.Context, store store.Store, txPoolModule TxPoolModule, d
 		db:           NewDB(store),
 		txPoolModule: txPoolModule,
 		txCache:      make(map[common.Address][]*types.Transaction),
-		stopC:        make(chan struct{}),
 		readyCh:      make(chan struct{}),
+		stopC:        make(chan struct{}),
 	}
 	var err error
 	txFile := ctx.GlobalString(TxFileFlag.Name)
@@ -130,9 +131,6 @@ func (m *Module) Init(ctx sdk.InitContext) error {
 		return err
 	}
 	m.signer = types.NewLondonSigner(chainId)
-	if err != nil {
-		return err
-	}
 	return nil
 }
 func (m *Module) initAccount() error {
@@ -257,31 +255,39 @@ func (m *Module) createTransactions(amount uint64) error {
 func (m *Module) start(amount uint64, txsPerAccount int, sendTxPool bool) error {
 	m.Lock()
 	defer m.Unlock()
-	m.txsPerAccount = txsPerAccount
-	m.sendTxPool = sendTxPool
-	m.amount = int(amount)
 	if m.starting.Load() {
 		return errors.New("had started")
 	}
 	m.starting.Store(true)
+	m.txsPerAccount = txsPerAccount
+	m.sendTxPool = sendTxPool
+	m.amount = int(amount)
 	m.Statistics.start = time.Now()
+	m.Statistics.send.Store(0)
+	m.Statistics.confirm.Store(0)
 	m.mmapTxFile.UnMmap()
 	m.mmapTxFile.Mmap()
+	m.wg.Add(1)
 	go m.decodeTxLoop(amount)
 	if m.sendTxPool {
 		go m.sendLoop(amount)
 	}
 	return nil
 }
+
 func (m *Module) stop() error {
 	if m.starting.Load() {
+		close(m.stopC)
+		m.readReady()
+		m.wg.Wait()
+		m.stopC = make(chan struct{})
 		m.starting.Store(false)
-		m.Statistics.send.Store(0)
-		m.Statistics.confirm.Store(0)
+		m.logger.Info("Stop benchmark")
 	}
 	return nil
 }
 func (m *Module) decodeTxLoop(amount uint64) {
+	defer m.wg.Done()
 	if m.mmapTxFile == nil {
 		m.logger.Info("Mmap unmmap, stop decode tx")
 		return
@@ -289,32 +295,40 @@ func (m *Module) decodeTxLoop(amount uint64) {
 	sum := uint64(0)
 	start := time.Now()
 	m.logger.Debug("Start decode Tx")
-	for m.starting.Load() {
-		addr, txs, err := m.mmapTxFile.ReadTxs()
-		if err != nil {
-			m.logger.Error("Read txs failed", "err", err)
+	for {
+		select {
+		case <-m.stopC:
+			m.logger.Info("Receive stop signal, stop decode txs")
 			return
+		default:
+			addr, txs, err := m.mmapTxFile.ReadTxs()
+			if err != nil {
+				m.logger.Error("Read txs failed", "err", err)
+				m.starting.Store(false)
+				return
+			}
+			for _, tx := range txs {
+				tx.CacheFromAddr(m.signer, addr)
+			}
+			if m.sendTxPool {
+				m.Lock()
+				cache := m.txCache[addr]
+				cache = append(cache, txs...)
+				m.txCache[addr] = cache
+				m.Unlock()
+			} else {
+				m.send.Add(uint64(len(txs)))
+				m.txPoolModule.AddLocalBatch(addr, txs)
+			}
+			sum += uint64(len(txs))
+			if sum >= amount {
+				m.logger.Debug("Had ready txs, send ready signal", "cost", time.Since(start), "sum", sum, "amount", amount)
+				sum = 0
+				m.readyCh <- struct{}{}
+				start = time.Now()
+			}
 		}
-		for _, tx := range txs {
-			tx.CacheFromAddr(m.signer, addr)
-		}
-		if m.sendTxPool {
-			m.Lock()
-			cache := m.txCache[addr]
-			cache = append(cache, txs...)
-			m.txCache[addr] = cache
-			m.Unlock()
-		} else {
-			m.send.Add(uint64(len(txs)))
-			m.txPoolModule.AddLocalBatch(addr, txs)
-		}
-		sum += uint64(len(txs))
-		if sum >= amount {
-			m.logger.Debug("Had ready txs, send ready signal", "cost", time.Since(start), "sum", sum, "amount", amount)
-			sum = 0
-			m.readyCh <- struct{}{}
-			start = time.Now()
-		}
+
 	}
 	m.logger.Debug("Stop decode Tx")
 

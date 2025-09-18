@@ -14,7 +14,9 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/core/vm"
 	"github.com/PlatONnetwork/PlatON-Go/event"
+	"github.com/PlatONnetwork/PlatON-Go/log"
 	"math/big"
+	"runtime/debug"
 	"strings"
 )
 
@@ -43,6 +45,7 @@ var (
 func (c *ERC20) Run(input []byte) (ret []byte, err error) {
 	defer func() {
 		if r := recover(); r != nil {
+			log.Trace(string(debug.Stack()))
 			switch e := r.(type) {
 			case error:
 				if r, ok := e.(*typesdk.RevertError); ok {
@@ -70,7 +73,11 @@ func (c *ERC20) Run(input []byte) (ret []byte, err error) {
 		}
 		return nil, errors.New("methods not found")
 	}
-	return entry(input[4:])
+	ret, err = entry(input[4:])
+	if err != nil {
+		log.Trace("Execute failed", "err", err)
+	}
+	return ret, err
 }
 
 func (c *ERC20) initABI() {

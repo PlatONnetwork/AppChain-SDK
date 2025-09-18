@@ -445,27 +445,28 @@ type WriteEntry struct {
 	Value MemoryValue
 }
 
-type WriteSet map[MemoryLocationHash]MemoryValue
+type WriteSet []*WriteEntry
 
 func NewWriteSet() WriteSet {
-	return make(WriteSet)
+	return make(WriteSet, 0, 3)
 }
 
 func (ws *WriteSet) Add(hash MemoryLocationHash, value MemoryValue) {
-	if _, ok := (*ws)[hash]; ok {
-		panic("duplicate hash in write set")
-	}
-	(*ws)[hash] = value
+	*ws = append(*ws, &WriteEntry{Hash: hash, Value: value})
 }
 
 func (ws *WriteSet) Find(hash MemoryLocationHash) (MemoryValue, bool) {
-	v, ok := (*ws)[hash]
-	return v, ok
+	for _, entry := range *ws {
+		if entry.Hash == hash {
+			return entry.Value, true
+		}
+	}
+	return nil, false
 }
 
 func (ws *WriteSet) Range(f func(MemoryLocationHash, MemoryValue)) {
-	for hash, val := range *ws {
-		f(hash, val)
+	for _, entry := range *ws {
+		f(entry.Hash, entry.Value)
 	}
 }
 

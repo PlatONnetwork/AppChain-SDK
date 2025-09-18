@@ -312,7 +312,7 @@ func ensureContext(ctx context.Context) context.Context {
 	return ctx
 }
 func WaitTx(client *ethclient.Client, hash common.Hash) (*types.Receipt, error) {
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 60; i++ {
 		receipt, _ := client.TransactionReceipt(context.Background(), hash)
 		if receipt != nil {
 			return receipt, nil
