@@ -17,7 +17,7 @@ declare -A ENV_TEMPLATE=(
     ["validator"]=""
     ["gaslimit"]="300000"
 )
-ENV_TEMPLATE_KEY=(userkey rootchainurl childchainurl user token l1staking l1depositmanager l1exithelper l2statesender l2statesync l2staking l2deposit l2votetoken validatoraddr validator)
+ENV_TEMPLATE_KEY=(userkey rootchainurl childchainurl gaslimit user token l1staking l1depositmanager l1exithelper l2statesender l2statesync l2staking l2deposit l2votetoken validatoraddr validator)
 genEnv(){
     file=$1
     local -n overrides="$2" 

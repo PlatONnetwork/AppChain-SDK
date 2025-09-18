@@ -235,7 +235,7 @@ parseArgsWithGetopt() {
     fi
 
     
-    if [ "$help" = false && -z "$stakeAmount" ]; then
+    if [[ "$clean" = false && -z "$stakeAmount" ]]; then
         echo "Error: --stakeamount is required" >&2
         exit 1
     fi    

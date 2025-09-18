@@ -13,10 +13,12 @@ source decodenodes.sh
 source decodechildcontract.sh
 source findnodedir.sh
 source envtmpl.sh
+source benchmarkenvtmpl.sh
 declare -A nodesMap
 declare -A childchainContracts
 declare -a nodeDirs
 declare -A envMap
+declare -A benchmarkEnvMap
 createToolConfig(){
     rootDir=$1
     owner=$2
@@ -26,7 +28,8 @@ createToolConfig(){
     rootchainurl=$6
     childchainurl=$7
     toolsPath=$8
-    targetAddr=$9
+    benchmarkclient=$9
+    targetAddr=${10}
     envMap["userkey"]=$key
     envMap["user"]=$user
     envMap["rootchainurl"]=$rootchainurl
@@ -51,8 +54,10 @@ createToolConfig(){
         $(mkdir -p $rootDir/$node/scripts/config)
         $(cp -rf $PROJECT_BASE/tools/* $rootDir/$node/scripts)
         $(cp -f $toolsPath $rootDir/$node/scripts/bin/tools)
+        $(cp -f $benchmarkclient $rootDir/$node/scripts/bin/benchmarkclient)
         $(cp -rf $PROJECT_ROOT/lib $rootDir/$node/scripts/)
         genEnv "$rootDir/$node/scripts/config/env" envMap
+        genBenchmarkEnv "$rootDir/$node/scripts/config/benchmarkenv" $benchmarkEnvMap
         debug "create config success, validator:$validatorAddress, node:$node"
 
     done
@@ -63,7 +68,7 @@ createEmptyToolConfig(){
     rootchainurl=$3
     childchainurl=$4
     toolsPath=$5
-
+    benchmarkclient=$6
     $(cp -f $sampleNodeDir/*.sh $newNodeDir/)
     $(cp -f $sampleNodeDir/genesis.json $newNodeDir/)
     $(cp -f $sampleNodeDir/node $newNodeDir/)
@@ -78,8 +83,10 @@ createEmptyToolConfig(){
     $(mkdir -p $newNodeDir/scripts/config)
     $(cp -rf $PROJECT_BASE/tools/* $newNodeDir/scripts)
     $(cp -f $toolsPath $newNodeDir/scripts/bin/tools)
+    $(cp -f $benchmarkclient $newNodeDir/scripts/bin/benchmarkclient)
     $(cp -rf $PROJECT_ROOT/lib $newNodeDir/scripts/)
     genEnv "$newNodeDir/scripts/config/env" envMap
+    genBenchmarkEnv "$newNodeDir/scripts/config/benchmarkenv" $benchmarkEnvMap
     debug "create config success, $newNodeDir"
 
 }
@@ -92,7 +99,8 @@ deploy(){
     rootchainurl=$6
     childchainurl=$7
     toolsPath=$8
-    targetAddr=$9
+    benchmarkclient=$9
+    targetAddr=${10}
     nodeTomlPath="$output/nodes.toml"
     childChainContractsTomlPath="$output/childchaincontract.toml"
     nodeDir="$output/ansible/playbooks/files"
@@ -110,7 +118,7 @@ deploy(){
     if [[ ${#nodesMap[@]} -eq 0 ||  ${#childchainContracts[@]} -eq 0 || ${#nodeDirs[@]} -eq 0 ]]; then  
         echo "element is empty, nodesMap:${#nodesMap[@]}, childchainContracts:${#childchainContracts[@]}, nodeDirs:${#nodeDirs[@]}"  
     fi
-    createToolConfig $nodeDir $owner $stakeAmount $key $user $rootchainurl $childchainurl $toolsPath $targetAddr
+    createToolConfig $nodeDir $owner $stakeAmount $key $user $rootchainurl $childchainurl $toolsPath $benchmarkclient $targetAddr
     
 }
 
@@ -119,7 +127,8 @@ createEmpty(){
     rootchainurl=$2
     childchainurl=$3
     toolsPath=$4
-    newNodeDir=$5
+    bechmarkclient=$5
+    newNodeDir=$6
     mkdir -p $newNodeDir
 
     nodeTomlPath="$output/nodes.toml"
@@ -139,7 +148,7 @@ createEmpty(){
     if [[ ${#nodesMap[@]} -eq 0 ||  ${#childchainContracts[@]} -eq 0 || ${#nodeDirs[@]} -eq 0 ]]; then  
         echo "element is empty, nodesMap:${#nodesMap[@]}, childchainContracts:${#childchainContracts[@]}, nodeDirs:${#nodeDirs[@]}"  
     fi
-    createEmptyToolConfig "$nodeDir/${nodeDirs[0]}" $newNodeDir $rootchainurl $childchainurl $toolsPath
+    createEmptyToolConfig "$nodeDir/${nodeDirs[0]}" $newNodeDir $rootchainurl $childchainurl $toolsPath $bechmarkclient
 }
 
 
@@ -163,11 +172,11 @@ A simple staking operation script.
     
 Commands:
   all       All scripts generated
-             args: [output] [owner] [stakeAmount] [key] [user] [rootchainurl] [childchainurl] [toolsPath]
+             args: [output] [owner] [stakeAmount] [key] [user] [rootchainurl] [childchainurl] [toolsPath] [benchmarkclient]
   single    Script to generate the folder of validator addresses,
-                args: [output] [owner] [stakeAmount] [key] [user] [rootchainurl] [childchainurl] [toolsPath] [targetAddr]
+                args: [output] [owner] [stakeAmount] [key] [user] [rootchainurl] [childchainurl] [toolsPath] [benchmarkclient] [targetAddr]
   empty     Script to generate the empty folder,
-                args: [output] [rootchainurl] [childchainurl] [toolsPath] [newNodeDir]
+                args: [output] [rootchainurl] [childchainurl] [toolsPath] [benchmarkclient] [newNodeDir]
 Options:
     output  simapp output directory
     owner   validator's owner
@@ -183,13 +192,13 @@ EOF
 }
 case $1 in
     "all")
-        deploy $2 $3 $4 $5 $6 $7 $8 $9
+        deploy $2 $3 $4 $5 $6 $7 $8 $9 ${10}
         ;;
     "single") 
-        deploy $2 $3 $4 $5 $6 $7 $8 $9 ${10}
+        deploy $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11}
     ;;
     "empty")
-        createEmpty $2 $3 $4 $5 $6
+        createEmpty $2 $3 $4 $5 $6 $7
         ;;
     *)
         showHelp
