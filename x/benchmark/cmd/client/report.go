@@ -43,7 +43,7 @@ func Report(ctx *cli.Context) error {
 func generateReport(clis []*Connection, start, end uint64) ([][]string, error) {
 	report := [][]string{
 		[]string{
-			"number", "time", "tps", "interval",
+			"number", "time", "txs", "tps", "interval",
 		},
 	}
 	startTime := uint64(0)
