@@ -297,7 +297,12 @@ func (c *StakeHandler) unStake(validatorAddr common.Address, amount *big.Int) er
 		return typesdk.NewRevertError("StakeHandler: SLASHING_VALIDATOR")
 	}
 
-	if validator.IsEmptyOrInvalid() {
+	if validator.IsEmpty() {
+		return typesdk.NewRevertError("StakeHandler: EMPTY_VALIDATOR")
+	}
+
+	// NOTE: only validators with low blocks rate (invalid status) can unstake action
+	if validator.IsInvalid() && !validator.IsOnlyInvalidLowBlocks() {
 		return typesdk.NewRevertError("StakeHandler: INVALID_VALIDATOR")
 	}
 

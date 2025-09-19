@@ -3,11 +3,12 @@ package types
 import (
 	"errors"
 	"fmt"
+	"math/big"
+	"strings"
+
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/p2p/enode"
 	"github.com/status-im/keycard-go/hexutils"
-	"math/big"
-	"strings"
 )
 
 const (
@@ -46,6 +47,9 @@ func (status ValidatorStatus) IsOnlyLowBlocks() bool {
 }
 func (status ValidatorStatus) IsInvalidLowBlocks() bool {
 	return status&(Invalided|LowBlocks) == (Invalided | LowBlocks)
+}
+func (status ValidatorStatus) IsOnlyInvalidLowBlocks() bool {
+	return status&(Invalided|LowBlocks) == status|(Invalided|LowBlocks)
 }
 
 func (status ValidatorStatus) IsLowThreshold() bool {
@@ -203,6 +207,9 @@ func (v *Validator) IsOnlyLowBlocks() bool {
 }
 func (v *Validator) IsInvalidLowBlocks() bool {
 	return v.IsNotEmpty() && v.Status.IsInvalidLowBlocks()
+}
+func (v *Validator) IsOnlyInvalidLowBlocks() bool {
+	return v.IsNotEmpty() && v.Status.IsOnlyInvalidLowBlocks()
 }
 
 func (v *Validator) IsLowThreshold() bool {

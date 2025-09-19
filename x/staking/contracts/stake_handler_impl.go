@@ -245,6 +245,12 @@ func (c *StakeHandler) Slash() error {
 	minBlocksOfRoundValidator := c.stakeModule.GetMinBlocksOfRoundValidator(c.evm.StateDB)
 	validatorAddrs := db.CheckLowBlocksValidatorForPreviousRound(c.evm.StateDB, c.contract.Address(), currentRound, minBlocksOfRoundValidator)
 
+	// NOTE: when calling the slash, should check whether there is a validator with a low block rate
+	if len(validatorAddrs) == 0 {
+		log.Info("Call Slash for start and done (has not slashed validators)", "validator size", len(validatorAddrs), "minBlocksOfRoundValidator", minBlocksOfRoundValidator,
+			"currentRound", currentRound, "currentEpoch", c.getCurrentEpoch(), "blockNumber", c.evm.Context.BlockNumber)
+		return nil
+	}
 	slashingValidatorAddrCache := make(map[common.Address]struct{}, 0)
 	// NOTE: update validator status (add log for lowBlocks slashing)
 	for _, validatorAddr := range validatorAddrs {
