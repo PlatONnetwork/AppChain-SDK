@@ -16,8 +16,9 @@ import (
 )
 
 var (
+	urlFlag           = cli.StringFlag{Name: "url", EnvVar: "BENCHMARK_URL", Usage: "Node http rpc url, example:\"127.0.0.1:8801\""}
 	urlsFlag          = cli.StringFlag{Name: "urls", EnvVar: "BENCHMARK_URLS", Usage: "Node http rpc url, example:\"127.0.0.1:8801,127.0.0.2:8802\""}
-	addrsFlag         = cli.IntFlag{Name: "addrs", EnvVar: "BENCHMARK_ADDRS", Usage: "Server ip, example:\"127.0.0.1,127.0.0.2\""}
+	addrsFlag         = cli.IntFlag{Name: "addrs", EnvVar: "BENCHMARK_ADDRS", Usage: "use built-in address count", Value: 2}
 	rawTxPercentFlag  = cli.IntFlag{Name: "rawtx", EnvVar: "BENCHMARK_RAWTX", Value: 100, Usage: "The proportion of transactions to the total number of transactions"}
 	countFlag         = cli.Uint64Flag{Name: "count", EnvVar: "BENCHMARK_COUNT", Value: 10000, Usage: "Generate transaction count"}
 	tpsFlag           = cli.Uint64Flag{Name: "tps", EnvVar: "BENCHMARK_TPS", Value: 1000, Usage: "Sent txs per second"}
@@ -25,12 +26,27 @@ var (
 	sendTxPoolFlag    = cli.BoolFlag{Name: "txpool", Usage: "Transactions send to the txpool"}
 	startBlockFlag    = cli.Uint64Flag{Name: "start", EnvVar: "BENCHMARK_STARTBLOCK", Usage: "Start block number"}
 	endBlockFlag      = cli.Uint64Flag{Name: "end", EnvVar: "BENCHMARK_ENDBLOCK", Usage: "End block number"}
+	startAddr         = cli.IntFlag{Name: "startaddr", EnvVar: "BENCHMARK_START_ADDR", Usage: "use built-in address start index", Value: 0}
+	endAddr           = cli.IntFlag{Name: "endaddr", EnvVar: "BENCHMARK_END_ADDR", Usage: "use built-in address end index", Value: 1}
 	GenTxCommand      = cli.Command{
 		Name:   "gentx",
 		Action: GenTx,
 		Flags: []cli.Flag{
 			urlsFlag,
 			addrsFlag,
+			rawTxPercentFlag,
+			countFlag,
+		},
+		CustomHelpTemplate: flags.CommandHelpTemplate,
+	}
+
+	GenServerTxCommand = cli.Command{
+		Name:   "genservertx",
+		Action: GenServerTx,
+		Flags: []cli.Flag{
+			urlFlag,
+			startAddr,
+			endAddr,
 			rawTxPercentFlag,
 			countFlag,
 		},
@@ -95,6 +111,7 @@ func main() {
 	app := deploytools.CreateApp()
 	app.Commands = []cli.Command{
 		GenTxCommand,
+		GenServerTxCommand,
 		StartCommand,
 		StopCommand,
 		StatusCommand,
@@ -131,6 +148,26 @@ func GenTx(ctx *cli.Context) error {
 		}(cli, i*addrs, (i+1)*addrs-1)
 	}
 	s.Wait()
+	return nil
+}
+func GenServerTx(ctx *cli.Context) error {
+	url := ctx.String(urlFlag.Name)
+	cli, err := benchmark.NewClient(url)
+	if err != nil {
+		return errors.Join(err, errors.New(url))
+	}
+	start := ctx.Int(startAddr.Name)
+	end := ctx.Int(endAddr.Name)
+	rawTxPercent := ctx.Int(rawTxPercentFlag.Name)
+	contractTxPercent := 100 - rawTxPercent
+	amount := ctx.Uint64(countFlag.Name)
+	fmt.Println(url, start, end, rawTxPercent, contractTxPercent, amount)
+	ctxTimeout, _ := context.WithTimeout(context.Background(), time.Hour)
+	err = cli.GenTxs(ctxTimeout, start, end, rawTxPercent, contractTxPercent, amount)
+	if err != nil {
+		log.Error("gen txs failed", "url", url, "err", err)
+	}
+	fmt.Println(url, "gen txs success")
 	return nil
 }
 func Start(ctx *cli.Context) error {
@@ -177,7 +214,7 @@ func Status(ctx *cli.Context) error {
 			continue
 		}
 		fmt.Println(fmt.Sprintf("[%s]", cli.url),
-			"sent", status.Sent, "tps", status.Tps, "cache", status.CacheTx,
+			"sent", status.Sent, "cache", status.CacheTx,
 			"rawTxPercent", fmt.Sprintf("%d%%", status.RawTxPercent),
 			"contractTxPercent", fmt.Sprintf("%d%%", status.ContractTxPercent))
 	}

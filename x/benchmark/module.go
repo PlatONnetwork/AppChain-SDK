@@ -326,6 +326,10 @@ func (m *Module) decodeTxLoop(amount uint64) {
 				sum = 0
 				m.readyCh <- struct{}{}
 				start = time.Now()
+				//for _, tx := range txs {
+				//	m.sent.Store(tx.Hash(), uint64(time.Now().UnixMilli()))
+				//}
+
 			}
 		}
 
@@ -368,12 +372,13 @@ func (m *Module) OnCommit(ctx sdk.ConsensusContext, block *types.Block) error {
 		now := block.Time()
 		elapsed := uint64(0)
 		count := 0
-		for _, tx := range block.Transactions() {
-			if t, ok := m.sent.Load(tx.Hash()); ok {
-				elapsed += now - t.(uint64)
-				count++
-			}
-		}
+		//for _, tx := range block.Transactions() {
+		//	if t, ok := m.sent.Load(tx.Hash()); ok {
+		//		elapsed += now - t.(uint64)
+		//		count++
+		//		m.sent.Delete(tx.Hash())
+		//	}
+		//}
 		m.confirm.Add(uint64(count))
 		blockInfo := &BlockInfo{
 			ProduceTime: now,
@@ -410,7 +415,6 @@ func (m *Module) sendLoop(amount uint64) {
 						m.logger.Warn("Add local tx failed", "error", err, m.keys[pos].addr.Hex())
 						continue
 					} else {
-						m.sent.Store(txs[0].Hash(), uint64(time.Now().UnixMilli()))
 						m.txCache[m.keys[pos].addr] = txs[1:]
 						m.send.Add(1)
 					}

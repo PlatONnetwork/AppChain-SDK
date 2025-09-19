@@ -41,10 +41,15 @@ func Report(ctx *cli.Context) error {
 }
 
 func generateReport(clis []*Connection, start, end uint64) ([][]string, error) {
-	var report [][]string
+	report := [][]string{
+		[]string{
+			"number", "time", "tps", "interval",
+		},
+	}
 	startTime := uint64(0)
 	txTotal := int64(0)
 	lastTxLength := 0
+	lastProduceTime := uint64(0)
 	for i := start; i <= end; i++ {
 		beginTime := time.Now()
 		var info benchmark.BlockInfo
@@ -63,16 +68,13 @@ func generateReport(clis []*Connection, start, end uint64) ([][]string, error) {
 
 		if i != start {
 			tps := float64(txTotal) / (float64(info.ProduceTime-startTime) / float64(1000))
-			latency := float64(0)
-			if info.TxLength != 0 {
-				latency = (float64(info.TimeUse) / float64(1000)) / float64(info.TxLength)
-			}
+			interval := float64(info.ProduceTime-lastProduceTime) / float64(1000)
 			report = append(report, []string{
 				fmt.Sprintf("%d", i),
 				time.UnixMilli(int64(info.ProduceTime)).Format(time.RFC3339Nano),
 				fmt.Sprintf("%d", info.TotalLength),
 				fmt.Sprintf("%.3f", tps),
-				fmt.Sprintf("%.3f", latency),
+				fmt.Sprintf("%.3f", interval),
 			})
 		} else {
 			startTime = info.ProduceTime
@@ -85,6 +87,7 @@ func generateReport(clis []*Connection, start, end uint64) ([][]string, error) {
 			})
 		}
 		lastTxLength = info.TotalLength
+		lastProduceTime = info.ProduceTime
 		txTotal += int64(info.TotalLength)
 
 	}

@@ -84,7 +84,7 @@ func (s *StateDB) RevertToSnapshot(i int) {
 }
 
 func (s *StateDB) Snapshot() int {
-	return s.Snapshot()
+	return s.evm.StateDB.Snapshot()
 }
 
 func (s *StateDB) GetLogs(hash common.Hash, blockHash common.Hash) []*types.Log {
