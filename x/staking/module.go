@@ -624,7 +624,7 @@ func (s *StakeModule) createSlashTx(ctx sdk.Context, txNonce uint64) (*types.Tra
 	}
 	input = append(method.ID, input...)
 
-	tx := types.NewTransaction(txNonce, s.Address(), nil, 100000, big.NewInt(0), input)
+	tx := types.NewTransaction(txNonce, s.Address(), nil, 300000, big.NewInt(0), input)
 	chainId, _ := ctx.Backend().ChainId()
 	signer := types.NewEIP155Signer(chainId)
 	tx, err = types.SignTx(tx, signer, s.nodePrivateKey)
