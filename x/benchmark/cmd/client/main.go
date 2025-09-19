@@ -214,7 +214,7 @@ func Status(ctx *cli.Context) error {
 			continue
 		}
 		fmt.Println(fmt.Sprintf("[%s]", cli.url),
-			"sent", status.Sent, "tps", status.Tps, "cache", status.CacheTx,
+			"sent", status.Sent, "cache", status.CacheTx,
 			"rawTxPercent", fmt.Sprintf("%d%%", status.RawTxPercent),
 			"contractTxPercent", fmt.Sprintf("%d%%", status.ContractTxPercent))
 	}

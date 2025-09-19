@@ -7,7 +7,6 @@ import (
 
 	"github.com/PlatONnetwork/PlatON-Go/ethclient"
 	"github.com/PlatONnetwork/PlatON-Go/rpc"
-	"time"
 )
 
 type Status struct {
@@ -57,14 +56,14 @@ func (r *RPC) Stop() error {
 	return r.m.stop()
 }
 func (r *RPC) Status() (*Status, error) {
-	now := time.Now().Unix()
+	//now := time.Now().Unix()
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	tps := float64(r.m.confirm.Load()) / float64(now-r.m.Statistics.start.Unix())
+	//tps := float64(r.m.confirm.Load()) / float64(now-r.m.Statistics.start.Unix())
 	return &Status{
-		Sent:              r.m.send.Load(),
-		Tps:               tps,
+		Sent: r.m.send.Load(),
+		//Tps:               tps,
 		CacheTx:           int(r.m.cache.Load()),
 		RawTxPercent:      r.m.rawTxPercent,
 		ContractTxPercent: r.m.contractTxPercent,
