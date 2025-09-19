@@ -7,7 +7,7 @@ loadLibraries
 source "${PROJECT_ROOT}/config/benchmarkenv"
 
 
-benchmarkclient=./benchmarkclient
+benchmarkclient=../../bin/benchmarkclient
 
 showHelp(){
     cat << EOF
