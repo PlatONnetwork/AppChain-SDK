@@ -34,6 +34,9 @@ func NewRPC(m *Module) *RPC {
 }
 
 func (r *RPC) GenTxs(accountBeginIndex, accountEndIndex, rawTxPercent, contractTxPercent int, totalTx uint64) error {
+	if accountBeginIndex < 0 || accountEndIndex+1 > AccountLimit || rawTxPercent+contractTxPercent > 100 {
+		return errors.New("Illegal params")
+	}
 	if !r.generating.CompareAndSwap(false, true) {
 		return errors.New("There is a task in progress")
 	}

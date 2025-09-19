@@ -71,7 +71,7 @@ func Generate(ctx *cli.Context) error {
 	os.Mkdir(filesDir, 0755)
 	varsDir := filepath.Join(dir, "playbooks", "vars")
 	os.Mkdir(varsDir, 0755)
-	if err = deploy.GenerateAnsible(username, password, dir, nodes); err != nil {
+	if err = deploy.GenerateAnsible(false, username, password, dir, nodes); err != nil {
 		return err
 	}
 	if err = deploy.GenerateNodes(nodes, deploy.ANY, deploy.ANY, ctx.String(deploy.StartArgsFlag.Name)+" "+ctx.String(extraArgsFlag.Name), filesDir, string(genesisJson), binary, nil); err != nil {
