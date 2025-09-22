@@ -288,6 +288,7 @@ func (e *PEVM) commitTransactions(txs coretypes.Transactions, isSysTxs bool) *PE
 		}
 	}
 	e.logger.Info("Commit transactions finished",
+		"blockNumber", blockNumber,
 		"txs", len(txs),
 		"committedTxs", len(committedTxs),
 		"cumulativeGasUsed", e.cumulativeGasUsed,
@@ -470,7 +471,6 @@ func (e *PEVM) parallelExecute(txs coretypes.Transactions, isSysTxs bool) (*PEVM
 		pevmResult.GasUsed = e.cumulativeGasUsed
 		e.txCount += len(txs)
 	}
-	e.env.StateDB.Finalise(true)
 
 	e.logger.Info("Parallel execute finish",
 		"number", e.env.Header.Number,
@@ -675,6 +675,7 @@ func (e *PEVM) parallelExecuteBatch(txs coretypes.Transactions, isSysTxs bool) (
 			}
 		}
 	}
+	statedb.Finalise(true)
 	return executionResults, nil
 }
 
