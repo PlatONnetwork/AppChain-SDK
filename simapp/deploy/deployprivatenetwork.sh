@@ -40,6 +40,7 @@ deployPrivateNetwork(){
     $(cp -f $tools $rootDir/bin/tools)
     $(cp -f $benchmarkclient $rootDir/bin/benchmarkclient)
     $(cp -rf $PROJECT_ROOT/lib $rootDir/scripts/)
+    $(cp -rf $PROJECT_BASE/tools/privatenetwork_en.md $rootDir/README.md)
     $(cp -rf $PROJECT_BASE/tools/bin/gensimapp.sh $rootDir/scripts/bin)
     $(cp -rf $PROJECT_BASE/tools/bin/benchmarkcluster.sh $rootDir/scripts/bin)
     genSimappEnv $rootDir/scripts/config/simappenv $simappConfigMap

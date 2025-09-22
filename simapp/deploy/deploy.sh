@@ -81,7 +81,13 @@ createEmptyToolConfig(){
     envMap["l1exithelper"]=${childchainContracts["exit_helper"]}
     
     $(mkdir -p $newNodeDir/scripts/config)
-    $(cp -rf $PROJECT_BASE/tools/* $newNodeDir/scripts)
+    $(mkdir -p $newNodeDir/scripts/bin)
+
+    $(cp -f $PROJECT_BASE/tools/bin/benchmark.sh $newNodeDir/scripts/bin)
+    $(cp -f $PROJECT_BASE/tools/bin/generate.sh $newNodeDir/scripts/bin)
+    $(cp -f $PROJECT_BASE/tools/bin/staking.sh $newNodeDir/scripts/bin)
+    $(cp -f $PROJECT_BASE/tools/README.md $newNodeDir/README.md)
+
     $(cp -f $toolsPath $newNodeDir/scripts/bin/tools)
     $(cp -f $benchmarkclient $newNodeDir/scripts/bin/benchmarkclient)
     $(cp -rf $PROJECT_ROOT/lib $newNodeDir/scripts/)
