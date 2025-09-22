@@ -3,6 +3,7 @@ package pevm
 import (
 	"fmt"
 	"math/big"
+	"sort"
 	"sync"
 
 	"github.com/PlatONnetwork/PlatON-Go/common"
@@ -12,6 +13,11 @@ import (
 	"github.com/PlatONnetwork/PlatON-Go/sdk"
 )
 
+type revision struct {
+	id           int
+	journalIndex int
+}
+
 var (
 	_             sdk.StateDB = (*VmDB)(nil)
 	maxUint256, _             = new(big.Int).SetString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 16)
@@ -19,19 +25,17 @@ var (
 	vmdbPool = sync.Pool{
 		New: func() interface{} {
 			return &VmDB{
-				readSet:             NewReadSet(),
-				readAccounts:        make(map[common.Address]*AccountBase, 3),
-				dirties:             make(map[common.Address]struct{}, 3),
-				states:              make(map[common.Address]map[string][]byte, 3),
-				readStates:          make(map[common.Address]map[string][]byte, 3),
-				addBalances:         make(map[common.Address]*big.Int, 3),
-				subBalances:         make(map[common.Address]*big.Int, 3),
-				readCodeHash:        make(map[common.Address]common.Hash, 1),
-				refund:              0,
-				logs:                make(map[common.Hash][]*coretypes.Log, 0),
-				accessList:          newAccessList(),
-				snapshotAddBalances: make(map[common.Address]*big.Int, 3),
-				snapshotSubBalances: make(map[common.Address]*big.Int, 3),
+				readSet:      NewReadSet(),
+				readAccounts: make(map[common.Address]*AccountBase, 3),
+				states:       make(map[common.Address]map[string][]byte, 3),
+				readStates:   make(map[common.Address]map[string][]byte, 3),
+				addBalances:  make(map[common.Address]*big.Int, 3),
+				subBalances:  make(map[common.Address]*big.Int, 3),
+				readCodeHash: make(map[common.Address]common.Hash, 1),
+				refund:       0,
+				logs:         make(map[common.Hash][]*coretypes.Log, 0),
+				accessList:   newAccessList(),
+				journal:      newJournal(),
 			}
 		},
 	}
@@ -68,7 +72,6 @@ type VmDB struct {
 	isLazy       bool
 	readSet      *ReadSet
 	readAccounts map[common.Address]*AccountBase
-	dirties      map[common.Address]struct{}
 	states       map[common.Address]map[string][]byte
 	readStates   map[common.Address]map[string][]byte
 	addBalances  map[common.Address]*big.Int
@@ -81,8 +84,9 @@ type VmDB struct {
 	logSize    uint
 	accessList *accessList
 
-	snapshotAddBalances map[common.Address]*big.Int
-	snapshotSubBalances map[common.Address]*big.Int
+	journal        *journal
+	validRevisions []revision
+	nextRevisionId int
 
 	abortErr error
 }
@@ -94,26 +98,23 @@ func NewVmDB(
 	fromAddr common.Address,
 	fromHash, toHash MemoryLocationHash) *VmDB {
 	db := &VmDB{
-		vm:                  vm,
-		txIdx:               txIdx,
-		tx:                  tx,
-		fromAddr:            fromAddr,
-		toAddr:              common.ZeroAddr,
-		fromHash:            fromHash,
-		toHash:              toHash,
-		readSet:             NewReadSet(),
-		readAccounts:        make(map[common.Address]*AccountBase, 3),
-		dirties:             make(map[common.Address]struct{}, 3),
-		states:              make(map[common.Address]map[string][]byte, 3),
-		readStates:          make(map[common.Address]map[string][]byte, 3),
-		addBalances:         make(map[common.Address]*big.Int, 3),
-		subBalances:         make(map[common.Address]*big.Int, 3),
-		readCodeHash:        make(map[common.Address]common.Hash, 1),
-		refund:              0,
-		logs:                make(map[common.Hash][]*coretypes.Log, 0),
-		accessList:          newAccessList(),
-		snapshotAddBalances: make(map[common.Address]*big.Int, 3),
-		snapshotSubBalances: make(map[common.Address]*big.Int, 3),
+		vm:           vm,
+		txIdx:        txIdx,
+		tx:           tx,
+		fromAddr:     fromAddr,
+		toAddr:       common.ZeroAddr,
+		fromHash:     fromHash,
+		toHash:       toHash,
+		readSet:      NewReadSet(),
+		readAccounts: make(map[common.Address]*AccountBase, 3),
+		states:       make(map[common.Address]map[string][]byte, 3),
+		readStates:   make(map[common.Address]map[string][]byte, 3),
+		addBalances:  make(map[common.Address]*big.Int, 3),
+		subBalances:  make(map[common.Address]*big.Int, 3),
+		readCodeHash: make(map[common.Address]common.Hash, 1),
+		refund:       0,
+		logs:         make(map[common.Hash][]*coretypes.Log, 0),
+		accessList:   newAccessList(),
 	}
 	if tx.To() != nil {
 		db.toAddr = *tx.To()
@@ -151,13 +152,11 @@ func (db *VmDB) Init(vm *Vm,
 }
 
 func (db *VmDB) reset() {
+	db.clearJournalAndRefund()
 	db.readSet = NewReadSet()
 	db.accessList.Reset()
 	for k, _ := range db.readAccounts {
 		delete(db.readAccounts, k)
-	}
-	for k, _ := range db.dirties {
-		delete(db.dirties, k)
 	}
 	for k, _ := range db.states {
 		delete(db.states, k)
@@ -177,14 +176,7 @@ func (db *VmDB) reset() {
 	for k, _ := range db.logs {
 		delete(db.logs, k)
 	}
-	for k, _ := range db.snapshotAddBalances {
-		delete(db.snapshotAddBalances, k)
-	}
-	for k, _ := range db.snapshotSubBalances {
-		delete(db.snapshotSubBalances, k)
-	}
 	db.logSize = 0
-	db.refund = 0
 	db.vm = nil
 	db.tx = nil
 	db.isLazy = false
@@ -602,6 +594,7 @@ func (db *VmDB) CreateAccount(addr common.Address) {
 		return
 	}
 	if db.getAccountBasic(addr) == nil {
+		db.journal.append(createObjectChange{account: &addr})
 		basic := NewEmptyAccountBase(addr)
 		db.readAccounts[addr] = basic
 	}
@@ -618,17 +611,26 @@ func (db *VmDB) SubBalance(addr common.Address, amount *big.Int) {
 
 	if db.lazy(addr) {
 		if balance, exist := db.subBalances[addr]; exist {
+			db.journal.append(subBalanceChange{
+				account: &addr,
+				prev:    new(big.Int).Set(balance),
+			})
 			balance.Add(balance, amount)
 		} else {
+			db.journal.append(subBalanceChange{
+				account: &addr,
+				prev:    new(big.Int),
+			})
 			db.subBalances[addr] = new(big.Int).Set(amount)
 		}
 		return
 	}
 
 	if basic := db.getAccountBasic(addr); basic != nil {
-		if _, ok := db.dirties[addr]; !ok {
-			db.dirties[addr] = struct{}{}
-		}
+		db.journal.append(balanceChange{
+			account: &addr,
+			prev:    new(big.Int).Set(basic.Balance),
+		})
 		basic.Balance.Sub(basic.Balance, amount)
 	}
 }
@@ -645,6 +647,10 @@ func (db *VmDB) AddBalance(addr common.Address, amount *big.Int) {
 				if amount.Cmp(balance) > 0 {
 					panic(fmt.Sprintf("invalid balance(addr: %s, balance: %s, amount: %s)", addr.Hex(), amount, balance))
 				}
+				db.journal.append(subBalanceChange{
+					account: &addr,
+					prev:    new(big.Int).Set(balance),
+				})
 				balance.Sub(balance, amount)
 			} else {
 				panic(fmt.Sprintf("AddBalance: unreachable(%s balance not found)", addr.Hex()))
@@ -653,8 +659,16 @@ func (db *VmDB) AddBalance(addr common.Address, amount *big.Int) {
 		}
 
 		if balance, exist := db.addBalances[addr]; exist {
+			db.journal.append(addBalanceChange{
+				account: &addr,
+				prev:    new(big.Int).Set(balance),
+			})
 			balance.Add(balance, amount)
 		} else {
+			db.journal.append(addBalanceChange{
+				account: &addr,
+				prev:    new(big.Int),
+			})
 			db.addBalances[addr] = new(big.Int).Set(amount)
 		}
 		return
@@ -663,15 +677,13 @@ func (db *VmDB) AddBalance(addr common.Address, amount *big.Int) {
 	if basic := db.getAccountBasic(addr); basic != nil {
 		if amount.Sign() == 0 {
 			if basic.Empty() && basic.Touch() {
-				if _, ok := db.dirties[addr]; !ok {
-					db.dirties[addr] = struct{}{}
-				}
 			}
 			return
 		}
-		if _, ok := db.dirties[addr]; !ok {
-			db.dirties[addr] = struct{}{}
-		}
+		db.journal.append(balanceChange{
+			account: &addr,
+			prev:    new(big.Int).Set(basic.Balance),
+		})
 		basic.Balance.Add(basic.Balance, amount)
 	}
 }
@@ -690,9 +702,10 @@ func (db *VmDB) SetNonce(addr common.Address, nonce uint64) {
 	}
 
 	if basic := db.getAccountBasic(addr); basic != nil {
-		if _, ok := db.dirties[addr]; !ok {
-			db.dirties[addr] = struct{}{}
-		}
+		db.journal.append(nonceChange{
+			account: &addr,
+			prev:    basic.Nonce,
+		})
 		basic.Nonce = nonce
 	}
 }
@@ -702,9 +715,12 @@ func (db *VmDB) SetCode(addr common.Address, code []byte) {
 		return
 	}
 	if basic := db.getAccountBasic(addr); basic != nil {
-		if _, ok := db.dirties[addr]; !ok {
-			db.dirties[addr] = struct{}{}
-		}
+		db.journal.append(codeChange{
+			account:  &addr,
+			prevcode: basic.Code,
+			prevhash: basic.CodeHash[:],
+		})
+
 		basic.Code = code
 		basic.CodeHash = crypto.Keccak256Hash(code)
 		basic.CodeSize = len(code)
@@ -713,7 +729,7 @@ func (db *VmDB) SetCode(addr common.Address, code []byte) {
 }
 
 func (db *VmDB) AddRefund(gas uint64) {
-	// FIXME: lazy caculate?
+	db.journal.append(refundChange{prev: db.refund})
 	db.refund += gas
 }
 
@@ -722,13 +738,21 @@ func (db *VmDB) SubRefund(gas uint64) {
 	if gas > db.refund {
 		panic(fmt.Sprintf("Refund counter below zero (gas: %d > refund: %d", gas, db.refund))
 	}
+	db.journal.append(refundChange{prev: db.refund})
 	db.refund -= gas
 }
 
 func (db *VmDB) SetState(addr common.Address, key, val []byte) {
+	var preValue []byte
 	if _, ok := db.states[addr]; !ok {
 		db.states[addr] = make(map[string][]byte, 0)
 	}
+	preValue = db.states[addr][string(key)]
+	db.journal.append(storageChange{
+		account:  &addr,
+		key:      key,
+		preValue: preValue,
+	})
 	db.states[addr][string(key)] = val
 }
 
@@ -737,9 +761,16 @@ func (db *VmDB) Suicide(addr common.Address) bool {
 		return false
 	}
 	if basic := db.getAccountBasic(addr); basic != nil {
-		if _, ok := db.dirties[addr]; !ok {
-			db.dirties[addr] = struct{}{}
+		var prev bool
+		if basic.Suicided != nil {
+			prev = *basic.Suicided
 		}
+		db.journal.append(suicideChange{
+			account:     &addr,
+			prev:        prev,
+			prevbalance: new(big.Int).Set(basic.Balance),
+		})
+
 		suicided := true
 		basic.Suicided = &suicided
 		basic.Balance = new(big.Int)
@@ -749,6 +780,8 @@ func (db *VmDB) Suicide(addr common.Address) bool {
 }
 
 func (db *VmDB) AddLog(logInfo *coretypes.Log) {
+	db.journal.append(addLogChange{txhash: db.TxHash()})
+
 	logInfo.TxHash = db.TxHash()
 	logInfo.TxIndex = uint(db.TxIndex())
 	logInfo.Index = db.logSize
@@ -785,50 +818,49 @@ func (db *VmDB) SlotInAccessList(addr common.Address, slot common.Hash) (bool, b
 }
 
 func (db *VmDB) AddAddressToAccessList(addr common.Address) {
-	db.accessList.AddAddress(addr)
+	if db.accessList.AddAddress(addr) {
+		db.journal.append(accessListAddAccountChange{&addr})
+	}
+
 }
 
 func (db *VmDB) AddSlotToAccessList(addr common.Address, slot common.Hash) {
-	db.accessList.AddSlot(addr, slot)
+	addrMod, slotMod := db.accessList.AddSlot(addr, slot)
+	if addrMod {
+		// In practice, this should not happen, since there is no way to enter the
+		// scope of 'address' without having the 'address' become already added
+		// to the access list (via call-variant, create, etc).
+		// Better safe than sorry, though
+		db.journal.append(accessListAddAccountChange{&addr})
+	}
+	if slotMod {
+		db.journal.append(accessListAddSlotChange{
+			address: &addr,
+			slot:    &slot,
+		})
+	}
 }
 
-func (db *VmDB) RevertToSnapshot(int) {
-	db.refund = 0
-	for k, _ := range db.dirties {
-		delete(db.dirties, k)
+func (db *VmDB) RevertToSnapshot(revid int) {
+	// Find the snapshot in the stack of valid snapshots.
+	idx := sort.Search(len(db.validRevisions), func(i int) bool {
+		return db.validRevisions[i].id >= revid
+	})
+	if idx == len(db.validRevisions) || db.validRevisions[idx].id != revid {
+		panic(fmt.Errorf("revision id %v cannot be reverted", revid))
 	}
-	for k, _ := range db.states {
-		delete(db.states, k)
-	}
-	for k, _ := range db.logs {
-		delete(db.logs, k)
-	}
-	for k, _ := range db.addBalances {
-		delete(db.addBalances, k)
-	}
-	for k, _ := range db.subBalances {
-		delete(db.subBalances, k)
-	}
+	snapshot := db.validRevisions[idx].journalIndex
 
-	for k, v := range db.snapshotAddBalances {
-		db.addBalances[k] = new(big.Int).Set(v)
-		delete(db.snapshotAddBalances, k)
-	}
-
-	for k, v := range db.snapshotSubBalances {
-		db.subBalances[k] = new(big.Int).Set(v)
-		delete(db.snapshotSubBalances, k)
-	}
+	// Replay the journal to undo changes and remove invalidated snapshots
+	db.journal.revert(db, snapshot)
+	db.validRevisions = db.validRevisions[:idx]
 }
 
 func (db *VmDB) Snapshot() int {
-	for k, v := range db.addBalances {
-		db.snapshotAddBalances[k] = new(big.Int).Set(v)
-	}
-	for k, v := range db.subBalances {
-		db.snapshotSubBalances[k] = new(big.Int).Set(v)
-	}
-	return 0
+	id := db.nextRevisionId
+	db.nextRevisionId++
+	db.validRevisions = append(db.validRevisions, revision{id, db.journal.length()})
+	return id
 }
 
 func (db *VmDB) ForEachStorage(common.Address, func([]byte, []byte) bool) { panic("not implement") }
@@ -868,4 +900,12 @@ func (db *VmDB) getStateFromCache(addr common.Address, key []byte) ([]byte, bool
 func (db *VmDB) lazy(addr common.Address) bool {
 	lazyAddr := db.isLazy && (addr == db.fromAddr || addr == db.toAddr)
 	return lazyAddr || addr == db.vm.env.Header.Coinbase
+}
+
+func (db *VmDB) clearJournalAndRefund() {
+	if len(db.journal.entries) > 0 {
+		db.journal = newJournal()
+		db.refund = 0
+	}
+	db.validRevisions = db.validRevisions[:0]
 }
