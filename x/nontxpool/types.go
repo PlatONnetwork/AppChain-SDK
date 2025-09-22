@@ -2,10 +2,15 @@ package nontxpool
 
 import (
 	"errors"
+	"fmt"
 	"github.com/PlatONnetwork/PlatON-Go/common"
 	"github.com/PlatONnetwork/PlatON-Go/core/types"
 	"github.com/PlatONnetwork/PlatON-Go/log"
 	"sync"
+)
+
+var (
+	CheckQueue = false
 )
 
 type TxQueue struct {
@@ -49,6 +54,7 @@ func (t *TxQueue) truncate() {
 		for addr, v := range t.remoteTxsList {
 			t.counter -= uint64(len(v))
 			delete(t.remoteTxsList, addr)
+			break
 		}
 	}
 }
@@ -83,12 +89,16 @@ func (t *TxQueue) AddLocalBatch(addr common.Address, txs []*types.Transaction) {
 	}
 
 	t.addLocalTxs(addr, txs...)
+	t.checkQueue()
+
 }
 
 func (t *TxQueue) AddLocal(txs []*types.Transaction) {
 	t.Lock()
 	defer t.Unlock()
 	t.addLocal(txs)
+	t.checkQueue()
+
 }
 func (t *TxQueue) addLocal(txs []*types.Transaction) {
 	for _, tx := range txs {
@@ -119,19 +129,21 @@ func (t *TxQueue) AddRemote(txs []*types.Transaction) {
 		}
 		t.addRemoteTxs(from, tx)
 	}
+	t.checkQueue()
+
 }
 func (t *TxQueue) Reset(getNonce func(addr common.Address) uint64) {
 	t.Lock()
 	defer t.Unlock()
 	resetFn := func(txsList map[common.Address][]*types.Transaction) {
+		deletedMap := make(map[common.Address]int)
 		for addr, txs := range txsList {
 			nonce := getNonce(addr)
 			if len(txs) != 0 {
 				if txs[0].Nonce() < nonce {
 					pos := nonce - txs[0].Nonce()
 					if pos >= uint64(len(txs)) {
-						t.counter -= uint64(len(txs))
-						delete(txsList, addr)
+						deletedMap[addr] = len(txs)
 						continue
 					}
 					txsList[addr] = txs[pos:]
@@ -139,17 +151,41 @@ func (t *TxQueue) Reset(getNonce func(addr common.Address) uint64) {
 				}
 			}
 		}
+		for addr, amount := range deletedMap {
+			t.counter -= uint64(amount)
+			delete(txsList, addr)
+		}
 	}
+
 	resetFn(t.localTxsList)
 	resetFn(t.remoteTxsList)
+	t.checkQueue()
+
 }
 func (t *TxQueue) CleanRemote() {
 	t.Lock()
 	defer t.Unlock()
-	for txs := range t.remoteTxsList {
+	for _, txs := range t.remoteTxsList {
 		t.counter -= uint64(len(txs))
 	}
 	t.remoteTxsList = make(map[common.Address][]*types.Transaction)
+	t.checkQueue()
+
+}
+func (t *TxQueue) checkQueue() {
+	if !CheckQueue {
+		return
+	}
+	sum := 0
+	for _, v := range t.localTxsList {
+		sum += len(v)
+	}
+	for _, v := range t.remoteTxsList {
+		sum += len(v)
+	}
+	if uint64(sum) != t.counter {
+		panic(fmt.Sprintf("sum:%d, counter:%d", sum, t.counter))
+	}
 }
 func (t *TxQueue) Locals(handle func([]*types.Transaction)) {
 	t.Lock()
@@ -158,6 +194,7 @@ func (t *TxQueue) Locals(handle func([]*types.Transaction)) {
 	for _, txsList := range t.localTxsList {
 		handle(txsList)
 	}
+	t.checkQueue()
 }
 func (t *TxQueue) pendingNonce(addr common.Address) (uint64, error) {
 	if txs := t.localTxsList[addr]; len(txs) != 0 {

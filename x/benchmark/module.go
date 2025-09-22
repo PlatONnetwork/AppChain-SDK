@@ -355,7 +355,7 @@ func (m *Module) SortTxs(ctx sdk.WorkerContext, local map[common.Address]types.T
 	}, m.amount, m.txsPerAccount), nil
 }
 func (m *Module) AddTxs(ctx sdk.WorkerContext, local map[common.Address]types.Transactions) (map[common.Address]types.Transactions, error) {
-	m.logger.Debug("Read ready signal")
+	m.logger.Debug("Read ready signal", "txpoolcount", m.txPoolModule.Total(), "shreshold", uint64(m.amount*6))
 	if m.txPoolModule.Total() < uint64(m.amount*6) {
 		m.readReady()
 	}
