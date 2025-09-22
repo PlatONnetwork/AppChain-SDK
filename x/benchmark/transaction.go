@@ -31,7 +31,7 @@ func createTokenTransfer(signer types.Signer, from *ecdsa.PrivateKey, contract c
 		Nonce:    nonce,
 		To:       &contract,
 		Value:    big.NewInt(0),
-		Gas:      200000,
+		Gas:      50000,
 		GasPrice: gasPrice,
 		Data:     input,
 	})
