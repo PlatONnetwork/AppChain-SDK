@@ -734,9 +734,13 @@ func (db *VmDB) AddRefund(gas uint64) {
 }
 
 func (db *VmDB) SubRefund(gas uint64) {
-	// FIXME: lazy caculate?
+	if db.abortErr != nil {
+		return
+	}
+
 	if gas > db.refund {
-		panic(fmt.Sprintf("Refund counter below zero (gas: %d > refund: %d", gas, db.refund))
+		db.abortErr = ErrInconsistentRead
+		return
 	}
 	db.journal.append(refundChange{prev: db.refund})
 	db.refund -= gas
