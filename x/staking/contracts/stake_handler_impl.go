@@ -373,6 +373,7 @@ func (c *StakeHandler) Undelegate(validatorAddr common.Address, amount *big.Int)
 			}
 		}
 	}
+	contracts.Require(origin.Cmp(paid) == 0, "StakeHandler: INVALID_AMOUNT")
 	c.burnVoteToken(delegatorAddr, origin)
 	if err := c.registerDelegateWithdrawal(delegatorAddr, validatorAddr, paid, true); nil != err {
 		return err
