@@ -80,7 +80,7 @@ func (vm *Vm) Execute(txVersion *TxVersion) (result *VmExecutionResult, err erro
 	switch err {
 	case nil:
 		writeSet := NewWriteSet()
-		for addr, _ := range db.dirties {
+		for addr, _ := range db.journal.dirties {
 			account := db.readAccounts[addr]
 			if account.Suicided != nil && *account.Suicided {
 				writeSet.Add(CodeHashLoc(addr), NewSelfDestructed(addr))
