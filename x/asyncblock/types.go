@@ -3,6 +3,7 @@ package asyncblock
 import (
 	"errors"
 	"fmt"
+	"github.com/PlatONnetwork/PlatON-Go/p2p"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -340,6 +341,19 @@ func (e *EntryList) AddEntry(entry *Entry) {
 	if (len(e.entries) == 0 && entry.EntryNumber == 0) || (len(e.entries) > 0 && e.entries[len(e.entries)-1].EntryNumber+1 == entry.EntryNumber) {
 		e.entries = append(e.entries, entry)
 	}
+	e.fillEntry()
+}
+func (e *EntryList) fillEntry() {
+	if len(e.entries) == 0 {
+		return
+	}
+	start := e.entries[len(e.entries)-1].EntryNumber + 1
+	entry := e.entryCache[start]
+	for entry != nil {
+		e.entries = append(e.entries, entry)
+		start += 1
+		entry = e.entryCache[start]
+	}
 }
 func (e *EntryList) LastEntry() *Entry {
 	e.Lock()
@@ -436,7 +450,7 @@ func (e *EntryExecutor) Execute() {
 	e.Lock()
 	defer e.Unlock()
 	e.running.Store(RUNNING)
-	e.logger.Trace("Try to execute entry", "index", e.entryIndex)
+	e.logger.Debug("Try to execute entry", "index", e.entryIndex)
 	status := PAUSE
 	for e.entryList.Len() > e.entryIndex {
 		entry := e.entryList.Get(e.entryIndex)
@@ -784,4 +798,16 @@ func (m *EpochViewBlockMap) GetAllEpochs() []uint64 {
 		epochs = append(epochs, epoch)
 	}
 	return epochs
+}
+
+type LocalPeer struct {
+}
+
+func (LocalPeer) Id() string {
+	return "local"
+}
+func (LocalPeer) Disconnect(reason p2p.DiscReason) {}
+func (LocalPeer) ReadWriter() p2p.MsgReadWriter    { return nil }
+func (LocalPeer) Info() interface{} {
+	return "local"
 }

@@ -435,7 +435,7 @@ func (m *Module) cleanState(epoch, view uint64) {
 	entryMsgList := m.epochViewBlockMap.GetOrderedEntryMsgList(epoch, view)
 	for _, msgList := range entryMsgList {
 		for _, msg := range msgList.GetOrderedAllEntries() {
-			m.handleEntry(nil, msg)
+			m.handleEntry(LocalPeer{}, msg)
 		}
 	}
 }
@@ -458,11 +458,12 @@ func (m *Module) handleEntry(peer sdkp2p.Peer, msg *EntryMsg) error {
 	epoch, _ := m.cs.EpochView()
 	if msg.Epoch > epoch {
 		if msg.Epoch == epoch+1 {
+			m.logger.Debug("Add Entry cache", "current", epoch, "msgepoch", msg.Epoch)
 			m.epochViewBlockMap.AddOrReplaceEntry(msg)
 		}
 		return nil
 	}
-	m.logger.Debug("Handle receive entry ", "epoch", msg.Epoch, "view", msg.View, "blockNumber", msg.BlockNumber, "entryNumber", msg.EntryNumber)
+	m.logger.Debug("Handle receive entry ", "peer", peer.Id(), "epoch", msg.Epoch, "view", msg.View, "blockNumber", msg.BlockNumber, "entryNumber", msg.EntryNumber)
 	//verify signature
 	if err := m.cs.VerifyEntry(&msg.Entry); err != nil {
 		m.logger.Error("Verify entry failed", "err", err)
