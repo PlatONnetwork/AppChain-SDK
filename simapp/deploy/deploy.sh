@@ -86,7 +86,8 @@ createEmptyToolConfig(){
     $(cp -f $PROJECT_BASE/tools/bin/benchmark.sh $newNodeDir/scripts/bin)
     $(cp -f $PROJECT_BASE/tools/bin/generate.sh $newNodeDir/scripts/bin)
     $(cp -f $PROJECT_BASE/tools/bin/staking.sh $newNodeDir/scripts/bin)
-    $(cp -f $PROJECT_BASE/tools/README.md $newNodeDir/README.md)
+    $(cp -f $PROJECT_BASE/tools/testnet_cn.md $newNodeDir/README_CN.md)
+    $(cp -f $PROJECT_BASE/tools/testnet_en.md $newNodeDir/README.md)
 
     $(cp -f $toolsPath $newNodeDir/scripts/bin/tools)
     $(cp -f $benchmarkclient $newNodeDir/scripts/bin/benchmarkclient)

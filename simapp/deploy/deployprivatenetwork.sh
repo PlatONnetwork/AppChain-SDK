@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_BASE="$(dirname "$SCRIPT_DIR")"
 PROJECT_ROOT="$(dirname "$PROJECT_BASE")"
@@ -40,7 +39,9 @@ deployPrivateNetwork(){
     $(cp -f $tools $rootDir/bin/tools)
     $(cp -f $benchmarkclient $rootDir/bin/benchmarkclient)
     $(cp -rf $PROJECT_ROOT/lib $rootDir/scripts/)
+    $(cp -rf $PROJECT_BASE/tools/privatenetwork_cn.md $rootDir/README_CN.md)
     $(cp -rf $PROJECT_BASE/tools/privatenetwork_en.md $rootDir/README.md)
+
     $(cp -rf $PROJECT_BASE/tools/bin/gensimapp.sh $rootDir/scripts/bin)
     $(cp -rf $PROJECT_BASE/tools/bin/benchmarkcluster.sh $rootDir/scripts/bin)
     genSimappEnv $rootDir/scripts/config/simappenv $simappConfigMap
@@ -62,6 +63,9 @@ EOF
 
 case "$1" in
     "all")
-    deployPrivateNetwork $2 $3 $4 $5 $6
+    	deployPrivateNetwork $2 $3 $4 $5 $6
+	;;
+    *)
+    	showHelp
     ;;
 esac
