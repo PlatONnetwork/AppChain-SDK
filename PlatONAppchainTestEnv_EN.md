@@ -45,10 +45,10 @@ Simple staking and unstaking script.
 #### Performance Testing
 
 * `cd scripts/bin`
-* `./benchmarkcluster.sh gencontracttx 200000` to generate 200,000 ERC20 contract transfer transactions
-* `./benchmarkcluster.sh status` to check if generation is complete (cache:200000)
-* `./benchmarkcluster.sh startcontracttx` to start the stress test
-* `./benchmarkcluster.sh status` to check if all transactions have been sent (sent:200000)
+* `./benchmark.sh gencontracttx 200000` to generate 200,000 ERC20 contract transfer transactions
+* `./benchmark.sh status` to check if generation is complete (cache:200000)
+* `./benchmark.sh startcontracttx` to start the stress test
+* `./benchmark.sh status` to check if all transactions have been sent (sent:200000)
 
 Block transaction details can be queried via the block explorer.
 

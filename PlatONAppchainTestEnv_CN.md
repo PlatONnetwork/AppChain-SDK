@@ -45,10 +45,10 @@ https://app-chain.oss-ap-southeast-1.aliyuncs.com/testnetnode.tar.gz
 #### 性能测试
 
 * `cd scripts/bin`
-* `./benchmarkcluster.sh gencontracttx 200000`  生成200000 ERC20 合约转账交易
-* `./benchmarkcluster.sh status` 查看是否生成完 cache:200000
-* `./benchmarkcluster.sh startcontracttx` 启动压测
-* `./benchmarkcluster.sh status` 查看是否发送完 sent:200000
+* `./benchmark.sh gencontracttx 200000`  生成200000 ERC20 合约转账交易
+* `./benchmark.sh status` 查看是否生成完 cache:200000
+* `./benchmark.sh startcontracttx` 启动压测
+* `./benchmark.sh status` 查看是否发送完 sent:200000
 
 通过浏览器可查询到区块交易情况
 
