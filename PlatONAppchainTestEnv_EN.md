@@ -28,10 +28,11 @@ Please contact us to obtain test tokens.
 * `./init.sh`
 * `./start.sh`
 
-#### Staking Script
-Simple staking and unstaking script.
+#### Staking
 
-!!!~~~~ Before using this script, please ensure your node is fully synchronized to the latest block. Otherwise, penalties may be incurred when executing staking operations.
+#### Node Staking
+
+Before performing the staking operation, please ensure your node is fully synchronized to the latest block. Otherwise, penalties may be imposed when executing the staking operation.
 
 ##### Execution Process
 
