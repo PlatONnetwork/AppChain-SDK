@@ -85,9 +85,9 @@ https://app-chain.oss-ap-southeast-1.aliyuncs.com/privatenetwork.tar.gz
 ```
 generate keys success please contact the official team to ensure sufficient balance for both the deploy address:0x311F5F59B1170e095709eE8da4f6880d912946F3, initialize address:0x8CFF458f3d7cFF30943701979b336adFf42D2776 and checkpoint address:0xabEe1cCfb84853d954f8a005a1Becc18d37A86ec
 ```
-**deploy address:** 部署合约账户地址，需要PlatON测试网LAT
-**initialize address:** 合约初始化账户地址，需要PlatON测试网LAT
-**checkpoint address:** 发送 checkpoint 交易账户地址，需要PlatON测试网LAT
+* **deploy address:** 部署合约账户地址，需要PlatON测试网LAT
+* **initialize address:** 合约初始化账户地址，需要PlatON测试网LAT
+* **checkpoint address:** 发送 checkpoint 交易账户地址，需要PlatON测试网LAT
 #### 创建链
 
 
