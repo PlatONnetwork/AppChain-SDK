@@ -26,7 +26,7 @@ https://app-chain.oss-ap-southeast-1.aliyuncs.com/testnetnode.tar.gz
 generate keys success please contact the official team to ensure sufficient balance for both the user address:0x6f9f59826097D25f0D6F4d719805D1cF8ba7a07d and checkpoint address:0x1Df85FA030d2E00bA28EfA7115eF5dB88B14CcDD
 ```
 
-* **user address:** 验证人账户地址，需要获取PlatON测试网LAT与应用链测试Token（SIMAPP)
+* **user address:** 验证人账户地址，需要获取PlatON测试网LAT与应用链测试Token(SIMAPP)
 * **checkpoint address:** 发送 checkpoint交易账户地址，需要获取PlatON测试网LAT
 
 #### 启动节点
