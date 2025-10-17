@@ -1,6 +1,6 @@
 ## PlatON应用链测试环境
 
-PlatON实现了一个基于PlatON的L2应用链，采用PlatON相同的共识算法、虚拟机、经济模型，该项目的源码位于xxxxx。
+PlatON实现了一个基于PlatON的L2应用链，采用PlatON相同的共识算法、虚拟机、经济模型，该项目的源码位于 https://github.com/PlatONnetwork/AppChain-SDK。
 
 ### 测试应用链
 
