@@ -10,7 +10,7 @@ PlatON已经部署了一套用于测试的PlatON L2应用链，测试环境有4�
 
 
 #### 下载测试环境配置
-测试环境配置系统为 Ubuntu 24.04 LTS，请确保一致。下载链接为：
+操作系统为 Ubuntu 24.04 LTS。下载链接为：
 https://app-chain.oss-ap-southeast-1.aliyuncs.com/testnetnode.tar.gz
 #### 生成配置
 
@@ -59,7 +59,7 @@ https://app-chain.oss-ap-southeast-1.aliyuncs.com/testnetnode.tar.gz
 用户可以基于该源码搭建自己的PlatON L2应用链，下面提供基于编译后的私有链配置环境进行搭建：
 
 #### 下载版本
-测试环境配置系统为 Ubuntu 24.04 LTS，请确保一致。下载链接为：
+操作系统为 Ubuntu 24.04 LTS（安装ansible）。下载链接为：
 https://app-chain.oss-ap-southeast-1.aliyuncs.com/privatenetwork.tar.gz
 
 #### 生成配置参数

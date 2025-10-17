@@ -9,7 +9,7 @@ PlatON has deployed a set of PlatON L2 application chains for testing purposes. 
 Users can conduct contract and dAPP development testing in this test environment, or set up their own nodes to join the test chain and perform performance verification. The methods are as follows:
 
 #### Download Test Environment Configuration
-The test environment configuration system is Ubuntu 24.04 LTS. Please ensure consistency. The download link is:
+The operating system is Ubuntu 24.04 LTS. The download link is:
 https://app-chain.oss-ap-southeast-1.aliyuncs.com/testnetnode.tar.gz
 #### Generate Configuration
 
@@ -58,7 +58,7 @@ Block transaction details can be queried via the block explorer.
 Users can build their own PlatON L2 application chain based on this source code. Below provides the setup using a compiled private chain configuration environment:
 
 #### Download Version
-The test environment configuration system is Ubuntu 24.04 LTS. Please ensure consistency. The download link is:
+The operating system is Ubuntu 24.04 LTS (with Ansible installed). The download link is:
 https://app-chain.oss-ap-southeast-1.aliyuncs.com/privatenetwork.tar.gz
 
 #### Generate Configuration Parameters
