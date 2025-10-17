@@ -72,12 +72,12 @@ https://app-chain.oss-ap-southeast-1.aliyuncs.com/privatenetwork.tar.gz
 
 - `cd scripts/bin` 进入到脚本目录
 - `./gensimapp.sh [IPS] [USERNAME] [PASSWORD]`，如机器为10.1.1.33,10.1.1.34,10.1.1.35,服务器账户密码为simapp, 123456则命令为`./gensimapp.sh gen 10.1.1.33,10.1.1.34,10.1.1.35 simapp 123456`，scripts/config 将生成如下文件
-  - **benchmarkenv** 压测的环境变量配置，主要是RPC地址、压测性能参数配置
-  - **l1checkpointsender.json**  向 Layer1 发送checkpoint交易的keystore 账户文件，需要保证有足够余额
-  - **l1checkpointsender_password** `l1checkpointsender.json` 的keystore密码
-  - **l2txsender.json**  Layer2 发送系统交易的账户
-  - **l2txsender_password** `l2txsender.json` 的keystore密码
-  - **simappenv** 应用链部署的环境变量配置
+  - **benchmarkenv:** 压测的环境变量配置，主要是RPC地址、压测性能参数配置
+  - **l1checkpointsender.json:**  向 Layer1 发送checkpoint交易的keystore 账户文件，需要保证有足够余额
+  - **l1checkpointsender_password:** `l1checkpointsender.json` 的keystore密码
+  - **l2txsender.json:**  Layer2 发送系统交易的账户
+  - **l2txsender_password:** `l2txsender.json` 的keystore密码
+  - **simappenv:** 应用链部署的环境变量配置
 
 #### 测试代币
 
