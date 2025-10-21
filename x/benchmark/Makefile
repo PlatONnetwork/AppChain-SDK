@@ -1,13 +1,15 @@
 GOBIN = $(shell pwd)/build/bin
 ROOT=$(shell pwd)
-all:benchmark client
 
-benchmark:benchmark.bin
-client:client.bin
-%.bin:
-	go build -o $(GOBIN)/$* $(ROOT)/cmd/$*
-	@echo "Done building."
-	@echo "Run \"$(GOBIN)/$(*)\" to launch $(*)."
+all: benchmark benchmark_client
+
+benchmark:
+	go build -o $(GOBIN)/benchmark $(ROOT)/cmd/benchmark
+	@echo "Done building benchmark."
+
+benchmark_client:
+	go build -o $(GOBIN)/benchmark_client $(ROOT)/cmd/client
+	@echo "Done building benchmark_client."
 
 clean:
 	rm -rf $(ROOT)/build
