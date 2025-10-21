@@ -5,6 +5,8 @@ github.com/Microsoft/go-winio v0.4.13/go.mod h1:qXqCSQ3Xa7+6tgxaGTIe4Kpcdsi+P8jB
 github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 h1:TngWCqHvy9oXAN6lEVMRuU21PR1EtLVZJmdB18Gu3Rw=
 github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5/go.mod h1:lmUJ/7eu/Q8D7ML55dXQrVaamCz2vxCfdQBasLZfHKk=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
+github.com/PlatONnetwork/AppChain-Base v0.0.0-20250922085429-ae96f7459050 h1:A1+cNswVQP2OlYewqx9lMEj762UoOXHDyV1oAzpnlXU=
+github.com/PlatONnetwork/AppChain-Base v0.0.0-20250922085429-ae96f7459050/go.mod h1:bKnjG+0hfXU7bBdRAOhmHOrgpiR41oYRphwCUfiu+2g=
 github.com/PlatONnetwork/wagon v0.6.1-0.20201026015350-67507c2a7b96 h1:BA5xEQQrv82VdaxUoAZeGi/G/UQ3z6z+eNe2rijhhpg=
 github.com/PlatONnetwork/wagon v0.6.1-0.20201026015350-67507c2a7b96/go.mod h1:zPWloKR2Ep7uqrhyLyE483NCxlAlQnbPsQUJXWN6bVM=
 github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d h1:G0m3OIz70MZUWq3EgK3CesDbo8upS2Vm9/P3FtgI+Jk=

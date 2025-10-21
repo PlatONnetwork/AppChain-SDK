@@ -3,13 +3,12 @@ module github.com/PlatONnetwork/AppChain-SDK
 go 1.23.0
 
 require (
-	github.com/PlatONnetwork/PlatON-Go v1.5.0
+	github.com/PlatONnetwork/PlatON-Go v1.0.0
 	github.com/deckarep/golang-set v1.8.0
 	github.com/dgraph-io/ristretto/v2 v2.2.0
 	github.com/google/uuid v1.1.5
 	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d
 	github.com/holiman/uint256 v1.2.0
-	github.com/naoina/toml v0.1.2-0.20170918210437-9fafd6967416
 	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/status-im/keycard-go v0.0.0-20190316090335-8537d3370df4
 	github.com/stretchr/testify v1.10.0
@@ -64,6 +63,7 @@ require (
 	github.com/mitchellh/pointerstructure v1.2.0 // indirect
 	github.com/mroth/weightedrand v0.3.0 // indirect
 	github.com/naoina/go-stringutil v0.1.0 // indirect
+	github.com/naoina/toml v0.1.2-0.20170918210437-9fafd6967416 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/peterh/liner v1.0.1-0.20180619022028-8c1271fcf47f // indirect
@@ -91,4 +91,4 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
-replace github.com/PlatONnetwork/PlatON-Go => ../AppChain-Base
+replace github.com/PlatONnetwork/PlatON-Go => github.com/PlatONnetwork/AppChain-Base v0.0.0-20250922085429-ae96f7459050
